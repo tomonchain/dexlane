@@ -1,21 +1,10 @@
-import { afterAll, beforeEach } from "vitest";
-import { createDb, type Db } from "@dexlane/db";
+import type { Db } from "@dexlane/db";
+import { useTestDb as useScopedTestDb } from "@dexlane/db/testing";
 import { importOrder, receiveStock, type StockKind } from "../src";
-import { testDatabaseUrl } from "./db-url";
 
 export const ACTOR = "test";
 
-/** Connexion partagée par fichier de test ; tables vidées avant chaque test. */
-export function useTestDb(): Db {
-  const sql = createDb(testDatabaseUrl(), { max: 10 });
-  beforeEach(async () => {
-    const tables = await sql<{ tablename: string }[]>`
-      select tablename from pg_tables where schemaname = 'public' and tablename <> 'schema_migrations'`;
-    await sql.unsafe(`truncate ${tables.map((t) => `"${t.tablename}"`).join(", ")} restart identity cascade`);
-  });
-  afterAll(() => sql.end());
-  return sql;
-}
+export const useTestDb = (): Db => useScopedTestDb("inventory");
 
 let seq = 0;
 const next = () => ++seq;
