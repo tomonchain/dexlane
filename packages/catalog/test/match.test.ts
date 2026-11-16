@@ -59,6 +59,13 @@ describe("findCandidates", () => {
     expect(r.requiresReview).toBe(true);
   });
 
+  it("uses the printed set code (official or localized) as a set signal", async () => {
+    for (const setCode of ["DAA", "tem"]) {
+      const r = await findCandidates(sql, { language: "fr", collectorNumber: "136", setCode });
+      expect(r.candidates[0], setCode).toMatchObject({ setId: "swsh3", signals: { number: 1, set: 1 } });
+    }
+  });
+
   it("does not match cards from another language", async () => {
     const r = await findCandidates(sql, { language: "en", name: "Fouinar", collectorNumber: "136/189" });
     expect(r.candidates).toEqual([]);

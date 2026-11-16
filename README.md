@@ -12,9 +12,10 @@ Application personnelle de négoce de cartes Pokémon. Spécification : [`specs-
 | `packages/db` | Connexion postgres.js, helper de transaction, migrations |
 | `packages/shared` | Erreurs métier, montants en centimes |
 | `packages/catalog` | Synchronisation TCGdex (séries, cartes, variantes détaillées, cotations Cardmarket datées), recherche des 3 meilleurs candidats à partir d'une lecture OCR |
+| `packages/scan` | Lecture de carte par Claude (vision + sortie structurée, repli serveur), identification photo → candidats catalogue, banc d'essai précision/coût |
 | `packages/inventory` | Entrée en stock, déplacement, extraction du vrac, import idempotent de commandes, allocation commande → positions, survente (Parcours F), picking par scan, emballage, confirmation de dépôt |
 
-Pas encore commencés : `apps/web`, `apps/api`, `apps/worker`, reconnaissance d'image (OCR/vision), pricing, connecteurs marketplaces, fulfillment PDF.
+Pas encore commencés : `apps/web`, `apps/api`, `apps/worker`, pricing, connecteurs marketplaces, fulfillment PDF.
 
 ## Prérequis
 
@@ -38,6 +39,22 @@ pnpm --filter @dexlane/catalog sync --lang fr --list-only          # métadonné
 pnpm --filter @dexlane/catalog sync --lang fr --set swsh3 --set sv01 # cartes, variantes, cotations
 ```
 
+Banc d'essai du scan (spec Sprint 0 — nécessite `ANTHROPIC_API_KEY` ou `ant auth login`) :
+
+```sh
+# Vos photos : un dossier avec les images (jpg/png/webp, < 5 Mo) et labels.csv
+#   file,set_id,local_number,language
+#   IMG_0001.jpg,swsh3,136,fr
+pnpm --filter @dexlane/scan bench --dir ~/photos-test --out results.csv
+
+# Sans photos : visuels officiels TCGdex des cartes synchronisées (résultats optimistes)
+pnpm --filter @dexlane/scan bench --catalog-sample 20 --set swsh3
+
+# Options : --model claude-opus-5-5 --effort low|medium|high --concurrency 3
+```
+
+Indicateur clé : `silentErrors`, les cartes acceptées sans revue alors qu'elles sont fausses. Il doit rester à 0.
+
 Les tests tournent contre un vrai PostgreSQL : la base de test de chaque package (`dexlane_<package>_test`) est créée si besoin puis **vidée** à chaque test. Par sécurité, le nom de base doit se terminer par `_test`.
 
 ## Garanties anti-double-vente
@@ -55,4 +72,5 @@ Les compteurs de stock sont une projection du journal `inventory_movements` (app
 - **Cotations** : guide des prix Cardmarket relayé par TCGdex ; toutes langues et tous états confondus (`source_scope`). Reverse = champs `-holo`. Les valeurs nulles ou à 0 sont ignorées.
 - **Ambiguïté** : quand plusieurs variantes partagent un produit Cardmarket (ex. Set de Base 1re édition / sans ombre), leurs cotations sont `variant_ambiguous` et ne doivent pas servir à publier sans revue.
 - **Identification** : revue humaine obligatoire si score < 0,95, si deux candidats sont proches ou si le nom n'a pas été lu. Le choix de la variante est toujours confirmé par l'opérateur.
+- **Scan** : Claude transcrit seulement (nom, numéro, code d'extension, langue, indices de finition) ; le rapprochement avec le catalogue reste déterministe. Champ illisible → ignoré ; lisibilité partielle, note du modèle ou langue indéterminée → revue. Repli serveur activé (`fallbacks: "default"`) si le modèle décline une requête.
 - **Droits** : les conditions de réutilisation des données TCGdex et du guide des prix Cardmarket restent à vérifier (spec §11, Sprint 0) avant usage commercial.

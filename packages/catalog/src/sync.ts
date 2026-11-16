@@ -70,14 +70,16 @@ export async function syncSetList(sql: Db, client: TcgdexClient, language: strin
 async function upsertSet(sql: Db, set: TcgdexSet, language: string): Promise<void> {
   await sql`
     insert into catalog_sets (id, language, name, serie_id, serie_name, release_date, card_count_official,
-                              card_count_total, abbreviation, logo_url, symbol_url)
+                              card_count_total, abbreviation, abbreviation_localized, logo_url, symbol_url)
     values (${set.id}, ${language}, ${set.name}, ${set.serie?.id ?? null}, ${set.serie?.name ?? null},
             ${set.releaseDate ?? null}, ${set.cardCount?.official ?? null}, ${set.cardCount?.total ?? null},
-            ${set.abbreviation?.official ?? null}, ${set.logo ?? null}, ${set.symbol ?? null})
+            ${set.abbreviation?.official ?? null}, ${set.abbreviation?.localized ?? null},
+            ${set.logo ?? null}, ${set.symbol ?? null})
     on conflict (id, language) do update set
       name = excluded.name, serie_id = excluded.serie_id, serie_name = excluded.serie_name,
       release_date = excluded.release_date, card_count_official = excluded.card_count_official,
       card_count_total = excluded.card_count_total, abbreviation = excluded.abbreviation,
+      abbreviation_localized = excluded.abbreviation_localized,
       logo_url = excluded.logo_url, symbol_url = excluded.symbol_url, synced_at = now()`;
 }
 

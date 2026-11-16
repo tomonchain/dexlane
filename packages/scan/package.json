@@ -1,0 +1,20 @@
+{
+  "name": "@dexlane/scan",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "bench": "tsx src/bench-cli.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
+    "@dexlane/catalog": "workspace:*",
+    "@dexlane/db": "workspace:*",
+    "@dexlane/shared": "workspace:*",
+    "zod": "^4.6.7"
+  }
+}

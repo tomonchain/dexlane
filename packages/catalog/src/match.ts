@@ -9,6 +9,8 @@ export interface CardReading {
   collectorNumber?: string;
   /** Série si déjà connue (sélection opérateur, symbole reconnu…). */
   setId?: string;
+  /** Code d'extension imprimé (« DAA », « TEM », « PAR »), officiel ou localisé. */
+  setCode?: string;
 }
 
 export interface CandidateVariant {
@@ -63,7 +65,12 @@ export async function findCandidates(
   const parsed = reading.collectorNumber ? parseCollectorNumber(reading.collectorNumber) : null;
   const number = parsed ? normalizeNumber(parsed.number) : null;
   const printedTotal = parsed?.printedTotal ?? null;
-  const setId = reading.setId ?? null;
+  const setIds = reading.setId
+    ? [reading.setId]
+    : reading.setCode
+      ? await resolveSetCode(sql, reading.language, reading.setCode)
+      : [];
+  const setId = setIds[0] ?? null;
 
   if (!name && !number && !setId) return { candidates: [], ambiguous: false, requiresReview: true };
 
@@ -93,7 +100,7 @@ export async function findCandidates(
     if (printedTotal != null) {
       signals.printedTotal = printedTotal === r.cardCountOfficial || printedTotal === r.cardCountTotal ? 1 : 0;
     }
-    if (setId) signals.set = r.setId === setId ? 1 : 0;
+    if (setIds.length) signals.set = setIds.includes(r.setId) ? 1 : 0;
     let weighted = 0;
     let weights = 0;
     for (const [k, v] of Object.entries(signals) as [keyof typeof WEIGHTS, number][]) {
@@ -134,4 +141,16 @@ export async function findCandidates(
   // Sans nom lu, un seul chiffre mal reconnu suffit à désigner une autre carte : jamais d'acceptation automatique.
   const nameRead = name !== null;
   return { candidates, ambiguous, requiresReview: !first || !nameRead || first.score < threshold || ambiguous };
+}
+
+/** Code imprimé → séries possibles (un même code peut exister dans plusieurs langues ou être réutilisé). */
+async function resolveSetCode(sql: Db, language: string, code: string): Promise<string[]> {
+  const normalized = code.trim().toUpperCase();
+  if (!normalized) return [];
+  const rows = await sql<{ id: string }[]>`
+    select id from catalog_sets
+     where language = ${language}
+       and (upper(abbreviation) = ${normalized} or upper(abbreviation_localized) = ${normalized})
+     order by id`;
+  return rows.map((r) => r.id);
 }
