@@ -481,6 +481,22 @@ function PhotoStyleEditor({ settings, onSaved }: { settings: ListingSettings; on
     }
   }
 
+  const promoRef = useRef<HTMLInputElement>(null);
+  /** Image de fin d'annonce : enregistrée tout de suite, elle ne dépend pas du style des photos. */
+  async function setPromo(file: File | null) {
+    setUploading(true);
+    setError(null);
+    try {
+      const promoPhotoId = file ? (await api.uploadPhoto(await prepareImage(file), "PROMO")).id : null;
+      onSaved(await api.saveListingSettings({ ...settings, promoPhotoId }));
+      toast.success(file ? "Image de fin d'annonce enregistrée" : "Image de fin d'annonce retirée");
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setUploading(false);
+    }
+  }
+
   const b = style.background;
   const dirty = JSON.stringify(style) !== JSON.stringify(settings.photo);
   const range = "h-2 w-full cursor-pointer appearance-none rounded-full bg-muted accent-primary";
@@ -582,6 +598,30 @@ function PhotoStyleEditor({ settings, onSaved }: { settings: ListingSettings; on
           <div className="grid gap-1 sm:grid-cols-2 sm:gap-6">
             <SwitchRow label="Coins arrondis" description="Masque les coins du scan au format de la carte." checked={style.roundCorners} onCheckedChange={(roundCorners) => patch({ roundCorners })} />
             <SwitchRow label="Ombre portée" description="Détache la carte du fond." checked={style.shadow} onCheckedChange={(shadow) => patch({ shadow })} />
+          </div>
+
+          <div className="grid gap-2 border-t pt-5" data-testid="promo">
+            <Eyebrow>Image de fin d'annonce</Eyebrow>
+            <p className="text-sm text-muted-foreground">Ajoutée en dernière photo de chaque annonce : « On rachète vos cartes », vos conditions d'envoi, votre logo…</p>
+            <div className="flex flex-wrap items-center gap-3">
+              {settings.promoPhotoId && <img src={api.photoContentUrl(settings.promoPhotoId)} alt="Image de fin d'annonce" className="size-20 rounded-md bg-muted object-cover ring-1 ring-border" />}
+              <input
+                ref={promoRef}
+                type="file"
+                accept="image/*"
+                hidden
+                data-testid="promo-input"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (file) void setPromo(file);
+                }}
+              />
+              <Button variant="outline" onClick={() => promoRef.current?.click()} disabled={uploading}>
+                {uploading ? <Spinner /> : <Upload />} {settings.promoPhotoId ? "Changer l'image" : "Choisir une image"}
+              </Button>
+              {settings.promoPhotoId && <Button variant="ghost" onClick={() => setPromo(null)} disabled={uploading}>Retirer</Button>}
+            </div>
           </div>
 
           {error && <Alert variant="destructive">{error}</Alert>}

@@ -714,3 +714,59 @@ test("dossier du scanner relié : chaque carte scannée arrive seule, les ancien
   expect(after.items.map((i) => i.id)).toEqual(before.items.map((i) => i.id));
   await expect(page.getByTestId("batch-save")).toHaveText("Entrer 2 cartes en stock");
 });
+
+test("mise en ligne planifiée : image de fin d'annonce, sélection de cartes, répartition par jour, publication du jour, annulation", async ({ page }) => {
+  await login(page);
+  await page.request.put("/api/channels/ebay", { data: { mode: "SIMULATION" } });
+  await page.request.post("/api/locations", { data: { code: "BOX-PL" } });
+  const { candidates } = (await (await page.request.get("/api/catalog/cards?name=fouinar")).json()) as { candidates: { variants: { id: string; finish: string }[] }[] };
+  const normal = candidates[0]!.variants.find((v) => v.finish === "normal")!.id;
+  for (const condition of ["LP", "PL"]) {
+    const scanned = (await (await page.request.post("/api/scans?language=fr", { data: png(CLEAR), headers: { "Content-Type": "image/png" } })).json()) as { photo: { id: string } };
+    await page.request.post("/api/inventory/receive", {
+      data: { variantId: normal, condition, quantity: 1, locationCode: "BOX-PL", unitCostCents: 1, photoIds: [scanned.photo.id] },
+      headers: { "Idempotency-Key": `e2e-plan-${condition}-${Date.now()}` },
+    });
+  }
+
+  // Image de fin d'annonce, réglée une fois.
+  await page.goto("/annonces");
+  await page.getByRole("tab", { name: "Photos" }).click();
+  await page.getByTestId("promo-input").setInputFiles({ name: "rachat.png", mimeType: "image/png", buffer: png(40, 40) });
+  await expect(page.getByText("Image de fin d'annonce enregistrée")).toBeVisible();
+  await expect(page.getByTestId("promo").getByRole("img", { name: "Image de fin d'annonce" })).toBeVisible();
+
+  // Stock : deux cartes sélectionnées, une par jour à partir d'aujourd'hui.
+  await page.goto("/");
+  await page.getByLabel("Rechercher dans le stock").fill("OF-SWSH3-136-FR-N-");
+  await page.getByTestId("stock-OF-SWSH3-136-FR-N-LP").getByRole("checkbox").check();
+  await page.getByTestId("stock-OF-SWSH3-136-FR-N-PL").getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Planifier la mise en ligne (2)" }).click();
+  const dialog = page.getByRole("dialog", { name: "Planifier la mise en ligne" });
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date());
+  await dialog.getByLabel("À partir du").fill(today);
+  await dialog.getByLabel("Cartes par jour").fill("1");
+  await expect(dialog.getByTestId("plan-summary")).toContainText("2 cartes sur 2 jours");
+  await dialog.getByRole("button", { name: "Planifier", exact: true }).click();
+  await expect(page.getByText("2 cartes planifiées sur 2 jours")).toBeVisible();
+
+  const schedule = page.getByTestId("schedule");
+  await expect(schedule).toContainText("2 mises en ligne planifiées sur 2 jours");
+  const lp = page.getByTestId("stock-OF-SWSH3-136-FR-N-LP");
+  const pl = page.getByTestId("stock-OF-SWSH3-136-FR-N-PL");
+
+  // La carte du jour part tout de suite ; l'image promo est la dernière photo envoyée au canal.
+  await schedule.getByRole("button", { name: "Publier maintenant les 1 du jour" }).click();
+  await expect(page.getByText("1 annonce publiée")).toBeVisible();
+  await expect(schedule).toContainText("1 mise en ligne planifiée sur 1 jour");
+  const stock = (await (await page.request.get("/api/stock?q=OF-SWSH3-136-FR-N-")).json()) as { items: { offerSku: string; status: string; planned: unknown }[] };
+  expect(stock.items.find((r) => r.offerSku.endsWith("N-LP"))).toMatchObject({ status: "LISTED", planned: null });
+  expect(stock.items.find((r) => r.offerSku.endsWith("N-PL"))).toMatchObject({ status: "READY", planned: { channel: "ebay" } });
+  await expect(lp).toBeVisible();
+  await expect(pl).toBeVisible();
+
+  // Le reste du planning s'annule d'un clic.
+  await schedule.getByRole("button", { name: /^Annuler les mises en ligne du/ }).click();
+  await expect(page.getByText("1 mise en ligne annulée")).toBeVisible();
+  await expect(schedule).toHaveCount(0);
+});

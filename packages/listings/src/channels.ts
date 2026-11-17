@@ -1,7 +1,7 @@
 import { withTx, type Db } from "@dexlane/db";
 import { allocateOrder, createShipment, importOrder, type CardCondition, type ShippingMode } from "@dexlane/inventory";
 import { DomainError } from "@dexlane/shared";
-import { listListingOffers, listingBlockers, listingColumns, type ListingState } from "./store";
+import { listListingOffers, listingBlockers, listingColumns, promoPhotoUrl, type ListingState } from "./store";
 import { CHANNELS, type ChannelId } from "./channel-ids";
 
 export { CHANNELS, isChannel, type ChannelId } from "./channel-ids";
@@ -114,10 +114,12 @@ export async function publishListing(sql: Db, live: ChannelAdapters, input: { of
   if (missing.length > 0) throw new DomainError("LISTING_NOT_READY", "the offer is not ready to be listed", { missing });
 
   const composed = offer.photos.filter((p) => p.kind === "LISTING");
+  const promo = await promoPhotoUrl(sql);
   const published = await adapter.publish({
     offerSku: offer.offerSku, title: offer.text.title, description: offer.text.description, priceCents: offer.targetPriceCents!,
     quantity: offer.available, condition: offer.condition,
-    imageUrls: (composed.length ? composed : offer.photos).map((p) => p.url),
+    // Les photos de la carte d'abord ; l'image commerciale toujours en dernier.
+    imageUrls: [...(composed.length ? composed : offer.photos).map((p) => p.url), ...(promo ? [promo] : [])],
   });
   return withTx(sql, async (tx) => {
     const [existing] = await tx<{ id: string }[]>`

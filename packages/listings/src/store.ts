@@ -20,6 +20,10 @@ export async function saveListingSettings(sql: Db, settings: ListingSettings, ac
       const [background] = await tx`select 1 from photos where id = ${settings.photo.background.photoId} and kind = 'BACKGROUND'`;
       if (!background) throw new DomainError("INVALID_LISTING_SETTINGS", "L'image de fond n'existe plus : choisissez-en une autre.");
     }
+    if (settings.promoPhotoId) {
+      const [promo] = await tx`select 1 from photos where id = ${settings.promoPhotoId} and kind = 'PROMO'`;
+      if (!promo) throw new DomainError("INVALID_LISTING_SETTINGS", "L'image de fin d'annonce n'existe plus : choisissez-en une autre.");
+    }
     const before = await getListingSettings(tx);
     await tx`
       insert into listing_settings (settings) values (${tx.json(settings as never)})
@@ -129,4 +133,12 @@ export async function listListingOffers(
       return { ...offer, missing: listingBlockers(offer), listings: listings.filter((l) => l.offerId === r.offerId) };
     }),
   };
+}
+
+/** Adresse de l'image de fin d'annonce, si une est réglée. */
+export async function promoPhotoUrl(sql: Db): Promise<string | null> {
+  const { promoPhotoId } = await getListingSettings(sql);
+  if (!promoPhotoId) return null;
+  const [photo] = await sql<{ url: string }[]>`select url from photos where id = ${promoPhotoId} and kind = 'PROMO'`;
+  return photo?.url ?? null;
 }

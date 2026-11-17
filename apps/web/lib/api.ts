@@ -2,7 +2,7 @@ import type {
   AcquisitionLot, AlertSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, PriceMoves, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
   Location, Photo, PositionDetail, Received,
   OfferPricing, OrderDetail, OrderList, OrderStage, PricingSettings, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
-  ScanBatch, ScanItem, ShippingMode, StockDetail, StockPage, StockStatus, StoredPhoto, VariantQuote,
+  PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockPage, StockStatus, StoredPhoto, VariantQuote,
 } from "./types";
 
 export class ApiError extends Error {
@@ -94,7 +94,7 @@ export interface BulkInput {
 
 export const api = {
   scan: (image: Blob, language: string) => request<ScanResult>("POST", "/scans", { blob: image, query: { language } }),
-  uploadPhoto: (image: Blob, kind: "SCAN_FRONT" | "SCAN_BACK" | "BACKGROUND") => request<StoredPhoto>("POST", "/photos", { blob: image, query: { kind } }),
+  uploadPhoto: (image: Blob, kind: "SCAN_FRONT" | "SCAN_BACK" | "BACKGROUND" | "PROMO") => request<StoredPhoto>("POST", "/photos", { blob: image, query: { kind } }),
   /** Visuel d'annonce composé à partir d'un scan ; remplace le précédent visuel de ce scan. */
   uploadListingPhoto: (image: Blob, sourcePhotoId: string) => request<Photo>("POST", "/photos", { blob: image, query: { kind: "LISTING", source: sourcePhotoId } }),
   /** Adresse du contenu d'une photo sur la même origine (utilisable dans un canvas). */
@@ -104,6 +104,13 @@ export const api = {
   saveListingSettings: (settings: ListingSettings) => request<ListingSettings>("PUT", "/listings/settings", { json: settings }),
   listingOffers: (q: { q?: string; limit?: number; offset?: number }) =>
     request<{ items: ListingOffer[]; total: number }>("GET", "/listings/offers", { query: q }),
+
+  schedule: () => request<Schedule>("GET", "/publications"),
+  planPublications: (input: { offerIds?: string[]; channel: ChannelId; startOn: string; perDay: number }) =>
+    request<PlanResult>("POST", "/publications/plan", { json: input }),
+  cancelPublications: (filter: { plannedOn?: string; channel?: ChannelId; offerId?: string }) =>
+    request<{ cancelled: number }>("POST", "/publications/cancel", { json: filter }),
+  runPublications: () => request<{ published: number; failed: number }>("POST", "/publications/run"),
 
   scanBatches: () => request<{ batches: ScanBatch[] }>("GET", "/scan-batches"),
   createScanBatch: (input: { name?: string; locationCode: string; unitCostCents?: number; defaultCondition?: CardCondition | null; language?: string; paired?: boolean }) =>

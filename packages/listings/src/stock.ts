@@ -49,6 +49,8 @@ export interface StockRow {
   /** Photo de l'exemplaire (visuel d'annonce, sinon scan) ; null : seule l'image du catalogue existe. */
   photoUrl: string | null;
   listings: ListingState[];
+  /** Prochaine mise en ligne planifiée, s'il y en a une. */
+  planned: { id: string; channel: string; plannedOn: string } | null;
   receivedAt: Date;
 }
 
@@ -90,6 +92,8 @@ export async function listStock(sql: Db, query: StockQuery = {}): Promise<StockP
                'quoteType', o.reference_quote_type, 'amountCents', o.reference_price_cents, 'observedAt', o.reference_observed_at) end as reference,
              (select p.url from photos p where p.offer_id = o.id and p.kind in ('LISTING', 'SCAN_FRONT')
                order by (p.kind = 'LISTING') desc, p.created_at limit 1) as photo_url,
+             (select jsonb_build_object('id', sp.id, 'channel', sp.channel, 'plannedOn', to_char(sp.planned_on, 'YYYY-MM-DD'))
+                from scheduled_publications sp where sp.offer_id = o.id and sp.status = 'PENDING' order by sp.planned_on limit 1) as planned,
              case
                when s.available = 0 and s.draft > 0 then 'DRAFT'
                when exists (select 1 from listings l where l.offer_id = o.id and l.status in ('ACTIVE', 'PAUSED', 'ERROR')) then 'LISTED'

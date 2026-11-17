@@ -355,6 +355,37 @@ describe("scan batches", () => {
   });
 });
 
+describe("scheduled publications", () => {
+  it("plans ready offers day by day, publishes what is due with the promo image last, and cancels the rest", async () => {
+    await call("POST", "/api/locations", { body: { code: "BOX-01" } });
+    const scanned = await scan();
+    const received = await call("POST", "/api/inventory/receive", {
+      body: { variantId: scanned.json.suggestedVariantId, condition: "NM", quantity: 1, locationCode: "BOX-01", unitCostCents: 0, photoIds: [scanned.json.photo.id] },
+    });
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date());
+
+    expect((await call("POST", "/api/publications/plan", { body: { channel: "ebay", startOn: today, perDay: 10 } })).status).toBe(409);
+    await call("PUT", "/api/channels/ebay", { body: { mode: "SIMULATION" } });
+    expect((await call("POST", "/api/publications/plan", { body: { channel: "ebay", startOn: "2020-01-01", perDay: 10 } })).status).toBe(422);
+
+    const promo = await call("POST", "/api/photos?kind=PROMO", { body: new Uint8Array([0xff, 0xd8, 0xff, 7]), headers: { "Content-Type": "image/jpeg" }, key: null });
+    const settings = (await call("GET", "/api/listings/settings")).json;
+    expect(settings.promoPhotoId).toBeNull();
+    expect((await call("PUT", "/api/listings/settings", { body: { ...settings, promoPhotoId: promo.json.id } })).json.promoPhotoId).toBe(promo.json.id);
+    expect((await call("PUT", "/api/listings/settings", { body: { ...settings, promoPhotoId: scanned.json.photo.id } })).status).toBe(422);
+
+    const plan = await call("POST", "/api/publications/plan", { body: { channel: "ebay", startOn: today, perDay: 10 } });
+    expect(plan.json).toMatchObject({ planned: 1, days: 1, firstDay: today });
+    expect((await call("GET", "/api/publications")).json).toMatchObject({ pending: 1, days: [{ plannedOn: today, count: 1, cardNames: ["Fouinar"] }] });
+    expect((await call("GET", "/api/stock")).json.items[0].planned).toMatchObject({ channel: "ebay", plannedOn: today });
+
+    expect((await call("POST", "/api/publications/run")).json).toEqual({ published: 1, failed: 0 });
+    const stock = (await call("GET", "/api/stock")).json.items[0];
+    expect([stock.status, stock.planned, stock.offerId]).toEqual(["LISTED", null, received.json.offer.id]);
+    expect((await call("POST", "/api/publications/cancel", { body: {} })).json).toEqual({ cancelled: 0 });
+  });
+});
+
 describe("statistics and price alerts", () => {
   it("refreshes the quotes of owned cards, exposes the dashboard and the price moves, and saves alert thresholds", async () => {
     await call("POST", "/api/locations", { body: { code: "BOX-01" } });

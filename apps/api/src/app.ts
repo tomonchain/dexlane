@@ -21,7 +21,7 @@ import { DomainError } from "@dexlane/shared";
 import { changePassword, passwordStatus, setPassword, verifyPassword } from "./auth";
 import { HttpError, errorBody, idempotent, parse, parseJsonBody, secretEquals, statusOfDomainError } from "./http";
 import {
-  endListing, getListingSettings, getStockDetail, listChannels, listStock, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
+  cancelPublications, endListing, getListingSettings, getSchedule, getStockDetail, listChannels, listStock, planPublications, runDuePublications, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
   syncChannels, syncQuantities, type ChannelAdapters,
 } from "@dexlane/listings";
 import { readPhoto, type PhotoStore } from "./photos";
@@ -156,7 +156,7 @@ export function createApp(deps: AppDeps) {
     },
   );
 
-  const FOLDERS = { SCAN_FRONT: "scans", SCAN_BACK: "scans", LISTING: "annonces", BACKGROUND: "fonds" } as const;
+  const FOLDERS = { SCAN_FRONT: "scans", SCAN_BACK: "scans", LISTING: "annonces", BACKGROUND: "fonds", PROMO: "fonds" } as const;
 
   async function putFile(image: CardImage, kind: keyof typeof FOLDERS) {
     const stored = await deps.photos!.put({ folder: FOLDERS[kind], data: image.data, contentType: image.mediaType });
@@ -164,7 +164,7 @@ export function createApp(deps: AppDeps) {
   }
 
   /** Dépose une image dans le stockage et en garde la référence ; null si aucun stockage n'est configuré ou s'il échoue. */
-  async function storePhoto(image: CardImage, kind: "SCAN_FRONT" | "SCAN_BACK" | "BACKGROUND") {
+  async function storePhoto(image: CardImage, kind: "SCAN_FRONT" | "SCAN_BACK" | "BACKGROUND" | "PROMO") {
     if (!deps.photos) return null;
     try {
       const row = await recordPhoto(sql, { ...(await putFile(image, kind)), kind });
@@ -227,6 +227,21 @@ export function createApp(deps: AppDeps) {
 
   /** Offres vendables avec le texte de leur annonce et leurs photos. */
   app.get("/api/listings/offers", async (c) => c.json(await listListingOffers(sql, parse(s.listingOffersQuery, c.req.query()))));
+
+  // ───────────────────────── Mise en ligne planifiée ─────────────────────────
+
+  app.get("/api/publications", async (c) => c.json(await getSchedule(sql)));
+
+  /** Répartit des offres prêtes sur des jours consécutifs ; sans `offerIds`, toutes les offres prêtes. */
+  app.post("/api/publications/plan", async (c) => {
+    const body = await parseJsonBody(c, s.planBody);
+    return c.json(await planPublications(sql, { ...body, actor: c.var.actor }));
+  });
+
+  app.post("/api/publications/cancel", async (c) => c.json({ cancelled: await cancelPublications(sql, await parseJsonBody(c, s.cancelPlanBody)) }));
+
+  /** Publie ce qui est dû aujourd'hui. Lancé chaque jour par la tâche planifiée, et à la demande. */
+  app.post("/api/publications/run", async (c) => c.json(await runDuePublications(sql, deps.channels ?? {}, c.var.actor)));
 
   // ───────────────────────── Sessions de scan ─────────────────────────
 

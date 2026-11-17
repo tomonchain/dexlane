@@ -176,7 +176,7 @@ export const cancelOrderBody = z.strictObject({ reason: z.string().trim().min(1)
 export const sellableQuery = z.object({ q: z.string().trim().min(1).max(100).optional() });
 
 export const photoQuery = z
-  .object({ kind: z.enum(["SCAN_FRONT", "SCAN_BACK", "LISTING", "BACKGROUND"]).default("SCAN_BACK"), source: z.uuid().optional() })
+  .object({ kind: z.enum(["SCAN_FRONT", "SCAN_BACK", "LISTING", "BACKGROUND", "PROMO"]).default("SCAN_BACK"), source: z.uuid().optional() })
   .refine((q) => (q.kind === "LISTING") === (q.source !== undefined), "source is required for a LISTING photo, and only for it");
 export const photoId = z.uuid();
 
@@ -197,6 +197,7 @@ export const listingSettingsBody = z.strictObject({
     shadow: z.boolean(),
     caption: z.string().max(60),
   }),
+  promoPhotoId: z.uuid().nullable().default(null),
 });
 export const listingOffersQuery = z.object({
   q: z.string().max(100).optional(),
@@ -248,3 +249,12 @@ export const updateScanItemBody = z.strictObject({
   condition: condition.nullable().optional(),
   skipped: z.boolean().optional(),
 });
+
+const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+export const planBody = z.strictObject({
+  offerIds: z.array(z.uuid()).min(1).max(2000).optional(),
+  channel: channelId,
+  startOn: day,
+  perDay: z.number().int().min(1).max(500),
+});
+export const cancelPlanBody = z.strictObject({ plannedOn: day.optional(), channel: channelId.optional(), offerId: z.uuid().optional() });

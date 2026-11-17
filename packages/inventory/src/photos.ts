@@ -1,7 +1,7 @@
 import { withTx, type Db } from "@dexlane/db";
 import { DomainError } from "@dexlane/shared";
 
-export type PhotoKind = "SCAN_FRONT" | "SCAN_BACK" | "LISTING" | "BACKGROUND";
+export type PhotoKind = "SCAN_FRONT" | "SCAN_BACK" | "LISTING" | "BACKGROUND" | "PROMO";
 
 export interface PhotoRow {
   id: string;

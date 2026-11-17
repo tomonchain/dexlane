@@ -1,20 +1,20 @@
 "use client";
 
-import { Check, Copy, Images, Megaphone, RefreshCw, ScanLine, Search, ShoppingCart, X } from "lucide-react";
+import { CalendarClock, Check, Copy, Images, Megaphone, RefreshCw, ScanLine, Search, ShoppingCart, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import { CardThumb } from "@/components/card-chooser";
 import { Sparkline } from "@/components/charts";
 import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/input";
+import { Field, Input, Select } from "@/components/ui/input";
 import { Code, Spinner } from "@/components/ui/misc";
 import { Modal } from "@/components/ui/modal";
 import { Pagination, SegmentedTabs } from "@/components/ui/tabs";
 import { ApiError, api } from "@/lib/api";
 import { cardImage, formatEuros, parseEuros, variantLabel } from "@/lib/format";
 import { age, eurosInput, quoteLabel, reasonLabel } from "@/lib/pricing";
-import type { ChannelState, ListingBlocker, StockDetail, StockPage, StockRow, StockStatus } from "@/lib/types";
+import type { ChannelId, ChannelState, ListingBlocker, Schedule, StockDetail, StockPage, StockRow, StockStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 50;
@@ -37,11 +37,20 @@ const ERRORS: Record<string, string> = {
 const message = (e: unknown) => (e instanceof ApiError ? (ERRORS[e.code] ?? e.message) : (e as Error).message);
 const subtitle = (r: StockRow) => `${r.setName ?? r.setId.toUpperCase()} · ${r.localNumber} · ${variantLabel(r)}`;
 
-function StatusMark({ status }: { status: StockStatus }) {
+const shortDay = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+const dayLabel = (day: string) => shortDay.format(new Date(`${day}T12:00:00`)).replace(/\.$/, "");
+const PLAN_ERRORS: Record<string, string> = {
+  LISTING_NOT_READY: "prix, photo ou variante manquante",
+  OFFER_NOT_SELLABLE: "plus de stock vendable",
+  CHANNEL_DISABLED: "canal désactivé",
+  CHANNEL_NOT_CONFIGURED: "connecteur du canal non configuré",
+};
+
+function StatusMark({ status, plannedOn }: { status: StockStatus; plannedOn?: string | null }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-[13px] whitespace-nowrap">
       <span className={cn("size-2 rounded-full", STATUS[status].dot)} aria-hidden />
-      {STATUS[status].label}
+      {plannedOn && status === "READY" ? `Planifiée ${dayLabel(plannedOn)}` : STATUS[status].label}
     </span>
   );
 }
@@ -128,6 +137,9 @@ export default function StockPage() {
   const [version, setVersion] = useState(0);
   const [channels, setChannels] = useState<ChannelState[]>([]);
   const [accepting, setAccepting] = useState(false);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [schedule, setSchedule] = useState<Schedule | null>(null);
+  const [planning, setPlanning] = useState(false);
   const desktop = useIsDesktop();
 
   const load = useCallback(() => {
@@ -146,10 +158,24 @@ export default function StockPage() {
     api.channels().then((r) => setChannels(r.channels.filter((c) => c.mode !== "OFF"))).catch(() => setChannels([]));
   }, []);
 
+  const loadSchedule = useCallback(() => {
+    api.schedule().then(setSchedule).catch(() => setSchedule(null));
+  }, []);
+  useEffect(loadSchedule, [loadSchedule]);
+
   const changed = useCallback(() => {
     load();
+    loadSchedule();
     setVersion((v) => v + 1);
-  }, [load]);
+  }, [load, loadSchedule]);
+
+  const toggle = (offerId: string) => setChecked((current) => {
+    const next = new Set(current);
+    if (!next.delete(offerId)) next.add(offerId);
+    return next;
+  });
+  const pageIds = (data?.items ?? []).map((r) => r.offerId);
+  const allChecked = pageIds.length > 0 && pageIds.every((id) => checked.has(id));
 
   const suggested = (data?.items ?? []).filter((r) => r.targetPriceCents === null && r.suggestedPriceCents !== null);
   async function acceptAll() {
@@ -252,18 +278,42 @@ export default function StockPage() {
               ]}
             />
             </div>
-            {suggested.length > 0 && (
-              <Button variant="outline" size="sm" onClick={acceptAll} disabled={accepting}>
-                {accepting ? <Spinner /> : <Check />} Accepter les {suggested.length} prix suggérés
-              </Button>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {suggested.length > 0 && (
+                <Button variant="outline" size="sm" onClick={acceptAll} disabled={accepting}>
+                  {accepting ? <Spinner /> : <Check />} Accepter les {suggested.length} prix suggérés
+                </Button>
+              )}
+              {channels.length > 0 && data && (checked.size > 0 || data.counts.READY > 0) && (
+                <Button size="sm" onClick={() => setPlanning(true)}>
+                  <CalendarClock /> Planifier la mise en ligne{checked.size > 0 ? ` (${checked.size})` : ""}
+                </Button>
+              )}
+            </div>
           </div>
+
+          {schedule && (schedule.pending > 0 || schedule.failed.length > 0) && (
+            <SchedulePanel schedule={schedule} channels={channels} onChanged={changed} />
+          )}
 
           <div className={cn("grid items-start gap-4", selected && desktop && "lg:grid-cols-[minmax(0,1fr)_25rem]")}>
             <div className="overflow-hidden rounded-lg border bg-card">
               <table className="w-full border-collapse text-left text-sm">
                 <thead className="border-b bg-muted/50 text-xs text-muted-foreground">
                   <tr>
+                    <th className="h-9 w-9 pl-3">
+                      <input
+                        type="checkbox"
+                        checked={allChecked}
+                        aria-label="Sélectionner toutes les cartes de la page"
+                        onChange={() => setChecked((current) => {
+                          const next = new Set(current);
+                          for (const id of pageIds) if (allChecked) next.delete(id); else next.add(id);
+                          return next;
+                        })}
+                        className="size-4 cursor-pointer accent-foreground"
+                      />
+                    </th>
                     <th className="h-9 px-3 font-medium">Carte</th>
                     <th className="hidden px-3 font-medium sm:table-cell">État</th>
                     <th className="px-3 text-right font-medium">Qté</th>
@@ -287,6 +337,9 @@ export default function StockPage() {
                         row.offerId === selected && "bg-accent/70 hover:bg-accent/70",
                       )}
                     >
+                      <td className="w-9 pl-3" onClick={(e) => e.stopPropagation()}>
+                        <input type="checkbox" checked={checked.has(row.offerId)} onChange={() => toggle(row.offerId)} aria-label={`Sélectionner ${row.name} ${row.condition}`} className="size-4 cursor-pointer accent-foreground" />
+                      </td>
                       <td className="px-3 py-1.5">
                         <span className="flex items-center gap-3">
                           <CardThumb imageUrl={row.imageUrl} size="sm" className="w-8 rounded-[3px]" />
@@ -311,7 +364,7 @@ export default function StockPage() {
                       <td className="px-3 text-right" onClick={(e) => e.stopPropagation()}>
                         <PriceCell row={row} onSaved={changed} />
                       </td>
-                      <td className="hidden px-3 sm:table-cell"><StatusMark status={row.status} /></td>
+                      <td className="hidden px-3 sm:table-cell"><StatusMark status={row.status} plannedOn={row.planned?.plannedOn} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -322,6 +375,19 @@ export default function StockPage() {
             {desktop ? inspector : selected && <Modal title="Carte" onClose={() => setSelected(null)}>{inspector}</Modal>}
           </div>
           {data && <Pagination page={page} pageCount={Math.ceil(data.total / PAGE_SIZE)} onChange={setPage} />}
+          {planning && data && (
+            <PlanModal
+              channels={channels}
+              selected={[...checked]}
+              readyCount={data.counts.READY}
+              onClose={() => setPlanning(false)}
+              onPlanned={() => {
+                setPlanning(false);
+                setChecked(new Set());
+                changed();
+              }}
+            />
+          )}
         </>
       )}
     </div>
@@ -494,6 +560,15 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
           </div>
         </details>
         {d.missing.length > 0 && <p className="text-[13px] text-muted-foreground">Pour publier, il manque {d.missing.map((m) => BLOCKERS[m]).join(" et ")}.</p>}
+        {d.planned && (
+          <p className="flex items-center gap-2 text-[13px]">
+            <CalendarClock className="size-3.5 text-muted-foreground" aria-hidden />
+            <span className="flex-1">Mise en ligne prévue {dayLabel(d.planned.plannedOn)}</span>
+            <button type="button" disabled={busy} onClick={() => run(async () => { await api.cancelPublications({ offerId: d.offerId }); return "Mise en ligne annulée"; })} className="font-medium underline underline-offset-2 outline-none hover:no-underline focus-visible:ring-2 focus-visible:ring-ring/40">
+              Annuler
+            </button>
+          </p>
+        )}
         {channels.map((channel) => {
           const listing = d.listings.find((l) => l.channel === channel.id);
           return (
@@ -541,5 +616,136 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
       </Section>
       {error && <p role="alert" className="border-t px-4 py-3 text-sm text-destructive">{error}</p>}
     </aside>
+  );
+}
+
+/** Planning des mises en ligne : ce qui part, quel jour, et ce qui n'a pas pu partir. */
+function SchedulePanel({ schedule, channels, onChanged }: { schedule: Schedule; channels: ChannelState[]; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const label = (id: string) => channels.find((c) => c.id === id)?.label ?? id;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date());
+  async function run(action: () => Promise<string>) {
+    setBusy(true);
+    try {
+      toast.success(await action());
+    } catch (e) {
+      toast.error(message(e));
+    } finally {
+      setBusy(false);
+      onChanged();
+    }
+  }
+  const due = schedule.days.filter((d) => d.plannedOn <= today).reduce((sum, d) => sum + d.count, 0);
+  return (
+    <section className="overflow-hidden rounded-lg border bg-card" aria-label="Planning des mises en ligne" data-testid="schedule">
+      <div className="flex flex-wrap items-center gap-3 border-b bg-muted/50 px-4 py-2">
+        <CalendarClock className="size-4 text-muted-foreground" aria-hidden />
+        <h2 className="flex-1 text-[13px] font-medium">
+          {schedule.pending} mise{schedule.pending > 1 ? "s" : ""} en ligne planifiée{schedule.pending > 1 ? "s" : ""} sur {schedule.days.length} jour{schedule.days.length > 1 ? "s" : ""}
+        </h2>
+        {due > 0 && (
+          <Button variant="outline" size="sm" disabled={busy} onClick={() => run(async () => {
+            const r = await api.runPublications();
+            return `${r.published} annonce${r.published > 1 ? "s" : ""} publiée${r.published > 1 ? "s" : ""}${r.failed ? `, ${r.failed} en échec` : ""}`;
+          })}>
+            Publier maintenant les {due} du jour
+          </Button>
+        )}
+      </div>
+      <ul className="divide-y text-sm">
+        {schedule.days.map((d) => (
+          <li key={`${d.plannedOn}-${d.channel}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2">
+            <span className="w-28 font-medium first-letter:uppercase">{dayLabel(d.plannedOn)}</span>
+            <span className="tabular w-36 text-muted-foreground">{d.count} carte{d.count > 1 ? "s" : ""} · {label(d.channel)}</span>
+            <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">{d.cardNames.join(", ")}{d.count > d.cardNames.length ? "…" : ""}</span>
+            <Button variant="ghost" size="sm" disabled={busy} aria-label={`Annuler les mises en ligne du ${dayLabel(d.plannedOn)}`} onClick={() => run(async () => {
+              const r = await api.cancelPublications({ plannedOn: d.plannedOn, channel: d.channel });
+              return `${r.cancelled} mise${r.cancelled > 1 ? "s" : ""} en ligne annulée${r.cancelled > 1 ? "s" : ""}`;
+            })}>
+              Annuler
+            </Button>
+          </li>
+        ))}
+        {schedule.failed.map((f) => (
+          <li key={f.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-[13px]">
+            <span className="size-2 rounded-full bg-destructive" aria-hidden />
+            <span className="flex-1">
+              <strong className="font-medium">{f.cardName}</strong> n'a pas pu être publiée {dayLabel(f.plannedOn)} : {PLAN_ERRORS[f.errorCode ?? ""] ?? "erreur du canal"}.
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function PlanModal({ channels, selected, readyCount, onClose, onPlanned }: {
+  channels: ChannelState[];
+  selected: string[];
+  readyCount: number;
+  onClose: () => void;
+  onPlanned: () => void;
+}) {
+  const tomorrow = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return new Intl.DateTimeFormat("en-CA").format(d);
+  })();
+  const [channel, setChannel] = useState<ChannelId>(channels[0]!.id);
+  const [startOn, setStartOn] = useState(tomorrow);
+  const [perDay, setPerDay] = useState("10");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const count = selected.length || readyCount;
+  const pace = Number(perDay);
+  const valid = Number.isInteger(pace) && pace >= 1 && pace <= 500 && !!startOn;
+  const days = valid ? Math.ceil(count / pace) : 0;
+  const last = (() => {
+    if (!valid || days === 0) return null;
+    const d = new Date(`${startOn}T12:00:00`);
+    d.setDate(d.getDate() + days - 1);
+    return new Intl.DateTimeFormat("en-CA").format(d);
+  })();
+
+  async function plan() {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await api.planPublications({ offerIds: selected.length ? selected : undefined, channel, startOn, perDay: pace });
+      toast.success(
+        r.planned === 0 ? "Aucune carte à planifier : elles sont déjà en ligne, sans prix ou sans stock."
+          : `${r.planned} carte${r.planned > 1 ? "s" : ""} planifiée${r.planned > 1 ? "s" : ""} sur ${r.days} jour${r.days > 1 ? "s" : ""}${r.skipped ? `, ${r.skipped} laissée${r.skipped > 1 ? "s" : ""} de côté` : ""}`,
+      );
+      onPlanned();
+    } catch (e) {
+      setError(e instanceof ApiError && e.code === "INVALID_SCHEDULE" ? "Le premier jour doit être aujourd'hui ou plus tard, avec 1 à 500 cartes par jour." : message(e));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="Planifier la mise en ligne" description={selected.length ? `Les ${selected.length} cartes sélectionnées, dans l'ordre de la sélection.` : `Toutes les cartes prêtes (${readyCount}), dans l'ordre d'entrée en stock.`} onClose={onClose}>
+      {channels.length > 1 && (
+        <Field label="Canal">
+          <Select value={channel} onChange={(e) => setChannel(e.target.value as ChannelId)}>
+            {channels.map((c) => <option key={c.id} value={c.id}>{c.label}{c.mode === "SIMULATION" ? " (simulation)" : ""}</option>)}
+          </Select>
+        </Field>
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="À partir du"><Input type="date" value={startOn} onChange={(e) => setStartOn(e.target.value)} /></Field>
+        <Field label="Cartes par jour"><Input inputMode="numeric" value={perDay} onChange={(e) => setPerDay(e.target.value)} className="tabular" /></Field>
+      </div>
+      <p className="rounded-md bg-muted/50 px-3 py-2 text-sm" data-testid="plan-summary">
+        {valid && last
+          ? <>Jusqu'à <strong className="font-medium">{count} carte{count > 1 ? "s" : ""}</strong> sur <strong className="font-medium">{days} jour{days > 1 ? "s" : ""}</strong>, {days > 1 ? `du ${dayLabel(startOn)} au ${dayLabel(last)}` : `le ${dayLabel(startOn)}`}. Publication chaque matin.</>
+          : "Indiquez une date et un nombre de cartes par jour."}
+      </p>
+      <p className="text-[13px] text-muted-foreground">Les cartes déjà en ligne sur ce canal, sans prix ou sans stock vendable sont laissées de côté.</p>
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      <Button size="lg" onClick={plan} disabled={busy || !valid}>
+        {busy ? <Spinner className="text-primary-foreground" /> : <CalendarClock />} Planifier
+      </Button>
+    </Modal>
   );
 }

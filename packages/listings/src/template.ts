@@ -27,6 +27,8 @@ export interface ListingSettings {
   titleTemplate: string;
   descriptionTemplate: string;
   photo: PhotoStyle;
+  /** Image ajoutée en dernière photo de chaque annonce (message commercial) ; null : aucune. */
+  promoPhotoId: string | null;
 }
 
 export const DEFAULT_LISTING_SETTINGS: ListingSettings = {
@@ -46,6 +48,7 @@ export const DEFAULT_LISTING_SETTINGS: ListingSettings = {
     background: { type: "gradient", from: "#1e293b", to: "#0f172a", angle: 135 },
     size: 1600, marginPercent: 9, trimPercent: 0, roundCorners: true, shadow: true, caption: "",
   },
+  promoPhotoId: null,
 };
 
 export const VARIABLES = [

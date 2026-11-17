@@ -77,6 +77,8 @@ Annonces : `GET` / `PUT /api/listings/settings` (modèle de titre et de descript
 
 Lots scannés : `GET` / `POST /api/scan-batches`, `GET` / `PATCH /api/scan-batches/{id}`, `POST /api/scan-batches/{id}/items?position=&fileName=` (image d'une carte à son rang ; un rang déjà enregistré est renvoyé sans relecture), `POST /api/scan-items/{id}/back` (verso), `PATCH /api/scan-items/{id}` (carte, variante, état, mise à l'écart), `POST /api/scan-batches/{id}/receive` (entrée en stock dans l'ordre, tout ou rien).
 
+Mise en ligne planifiée : `GET /api/publications` (planning par jour, échecs récents), `POST /api/publications/plan` (`offerIds` facultatif, `channel`, `startOn`, `perDay`), `POST /api/publications/cancel`, `POST /api/publications/run` (publie ce qui est dû ; lancé chaque jour par la tâche planifiée). `POST /api/photos?kind=PROMO` dépose l'image de fin d'annonce, réglée par `promoPhotoId` dans les réglages d'annonce.
+
 Stock à vendre : `GET /api/stock?q=&status=ALL|TO_PRICE|READY|LISTED|DRAFT&sort=recent|value|name` (une ligne par offre, compteurs par statut, valeur totale), `GET /api/stock/{offerId}` (annonce, photos, positions, cote sur 90 jours). `POST /api/pricing/offers/{id}/price` accepte un prix sans catégorie : elle est déduite du palier de prix.
 
 Statistiques : `GET /api/stats/dashboard`, `GET /api/stats/price-moves?alerts=true|false`, `GET` / `PUT /api/stats/alert-settings`, `POST /api/prices/refresh` (relève les cotes des cartes en stock, puis réévalue les offres).
@@ -176,6 +178,8 @@ Les compteurs de stock sont une projection du journal `inventory_movements` (app
 - **Prête à publier** : une offre doit avoir un prix cible, au moins une photo de l'exemplaire et une variante confirmée ; sinon la publication est refusée avec la liste de ce qui manque.
 - **Double vente entre canaux** : après toute écriture sur `/api/orders` ou `/api/inventory`, la quantité annoncée est réalignée sur le stock vendable (moins la marge `buffer`). À zéro, l'annonce passe en pause ; elle reprend au réassort. Un échec côté canal laisse l'annonce en `ERROR`, retentée à la synchronisation suivante.
 - **Commandes de canal** : déjà conclues ailleurs, elles ne sont jamais refusées ; si le stock manque, elles partent en survente (Parcours F) au lieu d'échouer.
+- **Mise en ligne planifiée** : depuis le Stock, des cartes sélectionnées (ou toutes les cartes prêtes, dans l'ordre d'entrée en stock) sont réparties sur des jours consécutifs, N par jour. La tâche quotidienne publie ce qui est dû — tôt le matin, heure de Paris pour le calendrier — et une publication impossible (prix ou photo manquante, stock épuisé, canal éteint) est marquée en échec avec son motif sans bloquer les autres. Replanifier une carte déplace sa date ; une carte déjà en ligne sur le canal est laissée de côté.
+- **Image de fin d'annonce** : réglée une fois (Annonces → Photos), elle est ajoutée en dernière photo de chaque annonce publiée, après les photos de la carte.
 - **Prix** : l'annonce garde le prix du moment de la publication ; un prix cible modifié ensuite est signalé, « Mettre à jour » le renvoie.
 
 ## Ventes directes — points d'attention
