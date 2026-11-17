@@ -1,5 +1,5 @@
 import type {
-  AcquisitionLot, Candidate, CardCondition, CatalogSet, ChannelId, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
+  AcquisitionLot, AlertSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, PriceMoves, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
   Location, Photo, PositionDetail, Received,
   OfferPricing, OrderDetail, OrderList, OrderStage, PricingSettings, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
   ShippingMode, StoredPhoto, VariantQuote,
@@ -104,6 +104,11 @@ export const api = {
   saveListingSettings: (settings: ListingSettings) => request<ListingSettings>("PUT", "/listings/settings", { json: settings }),
   listingOffers: (q: { q?: string; limit?: number; offset?: number }) =>
     request<{ items: ListingOffer[]; total: number }>("GET", "/listings/offers", { query: q }),
+
+  dashboard: () => request<Dashboard>("GET", "/stats/dashboard"),
+  priceMoves: (alertsOnly: boolean) => request<PriceMoves>("GET", "/stats/price-moves", { query: { alerts: String(alertsOnly) } }),
+  saveAlertSettings: (settings: AlertSettings) => request<AlertSettings>("PUT", "/stats/alert-settings", { json: settings }),
+  refreshPrices: () => request<{ cards: number; pricesInserted: number; errors: number; remaining: number; repriced: number }>("POST", "/prices/refresh"),
 
   channels: () => request<{ channels: ChannelState[] }>("GET", "/channels"),
   setChannelMode: (channel: ChannelId, mode: ChannelMode) => request<{ channels: ChannelState[] }>("PUT", `/channels/${channel}`, { json: { mode } }),

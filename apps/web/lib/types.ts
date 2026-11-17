@@ -8,7 +8,10 @@ import type {
   ChannelId, ChannelMode, ChannelState as ChannelStateRow, ListingBlocker, ListingOffer as ListingOfferRow, ListingSettings,
   ListingState as ListingStateRow, PhotoStyle,
 } from "@dexlane/listings";
-import type { OfferPricing as PricingRow, PricingSettings, VariantQuote as Quote } from "@dexlane/pricing";
+import type {
+  AlertSettings, Dashboard as DashboardRow, OfferPricing as PricingRow, PriceMove as PriceMoveRow, PriceMoves as PriceMovesRow, PricingSettings,
+  VariantQuote as Quote,
+} from "@dexlane/pricing";
 import type { CardReadingRaw, RecognitionUsage } from "@dexlane/scan";
 
 /** Forme d'un objet du serveur une fois passé par JSON (les dates deviennent des chaînes). */
@@ -83,3 +86,8 @@ export type { ChannelId, ChannelMode, ListingBlocker, ListingSettings, PhotoStyl
 export type ChannelState = Json<ChannelStateRow>;
 export type ListingState = Json<ListingStateRow>;
 export type ListingOffer = Json<ListingOfferRow>;
+
+export type { AlertSettings };
+export type Dashboard = Json<DashboardRow>;
+export type PriceMove = Json<PriceMoveRow>;
+export type PriceMoves = Json<PriceMovesRow>;

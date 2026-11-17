@@ -12,7 +12,7 @@ import { ThemeSwitch } from "./theme";
 const GROUPS = [
   { title: "Entrées", hrefs: ["/", "/scanner/lot", "/vrac"] },
   { title: "Vente", hrefs: ["/annonces", "/ventes", "/prix"] },
-  { title: "Stock", hrefs: ["/inventaire", "/rangement"] },
+  { title: "Stock", hrefs: ["/inventaire", "/rangement", "/statistiques"] },
   { title: "Référentiel", hrefs: ["/catalogue"] },
 ];
 

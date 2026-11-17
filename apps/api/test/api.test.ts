@@ -317,6 +317,37 @@ describe("listings", () => {
   });
 });
 
+describe("statistics and price alerts", () => {
+  it("refreshes the quotes of owned cards, exposes the dashboard and the price moves, and saves alert thresholds", async () => {
+    await call("POST", "/api/locations", { body: { code: "BOX-01" } });
+    const scanned = await scan();
+    await call("POST", "/api/inventory/receive", { body: { variantId: scanned.json.suggestedVariantId, condition: "NM", quantity: 2, locationCode: "BOX-01", unitCostCents: 10 } });
+
+    // Seule la carte détenue est relevée ; la cotation du jour étant déjà connue, rien n'est ajouté en double.
+    const refreshed = await call("POST", "/api/prices/refresh");
+    expect(refreshed.json).toMatchObject({ cards: 1, pricesInserted: 0, errors: 0, remaining: 0, repriced: 0 });
+
+    // Une cote plus ancienne et plus basse : la variation apparaît, et devient une alerte une fois le seuil abaissé.
+    await sql`
+      insert into price_snapshots (variant_id, source, quote_type, currency, amount_cents, observed_at)
+      select variant_id, source, quote_type, currency, greatest(amount_cents - 5, 1), observed_at - interval '10 days'
+        from price_snapshots where variant_id = ${scanned.json.suggestedVariantId} and quote_type = 'LISTED_TREND'`;
+    const moves = await call("GET", "/api/stats/price-moves");
+    expect(moves.json).toMatchObject({ alerts: 0, ownedVariants: 1, trackedVariants: 1, settings: { windowDays: 7, percent: 15, minChangeCents: 100 } });
+    expect(moves.json.moves[0]).toMatchObject({ cardName: "Fouinar", quantity: 2, deltaCents: 5, alert: false });
+    expect(moves.json.moves[0].series).toHaveLength(2);
+
+    expect((await call("PUT", "/api/stats/alert-settings", { body: { windowDays: 0, percent: 5, minChangeCents: 1 } })).status).toBe(422);
+    expect((await call("PUT", "/api/stats/alert-settings", { body: { windowDays: 7, percent: 5, minChangeCents: 1 } })).status).toBe(200);
+    expect((await call("GET", "/api/stats/price-moves?alerts=true")).json).toMatchObject({ alerts: 1, moves: [{ cardName: "Fouinar", alert: true }] });
+
+    const dashboard = await call("GET", "/api/stats/dashboard");
+    expect(dashboard.json).toMatchObject({ stock: { cards: 2, costCents: 20 }, openOrders: 0, byChannel: [] });
+    expect(dashboard.json.months).toHaveLength(6);
+    expect(dashboard.json.topOffers[0]).toMatchObject({ cardName: "Fouinar", quantity: 2 });
+  });
+});
+
 describe("sales channels", () => {
   it("runs the whole marketplace circuit in simulation: publish, direct sale lowers the listing, simulated order, end", async () => {
     await call("POST", "/api/locations", { body: { code: "BOX-01" } });

@@ -549,3 +549,37 @@ test("canaux : simulation eBay — publication, achat simulé qui arrive dans le
   await channel.getByRole("button", { name: "Retirer" }).click();
   await expect(channel.getByRole("button", { name: "Publier sur eBay" })).toBeVisible();
 });
+
+test("statistiques : chiffres clés, variation de cote d'une carte en stock, seuil d'alerte réglable, relevé des cotes", async ({ page }) => {
+  await login(page);
+  const { candidates } = (await (await page.request.get("/api/catalog/cards?name=fouinar")).json()) as { candidates: { variants: { id: string; finish: string }[] }[] };
+  await page.request.post("/api/locations", { data: { code: "BOX-ST" } });
+  await page.request.post("/api/inventory/receive", {
+    data: { variantId: candidates[0]!.variants.find((v) => v.finish === "reverse")!.id, condition: "NM", quantity: 2, locationCode: "BOX-ST", unitCostCents: 5 },
+    headers: { "Idempotency-Key": `e2e-stats-${Date.now()}` },
+  });
+
+  await page.goto("/statistiques");
+  await expect(page.getByRole("heading", { name: "Statistiques" })).toBeVisible();
+  await expect(page.getByTestId("stat-value")).toContainText("€");
+  await expect(page.getByRole("heading", { name: "Valeur du stock par catégorie" })).toBeVisible();
+
+  // La cote du Fouinar reverse a doublé en dix jours (0,14 € → 0,28 €) : visible dans « Toutes », trop faible pour une alerte par défaut.
+  await page.getByRole("tab", { name: "Toutes" }).click();
+  const move = page.getByTestId("move-swsh3-136-reverse");
+  await expect(move).toContainText("+100 %");
+  await expect(move).toContainText("0,14 €");
+  await expect(move).toContainText("0,28 €");
+  await expect(move).not.toContainText("Alerte");
+
+  // Seuil minimal abaissé : la même variation devient une alerte.
+  await page.getByLabel("Variation minimale (€)").fill("0,05");
+  await page.getByRole("button", { name: "Enregistrer les seuils" }).click();
+  await expect(page.getByText("Seuils d'alerte enregistrés")).toBeVisible();
+  await page.getByRole("tab", { name: /^Alertes/ }).click();
+  await expect(move).toContainText("Alerte");
+
+  await page.getByRole("button", { name: "Relever les cotes" }).click();
+  // Le catalogue de test rend ses cotations d'origine : selon l'ordre des parcours, elles sont nouvelles ou déjà connues.
+  await expect(page.getByText(/nouvelles? cotes? sur \d+ cartes?|Cotes déjà à jour/)).toBeVisible();
+});

@@ -53,6 +53,11 @@ const client = fakeClient(["swsh3-136", "base1-4", "sv03.5-151"].map(card), {
 for (const set of ["swsh3", "base1"]) await syncSet(sql, client, "fr", set);
 // Les cotations enregistrées datent de la capture des réponses : on les rajeunit pour qu'elles servent de référence.
 await sql`update price_snapshots set observed_at = now() - interval '1 day'`;
+// Un relevé plus ancien, moitié moins cher : de quoi mesurer une variation de cote (écran Statistiques).
+await sql`
+  insert into price_snapshots (variant_id, condition, source, quote_type, currency, amount_cents, source_scope, observed_at, variant_ambiguous)
+  select variant_id, condition, source, quote_type, currency, greatest(amount_cents / 2, 1), source_scope, observed_at - interval '10 days', variant_ambiguous
+    from price_snapshots`;
 
 serve(
   { fetch: createApp({ sql, token: E2E_TOKEN, recognizer: () => recognizer, tcgdex: () => client, photos: createMemoryPhotoStore(), onError: () => undefined }).fetch, hostname: "127.0.0.1", port: E2E_API_PORT },

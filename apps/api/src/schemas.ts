@@ -209,3 +209,8 @@ export const channelModeBody = z.strictObject({ mode: z.enum(["OFF", "SIMULATION
 export const publishBody = z.strictObject({ channel: channelId });
 export const listingId = z.uuid();
 export const simulateOrderBody = z.strictObject({ qty: z.number().int().min(1).max(100).default(1) });
+
+export const alertSettingsBody = z.strictObject({
+  windowDays: z.number().int(), percent: z.number(), minChangeCents: z.number().int(),
+});
+export const priceMovesQuery = z.object({ alerts: z.enum(["true", "false"]).optional(), limit: z.coerce.number().int().min(1).max(200).default(50) });

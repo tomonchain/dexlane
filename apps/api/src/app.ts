@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import {
-  createTcgdexClient, findCandidates, getSetDetail, listSets, syncSet, syncSetList, type TcgdexClient,
+  createTcgdexClient, findCandidates, getSetDetail, listSets, syncSet, syncSetList, type TcgdexClient, refreshOwnedPrices,
 } from "@dexlane/catalog";
 import type { Db } from "@dexlane/db";
 import {
@@ -12,7 +12,7 @@ import {
   searchInventory, searchSellableOffers, shipOrder, updateLocationDescription,
 } from "@dexlane/inventory";
 import {
-  getPricingSettings, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice,
+  getPricingSettings, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice, getAlertSettings, getDashboard, listPriceMoves, saveAlertSettings,
 } from "@dexlane/pricing";
 import {
   MAX_IMAGE_BYTES, RecognitionError, assertSupportedImage, identifyCard,
@@ -228,6 +228,28 @@ export function createApp(deps: AppDeps) {
 
   /** Offres vendables avec le texte de leur annonce et leurs photos. */
   app.get("/api/listings/offers", async (c) => c.json(await listListingOffers(sql, parse(s.listingOffersQuery, c.req.query()))));
+
+  // ───────────────────────── Statistiques et alertes de prix ─────────────────────────
+
+  app.get("/api/stats/dashboard", async (c) => c.json(await getDashboard(sql)));
+
+  /** Variations de cote des cartes en stock ; `alerts=true` : seulement celles qui dépassent les seuils. */
+  app.get("/api/stats/price-moves", async (c) => {
+    const q = parse(s.priceMovesQuery, c.req.query());
+    return c.json(await listPriceMoves(sql, { alertsOnly: q.alerts === "true", limit: q.limit }));
+  });
+
+  app.put("/api/stats/alert-settings", async (c) => c.json(await saveAlertSettings(sql, await parseJsonBody(c, s.alertSettingsBody))));
+  app.get("/api/stats/alert-settings", async (c) => c.json(await getAlertSettings(sql)));
+
+  /**
+   * Relève les cotations du jour pour les cartes en stock, puis réévalue les offres
+   * (les prix décidés ne bougent pas, les écarts deviennent des motifs de revue). Lancé chaque jour et à la demande.
+   */
+  app.post("/api/prices/refresh", async (c) => {
+    const refreshed = await refreshOwnedPrices(sql, catalogSource());
+    return c.json({ ...refreshed, repriced: refreshed.pricesInserted > 0 ? await refreshPricing(sql) : 0 });
+  });
 
   // ───────────────────────── Canaux de vente ─────────────────────────
 

@@ -272,3 +272,42 @@ export async function getSetDetail(sql: Db, language: string, setId: string): Pr
      order by nullif(left(regexp_replace(c.local_number, '\\D', '', 'g'), 9), '')::int nulls last, c.local_number`;
   return { set, cards };
 }
+
+/**
+ * Rafraîchit les cotations des cartes détenues en stock, les plus anciennement synchronisées d'abord.
+ * Bien plus léger qu'une resynchronisation de séries entières : c'est ce que lance la tâche quotidienne.
+ */
+export async function refreshOwnedPrices(
+  sql: Db,
+  client: TcgdexClient,
+  opts: { limit?: number; concurrency?: number } = {},
+): Promise<{ cards: number; pricesInserted: number; errors: number; remaining: number }> {
+  const limit = opts.limit ?? 400;
+  const owned = await sql<{ language: string; tcgdexId: string; total: number }[]>`
+    select c.language, c.external_ids->>'tcgdex' as tcgdex_id, count(*) over ()::int as total
+      from catalog_cards c
+     where c.external_ids ? 'tcgdex'
+       and exists (
+         select 1 from card_variants v
+           join offers o on o.variant_id = v.id
+           join stock_items s on s.offer_id = o.id
+          where v.catalog_card_id = c.id and s.on_hand > 0 and s.lifecycle <> 'ARCHIVED')
+     order by c.synced_at nulls first, c.id
+     limit ${limit}`;
+  const stats = { cards: 0, pricesInserted: 0, errors: 0, remaining: Math.max((owned[0]?.total ?? 0) - owned.length, 0) };
+  const queue = [...owned];
+  const worker = async () => {
+    for (let card = queue.shift(); card; card = queue.shift()) {
+      try {
+        const detail = await client.getCard(card.language, card.tcgdexId);
+        if (!detail) throw new Error("card not found");
+        stats.pricesInserted += (await upsertCard(sql, mapTcgdexCard(detail, card.language))).pricesInserted;
+        stats.cards++;
+      } catch {
+        stats.errors++;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: opts.concurrency ?? 8 }, worker));
+  return stats;
+}

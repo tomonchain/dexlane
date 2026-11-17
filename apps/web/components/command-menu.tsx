@@ -1,7 +1,7 @@
 "use client";
 
 import { Command } from "cmdk";
-import { Archive, BookOpen, Images, Layers, Megaphone, Package, Receipt, ScanLine, Search, Tags } from "lucide-react";
+import { Archive, BookOpen, ChartColumn, Images, Layers, Megaphone, Package, Receipt, ScanLine, Search, Tags } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Dialog } from "radix-ui";
 import { useEffect, useState } from "react";
@@ -17,6 +17,7 @@ export const PAGES = [
   { href: "/annonces", label: "Annonces", hint: "Textes, photos et modèle d'annonce", icon: Megaphone },
   { href: "/ventes", label: "Ventes", hint: "Vendre, préparer, remettre", icon: Receipt },
   { href: "/prix", label: "Prix", hint: "Estimations, prix cibles et règles", icon: Tags },
+  { href: "/statistiques", label: "Statistiques", hint: "Valeur du stock, ventes, variations de prix et alertes", icon: ChartColumn },
   { href: "/rangement", label: "Rangement", hint: "Emplacements et lots d'acquisition", icon: Archive },
   { href: "/vrac", label: "Vrac", hint: "Enregistrer un lot agrégé", icon: Layers },
   { href: "/catalogue", label: "Catalogue", hint: "Synchroniser les séries", icon: BookOpen },

@@ -13,11 +13,11 @@ Application personnelle de négoce de cartes Pokémon. Spécification : [`specs-
 | `packages/shared` | Erreurs métier, montants en centimes |
 | `packages/catalog` | Synchronisation TCGdex (séries, cartes, variantes détaillées, cotations Cardmarket datées), recherche des 3 meilleurs candidats à partir d'une lecture OCR |
 | `packages/scan` | Lecture de carte par Claude (vision + sortie structurée, repli serveur), identification photo → candidats catalogue, banc d'essai précision/coût |
-| `packages/pricing` | Moteur de règles de prix (estimation, catégorie, plancher, motifs de revue), tarification des offres, file de revue, règles réglables |
+| `packages/pricing` | Moteur de règles de prix (estimation, catégorie, plancher, motifs de revue), tarification des offres, file de revue, règles réglables. Statistiques : tableau de bord (stock, ventes par mois et par canal), variations de cote des cartes détenues, seuils d'alerte |
 | `packages/listings` | Annonces : modèle de titre et de description à variables, style des photos, offres vendables avec leur texte et leurs photos. Canaux de vente : interface de connecteur, mode simulation, publication, alignement des quantités, import des commandes |
 | `packages/inventory` | Entrée d'une carte identifiée (offre et SKU attribués automatiquement), lots de vrac et extraction, emplacements hiérarchiques, lots d'acquisition, déplacement, correction d'inventaire auditée, recherche, import idempotent de commandes, allocation commande → positions, survente (Parcours F), picking par scan, emballage, confirmation de dépôt |
 | `apps/api` | API HTTP (Hono) : scan, recherche catalogue, emplacements, entrée en stock, vrac, inventaire. Jeton propriétaire, validation stricte, clés d'idempotence |
-| `apps/web` | Application web installable (Next.js), pensée pour le téléphone : scan photo → candidats → confirmation → rangement, recherche manuelle, inventaire et fiche de position (déplacer, corriger, valider), lots de vrac et extraction, emplacements (aide, création en série, arborescence) et lots d'acquisition, catalogue (import par série, détail d'une série avec prix et stock détenu), prix (file de revue, règles), ventes directes (saisie, préparation, remise, marge), scan en lot (images d'un scanner à défilement), photos des exemplaires, annonces (modèle, fond des photos, visuels composés), compte (mot de passe, thème) |
+| `apps/web` | Application web installable (Next.js), pensée pour le téléphone : scan photo → candidats → confirmation → rangement, recherche manuelle, inventaire et fiche de position (déplacer, corriger, valider), lots de vrac et extraction, emplacements (aide, création en série, arborescence) et lots d'acquisition, catalogue (import par série, détail d'une série avec prix et stock détenu), prix (file de revue, règles), ventes directes (saisie, préparation, remise, marge), scan en lot (images d'un scanner à défilement), photos des exemplaires, annonces (modèle, fond des photos, visuels composés, canaux), statistiques (chiffres clés, variations de prix, alertes), compte (mot de passe, thème) |
 
 Pas encore commencés : `apps/worker`, connecteurs réels eBay et CardTrader (le socle et la simulation sont en place ; les connecteurs attendent les accès API), fulfillment PDF, étiquettes QR.
 
@@ -73,6 +73,8 @@ Photos : `POST /api/scans` conserve l'image lue et renvoie `photo: { id, url }` 
 
 Annonces : `GET` / `PUT /api/listings/settings` (modèle de titre et de description, style des photos), `GET /api/listings/offers?q=` (offres vendables, texte rendu, photos), `POST /api/photos?kind=LISTING&source={scan}` (visuel composé à partir d'un scan, remplace le précédent), `POST /api/photos?kind=BACKGROUND` (fond personnel), `GET /api/photos/{id}/content` (contenu servi sur la même origine).
 
+Statistiques : `GET /api/stats/dashboard`, `GET /api/stats/price-moves?alerts=true|false`, `GET` / `PUT /api/stats/alert-settings`, `POST /api/prices/refresh` (relève les cotes des cartes en stock, puis réévalue les offres).
+
 Canaux : `GET /api/channels`, `PUT /api/channels/{ebay|cardtrader}` (`OFF`, `SIMULATION`, `LIVE`), `POST /api/channels/sync`, `POST /api/listings/offers/{id}/publish`, `POST /api/listings/{id}/end`, `POST /api/listings/{id}/simulate-order`.
 
 Autres routes : `GET /api/catalog/sets/{id}` (contenu importé d'une série : cartes, variantes, dernier prix tendance, exemplaires en stock), `POST /api/locations/batch`, `PATCH` et `DELETE /api/locations/{id}` (suppression réservée à un emplacement vide et jamais utilisé), `/api/auth/*` (mot de passe du propriétaire, réservé au serveur web).
@@ -103,8 +105,9 @@ Sans `DEXLANE_API_URL`, le serveur Next embarque l'API : un seul déploiement su
 1. Projet Vercel lié au dépôt, **Root Directory** `apps/web` (le build installe tout le monorepo). `apps/web/vercel.json` applique les migrations avant `next build`.
 2. Base : onglet **Storage** du projet → Neon (offre gratuite). L'intégration fournit `DATABASE_URL` (connexions poolées, utilisées par l'application) et `DATABASE_URL_UNPOOLED` (connexion directe, utilisée par les migrations).
 3. Variables d'environnement : `DEXLANE_API_TOKEN` (≥ 24 caractères ; jeton d'installation et clé de secours du mot de passe), `ANTHROPIC_API_KEY` (scan), `ENABLE_EXPERIMENTAL_COREPACK=1` (pnpm de `packageManager`).
-4. Photos : onglet **Storage** → Blob (accès public), relié au projet ; l'intégration fournit `BLOB_READ_WRITE_TOKEN`. Sans cette variable, tout fonctionne mais les images scannées ne sont pas conservées.
-5. Catalogue : la base hébergée démarre vide. Onglet **Catalogue** de l'application : « Charger la liste », puis « Synchroniser » les séries possédées (rejouable, met à jour les cartes et ajoute les cotations du jour). La commande `pnpm --filter @dexlane/catalog sync` reste disponible depuis un poste.
+4. Tâche quotidienne : `apps/web/vercel.json` déclare un cron (`/cron/daily`, chaque nuit) qui relève les cotes des cartes en stock et synchronise les canaux. Elle exige la variable `CRON_SECRET` (valeur aléatoire), que Vercel présente à chaque appel ; sans elle, la route refuse tout.
+5. Photos : onglet **Storage** → Blob (accès public), relié au projet ; l'intégration fournit `BLOB_READ_WRITE_TOKEN`. Sans cette variable, tout fonctionne mais les images scannées ne sont pas conservées.
+6. Catalogue : la base hébergée démarre vide. Onglet **Catalogue** de l'application : « Charger la liste », puis « Synchroniser » les séries possédées (rejouable, met à jour les cartes et ajoute les cotations du jour). La commande `pnpm --filter @dexlane/catalog sync` reste disponible depuis un poste.
 
 À savoir : préversions et production partagent la même base tant qu'aucune base par branche n'est configurée — une préversion applique donc ses migrations à la base de production. L'application est protégée par le mot de passe du propriétaire, avec blocage temporaire après des essais infructueux répétés.
 
@@ -151,6 +154,14 @@ Les compteurs de stock sont une projection du journal `inventory_movements` (app
 - **Emplacement** : obligatoire et jamais créé implicitement — une faute de frappe renvoie `LOCATION_NOT_FOUND` au lieu de créer une boîte.
 - **Correction d'inventaire** : saisie de la quantité comptée, pas d'un écart ; refusée sous les quantités réservées (cas du Parcours F).
 - **Coût du vrac** : le coût unitaire est stocké en centimes entiers ; 1 000 cartes à 15 € donnent 2 c pièce (20 € reconstitués). Le coût exact reste celui du lot d'acquisition.
+
+## Statistiques et alertes de prix — points d'attention
+
+- **Cote suivie** : la tendance Cardmarket (`LISTED_TREND`) fournie par TCGdex, datée par la source. Un relevé n'est ajouté que si la source a publié une nouvelle date : relancer le relevé ne crée pas de doublon.
+- **Variation** : dernier relevé comparé au relevé le plus récent d'au moins N jours plus tôt (7 par défaut). Une carte sans relevé assez ancien n'apparaît pas encore : l'historique se construit au fil des relevés quotidiens.
+- **Alerte** : variation d'au moins X % *et* d'au moins Y € (15 % et 1 € par défaut), pour ne pas signaler une carte passée de 0,10 € à 0,15 €. Tri par enjeu : écart × exemplaires détenus. Les alertes se consultent dans l'application ; rien n'est envoyé par courriel ou notification.
+- **Le prix décidé ne bouge pas tout seul** : une cote qui s'éloigne du prix cible devient un motif de revue dans Prix, comme avant.
+- **Ventes** : une vente compte dans le mois où elle a été remise ; marge = encaissé − coût des cartes − affranchissement (les frais de canal ne sont pas encore connus).
 
 ## Canaux de vente — points d'attention
 
