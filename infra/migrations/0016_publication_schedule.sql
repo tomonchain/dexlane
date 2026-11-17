@@ -4,6 +4,8 @@ create table scheduled_publications (
   offer_id   uuid not null references offers (id),
   channel    text not null,
   planned_on date not null,
+  -- Rang dans le plan : l'ordre choisi par le vendeur tient au sein d'un même jour.
+  rank       integer not null default 0,
   status     text not null default 'PENDING' check (status in ('PENDING', 'DONE', 'FAILED', 'CANCELLED')),
   -- Pourquoi la publication n'a pas eu lieu (prix manquant, canal éteint, stock épuisé…).
   error_code text,

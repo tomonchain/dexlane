@@ -63,8 +63,8 @@ export async function planPublications(sql: Db, input: PlanInput): Promise<PlanR
     for (const [index, offerId] of ordered.entries()) {
       const plannedOn = addDays(input.startOn, Math.floor(index / input.perDay));
       await tx`
-        insert into scheduled_publications (offer_id, channel, planned_on) values (${offerId}, ${input.channel}, ${plannedOn})
-        on conflict (offer_id, channel) where status = 'PENDING' do update set planned_on = excluded.planned_on`;
+        insert into scheduled_publications (offer_id, channel, planned_on, rank) values (${offerId}, ${input.channel}, ${plannedOn}, ${index})
+        on conflict (offer_id, channel) where status = 'PENDING' do update set planned_on = excluded.planned_on, rank = excluded.rank`;
     }
     const days = Math.ceil(ordered.length / input.perDay);
     await tx`
@@ -95,7 +95,7 @@ export interface Schedule {
 export async function getSchedule(sql: Db): Promise<Schedule> {
   const days = await sql<ScheduleDay[]>`
     select to_char(sp.planned_on, 'YYYY-MM-DD') as planned_on, sp.channel, count(*)::int as count,
-           (array_agg(c.name order by sp.created_at, sp.id))[1:3] as card_names
+           (array_agg(c.name order by sp.rank, sp.id))[1:3] as card_names
       from scheduled_publications sp
       join offers o on o.id = sp.offer_id
       join card_variants v on v.id = o.variant_id
@@ -134,7 +134,7 @@ export async function cancelPublications(sql: Db, filter: { plannedOn?: string; 
 export async function runDuePublications(sql: Db, live: ChannelAdapters, actor: string, today = todayInParis()): Promise<{ published: number; failed: number }> {
   const due = await sql<{ id: string; offerId: string; channel: string }[]>`
     select id, offer_id, channel from scheduled_publications
-     where status = 'PENDING' and planned_on <= ${today} order by planned_on, created_at, id`;
+     where status = 'PENDING' and planned_on <= ${today} order by planned_on, rank, id`;
   let published = 0;
   let failed = 0;
   for (const item of due) {
