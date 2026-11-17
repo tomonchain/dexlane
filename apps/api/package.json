@@ -1,0 +1,24 @@
+{
+  "name": "@dexlane/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/app.ts"
+  },
+  "scripts": {
+    "start": "tsx --env-file-if-exists=../../.env src/server.ts",
+    "dev": "tsx watch --env-file-if-exists=../../.env src/server.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@dexlane/catalog": "workspace:*",
+    "@dexlane/db": "workspace:*",
+    "@dexlane/inventory": "workspace:*",
+    "@dexlane/scan": "workspace:*",
+    "@dexlane/shared": "workspace:*",
+    "@hono/node-server": "^2.1.8",
+    "hono": "^4.13.18",
+    "zod": "^4.6.7"
+  }
+}

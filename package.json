@@ -8,6 +8,7 @@
   },
   "scripts": {
     "db:migrate": "pnpm --filter @dexlane/db migrate",
+    "api": "pnpm --filter @dexlane/api start",
     "test": "pnpm -r test",
     "typecheck": "tsc -p tsconfig.json"
   },
