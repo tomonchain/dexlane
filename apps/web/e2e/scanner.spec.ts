@@ -500,3 +500,52 @@ test("annonces : modèle de titre, fond des photos, composition du visuel à par
   expect(await listingPhotoIds()).toHaveLength(1);
   await expect(listing.getByRole("img", { name: "Photo d'annonce" })).toHaveCount(1);
 });
+
+test("canaux : simulation eBay — publication, achat simulé qui arrive dans les ventes, quantité annoncée à jour, retrait", async ({ page }) => {
+  await login(page);
+  // Offre prête : 2 exemplaires scannés (photo), prix posé automatiquement.
+  const scanned = (await (await page.request.post("/api/scans?language=fr", { data: png(CLEAR), headers: { "Content-Type": "image/png" } })).json()) as {
+    suggestedVariantId: string; photo: { id: string };
+  };
+  await page.request.post("/api/locations", { data: { code: "BOX-EB" } });
+  await page.request.post("/api/inventory/receive", {
+    data: { variantId: scanned.suggestedVariantId, condition: "LP", quantity: 2, locationCode: "BOX-EB", unitCostCents: 0, photoIds: [scanned.photo.id] },
+    headers: { "Idempotency-Key": `e2e-canal-${Date.now()}` },
+  });
+
+  await page.goto("/annonces");
+  const listing = page.getByTestId("listing-OF-SWSH3-136-FR-R-LP");
+  await expect(listing).toBeVisible();
+  await expect(listing.getByTestId("channel-ebay")).toHaveCount(0);
+
+  // Canaux : le mode réel est indisponible sans connecteur, la simulation s'active d'un clic.
+  await page.getByRole("tab", { name: "Canaux" }).click();
+  const ebay = page.getByTestId("channel-card-ebay");
+  await expect(ebay.getByRole("radio", { name: "Réel" })).toBeDisabled();
+  await expect(ebay.getByText("Passer en réel : obtenir l'accès")).toBeVisible();
+  await ebay.getByRole("radio", { name: "Simulation" }).click();
+  await expect(page.getByText("eBay : simulation")).toBeVisible();
+
+  await page.getByRole("tab", { name: "Offres" }).click();
+  const channel = listing.getByTestId("channel-ebay");
+  await channel.getByRole("button", { name: "Publier sur eBay" }).click();
+  await expect(channel).toContainText("En ligne");
+  await expect(channel).toContainText("2 annoncées");
+
+  // Un acheteur fictif commande : la commande arrive dans Ventes, la quantité annoncée baisse.
+  await channel.getByRole("button", { name: "Simuler un achat" }).click();
+  await expect(page.getByText(/Commande SIM-\d{6} reçue/)).toBeVisible();
+  await expect(channel).toContainText("1 annoncée");
+
+  await page.goto("/ventes");
+  const order = page.getByRole("link", { name: /SIM-\d{6}/ });
+  await expect(order).toContainText("eBay");
+  await expect(order).toContainText("Acheteur de test");
+  await order.click();
+  await expect(page.getByTestId("order-stage")).toHaveText("À préparer");
+
+  // Retrait de l'annonce.
+  await page.goto("/annonces");
+  await channel.getByRole("button", { name: "Retirer" }).click();
+  await expect(channel.getByRole("button", { name: "Publier sur eBay" })).toBeVisible();
+});

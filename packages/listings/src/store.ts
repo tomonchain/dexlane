@@ -1,6 +1,7 @@
 import { withTx, type Db } from "@dexlane/db";
 import { listPhotos, type CardCondition, type PhotoRow } from "@dexlane/inventory";
 import { DomainError } from "@dexlane/shared";
+import type { ChannelId } from "./channel-ids";
 import {
   DEFAULT_LISTING_SETTINGS, buildListingText, validateListingSettings, type ListingSettings, type ListingSubject, type ListingText,
 } from "./template";
@@ -45,11 +46,50 @@ export interface ListingOffer {
   text: ListingText;
   /** Scans (recto, verso) et visuels d'annonce déjà composés. */
   photos: PhotoRow[];
+  /** Ce qui manque pour publier ; vide : l'offre est prête. */
+  missing: ListingBlocker[];
+  /** Annonces en cours sur les canaux. */
+  listings: ListingState[];
+}
+
+export type ListingBlocker = "PRICE" | "PHOTO" | "VARIANT";
+
+/** Ce qui manque à une offre pour être publiée. */
+export function listingBlockers(offer: Pick<ListingOffer, "targetPriceCents" | "photos" | "variantIncomplete">): ListingBlocker[] {
+  return [
+    offer.targetPriceCents === null && "PRICE",
+    !offer.photos.some((p) => p.kind !== "BACKGROUND") && "PHOTO",
+    offer.variantIncomplete && "VARIANT",
+  ].filter(Boolean) as ListingBlocker[];
+}
+
+export interface ListingState {
+  id: string;
+  offerId: string;
+  channel: ChannelId;
+  status: "PENDING" | "ACTIVE" | "PAUSED" | "ENDED" | "ERROR";
+  externalId: string | null;
+  url: string | null;
+  priceCents: number;
+  quantitySent: number;
+  simulated: boolean;
+  errorCode: string | null;
+  lastSyncedAt: Date | null;
+}
+
+export const listingColumns = (sql: Db) =>
+  sql`id, offer_id, channel, status, external_id, url, price_cents, quantity_sent, simulated, error_code, last_synced_at`;
+
+/** Annonces en cours (tout sauf terminées) des offres données. */
+export function listingsOf(sql: Db, offerIds: string[]): Promise<ListingState[]> {
+  if (offerIds.length === 0) return Promise.resolve([]);
+  return sql<ListingState[]>`
+    select ${listingColumns(sql)} from listings where offer_id in ${sql(offerIds)} and status <> 'ENDED' order by channel`;
 }
 
 type OfferRow = ListingSubject & Pick<ListingOffer, "offerId" | "imageUrl" | "category" | "isUnique" | "available" | "variantIncomplete">;
 
-/** Offres ayant du stock vendable, les plus chères d'abord : ce sont elles qu'on publie. */
+/** Offres ayant du stock vendable — ou une annonce encore en cours, même épuisée —, les plus chères d'abord. */
 export async function listListingOffers(
   sql: Db,
   opts: { q?: string; offerId?: string; limit?: number; offset?: number } = {},
@@ -69,20 +109,24 @@ export async function listListingOffers(
         select coalesce(sum(on_hand - reserved - inspection - quarantine), 0)::int as available
           from stock_items where offer_id = o.id and lifecycle = 'ACTIVE'
       ) stock on true
-     where stock.available > 0
+     where (stock.available > 0 or exists (select 1 from listings l where l.offer_id = o.id and l.status <> 'ENDED'))
        ${opts.offerId ? sql`and o.id = ${opts.offerId}` : sql``}
        ${q ? sql`and (c.name ilike ${`%${q}%`} or o.offer_sku ilike ${`%${q}%`})` : sql``}
      order by o.target_price_cents desc nulls last, c.name, o.offer_sku
      limit ${Math.min(opts.limit ?? 50, 200)} offset ${opts.offset ?? 0}`;
   const settings = await getListingSettings(sql);
-  const photos = await listPhotos(sql, { offerIds: rows.map((r) => r.offerId) });
+  const offerIds = rows.map((r) => r.offerId);
+  const [photos, listings] = [await listPhotos(sql, { offerIds }), await listingsOf(sql, offerIds)];
   return {
     total: rows[0]?.total ?? 0,
-    items: rows.map(({ total: _total, ...r }) => ({
-      offerId: r.offerId, offerSku: r.offerSku, cardName: r.name, imageUrl: r.imageUrl, condition: r.condition, category: r.category,
-      isUnique: r.isUnique, targetPriceCents: r.targetPriceCents, available: r.available, variantIncomplete: r.variantIncomplete,
-      text: buildListingText(r, settings),
-      photos: photos.filter((p) => p.offerId === r.offerId),
-    })),
+    items: rows.map(({ total: _total, ...r }) => {
+      const offer = {
+        offerId: r.offerId, offerSku: r.offerSku, cardName: r.name, imageUrl: r.imageUrl, condition: r.condition, category: r.category,
+        isUnique: r.isUnique, targetPriceCents: r.targetPriceCents, available: r.available, variantIncomplete: r.variantIncomplete,
+        text: buildListingText(r, settings),
+        photos: photos.filter((p) => p.offerId === r.offerId),
+      };
+      return { ...offer, missing: listingBlockers(offer), listings: listings.filter((l) => l.offerId === r.offerId) };
+    }),
   };
 }

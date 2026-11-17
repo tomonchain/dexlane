@@ -34,6 +34,8 @@ function Stat({ icon, label, value, hint }: { icon: ReactNode; label: string; va
   );
 }
 
+const CHANNEL_LABEL: Record<string, string> = { ebay: "eBay", cardtrader: "CardTrader" };
+
 export default function SalesPage() {
   const [stage, setStage] = useState<OrderStage>("TO_PREPARE");
   const [data, setData] = useState<OrderList | null>(null);
@@ -96,6 +98,8 @@ export default function SalesPage() {
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <Code className="text-sm font-semibold">{o.externalId}</Code>
+                  {o.channel !== "direct" && <Badge variant="brand">{CHANNEL_LABEL[o.channel] ?? o.channel}</Badge>}
+                  {o.oversold && <Badge variant="destructive">Survente</Badge>}
                   {o.buyerName && <span className="truncate text-sm">{o.buyerName}</span>}
                   {o.shippingMode && <Badge variant="outline">{SHIPPING_LABEL[o.shippingMode]}</Badge>}
                 </span>

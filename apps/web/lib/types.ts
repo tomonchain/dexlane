@@ -4,7 +4,10 @@ import type {
   OrderStage, OrderSummary as OrderSummaryRow, ReceivedBulk, ReceivedPosition, SalesTotals, SellableOffer as SellableOfferRow,
   ShippingMode,
 } from "@dexlane/inventory";
-import type { ListingOffer as ListingOfferRow, ListingSettings, PhotoStyle } from "@dexlane/listings";
+import type {
+  ChannelId, ChannelMode, ChannelState as ChannelStateRow, ListingBlocker, ListingOffer as ListingOfferRow, ListingSettings,
+  ListingState as ListingStateRow, PhotoStyle,
+} from "@dexlane/listings";
 import type { OfferPricing as PricingRow, PricingSettings, VariantQuote as Quote } from "@dexlane/pricing";
 import type { CardReadingRaw, RecognitionUsage } from "@dexlane/scan";
 
@@ -76,5 +79,7 @@ export interface OrderList {
   last30Days: SalesTotals;
 }
 
-export type { ListingSettings, PhotoStyle };
+export type { ChannelId, ChannelMode, ListingBlocker, ListingSettings, PhotoStyle };
+export type ChannelState = Json<ChannelStateRow>;
+export type ListingState = Json<ListingStateRow>;
 export type ListingOffer = Json<ListingOfferRow>;

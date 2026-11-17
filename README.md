@@ -14,12 +14,12 @@ Application personnelle de négoce de cartes Pokémon. Spécification : [`specs-
 | `packages/catalog` | Synchronisation TCGdex (séries, cartes, variantes détaillées, cotations Cardmarket datées), recherche des 3 meilleurs candidats à partir d'une lecture OCR |
 | `packages/scan` | Lecture de carte par Claude (vision + sortie structurée, repli serveur), identification photo → candidats catalogue, banc d'essai précision/coût |
 | `packages/pricing` | Moteur de règles de prix (estimation, catégorie, plancher, motifs de revue), tarification des offres, file de revue, règles réglables |
-| `packages/listings` | Annonces : modèle de titre et de description à variables, style des photos, offres vendables avec leur texte et leurs photos |
+| `packages/listings` | Annonces : modèle de titre et de description à variables, style des photos, offres vendables avec leur texte et leurs photos. Canaux de vente : interface de connecteur, mode simulation, publication, alignement des quantités, import des commandes |
 | `packages/inventory` | Entrée d'une carte identifiée (offre et SKU attribués automatiquement), lots de vrac et extraction, emplacements hiérarchiques, lots d'acquisition, déplacement, correction d'inventaire auditée, recherche, import idempotent de commandes, allocation commande → positions, survente (Parcours F), picking par scan, emballage, confirmation de dépôt |
 | `apps/api` | API HTTP (Hono) : scan, recherche catalogue, emplacements, entrée en stock, vrac, inventaire. Jeton propriétaire, validation stricte, clés d'idempotence |
 | `apps/web` | Application web installable (Next.js), pensée pour le téléphone : scan photo → candidats → confirmation → rangement, recherche manuelle, inventaire et fiche de position (déplacer, corriger, valider), lots de vrac et extraction, emplacements (aide, création en série, arborescence) et lots d'acquisition, catalogue (import par série, détail d'une série avec prix et stock détenu), prix (file de revue, règles), ventes directes (saisie, préparation, remise, marge), scan en lot (images d'un scanner à défilement), photos des exemplaires, annonces (modèle, fond des photos, visuels composés), compte (mot de passe, thème) |
 
-Pas encore commencés : `apps/worker`, connecteurs marketplaces (publication), fulfillment PDF, étiquettes QR.
+Pas encore commencés : `apps/worker`, connecteurs réels eBay et CardTrader (le socle et la simulation sont en place ; les connecteurs attendent les accès API), fulfillment PDF, étiquettes QR.
 
 ## Prérequis
 
@@ -72,6 +72,8 @@ Prix : `GET /api/pricing/variants/{id}?condition=` (estimation avant entrée en 
 Photos : `POST /api/scans` conserve l'image lue et renvoie `photo: { id, url }` ; `POST /api/photos?kind=SCAN_FRONT|SCAN_BACK` dépose une image sans lecture (verso) ; `receive` et `extract` acceptent `photoIds` pour rattacher les photos à la position créée ; la fiche d'une position les renvoie dans `photos`.
 
 Annonces : `GET` / `PUT /api/listings/settings` (modèle de titre et de description, style des photos), `GET /api/listings/offers?q=` (offres vendables, texte rendu, photos), `POST /api/photos?kind=LISTING&source={scan}` (visuel composé à partir d'un scan, remplace le précédent), `POST /api/photos?kind=BACKGROUND` (fond personnel), `GET /api/photos/{id}/content` (contenu servi sur la même origine).
+
+Canaux : `GET /api/channels`, `PUT /api/channels/{ebay|cardtrader}` (`OFF`, `SIMULATION`, `LIVE`), `POST /api/channels/sync`, `POST /api/listings/offers/{id}/publish`, `POST /api/listings/{id}/end`, `POST /api/listings/{id}/simulate-order`.
 
 Autres routes : `GET /api/catalog/sets/{id}` (contenu importé d'une série : cartes, variantes, dernier prix tendance, exemplaires en stock), `POST /api/locations/batch`, `PATCH` et `DELETE /api/locations/{id}` (suppression réservée à un emplacement vide et jamais utilisé), `/api/auth/*` (mot de passe du propriétaire, réservé au serveur web).
 
@@ -149,6 +151,15 @@ Les compteurs de stock sont une projection du journal `inventory_movements` (app
 - **Emplacement** : obligatoire et jamais créé implicitement — une faute de frappe renvoie `LOCATION_NOT_FOUND` au lieu de créer une boîte.
 - **Correction d'inventaire** : saisie de la quantité comptée, pas d'un écart ; refusée sous les quantités réservées (cas du Parcours F).
 - **Coût du vrac** : le coût unitaire est stocké en centimes entiers ; 1 000 cartes à 15 € donnent 2 c pièce (20 € reconstitués). Le coût exact reste celui du lot d'acquisition.
+
+## Canaux de vente — points d'attention
+
+- **Trois modes par canal** : désactivé, simulation, réel. Le mode réel exige un connecteur configuré (`ChannelAdapter` passé à `createApp`) ; aucun n'est encore écrit, faute d'accès API. Le contrat suit le modèle d'eBay : une annonce par `offer_sku`, une quantité tenue à jour, des commandes qu'on vient chercher.
+- **Simulation** : le canal accepte tout et n'envoie rien. « Simuler un achat » crée une commande par le même chemin qu'une vraie (import idempotent, réservation, envoi à préparer) : elle réserve réellement le stock, à annuler après essai. Quitter la simulation termine les annonces simulées.
+- **Prête à publier** : une offre doit avoir un prix cible, au moins une photo de l'exemplaire et une variante confirmée ; sinon la publication est refusée avec la liste de ce qui manque.
+- **Double vente entre canaux** : après toute écriture sur `/api/orders` ou `/api/inventory`, la quantité annoncée est réalignée sur le stock vendable (moins la marge `buffer`). À zéro, l'annonce passe en pause ; elle reprend au réassort. Un échec côté canal laisse l'annonce en `ERROR`, retentée à la synchronisation suivante.
+- **Commandes de canal** : déjà conclues ailleurs, elles ne sont jamais refusées ; si le stock manque, elles partent en survente (Parcours F) au lieu d'échouer.
+- **Prix** : l'annonce garde le prix du moment de la publication ; un prix cible modifié ensuite est signalé, « Mettre à jour » le renvoie.
 
 ## Ventes directes — points d'attention
 

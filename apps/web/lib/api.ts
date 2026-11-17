@@ -1,5 +1,5 @@
 import type {
-  AcquisitionLot, Candidate, CardCondition, CatalogSet, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
+  AcquisitionLot, Candidate, CardCondition, CatalogSet, ChannelId, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
   Location, Photo, PositionDetail, Received,
   OfferPricing, OrderDetail, OrderList, OrderStage, PricingSettings, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
   ShippingMode, StoredPhoto, VariantQuote,
@@ -104,6 +104,13 @@ export const api = {
   saveListingSettings: (settings: ListingSettings) => request<ListingSettings>("PUT", "/listings/settings", { json: settings }),
   listingOffers: (q: { q?: string; limit?: number; offset?: number }) =>
     request<{ items: ListingOffer[]; total: number }>("GET", "/listings/offers", { query: q }),
+
+  channels: () => request<{ channels: ChannelState[] }>("GET", "/channels"),
+  setChannelMode: (channel: ChannelId, mode: ChannelMode) => request<{ channels: ChannelState[] }>("PUT", `/channels/${channel}`, { json: { mode } }),
+  syncChannels: () => request<{ orders: number; updated: number; errors: number }>("POST", "/channels/sync"),
+  publishListing: (offerId: string, channel: ChannelId) => request<ListingState>("POST", `/listings/offers/${offerId}/publish`, { json: { channel } }),
+  endListing: (listingId: string) => request<{ ok: true }>("POST", `/listings/${listingId}/end`),
+  simulateOrder: (listingId: string, qty = 1) => request<OrderDetail>("POST", `/listings/${listingId}/simulate-order`, { json: { qty } }),
   searchCatalog: (q: { language: string; name?: string; number?: string; set?: string }) =>
     request<{ candidates: Candidate[] }>("GET", "/catalog/cards", { query: q }),
 

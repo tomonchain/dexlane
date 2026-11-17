@@ -21,7 +21,10 @@ import {
 import { DomainError } from "@dexlane/shared";
 import { changePassword, passwordStatus, setPassword, verifyPassword } from "./auth";
 import { HttpError, errorBody, idempotent, parse, parseJsonBody, secretEquals, statusOfDomainError } from "./http";
-import { getListingSettings, listListingOffers, saveListingSettings } from "@dexlane/listings";
+import {
+  endListing, getListingSettings, listChannels, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
+  syncChannels, syncQuantities, type ChannelAdapters,
+} from "@dexlane/listings";
 import { readPhoto, type PhotoStore } from "./photos";
 import * as s from "./schemas";
 
@@ -33,6 +36,8 @@ export interface AppDeps {
   recognizer: () => CardRecognizer;
   /** Stockage des photos ; sans lui, les scans fonctionnent mais aucune image n'est conservée. */
   photos?: PhotoStore | null;
+  /** Connecteurs réels des marketplaces (identifiants configurés) ; sans eux, seule la simulation est possible. */
+  channels?: ChannelAdapters;
   /** Source du catalogue (TCGdex par défaut) ; remplaçable dans les tests. */
   tcgdex?: () => TcgdexClient;
   onError?: (err: unknown) => void;
@@ -76,6 +81,11 @@ export function createApp(deps: AppDeps) {
     }
     c.set("actor", "owner");
     await next();
+    // Après tout changement de stock ou de vente, les quantités annoncées sur les canaux sont réalignées :
+    // c'est le garde-fou contre la double vente d'une carte entre deux canaux.
+    if (c.req.method !== "GET" && c.res.ok && /^\/api\/(orders|inventory)(\/|$)/.test(c.req.path)) {
+      await syncQuantities(sql, deps.channels ?? {}).catch(deps.onError ?? console.error);
+    }
   });
 
   // ───────────────────────── Mot de passe du propriétaire ─────────────────────────
@@ -218,6 +228,41 @@ export function createApp(deps: AppDeps) {
 
   /** Offres vendables avec le texte de leur annonce et leurs photos. */
   app.get("/api/listings/offers", async (c) => c.json(await listListingOffers(sql, parse(s.listingOffersQuery, c.req.query()))));
+
+  // ───────────────────────── Canaux de vente ─────────────────────────
+
+  const live = deps.channels ?? {};
+
+  app.get("/api/channels", async (c) => c.json({ channels: await listChannels(sql, live) }));
+
+  app.put("/api/channels/:channel", async (c) => {
+    const channel = parse(s.channelId, c.req.param("channel"));
+    const { mode } = await parseJsonBody(c, s.channelModeBody);
+    await setChannelMode(sql, live, channel, mode, c.var.actor);
+    return c.json({ channels: await listChannels(sql, live) });
+  });
+
+  /** Commandes des canaux réels, puis quantités annoncées. */
+  app.post("/api/channels/sync", async (c) => c.json(await syncChannels(sql, live, c.var.actor)));
+
+  /** Publie l'offre sur le canal, ou met à jour son annonce si elle y est déjà. */
+  app.post("/api/listings/offers/:offerId/publish", async (c) => {
+    const offerId = parse(s.offerId, c.req.param("offerId"));
+    const { channel } = await parseJsonBody(c, s.publishBody);
+    return c.json(await publishListing(sql, live, { offerId, channel, actor: c.var.actor }));
+  });
+
+  app.post("/api/listings/:id/end", async (c) => {
+    await endListing(sql, live, { listingId: parse(s.listingId, c.req.param("id")), actor: c.var.actor });
+    return c.json({ ok: true });
+  });
+
+  /** Simulation : un acheteur fictif commande sur l'annonce ; la commande suit le circuit normal. */
+  app.post("/api/listings/:id/simulate-order", async (c) => {
+    const { qty } = await parseJsonBody(c, s.simulateOrderBody);
+    const { orderId, oversold } = await simulateOrder(sql, live, { listingId: parse(s.listingId, c.req.param("id")), qty, actor: c.var.actor });
+    return c.json({ ...(await getOrderDetail(sql, orderId)), oversold }, 201);
+  });
 
   /** Recherche manuelle dans le catalogue quand le scan se trompe ou échoue. */
   app.get("/api/catalog/cards", async (c) => {

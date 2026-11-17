@@ -317,6 +317,40 @@ describe("listings", () => {
   });
 });
 
+describe("sales channels", () => {
+  it("runs the whole marketplace circuit in simulation: publish, direct sale lowers the listing, simulated order, end", async () => {
+    await call("POST", "/api/locations", { body: { code: "BOX-01" } });
+    const scanned = await scan();
+    const received = await call("POST", "/api/inventory/receive", {
+      body: { variantId: scanned.json.suggestedVariantId, condition: "NM", quantity: 3, locationCode: "BOX-01", unitCostCents: 0, photoIds: [scanned.json.photo.id] },
+    });
+    const offerId = received.json.offer.id;
+    const listing = async () => (await call("GET", "/api/listings/offers")).json.items[0].listings[0];
+
+    expect((await call("GET", "/api/channels")).json.channels.map((c: { id: string; mode: string }) => [c.id, c.mode])).toEqual([["ebay", "OFF"], ["cardtrader", "OFF"]]);
+    expect((await call("POST", `/api/listings/offers/${offerId}/publish`, { body: { channel: "ebay" } })).status).toBe(409);
+    expect((await call("PUT", "/api/channels/ebay", { body: { mode: "LIVE" } })).json.error.code).toBe("CHANNEL_NOT_CONFIGURED");
+    expect((await call("PUT", "/api/channels/vinted", { body: { mode: "SIMULATION" } })).status).toBe(400);
+    expect((await call("PUT", "/api/channels/ebay", { body: { mode: "SIMULATION" } })).json.channels[0].mode).toBe("SIMULATION");
+
+    const published = await call("POST", `/api/listings/offers/${offerId}/publish`, { body: { channel: "ebay" } });
+    expect(published.json).toMatchObject({ status: "ACTIVE", simulated: true, quantitySent: 3 });
+
+    // Une vente directe retire aussitôt la carte de l'annonce.
+    await call("POST", "/api/orders", { body: { lines: [{ offerId, qty: 1, unitPriceCents: 100 }], shippingMode: "HAND_DELIVERY" } });
+    expect(await listing()).toMatchObject({ quantitySent: 2, status: "ACTIVE" });
+
+    const order = await call("POST", `/api/listings/${published.json.id}/simulate-order`, { body: { qty: 2 } });
+    expect([order.status, order.json.channel, order.json.stage, order.json.oversold]).toEqual([201, "ebay", "TO_PREPARE", false]);
+    expect(await listing()).toMatchObject({ quantitySent: 0, status: "PAUSED" });
+    expect((await call("GET", "/api/orders")).json.counts.TO_PREPARE).toBe(2);
+
+    expect((await call("POST", `/api/listings/${published.json.id}/end`)).status).toBe(200);
+    expect((await call("POST", `/api/listings/${published.json.id}/end`)).status).toBe(404);
+    expect(await call("POST", "/api/channels/sync")).toMatchObject({ status: 200, json: { orders: 0, updated: 0, errors: 0 } });
+  });
+});
+
 describe("direct sales", () => {
   it("sells from stock end to end: reservation, picking by SKU, packing, handover, margin", async () => {
     await call("POST", "/api/locations", { body: { code: "BOX-01/ROW-03" } });

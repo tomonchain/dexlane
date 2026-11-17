@@ -203,3 +203,9 @@ export const listingOffersQuery = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
+
+export const channelId = z.enum(["ebay", "cardtrader"]);
+export const channelModeBody = z.strictObject({ mode: z.enum(["OFF", "SIMULATION", "LIVE"]) });
+export const publishBody = z.strictObject({ channel: channelId });
+export const listingId = z.uuid();
+export const simulateOrderBody = z.strictObject({ qty: z.number().int().min(1).max(100).default(1) });

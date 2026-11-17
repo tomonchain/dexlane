@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, Copy, ImagePlus, Megaphone, Search, Upload, Wand2 } from "lucide-react";
+import { Check, Copy, ImagePlus, Megaphone, RefreshCw, Search, ShoppingCart, Upload, Wand2, X } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { TITLE_MAX, VARIABLES, buildListingText, type ListingSubject } from "@dexlane/listings/template";
@@ -12,17 +13,27 @@ import { Card, CardContent, Eyebrow } from "@/components/ui/card";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { Code, EmptyState, Loading, PageHeader, Spinner } from "@/components/ui/misc";
 import { SwitchRow } from "@/components/ui/switch";
+import { Choice, ChoiceGroup } from "@/components/ui/toggle-group";
 import { Pagination, SegmentedTabs } from "@/components/ui/tabs";
 import { ApiError, api } from "@/lib/api";
 import { BACKGROUND_PRESETS, backgroundCss, composeListingPhoto, drawListingPhoto, loadBitmap, placeholderCard } from "@/lib/compose";
-import { formatEuros } from "@/lib/format";
+import { formatDateTime, formatEuros } from "@/lib/format";
 import { prepareImage } from "@/lib/image";
-import type { ListingOffer, ListingSettings, Photo, PhotoStyle } from "@/lib/types";
+import type { ChannelId, ChannelMode, ChannelState, ListingBlocker, ListingOffer, ListingSettings, ListingState, Photo, PhotoStyle } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 20;
-type Tab = "OFFERS" | "TEMPLATE" | "PHOTOS";
-const message = (e: unknown) => (e instanceof ApiError && e.code === "PHOTO_STORAGE_UNAVAILABLE" ? "Le stockage des photos n'est pas configuré." : (e as Error).message);
+type Tab = "OFFERS" | "TEMPLATE" | "PHOTOS" | "CHANNELS";
+const ERRORS: Record<string, string> = {
+  PHOTO_STORAGE_UNAVAILABLE: "Le stockage des photos n'est pas configuré.",
+  CHANNEL_DISABLED: "Ce canal est désactivé : activez-le dans l'onglet Canaux.",
+  CHANNEL_NOT_CONFIGURED: "Le connecteur réel de ce canal n'est pas encore configuré. Utilisez la simulation en attendant.",
+  LISTING_NOT_READY: "Cette offre n'est pas prête : il lui manque un prix, une photo ou une variante confirmée.",
+  OFFER_NOT_SELLABLE: "Cette offre n'a plus de stock vendable.",
+  LISTING_NOT_FOUND: "Cette annonce n'existe plus.",
+};
+const message = (e: unknown) => (e instanceof ApiError ? (ERRORS[e.code] ?? e.message) : (e as Error).message);
+const BLOCKERS: Record<ListingBlocker, string> = { PRICE: "Prix à décider", PHOTO: "Photo manquante", VARIANT: "Variante à confirmer" };
 const isScan = (p: Photo) => p.kind === "SCAN_FRONT" || p.kind === "SCAN_BACK";
 
 /** Carte d'exemple pour l'aperçu du modèle. */
@@ -34,10 +45,12 @@ const SAMPLE: ListingSubject = {
 export default function ListingsPage() {
   const [tab, setTab] = useState<Tab>("OFFERS");
   const [settings, setSettings] = useState<ListingSettings | null>(null);
+  const [channels, setChannels] = useState<ChannelState[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     api.listingSettings().then(setSettings).catch((e: Error) => setError(e.message));
+    api.channels().then((r) => setChannels(r.channels)).catch(() => setChannels([]));
   }, []);
 
   return (
@@ -48,14 +61,15 @@ export default function ListingsPage() {
           label="Annonces"
           value={tab}
           onChange={setTab}
-          tabs={[{ value: "OFFERS", label: "Offres" }, { value: "TEMPLATE", label: "Modèle" }, { value: "PHOTOS", label: "Photos" }]}
+          tabs={[{ value: "OFFERS", label: "Offres" }, { value: "TEMPLATE", label: "Modèle" }, { value: "PHOTOS", label: "Photos" }, { value: "CHANNELS", label: "Canaux" }]}
         />
       </div>
       {error && <Alert variant="destructive">{error}</Alert>}
       {!settings ? !error && <Loading />
-        : tab === "OFFERS" ? <Offers settings={settings} />
+        : tab === "OFFERS" ? <Offers settings={settings} channels={channels.filter((c) => c.mode !== "OFF")} />
         : tab === "TEMPLATE" ? <TemplateEditor settings={settings} onSaved={setSettings} />
-        : <PhotoStyleEditor settings={settings} onSaved={setSettings} />}
+        : tab === "PHOTOS" ? <PhotoStyleEditor settings={settings} onSaved={setSettings} />
+        : <Channels channels={channels} onChange={setChannels} />}
     </div>
   );
 }
@@ -79,7 +93,7 @@ function useBackgroundImage(style: PhotoStyle): { image: ImageBitmap | null; rea
   return photoId ? { image: state.id === photoId ? state.image : null, ready: state.id === photoId } : { image: null, ready: true };
 }
 
-function Offers({ settings }: { settings: ListingSettings }) {
+function Offers({ settings, channels }: { settings: ListingSettings; channels: ChannelState[] }) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<{ items: ListingOffer[]; total: number } | null>(null);
@@ -125,6 +139,18 @@ function Offers({ settings }: { settings: ListingSettings }) {
 
   const missing = (data?.items ?? []).filter((o) => o.photos.some(isScan) && !o.photos.some((p) => p.kind === "LISTING"));
 
+  /** Action sur un canal (publier, retirer, simuler un achat) : le message de succès, puis la liste à jour. */
+  async function act(action: () => Promise<string>) {
+    setError(null);
+    try {
+      toast.success(await action());
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      load();
+    }
+  }
+
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -148,6 +174,9 @@ function Offers({ settings }: { settings: ListingSettings }) {
         )}
       </div>
       {error && <Alert variant="destructive">{error}</Alert>}
+      {channels.length === 0 && data && data.items.length > 0 && (
+        <Alert variant="info">Aucun canal de vente n'est activé. L'onglet Canaux permet d'essayer tout le circuit en simulation, sans rien publier.</Alert>
+      )}
       {!data ? <Loading />
         : data.items.length === 0 ? (
           <EmptyState icon={<Megaphone />} title={query ? "Aucune offre ne correspond" : "Aucune offre vendable"}>
@@ -157,7 +186,15 @@ function Offers({ settings }: { settings: ListingSettings }) {
           <>
             <div className="grid gap-3">
               {data.items.map((offer) => (
-                <OfferCard key={offer.offerId} offer={offer} busy={composing === offer.offerId} disabled={!!composing || !background.ready} onCompose={() => compose([offer])} />
+                <OfferCard
+                  key={offer.offerId}
+                  offer={offer}
+                  channels={channels}
+                  busy={composing === offer.offerId}
+                  disabled={!!composing || !background.ready}
+                  onCompose={() => compose([offer])}
+                  onAct={act}
+                />
               ))}
             </div>
             <Pagination page={page} pageCount={Math.ceil(data.total / PAGE_SIZE)} onChange={setPage} />
@@ -171,7 +208,65 @@ function copy(text: string, what: string) {
   void navigator.clipboard?.writeText(text).then(() => toast.success(`${what} copié${what === "Description" ? "e" : ""}`));
 }
 
-function OfferCard({ offer, busy, disabled, onCompose }: { offer: ListingOffer; busy: boolean; disabled: boolean; onCompose: () => void }) {
+const LISTING_STATUS: Record<ListingState["status"], { label: string; variant: "success" | "warning" | "destructive" | "neutral" }> = {
+  ACTIVE: { label: "En ligne", variant: "success" },
+  PAUSED: { label: "En pause, stock épuisé", variant: "warning" },
+  ERROR: { label: "Erreur de synchronisation", variant: "destructive" },
+  PENDING: { label: "En attente", variant: "neutral" },
+  ENDED: { label: "Terminée", variant: "neutral" },
+};
+
+/** État d'une offre sur un canal activé, et les actions possibles. */
+function ChannelRow({ offer, channel, onAct }: { offer: ListingOffer; channel: ChannelState; onAct: (action: () => Promise<string>) => void }) {
+  const listing = offer.listings.find((l) => l.channel === channel.id);
+  const simulated = listing ? listing.simulated : channel.mode === "SIMULATION";
+  const publish = () => onAct(async () => {
+    await api.publishListing(offer.offerId, channel.id);
+    return listing ? `Annonce ${channel.label} mise à jour` : `Publiée sur ${channel.label}${simulated ? " (simulation)" : ""}`;
+  });
+  const outdated = listing && offer.targetPriceCents !== null && listing.priceCents !== offer.targetPriceCents;
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card px-3 py-2" data-testid={`channel-${channel.id}`}>
+      <span className="text-sm font-semibold">{channel.label}</span>
+      {simulated && <Badge variant="outline">Simulation</Badge>}
+      {listing ? (
+        <>
+          <Badge variant={LISTING_STATUS[listing.status].variant}>{LISTING_STATUS[listing.status].label}</Badge>
+          <span className="tabular text-xs text-muted-foreground">{listing.quantitySent} annoncée{listing.quantitySent > 1 ? "s" : ""} · {formatEuros(listing.priceCents)}</span>
+          {outdated && <Badge variant="warning">Prix modifié depuis</Badge>}
+          {listing.url && <a href={listing.url} target="_blank" rel="noreferrer" className="text-xs font-medium text-primary underline-offset-2 hover:underline">Voir l'annonce</a>}
+          <span className="ml-auto flex flex-wrap gap-1.5">
+            {listing.simulated && listing.status === "ACTIVE" && (
+              <Button variant="outline" size="sm" onClick={() => onAct(async () => `Commande ${(await api.simulateOrder(listing.id)).externalId} reçue : à préparer dans Ventes`)}>
+                <ShoppingCart /> Simuler un achat
+              </Button>
+            )}
+            {offer.available > 0 && <Button variant="outline" size="sm" onClick={publish}><RefreshCw /> Mettre à jour</Button>}
+            <Button variant="ghost" size="sm" onClick={() => onAct(async () => { await api.endListing(listing.id); return `Annonce ${channel.label} retirée`; })}>
+              <X /> Retirer
+            </Button>
+          </span>
+        </>
+      ) : (
+        <>
+          {offer.missing.map((m) => <Badge key={m} variant="warning">{BLOCKERS[m]}</Badge>)}
+          <Button size="sm" onClick={publish} disabled={offer.missing.length > 0} className="ml-auto">
+            <Megaphone /> Publier sur {channel.label}
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function OfferCard({ offer, channels, busy, disabled, onCompose, onAct }: {
+  offer: ListingOffer;
+  channels: ChannelState[];
+  busy: boolean;
+  disabled: boolean;
+  onCompose: () => void;
+  onAct: (action: () => Promise<string>) => void;
+}) {
   const listingPhotos = offer.photos.filter((p) => p.kind === "LISTING");
   const scans = offer.photos.filter(isScan);
   const shown = listingPhotos.length ? listingPhotos : scans;
@@ -212,6 +307,11 @@ function OfferCard({ offer, busy, disabled, onCompose }: { offer: ListingOffer; 
             </div>
           </div>
         </div>
+        {channels.length > 0 && (
+          <div className="grid gap-2">
+            {channels.map((channel) => <ChannelRow key={channel.id} offer={offer} channel={channel} onAct={onAct} />)}
+          </div>
+        )}
         <details className="group rounded-lg bg-muted/40 px-3 py-2 text-sm">
           <summary className="cursor-pointer font-medium text-muted-foreground outline-none select-none group-open:mb-2 focus-visible:underline">Description</summary>
           <p className="whitespace-pre-wrap" data-testid="listing-description">{offer.text.description}</p>
@@ -500,6 +600,110 @@ function PhotoStyleEditor({ settings, onSaved }: { settings: ListingSettings; on
           <p className="text-xs text-muted-foreground">Aperçu exact du fichier publié{sample instanceof HTMLCanvasElement ? " (carte factice : scannez une carte pour voir un vrai exemplaire)" : ""}.</p>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// ───────────────────────── Canaux ─────────────────────────
+
+const MODES: { value: ChannelMode; label: string }[] = [
+  { value: "OFF", label: "Désactivé" },
+  { value: "SIMULATION", label: "Simulation" },
+  { value: "LIVE", label: "Réel" },
+];
+const ACCESS: Record<ChannelId, { summary: string; steps: string[] }> = {
+  ebay: {
+    summary: "eBay demande un compte développeur (gratuit) relié à votre compte vendeur.",
+    steps: [
+      "Créez un compte sur le portail développeur d'eBay (developer.ebay.com) avec votre identifiant eBay.",
+      "Dans « Application keys », créez un jeu de clés Sandbox, puis Production : vous obtenez un App ID (Client ID) et un Cert ID (Client Secret).",
+      "Pour les clés Production, eBay demande de traiter les « notifications de suppression de compte » : abonnez-vous ou déclarez l'exemption.",
+      "Dans « User tokens », créez une URL de redirection (RuName) et autorisez les droits de vente : inventaire, commandes, compte.",
+      "Sur votre compte vendeur, activez les règles de vente (expédition, paiement, retours).",
+      "Une fois les clés en main, dites-le dans la conversation : elles seront saisies dans un formulaire sécurisé, jamais dans le chat.",
+    ],
+  },
+  cardtrader: {
+    summary: "CardTrader fournit un jeton d'accès personnel depuis le compte vendeur.",
+    steps: [
+      "Connectez-vous à CardTrader, puis ouvrez les réglages du compte, rubrique API.",
+      "Copiez le jeton d'accès de l'application (accès complet).",
+      "Dites-le dans la conversation : le jeton sera saisi dans un formulaire sécurisé, jamais dans le chat.",
+    ],
+  },
+};
+
+function Channels({ channels, onChange }: { channels: ChannelState[]; onChange: (channels: ChannelState[]) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run(action: () => Promise<void>) {
+    setBusy(true);
+    setError(null);
+    try {
+      await action();
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  const setMode = (channel: ChannelState, mode: ChannelMode) => run(async () => {
+    onChange((await api.setChannelMode(channel.id, mode)).channels);
+    toast.success(`${channel.label} : ${MODES.find((m) => m.value === mode)!.label.toLowerCase()}`);
+  });
+  const sync = () => run(async () => {
+    const r = await api.syncChannels();
+    onChange((await api.channels()).channels);
+    toast.success(`${r.orders} commande${r.orders > 1 ? "s" : ""} importée${r.orders > 1 ? "s" : ""}, ${r.updated} quantité${r.updated > 1 ? "s" : ""} mise${r.updated > 1 ? "s" : ""} à jour`);
+    if (r.errors > 0) setError(`${r.errors} synchronisation${r.errors > 1 ? "s ont" : " a"} échoué : elles seront retentées.`);
+  });
+
+  return (
+    <div className="grid gap-4">
+      <Alert variant="info">
+        <strong>Simulation :</strong> tout le circuit tourne — publication, quantités, commandes, préparation — sans rien envoyer à la marketplace.
+        Les commandes simulées réservent réellement le stock : annulez-les depuis Ventes après vos essais.
+      </Alert>
+      {error && <Alert variant="destructive">{error}</Alert>}
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        {channels.map((channel) => (
+          <Card key={channel.id} data-testid={`channel-card-${channel.id}`}>
+            <CardContent className="grid gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-[15px] font-semibold tracking-tight">{channel.label}</h2>
+                <Badge variant={channel.mode === "LIVE" ? "success" : channel.mode === "SIMULATION" ? "brand" : "neutral"}>
+                  {MODES.find((m) => m.value === channel.mode)!.label}
+                </Badge>
+              </div>
+              <ChoiceGroup value={channel.mode} onValueChange={(mode) => setMode(channel, mode)} aria-label={`Mode du canal ${channel.label}`} className="grid grid-cols-3 gap-1.5">
+                {MODES.map((m) => (
+                  <Choice key={m.value} value={m.value} disabled={busy || (m.value === "LIVE" && !channel.liveAvailable)} className="px-2">{m.label}</Choice>
+                ))}
+              </ChoiceGroup>
+              <dl className="grid grid-cols-2 gap-3 text-sm">
+                <div className="grid gap-0.5"><dt className="text-xs text-muted-foreground">Annonces en cours</dt><dd className="tabular font-semibold">{channel.liveListings}</dd></div>
+                <div className="grid gap-0.5"><dt className="text-xs text-muted-foreground">Dernière synchronisation</dt><dd className="font-medium">{channel.lastSyncedAt ? formatDateTime(channel.lastSyncedAt) : "—"}</dd></div>
+              </dl>
+              {!channel.liveAvailable && (
+                <details className="group rounded-lg bg-muted/40 px-3 py-2 text-sm">
+                  <summary className="cursor-pointer font-medium outline-none select-none group-open:mb-2 focus-visible:underline">Passer en réel : obtenir l'accès</summary>
+                  <p className="mb-2 text-muted-foreground">{ACCESS[channel.id].summary}</p>
+                  <ol className="grid list-decimal gap-1.5 pl-5 text-muted-foreground">
+                    {ACCESS[channel.id].steps.map((step) => <li key={step}>{step}</li>)}
+                  </ol>
+                </details>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button variant="outline" onClick={sync} disabled={busy}>{busy ? <Spinner /> : <RefreshCw />} Synchroniser maintenant</Button>
+        <p className="text-xs text-muted-foreground">
+          Les quantités annoncées suivent le stock après chaque vente ou entrée. Les commandes arrivent dans <Link href="/ventes" className="font-medium text-primary underline-offset-2 hover:underline">Ventes</Link>.
+        </p>
+      </div>
     </div>
   );
 }
