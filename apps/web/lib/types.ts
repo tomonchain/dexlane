@@ -12,7 +12,7 @@ import type {
   AlertSettings, Dashboard as DashboardRow, OfferPricing as PricingRow, PriceMove as PriceMoveRow, PriceMoves as PriceMovesRow, PricingSettings,
   VariantQuote as Quote,
 } from "@dexlane/pricing";
-import type { CardReadingRaw, RecognitionUsage } from "@dexlane/scan";
+import type { CardReadingRaw, RecognitionUsage, ScanBatch as ScanBatchRow, ScanItem as ScanItemRow } from "@dexlane/scan";
 
 /** Forme d'un objet du serveur une fois passé par JSON (les dates deviennent des chaînes). */
 type Json<T> = T extends Date ? string : T extends (infer U)[] ? Json<U>[] : T extends object ? { [K in keyof T]: Json<T[K]> } : T;
@@ -96,3 +96,6 @@ export type { StockStatus };
 export type StockRow = Json<StockRowRaw>;
 export type StockPage = Json<StockPageRow>;
 export type StockDetail = Json<StockDetailRow>;
+
+export type ScanBatch = Json<ScanBatchRow>;
+export type ScanItem = Json<ScanItemRow>;

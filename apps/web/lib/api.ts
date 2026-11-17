@@ -2,7 +2,7 @@ import type {
   AcquisitionLot, AlertSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, PriceMoves, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
   Location, Photo, PositionDetail, Received,
   OfferPricing, OrderDetail, OrderList, OrderStage, PricingSettings, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
-  ShippingMode, StockDetail, StockPage, StockStatus, StoredPhoto, VariantQuote,
+  ScanBatch, ScanItem, ShippingMode, StockDetail, StockPage, StockStatus, StoredPhoto, VariantQuote,
 } from "./types";
 
 export class ApiError extends Error {
@@ -104,6 +104,20 @@ export const api = {
   saveListingSettings: (settings: ListingSettings) => request<ListingSettings>("PUT", "/listings/settings", { json: settings }),
   listingOffers: (q: { q?: string; limit?: number; offset?: number }) =>
     request<{ items: ListingOffer[]; total: number }>("GET", "/listings/offers", { query: q }),
+
+  scanBatches: () => request<{ batches: ScanBatch[] }>("GET", "/scan-batches"),
+  createScanBatch: (input: { name?: string; locationCode: string; unitCostCents?: number; defaultCondition?: CardCondition | null; language?: string; paired?: boolean }) =>
+    request<ScanBatch>("POST", "/scan-batches", { json: input }),
+  scanBatch: (id: string) => request<{ batch: ScanBatch; items: ScanItem[] }>("GET", `/scan-batches/${id}`),
+  updateScanBatch: (id: string, change: { name?: string; locationCode?: string; unitCostCents?: number; defaultCondition?: CardCondition | null }) =>
+    request<ScanBatch>("PATCH", `/scan-batches/${id}`, { json: change }),
+  /** Enregistre la carte de ce rang ; si le rang existe déjà, il est renvoyé sans nouvelle lecture. */
+  addScanItem: (batchId: string, position: number, fileName: string, image: Blob) =>
+    request<ScanItem>("POST", `/scan-batches/${batchId}/items`, { blob: image, query: { position, fileName } }),
+  setScanItemBack: (itemId: string, image: Blob) => request<ScanItem>("POST", `/scan-items/${itemId}/back`, { blob: image }),
+  updateScanItem: (itemId: string, change: { catalogCardId?: string; variantId?: string | null; condition?: CardCondition | null; skipped?: boolean }) =>
+    request<ScanItem>("PATCH", `/scan-items/${itemId}`, { json: change }),
+  receiveScanBatch: (id: string) => request<{ received: number; firstSku: string | null; lastSku: string | null; batch: ScanBatch }>("POST", `/scan-batches/${id}/receive`),
 
   stock: (q: { q?: string; status?: StockStatus | "ALL"; sort?: "value" | "recent" | "name"; limit?: number; offset?: number }) =>
     request<StockPage>("GET", "/stock", { query: q }),

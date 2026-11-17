@@ -15,8 +15,7 @@ import {
   getPricingSettings, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice, getAlertSettings, getDashboard, listPriceMoves, saveAlertSettings,
 } from "@dexlane/pricing";
 import {
-  MAX_IMAGE_BYTES, RecognitionError, assertSupportedImage, identifyCard,
-  type CardImage, type CardRecognizer, type ImageMediaType,
+  MAX_IMAGE_BYTES, RecognitionError, assertSupportedImage, identifyCard, type CardImage, type CardRecognizer, type ImageMediaType, addItem, createBatch, findItem, getBatch, listBatches, listItems, receiveBatch, setItemBack, updateBatch, updateItem,
 } from "@dexlane/scan";
 import { DomainError } from "@dexlane/shared";
 import { changePassword, passwordStatus, setPassword, verifyPassword } from "./auth";
@@ -228,6 +227,74 @@ export function createApp(deps: AppDeps) {
 
   /** Offres vendables avec le texte de leur annonce et leurs photos. */
   app.get("/api/listings/offers", async (c) => c.json(await listListingOffers(sql, parse(s.listingOffersQuery, c.req.query()))));
+
+  // ───────────────────────── Sessions de scan ─────────────────────────
+
+  const scanBody = () =>
+    bodyLimit({
+      maxSize: MAX_IMAGE_BYTES + 64 * 1024,
+      onError: () => {
+        throw new RecognitionError("IMAGE_TOO_LARGE", "image is too large; resize to under 5 MB");
+      },
+    });
+
+  app.get("/api/scan-batches", async (c) => c.json({ batches: await listBatches(sql) }));
+
+  app.post("/api/scan-batches", async (c) => {
+    const { locationCode, ...body } = await parseJsonBody(c, s.createBatchBody);
+    return c.json(await createBatch(sql, { ...body, location: { code: locationCode } }), 201);
+  });
+
+  app.get("/api/scan-batches/:id", async (c) => {
+    const id = parse(s.batchId, c.req.param("id"));
+    return c.json({ batch: await getBatch(sql, id), items: await listItems(sql, id) });
+  });
+
+  app.patch("/api/scan-batches/:id", async (c) => {
+    const { locationCode, ...body } = await parseJsonBody(c, s.updateBatchBody);
+    return c.json(await updateBatch(sql, parse(s.batchId, c.req.param("id")), { ...body, location: locationCode ? { code: locationCode } : undefined }));
+  });
+
+  /**
+   * Une carte scannée, à son rang dans la pile. L'image est conservée et lue ; si la lecture échoue, la carte est tout de même
+   * enregistrée, à identifier à la main. Un rang déjà enregistré est renvoyé tel quel, sans nouvelle lecture.
+   */
+  app.post("/api/scan-batches/:id/items", scanBody(), async (c) => {
+    const batchId = parse(s.batchId, c.req.param("id"));
+    const { position, fileName } = parse(s.scanItemQuery, c.req.query());
+    const existing = await findItem(sql, batchId, position);
+    if (existing) return c.json(existing);
+    const batch = await getBatch(sql, batchId);
+    const image = await readImage(c);
+    const recognizer = guardUpstream(deps.recognizer, deps.onError ?? console.error);
+    const [identification, photo] = await Promise.all([
+      identifyCard(sql, recognizer, image, { defaultLanguage: batch.language }).catch((e: unknown) => {
+        if (!(e instanceof HttpError) && !(e instanceof RecognitionError)) throw e;
+        return { error: e.code };
+      }),
+      storePhoto(image, "SCAN_FRONT"),
+    ]);
+    return c.json(await addItem(sql, { batchId, position, fileName, frontPhotoId: photo?.id ?? null, identification }), 201);
+  });
+
+  /** Verso d'une carte déjà enregistrée. */
+  app.post("/api/scan-items/:id/back", scanBody(), async (c) => {
+    const itemId = parse(s.scanItemId, c.req.param("id"));
+    const photo = await storePhoto(await readImage(c), "SCAN_BACK");
+    if (!photo) throw new HttpError(deps.photos ? 502 : 503, deps.photos ? "PHOTO_STORAGE_FAILED" : "PHOTO_STORAGE_UNAVAILABLE", "the photo could not be stored");
+    return c.json(await setItemBack(sql, itemId, photo.id));
+  });
+
+  app.patch("/api/scan-items/:id", async (c) =>
+    c.json(await updateItem(sql, parse(s.scanItemId, c.req.param("id")), await parseJsonBody(c, s.updateScanItemBody))));
+
+  /** Entre tout le lot en stock dans l'ordre du scan, et tarife chaque offre touchée. */
+  app.post("/api/scan-batches/:id/receive", async (c) => {
+    const id = parse(s.batchId, c.req.param("id"));
+    const result = await receiveBatch(sql, id, c.var.actor, (tx, received) => refreshOfferPricing(tx, received.offer.id));
+    await syncQuantities(sql, live).catch(deps.onError ?? console.error);
+    return c.json({ ...result, batch: await getBatch(sql, id) });
+  });
 
   // ───────────────────────── Stock à vendre ─────────────────────────
 

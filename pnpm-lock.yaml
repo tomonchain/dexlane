@@ -219,6 +219,9 @@ importers:
       '@dexlane/db':
         specifier: workspace:*
         version: link:../db
+      '@dexlane/inventory':
+        specifier: workspace:*
+        version: link:../inventory
       '@dexlane/shared':
         specifier: workspace:*
         version: link:../shared

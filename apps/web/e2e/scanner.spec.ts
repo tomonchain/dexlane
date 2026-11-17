@@ -385,11 +385,16 @@ test("ventes : vente directe réservée, prélevée par code, emballée, dépos�
   await expect(page.getByRole("link", { name: /Camille/ })).toContainText("5,00 €");
 });
 
-test("scan en lot : images recto verso d'un scanner, vérification ligne à ligne, entrée en série avec photos", async ({ page }) => {
+test("lot scanné : cartes reçues dans l'ordre du scanner, revue conservée après rechargement, entrée en stock d'un bloc", async ({ page }) => {
   await login(page);
-  await page.goto("/ajouter");
-  await page.getByRole("link", { name: /Importer un lot d'images/ }).click();
-  await expect(page.getByRole("heading", { name: "Scan en lot" })).toBeVisible();
+  await page.request.post("/api/locations", { data: { code: "BOITE-07" } });
+  await page.goto("/scanner/lot");
+  const box = page.getByRole("button", { name: "Boîte de destination", exact: true });
+  await box.click();
+  await page.getByLabel("Filtrer les emplacements").fill("boite-07");
+  await page.getByRole("radio", { name: "BOITE-07", exact: true }).click();
+  await page.getByRole("button", { name: "Créer le lot" }).click();
+  await expect(page.getByRole("heading", { name: /^Lot du / })).toBeVisible();
 
   const file = (name: string, width: number) => ({ name, mimeType: "image/png", buffer: png(width) });
   const input = page.getByTestId("batch-input");
@@ -397,55 +402,56 @@ test("scan en lot : images recto verso d'un scanner, vérification ligne à lign
   const rows = page.getByTestId("batch-row");
 
   // Recto et verso : un nombre impair d'images trahit une image manquante.
-  await page.getByRole("switch", { name: "Recto et verso" }).click();
   await input.setInputFiles([file("scan_001.png", CLEAR), file("scan_002.png", 30), file("scan_003.png", PARTIAL_NAME)]);
-  await expect(errorBanner(page)).toContainText("3 images ont été déposées");
+  await expect(errorBanner(page)).toContainText("3 images ont été choisies");
   await expect(rows).toHaveCount(0);
 
-  // Déposées dans le désordre, les images sont remises dans l'ordre du scanner (nom de fichier).
+  // Déposées dans le désordre, les images retrouvent l'ordre du scanner (nom de fichier), recto puis verso.
   await input.setInputFiles([
     file("scan_010.png", 30), file("scan_003.png", PARTIAL_NAME), file("scan_001.png", CLEAR),
     file("scan_002.png", 30), file("scan_009.png", OUTAGE), file("scan_004.png", 30),
   ]);
   await expect(rows).toHaveCount(3);
-  await expect(rows.nth(0)).toHaveAttribute("data-status", "ready");
   await expect(rows.nth(0)).toContainText("Fouinar");
   await expect(rows.nth(1)).toContainText("Carte à choisir");
   await expect(rows.nth(2)).toContainText("Lecture impossible");
-  await expect(rows.nth(0).getByRole("img")).toHaveCount(2); // recto et verso
+  await expect(rows.nth(0).getByRole("img", { name: /Recto|Verso/ })).toHaveCount(2);
+  await expect(save).toBeDisabled();
 
-  await chooseLocation(page, "BOX-LOT");
-  await expect(save).toHaveText("Reste : l'état des cartes");
-  await page.getByRole("radio", { name: "Near Mint" }).click();
-  await expect(save).toHaveText("Entrer 1 carte en stock");
+  // L'état du lot rend prête la carte reconnue sans doute possible.
+  await page.getByLabel("État du lot").selectOption("NM");
+  await expect(rows.nth(0)).toHaveAttribute("data-status", "ready");
+  await expect(page.getByTestId("batch-counts")).toContainText("2 à corriger");
 
-  // Lecture incertaine : l'opérateur choisit la carte et la variante, puis un état propre à cette carte.
+  // Lecture incertaine : la carte et la variante sont choisies à la main, avec un état à elle.
   await rows.nth(1).getByRole("button", { name: "Choisir" }).click();
-  const dialog = page.getByRole("dialog", { name: "Choisir la carte" });
+  const dialog = page.getByRole("dialog", { name: "Carte n° 2" });
   await dialog.getByRole("radio", { name: /Fouinar/ }).click();
   await dialog.getByRole("radio", { name: "Normale" }).click();
+  await dialog.getByLabel("État de cette carte").selectOption("EX");
   await dialog.getByRole("button", { name: "Utiliser cette carte" }).click();
-  await page.getByLabel("État de la carte 2").selectOption("EX");
-  // Lecture en panne : la ligne est retirée du lot.
-  await page.getByRole("button", { name: "Retirer la carte 3" }).click();
-  await expect(rows).toHaveCount(2);
+  // Lecture en panne : la carte est écartée du lot.
+  await page.getByRole("button", { name: "Écarter la carte 3" }).click();
+  await expect(rows.nth(2)).toHaveAttribute("data-status", "skipped");
 
+  // Tout est enregistré côté serveur : recharger la page ne perd ni les lectures ni les corrections.
+  await page.reload();
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(1)).toHaveAttribute("data-status", "ready");
   await expect(save).toHaveText("Entrer 2 cartes en stock");
   await save.click();
+
+  await expect(page.getByTestId("batch-done")).toContainText("2 cartes en stock");
   const skus = page.getByTestId("batch-sku");
   await expect(skus).toHaveCount(2);
   const [first, second] = await skus.allInnerTexts();
   expect(Number(second!.slice(3))).toBe(Number(first!.slice(3)) + 1); // les codes suivent l'ordre de la pile
-  await expect(page.getByTestId("batch-counts")).toContainText("2 en stock");
-  await expect(rows.nth(1)).toContainText("EX");
 
-  // La fiche de la position porte les deux photos du scan.
+  // La fiche de la position porte le recto et le verso, dans la boîte du lot.
   await skus.first().click();
   await expect(page.getByRole("heading", { name: "Fouinar" })).toBeVisible();
   await expect(page.getByTestId("position-photos").getByRole("img")).toHaveCount(2);
-  await expect(page.getByTestId("position-photos")).toContainText("Recto");
-  await expect(page.getByTestId("position-photos")).toContainText("Verso");
-  await expect(page.getByText("OF-SWSH3-136-FR-R-NM")).toBeVisible();
+  await expect(page.getByText("BOITE-07").first()).toBeVisible();
 });
 
 test("annonces : modèle de titre, fond des photos, composition du visuel à partir du scan", async ({ page }) => {
@@ -653,4 +659,58 @@ test("scan sûr à 100 % : malgré une remarque de lecture, la fiche arrive remp
 
   await expect(page.getByText("Entrée en stock enregistrée.")).toBeVisible();
   await expect(page.getByText("OF-SWSH3-136-FR-R-EX")).toBeVisible();
+});
+
+test("dossier du scanner relié : chaque carte scannée arrive seule, les anciens fichiers sont ignorés, rien n'est relu après rechargement", async ({ page }) => {
+  test.setTimeout(90_000);
+  // Dossier de scanner simulé : le navigateur de test n'a pas de vrai sélecteur de dossier.
+  await page.addInitScript(() => {
+    const files: File[] = [];
+    const w = window as unknown as { __scanner: { add(name: string, bytes: number[]): void }; showDirectoryPicker: () => Promise<unknown> };
+    w.__scanner = { add: (name, bytes) => void files.push(new File([new Uint8Array(bytes)], name, { type: "image/png" })) };
+    w.showDirectoryPicker = async () => ({
+      name: "Scans",
+      async *values() {
+        for (const f of files) yield { kind: "file", name: f.name, getFile: async () => f };
+      },
+    });
+  });
+  const scanned = (name: string, width: number) =>
+    page.evaluate(([n, bytes]) => (window as unknown as { __scanner: { add(name: string, bytes: number[]): void } }).__scanner.add(n as string, bytes as number[]), [name, [...png(width)]]);
+
+  await login(page);
+  await page.request.post("/api/locations", { data: { code: "BOITE-08" } });
+  const batch = (await (await page.request.post("/api/scan-batches", { data: { locationCode: "BOITE-08", defaultCondition: "NM" } })).json()) as { id: string };
+  await page.goto(`/scanner/lot/${batch.id}`);
+  const rows = page.getByTestId("batch-row");
+
+  // Deux images d'un lot précédent traînent dans le dossier : elles ne doivent pas entrer dans celui-ci.
+  await scanned("ancien_1.png", OUTAGE);
+  await scanned("ancien_2.png", OUTAGE);
+  await page.getByRole("button", { name: "Relier le dossier du scanner" }).click();
+  await expect(page.getByText(/2 images déjà dans le dossier/)).toBeVisible();
+  await expect(page.getByText(/Dossier Scans relié/)).toBeVisible();
+
+  // Un recto seul attend son verso ; la carte apparaît d'elle-même quand la paire est complète.
+  await scanned("scan_001.png", CLEAR);
+  await page.waitForTimeout(5000);
+  await expect(rows).toHaveCount(0);
+  await scanned("scan_002.png", 30);
+  await expect(rows).toHaveCount(1, { timeout: 15_000 });
+  await expect(rows.nth(0)).toContainText("Fouinar");
+  await expect(rows.nth(0)).toHaveAttribute("data-status", "ready");
+  await scanned("scan_003.png", CLEAR);
+  await scanned("scan_004.png", 30);
+  await expect(rows).toHaveCount(2, { timeout: 15_000 });
+  await expect(rows.nth(1).getByRole("img", { name: /Recto|Verso/ })).toHaveCount(2, { timeout: 15_000 });
+
+  // Après rechargement, relier le même dossier ne relit rien et n'ajoute rien.
+  const before = (await (await page.request.get(`/api/scan-batches/${batch.id}`)).json()) as { items: { id: string }[] };
+  await page.reload();
+  for (const [name, width] of [["ancien_1.png", OUTAGE], ["ancien_2.png", OUTAGE], ["scan_001.png", CLEAR], ["scan_002.png", 30], ["scan_003.png", CLEAR], ["scan_004.png", 30]] as const) await scanned(name, width);
+  await page.getByRole("button", { name: "Relier le dossier du scanner" }).click();
+  await page.waitForTimeout(6000);
+  const after = (await (await page.request.get(`/api/scan-batches/${batch.id}`)).json()) as { items: { id: string }[] };
+  expect(after.items.map((i) => i.id)).toEqual(before.items.map((i) => i.id));
+  await expect(page.getByTestId("batch-save")).toHaveText("Entrer 2 cartes en stock");
 });

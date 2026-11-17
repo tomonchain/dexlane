@@ -222,3 +222,29 @@ export const stockQuery = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
+
+const condition = z.enum(["MT", "NM", "EX", "GD", "LP", "PL", "PO"]);
+export const batchId = z.uuid();
+export const scanItemId = z.uuid();
+export const createBatchBody = z.strictObject({
+  name: z.string().max(80).optional(),
+  locationCode: z.string().min(1).max(60),
+  unitCostCents: cents.optional(),
+  acquisitionLotId: z.uuid().optional(),
+  defaultCondition: condition.nullable().optional(),
+  language: z.string().regex(/^[a-z]{2}$/).optional(),
+  paired: z.boolean().optional(),
+});
+export const updateBatchBody = z.strictObject({
+  name: z.string().min(1).max(80).optional(),
+  locationCode: z.string().min(1).max(60).optional(),
+  unitCostCents: cents.optional(),
+  defaultCondition: condition.nullable().optional(),
+});
+export const scanItemQuery = z.object({ position: z.coerce.number().int().min(1).max(100_000), fileName: z.string().min(1).max(200) });
+export const updateScanItemBody = z.strictObject({
+  catalogCardId: z.uuid().optional(),
+  variantId: z.uuid().nullable().optional(),
+  condition: condition.nullable().optional(),
+  skipped: z.boolean().optional(),
+});

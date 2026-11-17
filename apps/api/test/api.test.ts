@@ -317,6 +317,44 @@ describe("listings", () => {
   });
 });
 
+describe("scan batches", () => {
+  const jpeg = (byte: number) => new Uint8Array([0xff, 0xd8, 0xff, byte]);
+  const upload = (path: string, byte = 1) => call("POST", path, { body: jpeg(byte), headers: { "Content-Type": "image/jpeg" }, key: null });
+
+  it("stores each scanned card at its rank, lets the review fix it, then receives the batch in order", async () => {
+    await call("POST", "/api/locations", { body: { code: "BOITE-07" } });
+    expect((await call("POST", "/api/scan-batches", { body: { locationCode: "NOPE" } })).status).toBe(404);
+    const batch = (await call("POST", "/api/scan-batches", { body: { locationCode: "BOITE-07", unitCostCents: 10 } })).json;
+
+    const first = await upload(`/api/scan-batches/${batch.id}/items?position=1&fileName=scan_1.jpg`);
+    expect([first.status, first.json.sure, first.json.card.name, first.json.frontPhoto.url.slice(0, 15)]).toEqual([201, true, "Fouinar", "data:image/jpeg"]);
+    // Le même rang renvoyé (page rechargée) : pas de nouvelle lecture, pas de doublon.
+    const replay = await upload(`/api/scan-batches/${batch.id}/items?position=1&fileName=scan_1.jpg`, 9);
+    expect([replay.status, replay.json.id]).toEqual([200, first.json.id]);
+    expect((await upload(`/api/scan-items/${first.json.id}/back`, 2)).json.backPhoto).not.toBeNull();
+
+    // Lecture en panne : la carte est gardée à son rang, à identifier à la main.
+    recognize = async () => { throw new Error("vision down"); };
+    const second = await upload(`/api/scan-batches/${batch.id}/items?position=2&fileName=scan_2.jpg`);
+    expect([second.status, second.json.card, second.json.scanError]).toEqual([201, null, "SCAN_UNAVAILABLE"]);
+
+    expect((await call("POST", `/api/scan-batches/${batch.id}/receive`)).json.error).toMatchObject({ code: "BATCH_NOT_READY", details: { positions: [1, 2] } });
+    await call("PATCH", `/api/scan-batches/${batch.id}`, { body: { defaultCondition: "NM" } });
+    const fixed = await call("PATCH", `/api/scan-items/${second.json.id}`, { body: { catalogCardId: first.json.card.id, variantId: first.json.card.variants[0].id, condition: "GD" } });
+    expect(fixed.json).toMatchObject({ ready: true, condition: "GD" });
+
+    const received = await call("POST", `/api/scan-batches/${batch.id}/receive`);
+    expect(received.json).toMatchObject({ received: 2, batch: { counts: { items: 2, received: 2, toReview: 0 } } });
+    const detail = await call("GET", `/api/scan-batches/${batch.id}`);
+    expect(detail.json.items.map((i: { unitSku: string }) => i.unitSku)).toEqual([received.json.firstSku, received.json.lastSku]);
+    const position = await call("GET", `/api/inventory/${received.json.firstSku}`);
+    expect(position.json).toMatchObject({ locationCode: "BOITE-07", unitCostCents: 10 });
+    expect(position.json.photos).toHaveLength(2);
+    expect(position.json.offer.suggestedPriceCents).not.toBeNull(); // tarifée à l'entrée
+    expect((await call("GET", "/api/scan-batches")).json.batches[0].receivedAt).not.toBeNull();
+  });
+});
+
 describe("statistics and price alerts", () => {
   it("refreshes the quotes of owned cards, exposes the dashboard and the price moves, and saves alert thresholds", async () => {
     await call("POST", "/api/locations", { body: { code: "BOX-01" } });
