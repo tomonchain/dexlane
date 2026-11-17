@@ -383,3 +383,66 @@ test("ventes : vente directe réservée, prélevée par code, emballée, dépos�
   await page.getByRole("tab", { name: /^Remises/ }).click();
   await expect(page.getByRole("link", { name: /Camille/ })).toContainText("5,00 €");
 });
+
+test("scan en lot : images recto verso d'un scanner, vérification ligne à ligne, entrée en série avec photos", async ({ page }) => {
+  await login(page);
+  await page.goto("/");
+  await page.getByRole("link", { name: /Importer un lot d'images/ }).click();
+  await expect(page.getByRole("heading", { name: "Scan en lot" })).toBeVisible();
+
+  const file = (name: string, width: number) => ({ name, mimeType: "image/png", buffer: png(width) });
+  const input = page.getByTestId("batch-input");
+  const save = page.getByTestId("batch-save");
+  const rows = page.getByTestId("batch-row");
+
+  // Recto et verso : un nombre impair d'images trahit une image manquante.
+  await page.getByRole("switch", { name: "Recto et verso" }).click();
+  await input.setInputFiles([file("scan_001.png", CLEAR), file("scan_002.png", 30), file("scan_003.png", PARTIAL_NAME)]);
+  await expect(errorBanner(page)).toContainText("3 images ont été déposées");
+  await expect(rows).toHaveCount(0);
+
+  // Déposées dans le désordre, les images sont remises dans l'ordre du scanner (nom de fichier).
+  await input.setInputFiles([
+    file("scan_010.png", 30), file("scan_003.png", PARTIAL_NAME), file("scan_001.png", CLEAR),
+    file("scan_002.png", 30), file("scan_009.png", OUTAGE), file("scan_004.png", 30),
+  ]);
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(0)).toHaveAttribute("data-status", "ready");
+  await expect(rows.nth(0)).toContainText("Fouinar");
+  await expect(rows.nth(1)).toContainText("Carte à choisir");
+  await expect(rows.nth(2)).toContainText("Lecture impossible");
+  await expect(rows.nth(0).getByRole("img")).toHaveCount(2); // recto et verso
+
+  await chooseLocation(page, "BOX-LOT");
+  await expect(save).toHaveText("Reste : l'état des cartes");
+  await page.getByRole("radio", { name: "Near Mint" }).click();
+  await expect(save).toHaveText("Entrer 1 carte en stock");
+
+  // Lecture incertaine : l'opérateur choisit la carte et la variante, puis un état propre à cette carte.
+  await rows.nth(1).getByRole("button", { name: "Choisir" }).click();
+  const dialog = page.getByRole("dialog", { name: "Choisir la carte" });
+  await dialog.getByRole("radio", { name: /Fouinar/ }).click();
+  await dialog.getByRole("radio", { name: "Normale" }).click();
+  await dialog.getByRole("button", { name: "Utiliser cette carte" }).click();
+  await page.getByLabel("État de la carte 2").selectOption("EX");
+  // Lecture en panne : la ligne est retirée du lot.
+  await page.getByRole("button", { name: "Retirer la carte 3" }).click();
+  await expect(rows).toHaveCount(2);
+
+  await expect(save).toHaveText("Entrer 2 cartes en stock");
+  await save.click();
+  const skus = page.getByTestId("batch-sku");
+  await expect(skus).toHaveCount(2);
+  const [first, second] = await skus.allInnerTexts();
+  expect(Number(second!.slice(3))).toBe(Number(first!.slice(3)) + 1); // les codes suivent l'ordre de la pile
+  await expect(page.getByTestId("batch-counts")).toContainText("2 en stock");
+  await expect(rows.nth(1)).toContainText("EX");
+
+  // La fiche de la position porte les deux photos du scan.
+  await skus.first().click();
+  await expect(page.getByRole("heading", { name: "Fouinar" })).toBeVisible();
+  await expect(page.getByTestId("position-photos").getByRole("img")).toHaveCount(2);
+  await expect(page.getByTestId("position-photos")).toContainText("Recto");
+  await expect(page.getByTestId("position-photos")).toContainText("Verso");
+  await expect(page.getByText("OF-SWSH3-136-FR-R-NM")).toBeVisible();
+});

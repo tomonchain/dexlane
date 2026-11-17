@@ -1,7 +1,7 @@
 import type {
   AcquisitionLot, Candidate, CardCondition, CatalogSet, CatalogSetDetail, InventoryPage, InventorySummary, Location, PositionDetail, Received,
   OfferPricing, OrderDetail, OrderList, OrderStage, PricingSettings, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
-  ShippingMode, VariantQuote,
+  ShippingMode, StoredPhoto, VariantQuote,
 } from "./types";
 
 export class ApiError extends Error {
@@ -80,6 +80,7 @@ export interface ReceiveInput {
   acquisitionLotId?: string;
   unique?: boolean;
   draft?: boolean;
+  photoIds?: string[];
 }
 
 export interface BulkInput {
@@ -92,6 +93,7 @@ export interface BulkInput {
 
 export const api = {
   scan: (image: Blob, language: string) => request<ScanResult>("POST", "/scans", { blob: image, query: { language } }),
+  uploadPhoto: (image: Blob, kind: "SCAN_FRONT" | "SCAN_BACK") => request<StoredPhoto>("POST", "/photos", { blob: image, query: { kind } }),
   searchCatalog: (q: { language: string; name?: string; number?: string; set?: string }) =>
     request<{ candidates: Candidate[] }>("GET", "/catalog/cards", { query: q }),
 

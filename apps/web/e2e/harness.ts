@@ -5,6 +5,7 @@
  */
 import { serve } from "@hono/node-server";
 import { createApp } from "@dexlane/api";
+import { createMemoryPhotoStore } from "@dexlane/api/photos";
 import { syncSet } from "@dexlane/catalog";
 import { createDb } from "@dexlane/db";
 import { prepareTestDatabase, testDatabaseUrl } from "@dexlane/db/testing";
@@ -54,6 +55,6 @@ for (const set of ["swsh3", "base1"]) await syncSet(sql, client, "fr", set);
 await sql`update price_snapshots set observed_at = now() - interval '1 day'`;
 
 serve(
-  { fetch: createApp({ sql, token: E2E_TOKEN, recognizer: () => recognizer, tcgdex: () => client, onError: () => undefined }).fetch, hostname: "127.0.0.1", port: E2E_API_PORT },
+  { fetch: createApp({ sql, token: E2E_TOKEN, recognizer: () => recognizer, tcgdex: () => client, photos: createMemoryPhotoStore(), onError: () => undefined }).fetch, hostname: "127.0.0.1", port: E2E_API_PORT },
   (info) => console.log(`e2e api listening on http://127.0.0.1:${info.port}`),
 );

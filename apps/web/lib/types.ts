@@ -1,6 +1,6 @@
 import type { Candidate, CandidateVariant, CatalogSetCard as SetCard, CatalogSetDetail as SetDetail, CatalogSetSummary, SyncStats } from "@dexlane/catalog";
 import type {
-  AcquisitionLotRow, CardCondition, InventoryRow, InventorySummary, LocationSummary, MovementRow, OrderDetail as OrderDetailRow,
+  AcquisitionLotRow, CardCondition, InventoryRow, InventorySummary, LocationSummary, MovementRow, OrderDetail as OrderDetailRow, PhotoKind, PhotoRow,
   OrderStage, OrderSummary as OrderSummaryRow, ReceivedBulk, ReceivedPosition, SalesTotals, SellableOffer as SellableOfferRow,
   ShippingMode,
 } from "@dexlane/inventory";
@@ -12,7 +12,14 @@ type Json<T> = T extends Date ? string : T extends (infer U)[] ? Json<U>[] : T e
 
 export type { Candidate, CandidateVariant, CardCondition, InventorySummary };
 export type Position = Json<InventoryRow>;
-export type PositionDetail = Position & { movements: Json<MovementRow>[] };
+export type Photo = Json<PhotoRow>;
+export type PositionDetail = Position & { movements: Json<MovementRow>[]; photos: Photo[] };
+/** Photo déposée dans le stockage, pas encore rattachée à une position. */
+export interface StoredPhoto {
+  id: string;
+  url: string;
+  kind: PhotoKind;
+}
 export type Movement = Json<MovementRow>;
 export type Location = Json<LocationSummary>;
 export type AcquisitionLot = Json<AcquisitionLotRow>;
@@ -27,6 +34,8 @@ export type CatalogSetCard = Json<SetCard>;
 export type SetSyncReport = SyncStats & { errorCount: number };
 
 export interface ScanResult {
+  /** Photo conservée ; null si aucun stockage n'est configuré. */
+  photo: StoredPhoto | null;
   requiresReview: boolean;
   reviewReasons: string[];
   ambiguous: boolean;

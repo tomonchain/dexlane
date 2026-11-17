@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Camera, Check, ChevronRight, Copy, Layers, RotateCcw, ScanLine, Search } from "lucide-react";
+import { ArrowRight, Camera, Check, ChevronRight, Copy, Images, Layers, RotateCcw, ScanLine, Search } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
@@ -17,42 +17,14 @@ import { Field, Input, Select } from "@/components/ui/input";
 import { Code, PageHeader, Spinner } from "@/components/ui/misc";
 import { SwitchRow } from "@/components/ui/switch";
 import { Choice, ChoiceGroup } from "@/components/ui/toggle-group";
-import { ApiError, api, createKeyring } from "@/lib/api";
+import { api, createKeyring } from "@/lib/api";
 import { formatEuros, parseEuros, reviewReason, variantLabel } from "@/lib/format";
 import { CATEGORY_LABEL, CATEGORY_VARIANT, reasonLabel } from "@/lib/pricing";
 import { prepareImage } from "@/lib/image";
+import { DEFAULT_SCAN_SESSION, LANGUAGES, SCAN_SESSION_KEY, scanErrorMessage, submitErrorMessage, type ScanSession } from "@/lib/scan";
 import { useStored } from "@/lib/storage";
 import { CONDITIONS, type AcquisitionLot, type Candidate, type CardCondition, type PositionDetail, type Received, type ScanResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-/** Réglages qui restent d'une carte à l'autre : on range une série de cartes au même endroit, au même coût. */
-interface Session {
-  locationCode: string;
-  cost: string;
-  lotId: string;
-  language: string;
-}
-const DEFAULT_SESSION: Session = { locationCode: "", cost: "0", lotId: "", language: "fr" };
-const LANGUAGES: [string, string][] = [
-  ["fr", "Français"], ["en", "Anglais"], ["de", "Allemand"], ["it", "Italien"], ["es", "Espagnol"], ["pt", "Portugais"], ["ja", "Japonais"],
-];
-
-const SCAN_ERRORS: Record<string, string> = {
-  SCAN_UNAVAILABLE: "La lecture automatique est indisponible. Recherchez la carte à la main.",
-  REFUSED: "Le modèle n'a pas pu lire cette photo. Recherchez la carte à la main ou reprenez la photo.",
-  TRUNCATED: "La lecture a été interrompue. Reprenez la photo ou recherchez la carte à la main.",
-  UNPARSEABLE: "La lecture n'a pas abouti. Reprenez la photo ou recherchez la carte à la main.",
-  IMAGE_TOO_LARGE: "Photo trop lourde. Reprenez-la d'un peu plus loin.",
-  UNSUPPORTED_MEDIA_TYPE: "Format d'image non pris en charge. Prenez la photo en JPEG.",
-};
-const SUBMIT_ERRORS: Record<string, string> = {
-  LOCATION_NOT_FOUND: "Cet emplacement n'existe pas. Choisissez-en un autre.",
-  ACQUISITION_LOT_NOT_FOUND: "Ce lot d'acquisition n'existe plus. Choisissez-en un autre.",
-  INSUFFICIENT_STOCK: "Le lot de vrac ne contient plus assez de cartes.",
-  NOT_BULK: "Cette position n'est pas un lot de vrac.",
-  VARIANT_NOT_FOUND: "Cette variante n'existe plus dans le catalogue. Relancez la recherche.",
-  NETWORK: "Connexion impossible. Réessayez : la même saisie ne sera pas enregistrée deux fois.",
-};
 
 type Phase = "idle" | "reading" | "form" | "done";
 interface Entry {
@@ -94,7 +66,7 @@ function Step({ n, title, done, aside, children }: { n: number; title: string; d
 
 function Scanner() {
   const bulkId = useSearchParams().get("vrac");
-  const [session, setSession, sessionReady] = useStored<Session>("dexlane.scan.session", DEFAULT_SESSION);
+  const [session, setSession, sessionReady] = useStored<ScanSession>(SCAN_SESSION_KEY, DEFAULT_SCAN_SESSION);
   const [phase, setPhase] = useState<Phase>("idle");
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [scan, setScan] = useState<ScanResult | null>(null);
@@ -177,7 +149,7 @@ function Scanner() {
       if (!result.requiresReview && result.candidates[0]) selectCard(result.candidates[0], result.suggestedVariantId);
       if (result.candidates.length === 0) setManual(true);
     } catch (e) {
-      setScanError(e instanceof ApiError ? (SCAN_ERRORS[e.code] ?? e.message) : (e as Error).message);
+      setScanError(scanErrorMessage(e));
       setManual(true);
     }
     setPhase("form");
@@ -201,6 +173,7 @@ function Scanner() {
       locationCode: session.locationCode,
       unique: unique || undefined,
       draft: draft || undefined,
+      photoIds: scan?.photo ? [scan.photo.id] : undefined,
     };
     try {
       const received = bulkId
@@ -215,7 +188,7 @@ function Scanner() {
       setPhase("done");
       if (bulkId) api.position(bulkId).then(setBulk).catch(() => undefined);
     } catch (e) {
-      setError(e instanceof ApiError ? (SUBMIT_ERRORS[e.code] ?? e.message) : (e as Error).message);
+      setError(submitErrorMessage(e));
     } finally {
       setSubmitting(false);
     }
@@ -350,6 +323,11 @@ function Scanner() {
             <Button variant="outline" size="lg" onClick={startManual} className="w-full">
               <Search /> Rechercher sans photo
             </Button>
+            {!bulkId && (
+              <Button variant="link" size="sm" asChild className="justify-self-center">
+                <Link href="/scanner/lot"><Images /> Importer un lot d'images de scanner</Link>
+              </Button>
+            )}
           </CardContent>
         </Card>
 

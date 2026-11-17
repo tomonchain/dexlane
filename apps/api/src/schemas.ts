@@ -13,6 +13,8 @@ export const toLocationRef = (v: { locationId?: string; locationCode?: string })
   v.locationId !== undefined ? { id: v.locationId } : { code: v.locationCode! };
 
 export const stockItemId = z.uuid();
+/** Photos de scan à rattacher à la position créée (recto, verso). */
+const photoIds = z.array(z.uuid()).max(6).optional();
 
 export const receiveCardBody = z
   .strictObject({
@@ -24,6 +26,7 @@ export const receiveCardBody = z
     acquisitionLotId: z.uuid().optional(),
     unique: z.boolean().optional(),
     draft: z.boolean().optional(),
+    photoIds,
   })
   .refine(oneLocation, oneLocationMessage);
 
@@ -52,6 +55,7 @@ export const extractBody = z
     ...location,
     unique: z.boolean().optional(),
     draft: z.boolean().optional(),
+    photoIds,
   })
   .refine(oneLocation, oneLocationMessage);
 
@@ -170,3 +174,5 @@ export const handoverBody = z.strictObject({
 });
 export const cancelOrderBody = z.strictObject({ reason: z.string().trim().min(1).max(300) });
 export const sellableQuery = z.object({ q: z.string().trim().min(1).max(100).optional() });
+
+export const photoQuery = z.object({ kind: z.enum(["SCAN_FRONT", "SCAN_BACK"]).default("SCAN_BACK") });

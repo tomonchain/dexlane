@@ -4,6 +4,7 @@ import { useTestDb } from "@dexlane/db/testing";
 import type { CardReadingRaw, CardRecognizer } from "@dexlane/scan";
 import { card, fakeClient } from "../../../packages/catalog/test/fixtures";
 import { createApp } from "../src/app";
+import { createMemoryPhotoStore } from "../src/photos";
 
 const sql = useTestDb("api");
 const TOKEN = "test-token-0123456789abcdef";
@@ -16,7 +17,7 @@ let recognize: CardRecognizer["recognize"];
 const errors: unknown[] = [];
 let tcgdex: TcgdexClient;
 const app = createApp({
-  sql, token: TOKEN, recognizer: () => ({ recognize: (image) => recognize(image) }), tcgdex: () => tcgdex,
+  sql, token: TOKEN, recognizer: () => ({ recognize: (image) => recognize(image) }), tcgdex: () => tcgdex, photos: createMemoryPhotoStore(),
   onError: (e) => errors.push(e),
 });
 
@@ -246,6 +247,28 @@ describe("pricing", () => {
     expect([invalid.status, invalid.json.error.code]).toEqual([422, "INVALID_PRICING_SETTINGS"]);
     expect((await call("PUT", "/api/pricing/settings", { body: { basis: "LISTED_TREND" } })).status).toBe(400);
     expect((await call("POST", "/api/pricing/recompute", { key: null })).json).toEqual({ repriced: 0 });
+  });
+});
+
+describe("photos", () => {
+  it("keeps the scan photo and attaches front and back to the position created from it", async () => {
+    await call("POST", "/api/locations", { body: { code: "BOX-01" } });
+    const scanned = await scan();
+    expect(scanned.json.photo).toMatchObject({ kind: "SCAN_FRONT", url: expect.stringMatching(/^data:image\/jpeg;base64,/) });
+    const back = await call("POST", "/api/photos?kind=SCAN_BACK", { body: new Uint8Array([0xff, 0xd8, 0xff, 0x00]), headers: { "Content-Type": "image/jpeg" }, key: null });
+    expect([back.status, back.json.kind]).toEqual([201, "SCAN_BACK"]);
+
+    const body = { variantId: scanned.json.suggestedVariantId, condition: "NM", quantity: 1, locationCode: "BOX-01", unitCostCents: 0 };
+    const received = await call("POST", "/api/inventory/receive", { body: { ...body, photoIds: [scanned.json.photo.id, back.json.id] } });
+    const detail = await call("GET", `/api/inventory/${received.json.stockItem.id}`);
+    expect(detail.json.photos.map((p: { kind: string }) => p.kind)).toEqual(["SCAN_BACK", "SCAN_FRONT"]);
+    expect(detail.json.photos[1]).toMatchObject({ id: scanned.json.photo.id, offerId: received.json.offer.id });
+
+    // Une photo déjà rattachée ne suit pas une autre entrée en stock.
+    const second = await call("POST", "/api/inventory/receive", { body: { ...body, photoIds: [scanned.json.photo.id] } });
+    expect((await call("GET", `/api/inventory/${second.json.stockItem.id}`)).json.photos).toEqual([]);
+    expect((await call("POST", "/api/photos", { body: new Uint8Array(0), headers: { "Content-Type": "image/jpeg" }, key: null })).status).toBe(400);
+    expect((await call("POST", "/api/photos", { body: new Uint8Array(4), headers: { "Content-Type": "application/pdf" }, key: null })).status).toBe(415);
   });
 });
 

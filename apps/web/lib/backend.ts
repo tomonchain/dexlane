@@ -31,8 +31,9 @@ const globals = globalThis as { __dexlaneApp?: Promise<Pick<Hono, "fetch">> };
 
 function embeddedApp(): Promise<Pick<Hono, "fetch">> {
   return (globals.__dexlaneApp ??= (async () => {
-    const [{ createApp }, { createDb }, { createClaudeRecognizer }] = await Promise.all([
+    const [{ createApp }, { createBlobPhotoStore }, { createDb }, { createClaudeRecognizer }] = await Promise.all([
       import("@dexlane/api"),
+      import("@dexlane/api/photos"),
       import("@dexlane/db"),
       import("@dexlane/scan"),
     ]);
@@ -43,6 +44,7 @@ function embeddedApp(): Promise<Pick<Hono, "fetch">> {
     return createApp({
       sql,
       token: serverToken(),
+      photos: createBlobPhotoStore(),
       recognizer: () => (recognizer ??= createClaudeRecognizer({ model: process.env.SCAN_MODEL || undefined })),
     });
   })().catch((e) => {

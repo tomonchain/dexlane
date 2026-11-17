@@ -2,6 +2,7 @@ import type { Db } from "@dexlane/db";
 import { DomainError } from "@dexlane/shared";
 import type { CardCondition, StockKind } from "./internal";
 import { likePrefix, normalizeLocationCode } from "./locations";
+import { listPhotos, type PhotoRow } from "./photos";
 
 export interface InventorySearch {
   /** `unit_sku` ou `offer_sku` (exact ou préfixe), ou fragment du nom de carte / du libellé de vrac (sans accents). */
@@ -148,7 +149,7 @@ export async function getStockItemDetail(
   sql: Db,
   ref: { id: string } | { unitSku: string },
   opts: { movements?: number } = {},
-): Promise<InventoryRow & { movements: MovementRow[] }> {
+): Promise<InventoryRow & { movements: MovementRow[]; photos: PhotoRow[] }> {
   const [item] = await sql<InventoryRow[]>`
     ${select(sql)} ${joins(sql)}
     where ${"id" in ref ? sql`s.id = ${ref.id}` : sql`s.unit_sku = ${ref.unitSku.trim().toUpperCase()}`}`;
@@ -162,7 +163,7 @@ export async function getStockItemDetail(
      where m.stock_item_id = ${item.id}
      order by m.id desc
      limit ${Math.min(opts.movements ?? 50, 500)}`;
-  return { ...item, movements };
+  return { ...item, movements, photos: await listPhotos(sql, { stockItemId: item.id }) };
 }
 
 export interface InventorySummary {

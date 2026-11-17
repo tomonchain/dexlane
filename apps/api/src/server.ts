@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 import { createDb } from "@dexlane/db";
 import { createClaudeRecognizer, type CardRecognizer } from "@dexlane/scan";
 import { createApp } from "./app";
+import { createBlobPhotoStore } from "./photos";
 
 const token = process.env.DEXLANE_API_TOKEN ?? "";
 if (token.length < 24) {
@@ -14,6 +15,7 @@ let recognizer: CardRecognizer | undefined;
 const app = createApp({
   sql,
   token,
+  photos: createBlobPhotoStore(),
   recognizer: () => (recognizer ??= createClaudeRecognizer({ model: process.env.SCAN_MODEL || undefined })),
 });
 

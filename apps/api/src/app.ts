@@ -6,9 +6,9 @@ import {
 } from "@dexlane/catalog";
 import type { Db } from "@dexlane/db";
 import {
-  activateStock, adjustStock, cancelOrder, createAcquisitionLot, createDirectSale, createLocation, createLocations,
+  activateStock, adjustStock, attachPhotos, cancelOrder, createAcquisitionLot, createDirectSale, createLocation, createLocations,
   deleteLocation, extractCardFromBulk, getInventorySummary, getOrderDetail, getStockItemDetail, listAcquisitionLots,
-  listLocations, listOrders, moveStock, packOrder, pickAllocation, receiveBulk, receiveCard, resolveLocation,
+  listLocations, listOrders, moveStock, packOrder, pickAllocation, receiveBulk, receiveCard, recordPhoto, resolveLocation,
   searchInventory, searchSellableOffers, shipOrder, updateLocationDescription,
 } from "@dexlane/inventory";
 import {
@@ -21,6 +21,7 @@ import {
 import { DomainError } from "@dexlane/shared";
 import { changePassword, passwordStatus, setPassword, verifyPassword } from "./auth";
 import { HttpError, errorBody, idempotent, parse, parseJsonBody, secretEquals, statusOfDomainError } from "./http";
+import type { PhotoStore } from "./photos";
 import * as s from "./schemas";
 
 export interface AppDeps {
@@ -29,6 +30,8 @@ export interface AppDeps {
   token: string;
   /** Appelé au premier scan seulement : l'API démarre sans identifiants Claude. */
   recognizer: () => CardRecognizer;
+  /** Stockage des photos ; sans lui, les scans fonctionnent mais aucune image n'est conservée. */
+  photos?: PhotoStore | null;
   /** Source du catalogue (TCGdex par défaut) ; remplaçable dans les tests. */
   tcgdex?: () => TcgdexClient;
   onError?: (err: unknown) => void;
@@ -122,8 +125,13 @@ export function createApp(deps: AppDeps) {
       const { language } = parse(s.scanQuery, c.req.query());
       const image = await readImage(c);
       const recognizer = guardUpstream(deps.recognizer, deps.onError ?? console.error);
-      const r = await identifyCard(sql, recognizer, image, { defaultLanguage: language });
+      // La photo est conservée en parallèle de la lecture ; un échec de stockage ne fait pas échouer le scan.
+      const [r, photo] = await Promise.all([
+        identifyCard(sql, recognizer, image, { defaultLanguage: language }),
+        storePhoto(image, "SCAN_FRONT"),
+      ]);
       return c.json({
+        photo,
         requiresReview: r.requiresReview,
         reviewReasons: r.reviewReasons,
         ambiguous: r.match.ambiguous,
@@ -135,6 +143,37 @@ export function createApp(deps: AppDeps) {
         usage: r.recognition.usage,
         latencyMs: r.recognition.latencyMs,
       });
+    },
+  );
+
+  /** Dépose une image dans le stockage et en garde la référence ; null si aucun stockage n'est configuré ou s'il échoue. */
+  async function storePhoto(image: CardImage, kind: "SCAN_FRONT" | "SCAN_BACK") {
+    if (!deps.photos) return null;
+    try {
+      const stored = await deps.photos.put({ folder: "scans", data: image.data, contentType: image.mediaType });
+      const row = await recordPhoto(sql, { kind, storageKey: stored.key, url: stored.url, contentType: image.mediaType, byteSize: image.data.byteLength });
+      return { id: row.id, url: row.url, kind: row.kind };
+    } catch (e) {
+      (deps.onError ?? console.error)(e);
+      return null;
+    }
+  }
+
+  /** Photo seule, sans lecture : verso d'une carte, par exemple. */
+  app.post(
+    "/api/photos",
+    bodyLimit({
+      maxSize: MAX_IMAGE_BYTES + 64 * 1024,
+      onError: () => {
+        throw new RecognitionError("IMAGE_TOO_LARGE", "image is too large; resize to under 5 MB");
+      },
+    }),
+    async (c) => {
+      const { kind } = parse(s.photoQuery, c.req.query());
+      if (!deps.photos) throw new HttpError(503, "PHOTO_STORAGE_UNAVAILABLE", "no photo storage is configured");
+      const photo = await storePhoto(await readImage(c), kind);
+      if (!photo) throw new HttpError(502, "PHOTO_STORAGE_FAILED", "the photo could not be stored");
+      return c.json(photo, 201);
     },
   );
 
@@ -187,7 +226,8 @@ export function createApp(deps: AppDeps) {
   // ───────────────────────── Prix et catégories ─────────────────────────
 
   /** Tarifie l'offre touchée par une entrée en stock, dans la même transaction, et joint le résultat à la réponse. */
-  async function withPricing<T extends { offer: { id: string } }>(tx: Db, received: T) {
+  async function withPricing<T extends { offer: { id: string }; stockItem: { id: string } }>(tx: Db, received: T, photoIds: string[] = []) {
+    await attachPhotos(tx, photoIds, { stockItemId: received.stockItem.id, offerId: received.offer.id });
     await refreshOfferPricing(tx, received.offer.id);
     const { items } = await listOfferPricing(tx, { offerId: received.offer.id, includeEmpty: true });
     return { ...received, pricing: items[0] ?? null };
@@ -325,7 +365,7 @@ export function createApp(deps: AppDeps) {
     const body = await parseJsonBody(c, s.receiveCardBody);
     return idempotent(c, sql, async (tx) => ({
       status: 201,
-      body: await withPricing(tx, await receiveCard(tx, { ...body, location: s.toLocationRef(body), actor: c.var.actor })),
+      body: await withPricing(tx, await receiveCard(tx, { ...body, location: s.toLocationRef(body), actor: c.var.actor }), body.photoIds),
     }));
   });
 
@@ -342,7 +382,7 @@ export function createApp(deps: AppDeps) {
     const body = await parseJsonBody(c, s.extractBody);
     return idempotent(c, sql, async (tx) => ({
       status: 201,
-      body: await withPricing(tx, await extractCardFromBulk(tx, { ...body, bulkStockItemId, location: s.toLocationRef(body), actor: c.var.actor })),
+      body: await withPricing(tx, await extractCardFromBulk(tx, { ...body, bulkStockItemId, location: s.toLocationRef(body), actor: c.var.actor }), body.photoIds),
     }));
   });
 

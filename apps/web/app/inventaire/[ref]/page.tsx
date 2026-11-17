@@ -25,6 +25,7 @@ import type { Movement, PositionDetail } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const KIND: Record<string, string> = { UNIQUE: "Exemplaire unique", FUNGIBLE: "Interchangeable", BULK: "Vrac" };
+const PHOTO_KIND: Record<string, string> = { SCAN_FRONT: "Recto", SCAN_BACK: "Verso", LISTING: "Annonce" };
 const ERRORS: Record<string, string> = {
   ADJUST_BELOW_COMMITTED: "Des cartes de cette position sont réservées pour une commande : traitez d'abord la commande concernée.",
   LOCATION_NOT_FOUND: "Cet emplacement n'existe pas.",
@@ -194,6 +195,21 @@ export default function PositionPage() {
         </div>
 
         <div className="grid gap-5">
+        {p.photos.length > 0 && (
+          <Card data-testid="position-photos">
+            <CardContent className="grid gap-3">
+              <Eyebrow>Photos de l'exemplaire</Eyebrow>
+              <div className="flex flex-wrap gap-3">
+                {p.photos.map((photo) => (
+                  <a key={photo.id} href={photo.url} target="_blank" rel="noreferrer" className="grid gap-1 rounded-lg outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30">
+                    <img className="aspect-[63/88] w-28 rounded-lg bg-muted object-cover ring-1 ring-border" src={photo.url} alt={PHOTO_KIND[photo.kind]} loading="lazy" />
+                    <span className="text-center text-xs text-muted-foreground">{PHOTO_KIND[photo.kind]}</span>
+                  </a>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
         {p.offer && (
           <Card data-testid="offer-pricing">
             <CardContent className="grid gap-3">

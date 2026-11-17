@@ -16,9 +16,9 @@ Application personnelle de négoce de cartes Pokémon. Spécification : [`specs-
 | `packages/pricing` | Moteur de règles de prix (estimation, catégorie, plancher, motifs de revue), tarification des offres, file de revue, règles réglables |
 | `packages/inventory` | Entrée d'une carte identifiée (offre et SKU attribués automatiquement), lots de vrac et extraction, emplacements hiérarchiques, lots d'acquisition, déplacement, correction d'inventaire auditée, recherche, import idempotent de commandes, allocation commande → positions, survente (Parcours F), picking par scan, emballage, confirmation de dépôt |
 | `apps/api` | API HTTP (Hono) : scan, recherche catalogue, emplacements, entrée en stock, vrac, inventaire. Jeton propriétaire, validation stricte, clés d'idempotence |
-| `apps/web` | Application web installable (Next.js), pensée pour le téléphone : scan photo → candidats → confirmation → rangement, recherche manuelle, inventaire et fiche de position (déplacer, corriger, valider), lots de vrac et extraction, emplacements (aide, création en série, arborescence) et lots d'acquisition, catalogue (import par série, détail d'une série avec prix et stock détenu), prix (file de revue, règles), ventes directes (saisie, préparation, remise, marge), compte (mot de passe, thème) |
+| `apps/web` | Application web installable (Next.js), pensée pour le téléphone : scan photo → candidats → confirmation → rangement, recherche manuelle, inventaire et fiche de position (déplacer, corriger, valider), lots de vrac et extraction, emplacements (aide, création en série, arborescence) et lots d'acquisition, catalogue (import par série, détail d'une série avec prix et stock détenu), prix (file de revue, règles), ventes directes (saisie, préparation, remise, marge), scan en lot (images d'un scanner à défilement), photos des exemplaires, compte (mot de passe, thème) |
 
-Pas encore commencés : `apps/worker`, connecteurs marketplaces (publication), fulfillment PDF, photos des exemplaires, étiquettes QR.
+Pas encore commencés : `apps/worker`, connecteurs marketplaces (publication), fulfillment PDF, étiquettes QR.
 
 ## Prérequis
 
@@ -68,6 +68,8 @@ Ventes : `GET /api/offers/sellable?q=`, `GET` / `POST /api/orders` (vente direct
 
 Prix : `GET /api/pricing/variants/{id}?condition=` (estimation avant entrée en stock), `GET /api/pricing/offers?status=REVIEW|ALL` (file de revue triée par enjeu), `POST /api/pricing/offers/{id}/price` (décision), `GET` / `PUT /api/pricing/settings` (règles), `POST /api/pricing/recompute`.
 
+Photos : `POST /api/scans` conserve l'image lue et renvoie `photo: { id, url }` ; `POST /api/photos?kind=SCAN_FRONT|SCAN_BACK` dépose une image sans lecture (verso) ; `receive` et `extract` acceptent `photoIds` pour rattacher les photos à la position créée ; la fiche d'une position les renvoie dans `photos`.
+
 Autres routes : `GET /api/catalog/sets/{id}` (contenu importé d'une série : cartes, variantes, dernier prix tendance, exemplaires en stock), `POST /api/locations/batch`, `PATCH` et `DELETE /api/locations/{id}` (suppression réservée à un emplacement vide et jamais utilisé), `/api/auth/*` (mot de passe du propriétaire, réservé au serveur web).
 
 Toutes les routes sauf `GET /api/health` exigent `Authorization: Bearer <DEXLANE_API_TOKEN>`. Les créations et corrections (`receive`, `bulk`, `extract`, `adjust`, `acquisition-lots`) exigent un en-tête `Idempotency-Key` : la clé est écrite dans la même transaction que la mutation, donc une requête rejouée (double appui, réseau mobile) renvoie la réponse d'origine avec `Idempotent-Replay: true` sans rien créer en double. Erreurs : `{ "error": { "code", "message", "details" } }` — 400 format, 404 introuvable, 409 état incompatible, 422 règle métier.
@@ -85,6 +87,7 @@ pnpm --filter @dexlane/web build && pnpm --filter @dexlane/web start   # product
 - **Sur le téléphone** : utiliser le build de production (`build` puis `start`). En `dev`, Next ne sert ses ressources qu'à `localhost` ; pour tester depuis une autre machine, lister ses hôtes dans `DEXLANE_DEV_ORIGINS=192.168.1.20,mon-pc.local`. Le serveur doit être joignable depuis le téléphone, de préférence en HTTPS (reverse proxy ou VPN type Tailscale) — le cookie n'est marqué `Secure` qu'en HTTPS. La photo passe par l'appareil photo natif (pas besoin de permission caméra dans le navigateur) puis est réduite à 2000 px avant envoi. « Ajouter à l'écran d'accueil » installe l'application.
 - **Interface** : Tailwind CSS 4 et composants de type shadcn/ui sur primitives Radix (`apps/web/components/ui`), icônes Lucide, tiroirs mobiles vaul, palette de commandes cmdk (⌘K / Ctrl+K : pages et recherche de positions), notifications sonner, police Geist, thème clair / sombre / système. Barre latérale sur ordinateur, onglets en bas sur téléphone.
 - **Garde-fous du scanner** : une carte n'est présélectionnée que si l'identification est sûre ; sinon l'opérateur choisit explicitement. L'état n'est jamais prérempli. Emplacement, coût et lot restent d'une carte à l'autre. Une même saisie renvoyée après une coupure réseau n'est pas enregistrée deux fois.
+- **Scan en lot** (`/scanner/lot`) : pour un scanner à défilement réglé sur un fichier image par carte (JPEG ou PNG, 300 ppp ou plus ; PDF et TIFF non lus). Les images sont triées par nom de fichier — l'ordre de passage dans le scanner —, lues deux par deux, puis entrées en stock dans cet ordre : les codes `SI-…` se suivent comme la pile de cartes. L'option « Recto et verso » apparie les images deux à deux. L'état du lot est choisi explicitement, et reste modifiable carte par carte.
 - **Visuels** : les miniatures viennent directement de `assets.tcgdex.net`.
 
 Déploiement en un seul service (Vercel) :
@@ -94,7 +97,8 @@ Sans `DEXLANE_API_URL`, le serveur Next embarque l'API : un seul déploiement su
 1. Projet Vercel lié au dépôt, **Root Directory** `apps/web` (le build installe tout le monorepo). `apps/web/vercel.json` applique les migrations avant `next build`.
 2. Base : onglet **Storage** du projet → Neon (offre gratuite). L'intégration fournit `DATABASE_URL` (connexions poolées, utilisées par l'application) et `DATABASE_URL_UNPOOLED` (connexion directe, utilisée par les migrations).
 3. Variables d'environnement : `DEXLANE_API_TOKEN` (≥ 24 caractères ; jeton d'installation et clé de secours du mot de passe), `ANTHROPIC_API_KEY` (scan), `ENABLE_EXPERIMENTAL_COREPACK=1` (pnpm de `packageManager`).
-4. Catalogue : la base hébergée démarre vide. Onglet **Catalogue** de l'application : « Charger la liste », puis « Synchroniser » les séries possédées (rejouable, met à jour les cartes et ajoute les cotations du jour). La commande `pnpm --filter @dexlane/catalog sync` reste disponible depuis un poste.
+4. Photos : onglet **Storage** → Blob (accès public), relié au projet ; l'intégration fournit `BLOB_READ_WRITE_TOKEN`. Sans cette variable, tout fonctionne mais les images scannées ne sont pas conservées.
+5. Catalogue : la base hébergée démarre vide. Onglet **Catalogue** de l'application : « Charger la liste », puis « Synchroniser » les séries possédées (rejouable, met à jour les cartes et ajoute les cotations du jour). La commande `pnpm --filter @dexlane/catalog sync` reste disponible depuis un poste.
 
 À savoir : préversions et production partagent la même base tant qu'aucune base par branche n'est configurée — une préversion applique donc ses migrations à la base de production. L'application est protégée par le mot de passe du propriétaire, avec blocage temporaire après des essais infructueux répétés.
 
@@ -137,6 +141,7 @@ Les compteurs de stock sont une projection du journal `inventory_movements` (app
 - **Offre** : une seule offre interchangeable par (variante, état), créée à la première entrée ; chaque entrée crée une nouvelle position (`unit_sku` `SI-000123`, un QR par position). Un exemplaire `unique` reçoit sa propre offre (`…-U000123`).
 - **`offer_sku`** : `OF-<série>-<numéro>-<langue>-<variante>-<état>`, ex. `OF-BASE1-004-FR-H1-NM` ; suffixe `-2`, `-3`… si deux variantes produisent le même code. Format à valider contre les contraintes de SKU du canal retenu (Sprint 0).
 - **Non vendable tant que non validé** : une position `draft` ne compte pas dans le disponible ; une commande dessus part en survente. Une nouvelle offre naît `DRAFT` / `REVIEW` (prix et catégorie : Sprint 2).
+- **Photos** : l'image d'un scan est déposée dans le stockage d'objets pendant la lecture, puis rattachée à la position (et à son offre) à l'entrée en stock. Les fichiers sont publics mais à une adresse non devinable, pour qu'une marketplace puisse les télécharger. Une photo déjà rattachée ne change jamais de position ; un échec du stockage ne bloque ni le scan ni l'entrée en stock.
 - **Emplacement** : obligatoire et jamais créé implicitement — une faute de frappe renvoie `LOCATION_NOT_FOUND` au lieu de créer une boîte.
 - **Correction d'inventaire** : saisie de la quantité comptée, pas d'un écart ; refusée sous les quantités réservées (cas du Parcours F).
 - **Coût du vrac** : le coût unitaire est stocké en centimes entiers ; 1 000 cartes à 15 € donnent 2 c pièce (20 € reconstitués). Le coût exact reste celui du lot d'acquisition.
