@@ -1,6 +1,6 @@
 import { deflateSync, crc32 } from "node:zlib";
 import { expect, test, type Page } from "@playwright/test";
-import { E2E_TOKEN } from "./constants";
+import { E2E_PASSWORD, E2E_TOKEN } from "./constants";
 
 /** PNG valide de la largeur voulue : la largeur choisit le scénario du lecteur factice (e2e/harness.ts). */
 function png(width: number, height = 14): Buffer {
@@ -33,8 +33,11 @@ const OUTAGE = 12;
 const takePhoto = (page: Page, scenario: number) =>
   page.getByTestId("photo-input").setInputFiles({ name: "carte.png", mimeType: "image/png", buffer: png(scenario) });
 
+/** Ouvre une session ; définit le mot de passe au passage si le parcours est lancé seul sur une base neuve. */
 async function login(page: Page) {
-  expect((await page.request.post("/auth", { data: { token: E2E_TOKEN } })).ok()).toBe(true);
+  const { passwordSet } = (await (await page.request.get("/auth")).json()) as { passwordSet: boolean };
+  const data = passwordSet ? { password: E2E_PASSWORD } : { setupToken: E2E_TOKEN, newPassword: E2E_PASSWORD };
+  expect((await page.request.post("/auth", { data })).ok()).toBe(true);
 }
 
 /** Choisit l'emplacement dans la feuille, en le créant s'il n'existe pas encore. */
@@ -51,18 +54,39 @@ const onHand = (page: Page) => page.getByTestId("on-hand");
 /** Bandeau d'erreur de l'application (Next ajoute son propre role="alert" pour l'annonce des pages). */
 const errorBanner = (page: Page) => page.locator('[data-slot="alert"][data-variant="destructive"]');
 
-test("demande le jeton et refuse un jeton invalide", async ({ page }) => {
+test("première connexion : le jeton d'installation permet de choisir le mot de passe, qui sert ensuite seul", async ({ page }) => {
   await page.goto("/inventaire");
   await page.waitForURL(/\/login\?next=%2Finventaire/);
+  await expect(page.getByRole("heading", { name: "Première connexion" })).toBeVisible();
 
-  await page.getByLabel("Jeton", { exact: true }).fill("pas-le-bon-jeton");
-  await page.getByRole("button", { name: "Se connecter" }).click();
-  await expect(errorBanner(page)).toHaveText("Jeton refusé.");
+  await page.getByLabel("Jeton d'installation").fill("pas-le-bon-jeton-pas-le-bon-jeton");
+  await page.getByLabel("Nouveau mot de passe").fill(E2E_PASSWORD);
+  await page.getByLabel("Confirmer le mot de passe").fill(E2E_PASSWORD);
+  await page.getByRole("button", { name: "Créer le mot de passe" }).click();
+  await expect(errorBanner(page)).toHaveText("Jeton d'installation refusé.");
 
-  await page.getByLabel("Jeton", { exact: true }).fill(E2E_TOKEN);
-  await page.getByRole("button", { name: "Se connecter" }).click();
+  await page.getByLabel("Jeton d'installation").fill(E2E_TOKEN);
+  await page.getByRole("button", { name: "Créer le mot de passe" }).click();
   await page.waitForURL(/\/inventaire$/);
   await expect(page.getByRole("heading", { name: "Inventaire" })).toBeVisible();
+
+  // Déconnexion depuis le compte, puis retour par le seul mot de passe.
+  await page.getByRole("link", { name: "Compte et réglages" }).click();
+  await page.getByRole("button", { name: "Se déconnecter" }).click();
+  await page.waitForURL(/\/login$/);
+  await expect(page.getByRole("heading", { name: "Connexion" })).toBeVisible();
+  await expect(page.getByLabel("Jeton d'installation")).toHaveCount(0);
+
+  await page.getByLabel("Mot de passe", { exact: true }).fill("ce-n-est-pas-ca");
+  await page.getByRole("button", { name: "Se connecter" }).click();
+  await expect(errorBanner(page)).toHaveText("Mot de passe incorrect.");
+  await page.getByLabel("Mot de passe", { exact: true }).fill(E2E_PASSWORD);
+  await page.getByRole("button", { name: "Se connecter" }).click();
+  await expect(page.getByRole("heading", { name: "Scanner" })).toBeVisible();
+
+  // Sans session, l'API relayée reste fermée.
+  await page.context().clearCookies();
+  expect((await page.request.get("/api/inventory")).status()).toBe(401);
 });
 
 test("photo lisible : la carte entre en stock et se retrouve dans l'inventaire", async ({ page }) => {
@@ -179,28 +203,74 @@ test("vrac : entrée du lot, correction après comptage, extraction d'une carte"
   await expect(page.getByText("Extraction du vrac")).toBeVisible();
 });
 
-test("catalogue : une série absente se synchronise depuis l'appli, ses cartes deviennent trouvables", async ({ page }) => {
+test("catalogue : onglets, import d'une série, détail, puis recherche par autocomplétion de série", async ({ page }) => {
   await login(page);
-  await page.goto("/");
-  await page.getByRole("button", { name: "Rechercher sans photo" }).click();
-  await page.getByLabel("Nom").fill("mew");
-  await page.getByRole("button", { name: "Rechercher dans le catalogue" }).click();
-  await expect(page.getByText("Aucune carte trouvée.")).toBeVisible();
+  await page.goto("/catalogue");
+  await expect(page.getByRole("tab", { name: /^Importées/ })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: /^Importées/ })).toContainText("2");
+  await page.getByRole("button", { name: "Actualiser la liste" }).click();
 
-  await page.getByRole("link", { name: "Catalogue" }).click();
-  await expect(page.getByText("2 séries synchronisées sur 2")).toBeVisible();
-  await page.getByRole("button", { name: "Actualiser" }).click();
+  const pending = page.getByRole("tab", { name: /^Non importées/ });
+  await expect(pending).toContainText("1");
+  await pending.click();
   const set = page.getByTestId("set-sv03.5");
-  await expect(set).toContainText("Non synchronisée");
   await expect(set).toContainText("207 cartes");
-  await expect(page.getByRole("status").filter({ hasText: "synchronisée" })).toHaveText("2 séries synchronisées sur 3");
-  await set.getByRole("button", { name: "Synchroniser" }).click();
-  await expect(set).toContainText("1 carte importée");
-  await expect(set.getByRole("button", { name: "Mettre à jour" })).toBeVisible();
+  await expect(page.getByTestId("set-swsh3")).toHaveCount(0);
+  await set.getByRole("button", { name: "Importer" }).click();
 
+  // La série passe dans l'onglet « Importées », que l'écran suit.
+  await expect(page.getByRole("tab", { name: /^Importées/ })).toHaveAttribute("aria-selected", "true");
+  await expect(set).toContainText("1 carte importée");
+  await expect(pending).toContainText("0");
+
+  await set.getByRole("link", { name: "Voir la série 151" }).click();
+  await expect(page.getByRole("heading", { name: "151" })).toBeVisible();
+  const mew = page.getByTestId("card-151");
+  await expect(mew).toContainText("Mew-ex");
+  await expect(mew).toContainText("€");
+  await page.getByLabel("Filtrer les cartes").fill("pikachu");
+  await expect(page.getByText("Aucune carte ne correspond")).toBeVisible();
+
+  // Dans le scanner, la série se choisit par son nom et suffit à retrouver ses cartes.
   await page.getByRole("link", { name: "Scanner" }).click();
   await page.getByRole("button", { name: "Rechercher sans photo" }).click();
-  await page.getByLabel("Nom").fill("mew");
+  const serie = page.getByRole("combobox", { name: "Série" });
+  await serie.fill("15");
+  await page.getByRole("option", { name: /151/ }).click();
+  await expect(serie).toHaveValue("151 · sv03.5");
   await page.getByRole("button", { name: "Rechercher dans le catalogue" }).click();
   await expect(page.getByRole("radio", { name: /Mew-ex/ })).toBeVisible();
+});
+
+test("emplacements : création en série, description, suppression d'un emplacement inutilisé", async ({ page }) => {
+  await login(page);
+  await page.goto("/rangement");
+  await expect(page.getByRole("heading", { name: "Bien organiser ses emplacements" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Nouvel emplacement" }).click();
+  await page.getByRole("tab", { name: "Créer une série" }).click();
+  await page.getByLabel("Dans (facultatif)").fill("box-z");
+  await page.getByLabel("Préfixe").fill("row");
+  await page.getByLabel("À", { exact: true }).fill("3");
+  await expect(page.getByText("3 à créer")).toBeVisible();
+  await page.getByRole("button", { name: "Créer 3 emplacements" }).click();
+
+  const row3 = page.getByTestId("location-BOX-Z/ROW-03");
+  await expect(row3).toBeVisible();
+  await expect(page.getByTestId("location-BOX-Z")).toBeVisible();
+
+  await page.getByRole("button", { name: "Actions pour BOX-Z", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Modifier la description" }).click();
+  await page.getByLabel("Description").fill("Boîte de test");
+  await page.getByRole("button", { name: "Enregistrer" }).click();
+  await expect(page.getByTestId("location-BOX-Z")).toContainText("Boîte de test");
+
+  // Une boîte qui contient des rangées ne se supprime pas ; une rangée vide, si.
+  await page.getByRole("button", { name: "Actions pour BOX-Z", exact: true }).click();
+  await expect(page.getByRole("menuitem", { name: "Supprimer" })).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Actions pour BOX-Z/ROW-03" }).click();
+  await page.getByRole("menuitem", { name: "Supprimer" }).click();
+  await expect(row3).toHaveCount(0);
+  await expect(page.getByTestId("location-BOX-Z/ROW-02")).toBeVisible();
 });

@@ -1,5 +1,13 @@
 import type { NextConfig } from "next";
 
+// En développement, le serveur web lit le même fichier .env que l'API (racine du dépôt) : il lui faut
+// DEXLANE_API_TOKEN, et DATABASE_URL en mode embarqué. Sans fichier (hébergement), les variables viennent de l'environnement.
+try {
+  process.loadEnvFile(new URL("../../.env", import.meta.url));
+} catch {
+  // pas de .env : rien à charger
+}
+
 const config: NextConfig = {
   // Les tests e2e construisent dans leur propre dossier pour ne pas écraser un build ou un `next dev` en cours.
   distDir: process.env.NEXT_DIST_DIR ?? ".next",

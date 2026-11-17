@@ -1,17 +1,21 @@
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
-import { createTcgdexClient, findCandidates, listSets, syncSet, syncSetList, type TcgdexClient } from "@dexlane/catalog";
+import {
+  createTcgdexClient, findCandidates, getSetDetail, listSets, syncSet, syncSetList, type TcgdexClient,
+} from "@dexlane/catalog";
 import type { Db } from "@dexlane/db";
 import {
-  activateStock, adjustStock, createAcquisitionLot, createLocation, extractCardFromBulk, getInventorySummary, getStockItemDetail,
-  listAcquisitionLots, listLocations, moveStock, receiveBulk, receiveCard, resolveLocation, searchInventory,
+  activateStock, adjustStock, createAcquisitionLot, createLocation, createLocations, deleteLocation, extractCardFromBulk,
+  getInventorySummary, getStockItemDetail, listAcquisitionLots, listLocations, moveStock, receiveBulk, receiveCard,
+  resolveLocation, searchInventory, updateLocationDescription,
 } from "@dexlane/inventory";
 import {
   MAX_IMAGE_BYTES, RecognitionError, assertSupportedImage, identifyCard,
   type CardImage, type CardRecognizer, type ImageMediaType,
 } from "@dexlane/scan";
 import { DomainError } from "@dexlane/shared";
+import { changePassword, passwordStatus, setPassword, verifyPassword } from "./auth";
 import { HttpError, errorBody, idempotent, parse, parseJsonBody, secretEquals, statusOfDomainError } from "./http";
 import * as s from "./schemas";
 
@@ -57,8 +61,46 @@ export function createApp(deps: AppDeps) {
     if (!presented || !secretEquals(presented, deps.token)) {
       throw new HttpError(401, "UNAUTHORIZED", "missing or invalid bearer token");
     }
+    // Appel relayé par l'application web pour une session navigateur : la session doit dater du mot de passe courant.
+    const session = c.req.header("X-Dexlane-Session-Version");
+    if (session !== undefined && session !== String(await currentSessionVersion())) {
+      throw new HttpError(401, "SESSION_EXPIRED", "this session is no longer valid; sign in again");
+    }
     c.set("actor", "owner");
     await next();
+  });
+
+  // ───────────────────────── Mot de passe du propriétaire ─────────────────────────
+  // Réservé au serveur de l'application web (porteur du jeton) : il vérifie le mot de passe saisi et émet la session.
+
+  let sessionVersionCache: { value: number | null; at: number } | null = null;
+  async function currentSessionVersion(): Promise<number | null> {
+    if (!sessionVersionCache || Date.now() - sessionVersionCache.at > 10_000) {
+      sessionVersionCache = { value: (await passwordStatus(sql)).sessionVersion, at: Date.now() };
+    }
+    return sessionVersionCache.value;
+  }
+
+  app.get("/api/auth/status", async (c) => c.json({ passwordSet: (await passwordStatus(sql)).passwordSet }));
+
+  app.post("/api/auth/password/verify", async (c) => {
+    const { password } = await parseJsonBody(c, s.verifyPasswordBody);
+    return c.json({ sessionVersion: await verifyPassword(sql, password) });
+  });
+
+  /** Définition initiale ou réinitialisation : le jeton d'API fait office de clé de secours. */
+  app.post("/api/auth/password/reset", async (c) => {
+    const { newPassword } = await parseJsonBody(c, s.resetPasswordBody);
+    const sessionVersion = await setPassword(sql, newPassword, "password_reset");
+    sessionVersionCache = null;
+    return c.json({ sessionVersion });
+  });
+
+  app.post("/api/auth/password/change", async (c) => {
+    const body = await parseJsonBody(c, s.changePasswordBody);
+    const sessionVersion = await changePassword(sql, body.currentPassword, body.newPassword);
+    sessionVersionCache = null;
+    return c.json({ sessionVersion });
   });
 
   // ───────────────────────── Scan et catalogue ─────────────────────────
@@ -113,6 +155,15 @@ export function createApp(deps: AppDeps) {
     return c.json({ sets: await listSets(sql, language) });
   });
 
+  /** Contenu importé d'une série : cartes, variantes, dernier prix tendance, exemplaires en stock. */
+  app.get("/api/catalog/sets/:id", async (c) => {
+    const setId = parse(s.setId, c.req.param("id"));
+    const { language } = parse(s.languageQuery, c.req.query());
+    const detail = await getSetDetail(sql, language, setId);
+    if (!detail) throw new HttpError(404, "CATALOG_SET_NOT_FOUND", "this set is not known for this language");
+    return c.json(detail);
+  });
+
   /** Recharge la liste des séries depuis la source (métadonnées seulement). */
   app.post("/api/catalog/sets/refresh", async (c) => {
     const { language } = await parseJsonBody(c, s.languageBody);
@@ -136,6 +187,22 @@ export function createApp(deps: AppDeps) {
     const location = await createLocation(sql, body);
     return c.json(location, location.created ? 201 : 200);
   });
+
+  /** Plusieurs emplacements d'un coup (les rangées d'une boîte, par exemple). */
+  app.post("/api/locations/batch", async (c) => {
+    const { codes } = await parseJsonBody(c, s.createLocationsBody);
+    const result = await createLocations(sql, codes);
+    return c.json(result, result.created.length ? 201 : 200);
+  });
+
+  app.patch("/api/locations/:id", async (c) => {
+    const id = parse(s.locationId, c.req.param("id"));
+    const { description } = await parseJsonBody(c, s.updateLocationBody);
+    return c.json(await updateLocationDescription(sql, id, description));
+  });
+
+  /** Seulement pour un emplacement créé par erreur : vide, sans sous-emplacement, jamais utilisé. */
+  app.delete("/api/locations/:id", async (c) => c.json(await deleteLocation(sql, parse(s.locationId, c.req.param("id")))));
 
   app.get("/api/acquisition-lots", async (c) => c.json({ lots: await listAcquisitionLots(sql) }));
 

@@ -1,10 +1,9 @@
 "use client";
 
-import { LogOut, Search } from "lucide-react";
+import { CircleUserRound, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { CommandMenu, PAGES } from "./command-menu";
 import { ThemeSwitch } from "./theme";
@@ -28,8 +27,6 @@ export function Logo({ className }: { className?: string }) {
     </span>
   );
 }
-
-const logout = () => void api.logout().then(() => window.location.assign("/login"));
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -81,13 +78,16 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
         <div className="flex items-center justify-between gap-2 border-t p-3">
           <ThemeSwitch />
-          <button
-            type="button"
-            onClick={logout}
-            className="flex h-8 items-center gap-1.5 rounded-md px-2 text-[13px] text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
+          <Link
+            href="/compte"
+            aria-current={pathname === "/compte" ? "page" : undefined}
+            className={cn(
+              "flex h-8 items-center gap-1.5 rounded-md px-2 text-[13px] text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40",
+              pathname === "/compte" && "bg-accent text-foreground",
+            )}
           >
-            <LogOut className="size-3.5" aria-hidden /> Déconnexion
-          </button>
+            <CircleUserRound className="size-4" aria-hidden /> Compte
+          </Link>
         </div>
       </aside>
 
@@ -106,6 +106,17 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             <Search className="size-5" aria-hidden />
           </button>
+          <Link
+            href="/compte"
+            aria-label="Compte et réglages"
+            aria-current={pathname === "/compte" ? "page" : undefined}
+            className={cn(
+              "flex size-10 items-center justify-center rounded-lg text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40",
+              pathname === "/compte" && "text-primary",
+            )}
+          >
+            <CircleUserRound className="size-5" aria-hidden />
+          </Link>
         </div>
       </header>
 

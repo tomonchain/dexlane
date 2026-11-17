@@ -10,6 +10,7 @@ import { Alert } from "./ui/alert";
 import { Button } from "./ui/button";
 import { Field, Input } from "./ui/input";
 import { Spinner } from "./ui/misc";
+import { SetCombobox } from "./set-combobox";
 
 const SIZES = { sm: "w-11 rounded-[5px]", md: "w-14 rounded-md", lg: "w-24 rounded-lg" };
 
@@ -115,8 +116,8 @@ export function ManualSearch({ language, initial, onResults }: {
         <Field label="Numéro">
           <Input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="136/189" autoCorrect="off" enterKeyHint="search" />
         </Field>
-        <Field label="Série (identifiant)">
-          <Input value={set} onChange={(e) => setSet(e.target.value)} placeholder="swsh3" autoCapitalize="none" autoCorrect="off" enterKeyHint="search" />
+        <Field label="Série">
+          <SetCombobox language={language} value={set} onChange={setSet} />
         </Field>
       </div>
       <Button type="submit" variant="outline" disabled={busy || empty}>

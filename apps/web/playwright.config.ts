@@ -1,5 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
-import { E2E_API_PORT, E2E_WEB_PORT } from "./e2e/constants";
+import { E2E_API_PORT, E2E_TOKEN, E2E_WEB_PORT } from "./e2e/constants";
 
 /**
  * Parcours de bout en bout : navigateur mobile → Next → API réelle → PostgreSQL de test.
@@ -26,7 +26,12 @@ export default defineConfig({
       // de servir ses ressources à une autre origine que localhost.
       command: `next build && next start -p ${E2E_WEB_PORT}`,
       url: `http://127.0.0.1:${E2E_WEB_PORT}/login`,
-      env: { DEXLANE_API_URL: `http://127.0.0.1:${E2E_API_PORT}`, NEXT_DIST_DIR: ".next-e2e", NEXT_TELEMETRY_DISABLED: "1" },
+      env: {
+        DEXLANE_API_URL: `http://127.0.0.1:${E2E_API_PORT}`,
+        DEXLANE_API_TOKEN: E2E_TOKEN,
+        NEXT_DIST_DIR: ".next-e2e",
+        NEXT_TELEMETRY_DISABLED: "1",
+      },
       reuseExistingServer: false,
       timeout: 180_000,
     },

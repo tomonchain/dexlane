@@ -182,3 +182,67 @@ export function listSets(sql: Db, language: string): Promise<CatalogSetSummary[]
      group by s.id, s.language
      order by (count(c.id) > 0) desc, s.release_date desc nulls last, s.name`;
 }
+
+export interface CatalogSetCard {
+  id: string;
+  localNumber: string;
+  name: string;
+  rarity: string | null;
+  category: string | null;
+  imageUrl: string | null;
+  /** Cartes de cette impression actuellement en stock (toutes variantes et tous états). */
+  owned: number;
+  variants: {
+    id: string;
+    finish: string;
+    edition: string;
+    subtype: string;
+    stamp: string;
+    incomplete: boolean;
+    /** Dernier prix tendance connu (Cardmarket via TCGdex), toutes langues et tous états confondus. */
+    trendCents: number | null;
+    priceAt: string | null;
+    priceAmbiguous: boolean | null;
+  }[];
+}
+
+export interface CatalogSetDetail {
+  set: CatalogSetSummary & { serieId: string | null; abbreviation: string | null; abbreviationLocalized: string | null; syncedAt: Date };
+  cards: CatalogSetCard[];
+}
+
+/** Contenu importé d'une série : cartes dans l'ordre de la numérotation, variantes, dernier prix tendance, stock détenu. */
+export async function getSetDetail(sql: Db, language: string, setId: string): Promise<CatalogSetDetail | null> {
+  const [set] = await sql<CatalogSetDetail["set"][]>`
+    select s.id, s.name, s.serie_id, s.serie_name, s.release_date::text as release_date, s.card_count_official,
+           s.card_count_total, s.logo_url, s.abbreviation, s.abbreviation_localized, s.synced_at,
+           (select count(*)::int from catalog_cards c where c.set_id = s.id and c.language = s.language) as cards_synced,
+           (select max(c.synced_at) from catalog_cards c where c.set_id = s.id and c.language = s.language) as cards_synced_at
+      from catalog_sets s
+     where s.id = ${setId} and s.language = ${language}`;
+  if (!set) return null;
+
+  const cards = await sql<CatalogSetCard[]>`
+    select c.id, c.local_number, c.name, c.rarity, c.category, c.image_url,
+           coalesce((select sum(si.on_hand)::int
+                       from card_variants ov
+                       join offers o on o.variant_id = ov.id
+                       join stock_items si on si.offer_id = o.id and si.lifecycle <> 'ARCHIVED'
+                      where ov.catalog_card_id = c.id), 0) as owned,
+           coalesce(jsonb_agg(jsonb_build_object(
+             'id', v.id, 'finish', v.finish, 'edition', v.edition, 'subtype', v.subtype, 'stamp', v.stamp,
+             'incomplete', v.incomplete, 'trendCents', p.amount_cents, 'priceAt', p.observed_at,
+             'priceAmbiguous', p.variant_ambiguous) order by v.finish, v.edition, v.subtype)
+             filter (where v.id is not null), '[]'::jsonb) as variants
+      from catalog_cards c
+      left join card_variants v on v.catalog_card_id = c.id
+      left join lateral (
+        select ps.amount_cents, ps.observed_at, ps.variant_ambiguous
+          from price_snapshots ps
+         where ps.variant_id = v.id and ps.quote_type = 'LISTED_TREND'
+         order by ps.observed_at desc limit 1) p on true
+     where c.set_id = ${setId} and c.language = ${language}
+     group by c.id
+     order by nullif(left(regexp_replace(c.local_number, '\\D', '', 'g'), 9), '')::int nulls last, c.local_number`;
+  return { set, cards };
+}

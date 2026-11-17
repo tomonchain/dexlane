@@ -107,3 +107,12 @@ export const scanQuery = z.object({ language: language.default("fr") });
 export const languageBody = z.strictObject({ language: language.default("fr") });
 export const languageQuery = z.object({ language: language.default("fr") });
 export const setId = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9.-]{0,39}$/);
+
+export const createLocationsBody = z.strictObject({ codes: z.array(z.string().trim().min(1).max(80)).min(1).max(200) });
+export const updateLocationBody = z.strictObject({ description: z.string().trim().max(200).nullable() });
+export const locationId = z.uuid();
+
+const password = z.string().min(1).max(200);
+export const verifyPasswordBody = z.strictObject({ password });
+export const resetPasswordBody = z.strictObject({ newPassword: password });
+export const changePasswordBody = z.strictObject({ currentPassword: password, newPassword: password });

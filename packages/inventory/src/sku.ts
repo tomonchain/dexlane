@@ -25,7 +25,7 @@ const FINISH_CODES: Record<string, string> = { normal: "N", holo: "H", reverse: 
 
 /** Majuscules ASCII sans accents ni ponctuation : sûr dans un SKU de marketplace. */
 const token = (s: string) =>
-  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 
 /** « sans ombre » → « SO », « illimité#2 » → « I2 ». */
 const initials = (s: string) =>

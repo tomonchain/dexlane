@@ -89,3 +89,44 @@ export function listLocations(sql: Db, opts: { prefix?: string } = {}): Promise<
 
 /** Échappe les jokers LIKE d'une saisie utilisateur. */
 export const likePrefix = (s: string) => s.replace(/[\\%_]/g, "\\$&");
+
+/** Crée plusieurs emplacements d'un coup (et leurs parents), p. ex. les rangées d'une boîte. Tout ou rien. */
+export async function createLocations(sql: Db, codes: string[]): Promise<{ created: LocationRow[]; existing: LocationRow[] }> {
+  const normalized = [...new Set(codes.map(normalizeLocationCode))];
+  return withTx(sql, async (tx) => {
+    const created: LocationRow[] = [];
+    const existing: LocationRow[] = [];
+    for (const code of normalized) {
+      const { created: isNew, ...row } = await createLocation(tx, { code });
+      (isNew ? created : existing).push(row);
+    }
+    return { created, existing };
+  });
+}
+
+export async function updateLocationDescription(sql: Db, id: string, description: string | null): Promise<LocationRow> {
+  const [row] = await sql<LocationRow[]>`
+    update locations set description = ${description?.trim() || null} where id = ${id}
+    returning id, parent_id, code, description`;
+  if (!row) throw new DomainError("LOCATION_NOT_FOUND", `location ${id} does not exist`);
+  return row;
+}
+
+/**
+ * Supprime un emplacement créé par erreur. Refusé s'il contient des sous-emplacements ou s'il a déjà servi :
+ * le journal des mouvements y fait référence et ne se réécrit pas.
+ */
+export async function deleteLocation(sql: Db, id: string): Promise<LocationRow> {
+  return withTx(sql, async (tx) => {
+    const [row] = await tx<LocationRow[]>`select id, parent_id, code, description from locations where id = ${id} for update`;
+    if (!row) throw new DomainError("LOCATION_NOT_FOUND", `location ${id} does not exist`);
+    const [child] = await tx`select 1 from locations where parent_id = ${id} limit 1`;
+    if (child) throw new DomainError("LOCATION_HAS_CHILDREN", `location ${row.code} still has sub-locations`);
+    const [used] = await tx`
+      select 1 where exists (select 1 from stock_items where location_id = ${id})
+                  or exists (select 1 from inventory_movements where from_location_id = ${id} or to_location_id = ${id})`;
+    if (used) throw new DomainError("LOCATION_IN_USE", `location ${row.code} has already held stock and cannot be deleted`);
+    await tx`delete from locations where id = ${id}`;
+    return row;
+  });
+}

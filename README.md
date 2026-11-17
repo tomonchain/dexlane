@@ -15,7 +15,7 @@ Application personnelle de négoce de cartes Pokémon. Spécification : [`specs-
 | `packages/scan` | Lecture de carte par Claude (vision + sortie structurée, repli serveur), identification photo → candidats catalogue, banc d'essai précision/coût |
 | `packages/inventory` | Entrée d'une carte identifiée (offre et SKU attribués automatiquement), lots de vrac et extraction, emplacements hiérarchiques, lots d'acquisition, déplacement, correction d'inventaire auditée, recherche, import idempotent de commandes, allocation commande → positions, survente (Parcours F), picking par scan, emballage, confirmation de dépôt |
 | `apps/api` | API HTTP (Hono) : scan, recherche catalogue, emplacements, entrée en stock, vrac, inventaire. Jeton propriétaire, validation stricte, clés d'idempotence |
-| `apps/web` | Application web installable (Next.js), pensée pour le téléphone : scan photo → candidats → confirmation → rangement, recherche manuelle, inventaire et fiche de position (déplacer, corriger, valider), lots de vrac et extraction, emplacements et lots d'acquisition, synchronisation du catalogue par série |
+| `apps/web` | Application web installable (Next.js), pensée pour le téléphone : scan photo → candidats → confirmation → rangement, recherche manuelle, inventaire et fiche de position (déplacer, corriger, valider), lots de vrac et extraction, emplacements (aide, création en série, arborescence) et lots d'acquisition, catalogue (import par série, détail d'une série avec prix et stock détenu), compte (mot de passe, thème) |
 
 Pas encore commencés : `apps/worker`, pricing, connecteurs marketplaces, fulfillment PDF, photos des exemplaires, étiquettes QR.
 
@@ -63,6 +63,8 @@ pnpm api                                   # http://127.0.0.1:8787 — écoute l
 | `GET /api/inventory/{id ou unit_sku}` | Fiche d'une position et historique des mouvements |
 | `POST /api/inventory/{id}/move` · `/adjust` · `/activate` | Déplacement, correction après comptage (motif obligatoire), validation d'un brouillon |
 
+Autres routes : `GET /api/catalog/sets/{id}` (contenu importé d'une série : cartes, variantes, dernier prix tendance, exemplaires en stock), `POST /api/locations/batch`, `PATCH` et `DELETE /api/locations/{id}` (suppression réservée à un emplacement vide et jamais utilisé), `/api/auth/*` (mot de passe du propriétaire, réservé au serveur web).
+
 Toutes les routes sauf `GET /api/health` exigent `Authorization: Bearer <DEXLANE_API_TOKEN>`. Les créations et corrections (`receive`, `bulk`, `extract`, `adjust`, `acquisition-lots`) exigent un en-tête `Idempotency-Key` : la clé est écrite dans la même transaction que la mutation, donc une requête rejouée (double appui, réseau mobile) renvoie la réponse d'origine avec `Idempotent-Replay: true` sans rien créer en double. Erreurs : `{ "error": { "code", "message", "details" } }` — 400 format, 404 introuvable, 409 état incompatible, 422 règle métier.
 
 Application web :
@@ -73,7 +75,8 @@ pnpm web                                   # dans un autre : http://localhost:30
 pnpm --filter @dexlane/web build && pnpm --filter @dexlane/web start   # production
 ```
 
-- **Connexion** : on saisit `DEXLANE_API_TOKEN` une fois par appareil. Il est rangé dans un cookie `httpOnly` / `SameSite=Strict` ; le navigateur n'appelle jamais l'API directement, le serveur Next relaie `/api/*` en ajoutant le jeton (`DEXLANE_API_URL`, défaut `http://127.0.0.1:8787`).
+- **Connexion** : par mot de passe (10 caractères minimum). À la première connexion, l'écran demande `DEXLANE_API_TOKEN` comme jeton d'installation pour choisir le mot de passe ; le même jeton sert de clé de secours (« Mot de passe oublié ? »). Le mot de passe est stocké haché (scrypt) ; après 5 essais infructueux, la connexion est bloquée 30 s, puis le double à chaque nouvel échec, jusqu'à 15 min.
+- **Session** : cookie `httpOnly` / `SameSite=Strict` signé par le serveur web, valable 30 jours ; il ne contient ni le mot de passe ni le jeton. Changer le mot de passe (page Compte) déconnecte les autres appareils. Le navigateur n'appelle jamais l'API directement : le serveur Next relaie `/api/*` avec son propre `DEXLANE_API_TOKEN` (lu dans le `.env` de la racine en développement ; `DEXLANE_API_URL` par défaut : API embarquée).
 - **Sur le téléphone** : utiliser le build de production (`build` puis `start`). En `dev`, Next ne sert ses ressources qu'à `localhost` ; pour tester depuis une autre machine, lister ses hôtes dans `DEXLANE_DEV_ORIGINS=192.168.1.20,mon-pc.local`. Le serveur doit être joignable depuis le téléphone, de préférence en HTTPS (reverse proxy ou VPN type Tailscale) — le cookie n'est marqué `Secure` qu'en HTTPS. La photo passe par l'appareil photo natif (pas besoin de permission caméra dans le navigateur) puis est réduite à 2000 px avant envoi. « Ajouter à l'écran d'accueil » installe l'application.
 - **Interface** : Tailwind CSS 4 et composants de type shadcn/ui sur primitives Radix (`apps/web/components/ui`), icônes Lucide, tiroirs mobiles vaul, palette de commandes cmdk (⌘K / Ctrl+K : pages et recherche de positions), notifications sonner, police Geist, thème clair / sombre / système. Barre latérale sur ordinateur, onglets en bas sur téléphone.
 - **Garde-fous du scanner** : une carte n'est présélectionnée que si l'identification est sûre ; sinon l'opérateur choisit explicitement. L'état n'est jamais prérempli. Emplacement, coût et lot restent d'une carte à l'autre. Une même saisie renvoyée après une coupure réseau n'est pas enregistrée deux fois.
@@ -85,10 +88,10 @@ Sans `DEXLANE_API_URL`, le serveur Next embarque l'API : un seul déploiement su
 
 1. Projet Vercel lié au dépôt, **Root Directory** `apps/web` (le build installe tout le monorepo). `apps/web/vercel.json` applique les migrations avant `next build`.
 2. Base : onglet **Storage** du projet → Neon (offre gratuite). L'intégration fournit `DATABASE_URL` (connexions poolées, utilisées par l'application) et `DATABASE_URL_UNPOOLED` (connexion directe, utilisée par les migrations).
-3. Variables d'environnement : `DEXLANE_API_TOKEN` (≥ 24 caractères), `ANTHROPIC_API_KEY` (scan), `ENABLE_EXPERIMENTAL_COREPACK=1` (pnpm de `packageManager`).
+3. Variables d'environnement : `DEXLANE_API_TOKEN` (≥ 24 caractères ; jeton d'installation et clé de secours du mot de passe), `ANTHROPIC_API_KEY` (scan), `ENABLE_EXPERIMENTAL_COREPACK=1` (pnpm de `packageManager`).
 4. Catalogue : la base hébergée démarre vide. Onglet **Catalogue** de l'application : « Charger la liste », puis « Synchroniser » les séries possédées (rejouable, met à jour les cartes et ajoute les cotations du jour). La commande `pnpm --filter @dexlane/catalog sync` reste disponible depuis un poste.
 
-À savoir : préversions et production partagent la même base tant qu'aucune base par branche n'est configurée — une préversion applique donc ses migrations à la base de production. L'application reste protégée par le jeton propriétaire ; il n'y a pas de limitation du nombre de tentatives de connexion, d'où l'exigence d'un jeton long et aléatoire.
+À savoir : préversions et production partagent la même base tant qu'aucune base par branche n'est configurée — une préversion applique donc ses migrations à la base de production. L'application est protégée par le mot de passe du propriétaire, avec blocage temporaire après des essais infructueux répétés.
 
 Tests de bout en bout (navigateur mobile → Next → API → PostgreSQL de test ; seule la lecture Claude est simulée) :
 

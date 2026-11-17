@@ -162,6 +162,19 @@ describe("catalog synchronisation", () => {
     expect([synced.status, synced.json]).toMatchObject([200, { setId: "sv03.5", cards: 1, errorCount: 0 }]);
     expect((await call("GET", "/api/catalog/cards?name=mew")).json.candidates[0]).toMatchObject({ name: "Mew-ex", setId: "sv03.5" });
 
+    await call("POST", "/api/locations", { body: { code: "BOX-01" } });
+    const mew = (await call("GET", "/api/catalog/cards?name=mew")).json.candidates[0];
+    await call("POST", "/api/inventory/receive", {
+      body: { variantId: mew.variants[0].id, condition: "NM", quantity: 3, locationCode: "BOX-01", unitCostCents: 0 },
+    });
+    const detail = await call("GET", "/api/catalog/sets/sv03.5?language=fr");
+    expect(detail.json.set).toMatchObject({ id: "sv03.5", name: "151", cardsSynced: 1 });
+    expect(detail.json.cards).toHaveLength(1);
+    expect(detail.json.cards[0]).toMatchObject({ name: "Mew-ex", localNumber: "151", owned: 3 });
+    expect(detail.json.cards[0].variants[0]).toMatchObject({ id: mew.variants[0].id, finish: "holo" });
+    expect(detail.json.cards[0].variants[0].trendCents).toBeGreaterThan(0);
+    expect((await call("GET", "/api/catalog/sets/inconnue")).status).toBe(404);
+
     // Rejouer n'ajoute rien.
     await call("POST", "/api/catalog/sets/sv03.5/sync", { body: {}, key: null });
     const after = await call("GET", "/api/catalog/sets");
@@ -184,6 +197,86 @@ describe("catalog synchronisation", () => {
     expect([down.status, down.json.error.code]).toEqual([502, "CATALOG_SOURCE_UNAVAILABLE"]);
     expect((await call("POST", "/api/catalog/sets/refresh", { body: {}, key: null })).status).toBe(502);
     expect((await call("POST", "/api/catalog/sets/bad id!/sync", { body: {}, key: null })).status).toBe(400);
+  });
+});
+
+describe("owner password", () => {
+  const post = (path: string, body: unknown, headers?: Record<string, string>) => call("POST", `/api/auth/password/${path}`, { body, key: null, headers });
+
+  it("is set with the token, then verified, changed, and invalidates older sessions", async () => {
+    expect((await call("GET", "/api/auth/status")).json).toEqual({ passwordSet: false });
+    expect((await post("verify", { password: "peu importe" })).json.error.code).toBe("PASSWORD_NOT_SET");
+    expect((await post("reset", { newPassword: "court" })).json.error.code).toBe("WEAK_PASSWORD");
+
+    const set = await post("reset", { newPassword: "premier-secret" });
+    expect([set.status, set.json]).toEqual([200, { sessionVersion: 1 }]);
+    expect((await call("GET", "/api/auth/status")).json).toEqual({ passwordSet: true });
+    expect((await post("verify", { password: "premier-secret" })).json).toEqual({ sessionVersion: 1 });
+
+    const wrong = await post("change", { currentPassword: "mauvais", newPassword: "deuxieme-secret" });
+    expect([wrong.status, wrong.json.error.code]).toEqual([401, "INVALID_PASSWORD"]);
+    expect((await post("change", { currentPassword: "premier-secret", newPassword: "deuxieme-secret" })).json).toEqual({ sessionVersion: 2 });
+    expect((await post("verify", { password: "premier-secret" })).status).toBe(401);
+    expect((await post("verify", { password: "deuxieme-secret" })).json).toEqual({ sessionVersion: 2 });
+
+    // Une session ouverte avant le changement n'est plus acceptée ; un appel direct par jeton l'est toujours.
+    const stale = await call("GET", "/api/inventory", { headers: { "X-Dexlane-Session-Version": "1" } });
+    expect([stale.status, stale.json.error.code]).toEqual([401, "SESSION_EXPIRED"]);
+    expect((await call("GET", "/api/inventory", { headers: { "X-Dexlane-Session-Version": "2" } })).status).toBe(200);
+    expect((await call("GET", "/api/inventory")).status).toBe(200);
+    expect(await count("audit_events")).toBe(2);
+    const [stored] = await sql<{ passwordHash: string }[]>`select password_hash from owner_credentials`;
+    expect(stored!.passwordHash).toMatch(/^scrypt\$/);
+    expect(stored!.passwordHash).not.toContain("deuxieme-secret");
+  });
+
+  it("locks out after repeated failures, even for the right password, until the delay has passed", async () => {
+    await post("reset", { newPassword: "bon-mot-de-passe" });
+    for (let i = 0; i < 4; i++) expect((await post("verify", { password: `essai-${i}` })).status).toBe(401);
+    const fifth = await post("verify", { password: "essai-5" });
+    expect(fifth.json.error).toMatchObject({ code: "INVALID_PASSWORD", details: { retryAfterS: 30 } });
+
+    const locked = await post("verify", { password: "bon-mot-de-passe" });
+    expect([locked.status, locked.json.error.code]).toEqual([429, "TOO_MANY_ATTEMPTS"]);
+    expect(locked.json.error.details.retryAfterS).toBeGreaterThan(0);
+
+    await sql`update owner_credentials set locked_until = now() - interval '1 second'`;
+    expect((await post("verify", { password: "bon-mot-de-passe" })).status).toBe(200);
+    expect((await sql`select failed_attempts, locked_until from owner_credentials`)[0]).toEqual({ failedAttempts: 0, lockedUntil: null });
+
+    // Le jeton reste la clé de secours : il réinitialise le mot de passe et lève le verrou.
+    for (let i = 0; i < 5; i++) await post("verify", { password: "non" });
+    expect((await post("reset", { newPassword: "nouveau-depart" })).status).toBe(200);
+    expect((await post("verify", { password: "nouveau-depart" })).status).toBe(200);
+  });
+});
+
+describe("locations", () => {
+  it("creates a series at once, edits a description, and only deletes unused leaves", async () => {
+    const batch = await call("POST", "/api/locations/batch", { body: { codes: ["box-01/row-01", "BOX-01/ROW-02", "BOX-01/ROW-02"] }, key: null });
+    expect(batch.status).toBe(201);
+    expect(batch.json.created.map((l: { code: string }) => l.code)).toEqual(["BOX-01/ROW-01", "BOX-01/ROW-02"]);
+    const again = await call("POST", "/api/locations/batch", { body: { codes: ["BOX-01/ROW-01", "BOX-01/ROW-03"] }, key: null });
+    expect([again.json.created.length, again.json.existing.length]).toEqual([1, 1]);
+    const invalid = await call("POST", "/api/locations/batch", { body: { codes: ["BOX-02", "BOX 03"] }, key: null });
+    expect(invalid.json.error.code).toBe("INVALID_LOCATION_CODE");
+
+    const { locations } = (await call("GET", "/api/locations")).json;
+    expect(locations.map((l: { code: string }) => l.code)).toEqual(["BOX-01", "BOX-01/ROW-01", "BOX-01/ROW-02", "BOX-01/ROW-03"]);
+    const id = (code: string) => locations.find((l: { code: string }) => l.code === code).id as string;
+
+    const described = await call("PATCH", `/api/locations/${id("BOX-01")}`, { body: { description: "Étagère du haut" } });
+    expect(described.json).toMatchObject({ code: "BOX-01", description: "Étagère du haut" });
+
+    await call("POST", "/api/inventory/receive", {
+      body: { variantId: await fouinarReverse(), condition: "NM", quantity: 1, locationCode: "BOX-01/ROW-01", unitCostCents: 0 },
+    });
+    expect((await call("DELETE", `/api/locations/${id("BOX-01")}`)).json.error.code).toBe("LOCATION_HAS_CHILDREN");
+    const used = await call("DELETE", `/api/locations/${id("BOX-01/ROW-01")}`);
+    expect([used.status, used.json.error.code]).toEqual([409, "LOCATION_IN_USE"]);
+    expect((await call("DELETE", `/api/locations/${id("BOX-01/ROW-03")}`)).status).toBe(200);
+    expect((await call("DELETE", `/api/locations/${id("BOX-01/ROW-03")}`)).status).toBe(404);
+    expect(await count("locations")).toBe(3);
   });
 });
 

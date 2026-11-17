@@ -1,5 +1,5 @@
 import type {
-  AcquisitionLot, Candidate, CardCondition, CatalogSet, InventoryPage, InventorySummary, Location, PositionDetail, Received,
+  AcquisitionLot, Candidate, CardCondition, CatalogSet, CatalogSetDetail, InventoryPage, InventorySummary, Location, PositionDetail, Received,
   ReceivedBulkLot, ScanResult, SetSyncReport,
 } from "./types";
 
@@ -22,7 +22,7 @@ interface RequestOptions {
   query?: Record<string, string | number | undefined>;
 }
 
-async function request<T>(method: "GET" | "POST", path: string, opts: RequestOptions = {}): Promise<T> {
+async function request<T>(method: "GET" | "POST" | "PATCH" | "DELETE", path: string, opts: RequestOptions = {}): Promise<T> {
   const params = new URLSearchParams();
   for (const [k, v] of Object.entries(opts.query ?? {})) if (v !== undefined && v !== "") params.set(k, String(v));
   const headers: Record<string, string> = {};
@@ -51,6 +51,19 @@ async function request<T>(method: "GET" | "POST", path: string, opts: RequestOpt
     const e = data?.error;
     throw new ApiError(res.status, e?.code ?? "HTTP_ERROR", e?.message ?? `Erreur ${res.status}`, e?.details);
   }
+  return data as T;
+}
+
+/** Routes de session du serveur web (/auth), hors relais d'API. */
+async function auth<T = { ok: true }>(method: "GET" | "POST" | "PUT", body?: unknown): Promise<T> {
+  const res = await fetch("/auth", {
+    method,
+    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  }).catch(() => null);
+  if (!res) throw new ApiError(0, "NETWORK", "Connexion impossible. Vérifiez le réseau puis réessayez.");
+  const data = (await res.json().catch(() => null)) as { error?: { code: string; message: string; details?: unknown } } | null;
+  if (!res.ok) throw new ApiError(res.status, data?.error?.code ?? "HTTP_ERROR", data?.error?.message ?? `Erreur ${res.status}`, data?.error?.details);
   return data as T;
 }
 
@@ -86,7 +99,14 @@ export const api = {
   syncCatalogSet: (setId: string, language: string) =>
     request<SetSyncReport>("POST", `/catalog/sets/${encodeURIComponent(setId)}/sync`, { json: { language } }),
 
+  catalogSet: (setId: string, language: string) =>
+    request<CatalogSetDetail>("GET", `/catalog/sets/${encodeURIComponent(setId)}`, { query: { language } }),
+
   locations: () => request<{ locations: Location[] }>("GET", "/locations"),
+  createLocations: (codes: string[]) =>
+    request<{ created: { code: string }[]; existing: { code: string }[] }>("POST", "/locations/batch", { json: { codes } }),
+  describeLocation: (id: string, description: string | null) => request<Location>("PATCH", `/locations/${id}`, { json: { description } }),
+  deleteLocation: (id: string) => request<{ code: string }>("DELETE", `/locations/${id}`),
   createLocation: (code: string, description?: string) =>
     request<Location & { created: boolean }>("POST", "/locations", { json: { code, description } }),
 
@@ -111,18 +131,11 @@ export const api = {
     request<PositionDetail>("POST", `/inventory/${id}/adjust`, { json: { countedOnHand, reason }, idempotencyKey: key }),
   activate: (id: string) => request<PositionDetail>("POST", `/inventory/${id}/activate`),
 
-  login: async (token: string) => {
-    const res = await fetch("/auth", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token }),
-    }).catch(() => null);
-    if (!res) throw new ApiError(0, "NETWORK", "Connexion impossible. Vérifiez le réseau puis réessayez.");
-    if (!res.ok) {
-      const data = (await res.json().catch(() => null)) as { error?: { code: string; message: string } } | null;
-      throw new ApiError(res.status, data?.error?.code ?? "HTTP_ERROR", data?.error?.message ?? `Erreur ${res.status}`);
-    }
-  },
+  authStatus: () => auth<{ passwordSet: boolean }>("GET"),
+  login: (password: string) => auth("POST", { password }),
+  /** Première connexion ou mot de passe oublié : le jeton d'installation autorise à définir le mot de passe. */
+  setPassword: (setupToken: string, newPassword: string) => auth("POST", { setupToken, newPassword }),
+  changePassword: (currentPassword: string, newPassword: string) => auth("PUT", { currentPassword, newPassword }),
   logout: () => fetch("/auth", { method: "DELETE" }),
 };
 
