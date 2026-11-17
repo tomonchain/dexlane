@@ -71,7 +71,8 @@ test("première connexion : le jeton d'installation permet de choisir le mot de 
   await expect(page.getByRole("heading", { name: "Inventaire" })).toBeVisible();
 
   // Déconnexion depuis le compte, puis retour par le seul mot de passe.
-  await page.getByRole("link", { name: "Compte et réglages" }).click();
+  await page.getByRole("link", { name: "Réglages" }).click();
+  await page.getByRole("link", { name: /^Compte/ }).click();
   await page.getByRole("button", { name: "Se déconnecter" }).click();
   await page.waitForURL(/\/login$/);
   await expect(page.getByRole("heading", { name: "Connexion" })).toBeVisible();
@@ -82,7 +83,7 @@ test("première connexion : le jeton d'installation permet de choisir le mot de 
   await expect(errorBanner(page)).toHaveText("Mot de passe incorrect.");
   await page.getByLabel("Mot de passe", { exact: true }).fill(E2E_PASSWORD);
   await page.getByRole("button", { name: "Se connecter" }).click();
-  await expect(page.getByRole("heading", { name: "Scanner" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Stock" })).toBeVisible();
 
   // Sans session, l'API relayée reste fermée.
   await page.context().clearCookies();
@@ -91,7 +92,7 @@ test("première connexion : le jeton d'installation permet de choisir le mot de 
 
 test("photo lisible : la carte entre en stock et se retrouve dans l'inventaire", async ({ page }) => {
   await login(page);
-  await page.goto("/");
+  await page.goto("/ajouter");
   await chooseLocation(page, "BOX-A/ROW-01");
 
   await takePhoto(page, CLEAR);
@@ -121,7 +122,7 @@ test("photo lisible : la carte entre en stock et se retrouve dans l'inventaire",
 
 test("lecture incertaine : rien n'est présélectionné, le brouillon se valide depuis la fiche", async ({ page }) => {
   await login(page);
-  await page.goto("/");
+  await page.goto("/ajouter");
   await chooseLocation(page, "BOX-B");
 
   await takePhoto(page, PARTIAL_NAME);
@@ -147,7 +148,7 @@ test("lecture incertaine : rien n'est présélectionné, le brouillon se valide 
 
 test("panne de lecture : recherche manuelle et exemplaire unique", async ({ page }) => {
   await login(page);
-  await page.goto("/");
+  await page.goto("/ajouter");
   await chooseLocation(page, "BOX-C");
 
   await takePhoto(page, OUTAGE);
@@ -240,7 +241,7 @@ test("catalogue : onglets, import d'une série, détail, puis recherche par auto
   await expect(page.getByText("Aucune carte ne correspond")).toBeVisible();
 
   // Dans le scanner, la série se choisit par son nom et suffit à retrouver ses cartes.
-  await page.getByRole("link", { name: "Scanner" }).click();
+  await page.goto("/ajouter");
   await page.getByRole("button", { name: "Rechercher sans photo" }).click();
   const serie = page.getByRole("combobox", { name: "Série" });
   await serie.fill("15");
@@ -285,7 +286,7 @@ test("emplacements : création en série, description, suppression d'un emplacem
 
 test("prix : estimation à la saisie, prix posé à l'entrée, décision manuelle et règles", async ({ page }) => {
   await login(page);
-  await page.goto("/");
+  await page.goto("/ajouter");
   await chooseLocation(page, "BOX-P");
   await takePhoto(page, CLEAR);
   const estimate = page.getByTestId("price-estimate");
@@ -298,7 +299,7 @@ test("prix : estimation à la saisie, prix posé à l'entrée, décision manuell
   await expect(page.getByTestId("entry-pricing")).toContainText("Prix cible");
 
   // Décision manuelle : le prix et la catégorie choisis s'affichent partout, et l'offre sort de la revue.
-  await page.getByRole("link", { name: "Prix", exact: true }).click();
+  await page.goto("/prix");
   await page.getByRole("tab", { name: /^Toutes/ }).click();
   const offer = page.getByTestId("offer-OF-SWSH3-136-FR-R-GD");
   await offer.getByRole("button", { name: /Fixer le prix/ }).click();
@@ -386,7 +387,7 @@ test("ventes : vente directe réservée, prélevée par code, emballée, dépos�
 
 test("scan en lot : images recto verso d'un scanner, vérification ligne à ligne, entrée en série avec photos", async ({ page }) => {
   await login(page);
-  await page.goto("/");
+  await page.goto("/ajouter");
   await page.getByRole("link", { name: /Importer un lot d'images/ }).click();
   await expect(page.getByRole("heading", { name: "Scan en lot" })).toBeVisible();
 
@@ -582,4 +583,53 @@ test("statistiques : chiffres clés, variation de cote d'une carte en stock, seu
   await page.getByRole("button", { name: "Relever les cotes" }).click();
   // Le catalogue de test rend ses cotations d'origine : selon l'ordre des parcours, elles sont nouvelles ou déjà connues.
   await expect(page.getByText(/nouvelles? cotes? sur \d+ cartes?|Cotes déjà à jour/)).toBeVisible();
+});
+
+test("stock : une ligne par carte, prix accepté d'un clic ou saisi sur place, fiche latérale, publication", async ({ page }) => {
+  await login(page);
+  // Deux cartes entrées par l'API : un Fouinar normal et un scan avec photo (prêt à publier).
+  const { candidates } = (await (await page.request.get("/api/catalog/cards?name=fouinar")).json()) as { candidates: { variants: { id: string; finish: string }[] }[] };
+  await page.request.post("/api/locations", { data: { code: "BOX-SK" } });
+  const receive = (data: Record<string, unknown>) => page.request.post("/api/inventory/receive", {
+    data: { quantity: 1, locationCode: "BOX-SK", unitCostCents: 5, ...data }, headers: { "Idempotency-Key": `e2e-stock-${Math.random()}` },
+  });
+  await receive({ variantId: candidates[0]!.variants.find((v) => v.finish === "normal")!.id, condition: "PO", quantity: 3 });
+  const scanned = (await (await page.request.post("/api/scans?language=fr", { data: png(CLEAR), headers: { "Content-Type": "image/png" } })).json()) as {
+    suggestedVariantId: string; photo: { id: string };
+  };
+  await receive({ variantId: scanned.suggestedVariantId, condition: "PO", photoIds: [scanned.photo.id] });
+  await page.request.put("/api/channels/ebay", { data: { mode: "SIMULATION" } });
+
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Stock" })).toBeVisible();
+  await expect(page.getByTestId("stock-totals")).toContainText("carte");
+  await page.getByLabel("Rechercher dans le stock").fill("BOX"); // ne correspond à aucune carte : la recherche porte sur les cartes
+  await expect(page.getByText("Aucune carte ne correspond.")).toBeVisible();
+  await page.getByLabel("Rechercher dans le stock").fill("fouinar");
+
+  // Prix saisi sur place : clic, saisie, Entrée.
+  const normal = page.getByTestId("stock-OF-SWSH3-136-FR-N-PO");
+  await expect(normal).toContainText("BOX-SK");
+  await normal.getByRole("button", { name: /le prix de Fouinar/ }).click();
+  await normal.getByLabel("Prix de Fouinar").fill("0,45");
+  await normal.getByLabel("Prix de Fouinar").press("Enter");
+  await expect(normal.getByRole("button", { name: "Modifier le prix de Fouinar" })).toHaveText("0,45 €");
+
+  // Fiche latérale : annonce prête, prix modifiable, publication sur le canal activé.
+  const reverse = page.getByTestId("stock-OF-SWSH3-136-FR-R-PO");
+  await reverse.click();
+  const panel = page.getByTestId("stock-inspector");
+  await expect(panel.getByTestId("stock-listing-title")).toContainText("Fouinar 136/189");
+  await panel.getByLabel("Prix de vente (€)").fill("1,20");
+  await panel.getByRole("button", { name: "Enregistrer" }).click();
+  await expect(reverse).toContainText("1,20 €"); // la ligne du tableau suit, derrière la fiche
+  await panel.getByTestId("stock-channel-ebay").getByRole("button", { name: "Publier" }).click();
+  await expect(panel.getByTestId("stock-channel-ebay")).toContainText("en ligne · 1 × 1,20 €");
+  await expect(reverse).toContainText("En ligne");
+
+  // Le filtre « En ligne » ne garde que la carte publiée.
+  await page.keyboard.press("Escape"); // sur téléphone, la fiche s'ouvre en tiroir
+  await page.getByRole("tab", { name: /^En ligne/ }).click();
+  await expect(reverse).toBeVisible();
+  await expect(normal).toHaveCount(0);
 });

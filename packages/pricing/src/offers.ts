@@ -2,7 +2,7 @@ import { withTx, type Db } from "@dexlane/db";
 import type { CardCondition } from "@dexlane/inventory";
 import { DomainError } from "@dexlane/shared";
 import {
-  BLOCKING_REASONS, DEFAULT_SETTINGS, QUOTE_TYPES, computePricing, floorFor, validateSettings,
+  BLOCKING_REASONS, DEFAULT_SETTINGS, QUOTE_TYPES, computePricing, floorFor, tierOf, validateSettings,
   type OfferCategory, type PriceReason, type PriceSource, type PricingResult, type PricingSettings, type Quote, type QuoteType,
 } from "./rules";
 
@@ -156,7 +156,8 @@ export interface SetOfferPriceInput {
   targetPriceCents: number;
   /** Par défaut : calculé depuis le prix cible et le coût moyen. */
   floorPriceCents?: number;
-  category: Exclude<OfferCategory, "REVIEW">;
+  /** Par défaut : la catégorie du palier de prix (vrac, lot, unité, premium). */
+  category?: Exclude<OfferCategory, "REVIEW">;
   actor: string;
 }
 
@@ -169,18 +170,19 @@ export async function setOfferPrice(sql: Db, input: SetOfferPriceInput): Promise
     const [offer] = await offerState(tx, tx`o.id = ${input.offerId}`);
     if (!offer) throw new DomainError("OFFER_NOT_FOUND", "offer not found");
     const settings = await getPricingSettings(tx);
-    const floor = input.floorPriceCents ?? Math.min(floorFor(input.targetPriceCents, offer.averageCostCents, settings, input.category), input.targetPriceCents);
+    const category = input.category ?? tierOf(input.targetPriceCents, settings);
+    const floor = input.floorPriceCents ?? Math.min(floorFor(input.targetPriceCents, offer.averageCostCents, settings, category), input.targetPriceCents);
     if (floor > input.targetPriceCents) throw new DomainError("FLOOR_ABOVE_TARGET", "the floor price cannot exceed the target price");
 
     const [before] = await tx`select target_price_cents, floor_price_cents, category, price_source from offers where id = ${offer.id}`;
     await tx`
       update offers set target_price_cents = ${input.targetPriceCents}, floor_price_cents = ${floor},
-                        category = ${input.category}, price_source = 'MANUAL'
+                        category = ${category}, price_source = 'MANUAL'
        where id = ${offer.id}`;
     await tx`
       insert into audit_events (actor, action, entity, entity_id, before, after)
       values (${input.actor}, 'offer_price_set', 'offer', ${offer.id}, ${tx.json(before as never)},
-              ${tx.json({ targetPriceCents: input.targetPriceCents, floorPriceCents: floor, category: input.category })})`;
+              ${tx.json({ targetPriceCents: input.targetPriceCents, floorPriceCents: floor, category })})`;
     const quotes = (await latestQuotes(tx, [offer.variantId])).get(offer.variantId) ?? [];
     await applyPricing(tx, { ...offer, priceSource: "MANUAL", targetPriceCents: input.targetPriceCents }, quotes, settings);
     return (await listOfferPricing(tx, { offerId: offer.id, status: "ALL", includeEmpty: true })).items[0]!;

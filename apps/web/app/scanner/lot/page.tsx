@@ -230,7 +230,7 @@ export default function BatchScanPage() {
   return (
     <div className="grid gap-5 pb-24 lg:pb-0">
       <Button variant="ghost" size="sm" asChild className="-ml-2 justify-self-start text-muted-foreground">
-        <Link href="/"><ArrowLeft /> Scanner</Link>
+        <Link href="/ajouter"><ArrowLeft /> Ajouter une carte</Link>
       </Button>
       <PageHeader
         title="Scan en lot"

@@ -22,7 +22,7 @@ import { DomainError } from "@dexlane/shared";
 import { changePassword, passwordStatus, setPassword, verifyPassword } from "./auth";
 import { HttpError, errorBody, idempotent, parse, parseJsonBody, secretEquals, statusOfDomainError } from "./http";
 import {
-  endListing, getListingSettings, listChannels, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
+  endListing, getListingSettings, getStockDetail, listChannels, listStock, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
   syncChannels, syncQuantities, type ChannelAdapters,
 } from "@dexlane/listings";
 import { readPhoto, type PhotoStore } from "./photos";
@@ -228,6 +228,14 @@ export function createApp(deps: AppDeps) {
 
   /** Offres vendables avec le texte de leur annonce et leurs photos. */
   app.get("/api/listings/offers", async (c) => c.json(await listListingOffers(sql, parse(s.listingOffersQuery, c.req.query()))));
+
+  // ───────────────────────── Stock à vendre ─────────────────────────
+
+  /** Le stock, une ligne par carte à vendre, avec son statut sur le chemin de la vente. */
+  app.get("/api/stock", async (c) => c.json(await listStock(sql, parse(s.stockQuery, c.req.query()))));
+
+  /** Tout ce qui concerne une carte : annonce, photos, positions, historique de cote. */
+  app.get("/api/stock/:offerId", async (c) => c.json(await getStockDetail(sql, parse(s.offerId, c.req.param("offerId")))));
 
   // ───────────────────────── Statistiques et alertes de prix ─────────────────────────
 

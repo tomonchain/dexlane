@@ -154,7 +154,7 @@ export default function InventoryPage() {
         <EmptyState
           icon={<PackageSearch />}
           title={filtered ? "Aucune position ne correspond" : "Le stock est vide"}
-          action={!filtered && <Button asChild size="sm"><Link href="/">Scanner une première carte</Link></Button>}
+          action={!filtered && <Button asChild size="sm"><Link href="/ajouter">Ajouter une première carte</Link></Button>}
         >
           {filtered ? "Élargissez la recherche ou retirez un filtre." : "Les cartes entrées depuis le Scanner apparaîtront ici."}
         </EmptyState>

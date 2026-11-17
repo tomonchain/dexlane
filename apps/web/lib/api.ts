@@ -2,7 +2,7 @@ import type {
   AcquisitionLot, AlertSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, PriceMoves, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
   Location, Photo, PositionDetail, Received,
   OfferPricing, OrderDetail, OrderList, OrderStage, PricingSettings, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
-  ShippingMode, StoredPhoto, VariantQuote,
+  ShippingMode, StockDetail, StockPage, StockStatus, StoredPhoto, VariantQuote,
 } from "./types";
 
 export class ApiError extends Error {
@@ -105,6 +105,10 @@ export const api = {
   listingOffers: (q: { q?: string; limit?: number; offset?: number }) =>
     request<{ items: ListingOffer[]; total: number }>("GET", "/listings/offers", { query: q }),
 
+  stock: (q: { q?: string; status?: StockStatus | "ALL"; sort?: "value" | "recent" | "name"; limit?: number; offset?: number }) =>
+    request<StockPage>("GET", "/stock", { query: q }),
+  stockDetail: (offerId: string) => request<StockDetail>("GET", `/stock/${offerId}`),
+
   dashboard: () => request<Dashboard>("GET", "/stats/dashboard"),
   priceMoves: (alertsOnly: boolean) => request<PriceMoves>("GET", "/stats/price-moves", { query: { alerts: String(alertsOnly) } }),
   saveAlertSettings: (settings: AlertSettings) => request<AlertSettings>("PUT", "/stats/alert-settings", { json: settings }),
@@ -145,7 +149,7 @@ export const api = {
     request<VariantQuote>("GET", `/pricing/variants/${variantId}`, { query: { condition, unique: String(unique) } }),
   pricedOffers: (q: { status: "REVIEW" | "ALL"; q?: string; limit?: number; offset?: number }) =>
     request<{ items: OfferPricing[]; total: number; reviewCount: number; allCount: number }>("GET", "/pricing/offers", { query: q }),
-  setOfferPrice: (offerId: string, input: { targetPriceCents: number; floorPriceCents?: number; category: "BULK" | "LOT" | "SINGLE" | "PREMIUM" }) =>
+  setOfferPrice: (offerId: string, input: { targetPriceCents: number; floorPriceCents?: number; category?: "BULK" | "LOT" | "SINGLE" | "PREMIUM" }) =>
     request<OfferPricing>("POST", `/pricing/offers/${offerId}/price`, { json: input }),
   recomputePricing: () => request<{ repriced: number }>("POST", "/pricing/recompute"),
 

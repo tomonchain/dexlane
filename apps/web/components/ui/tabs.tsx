@@ -12,7 +12,7 @@ export function SegmentedTabs<T extends string>({ value, onChange, tabs, label }
   label: string;
 }) {
   return (
-    <div role="tablist" aria-label={label} className="inline-flex max-w-full rounded-lg border bg-muted/60 p-0.5">
+    <div role="tablist" aria-label={label} className="inline-flex rounded-lg border bg-muted/60 p-0.5">
       {tabs.map((tab) => {
         const active = tab.value === value;
         return (

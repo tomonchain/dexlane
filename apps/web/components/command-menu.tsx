@@ -1,7 +1,7 @@
 "use client";
 
 import { Command } from "cmdk";
-import { Archive, BookOpen, ChartColumn, Images, Layers, Megaphone, Package, Receipt, ScanLine, Search, Tags } from "lucide-react";
+import { Archive, BookOpen, Boxes, ChartColumn, Images, Layers, Megaphone, Package, Receipt, ScanLine, Search, Settings, Tags } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Dialog } from "radix-ui";
 import { useEffect, useState } from "react";
@@ -11,16 +11,18 @@ import type { Position } from "@/lib/types";
 import { Code, Spinner } from "./ui/misc";
 
 export const PAGES = [
-  { href: "/", label: "Scanner", hint: "Entrer une carte en stock", icon: ScanLine },
-  { href: "/scanner/lot", label: "Scan en lot", hint: "Importer les images d'un scanner à défilement", icon: Images },
-  { href: "/inventaire", label: "Inventaire", hint: "Rechercher et gérer les positions", icon: Package },
-  { href: "/annonces", label: "Annonces", hint: "Textes, photos et modèle d'annonce", icon: Megaphone },
+  { href: "/", label: "Stock", hint: "Toutes les cartes à vendre : prix, annonce, statut", icon: Package },
+  { href: "/ajouter", label: "Ajouter une carte", hint: "Photo ou recherche, puis entrée en stock", icon: ScanLine },
+  { href: "/scanner/lot", label: "Ajouter un lot d'images", hint: "Importer les images d'un scanner à défilement", icon: Images },
+  { href: "/vrac", label: "Ajouter du vrac", hint: "Enregistrer un lot agrégé", icon: Layers },
   { href: "/ventes", label: "Ventes", hint: "Vendre, préparer, remettre", icon: Receipt },
-  { href: "/prix", label: "Prix", hint: "Estimations, prix cibles et règles", icon: Tags },
-  { href: "/statistiques", label: "Statistiques", hint: "Valeur du stock, ventes, variations de prix et alertes", icon: ChartColumn },
-  { href: "/rangement", label: "Rangement", hint: "Emplacements et lots d'acquisition", icon: Archive },
-  { href: "/vrac", label: "Vrac", hint: "Enregistrer un lot agrégé", icon: Layers },
-  { href: "/catalogue", label: "Catalogue", hint: "Synchroniser les séries", icon: BookOpen },
+  { href: "/statistiques", label: "Tableau de bord", hint: "Valeur du stock, ventes, variations de prix et alertes", icon: ChartColumn },
+  { href: "/inventaire", label: "Positions", hint: "Chaque position physique, par code et emplacement", icon: Boxes },
+  { href: "/prix", label: "Règles de prix", hint: "File de revue et règles de calcul", icon: Tags },
+  { href: "/annonces", label: "Annonces", hint: "Modèle de texte, style des photos, canaux de vente", icon: Megaphone },
+  { href: "/rangement", label: "Emplacements", hint: "Boîtes, classeurs et lots d'acquisition", icon: Archive },
+  { href: "/catalogue", label: "Catalogue", hint: "Séries importées", icon: BookOpen },
+  { href: "/reglages", label: "Réglages", hint: "Prix, annonces, emplacements, catalogue, compte", icon: Settings },
 ] as const;
 
 const item =

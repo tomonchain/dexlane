@@ -164,7 +164,7 @@ export default function PositionPage() {
         <Button variant="outline" disabled={busy} onClick={() => setModal("move")}><ArrowLeftRight /> Déplacer</Button>
         <Button variant="outline" disabled={busy} onClick={() => setModal("adjust")}><ClipboardPen /> Corriger le stock</Button>
         {p.kind === "BULK" && p.availableToSell > 0 && (
-          <Button variant="outline" asChild><Link href={`/?vrac=${p.id}`}><Layers /> Extraire une carte</Link></Button>
+          <Button variant="outline" asChild><Link href={`/ajouter?vrac=${p.id}`}><Layers /> Extraire une carte</Link></Button>
         )}
       </div>
 

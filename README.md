@@ -4,6 +4,8 @@ Application personnelle de négoce de cartes Pokémon. Spécification : [`specs-
 
 ## État
 
+**Refonte en cours** : l'application se réorganise autour de quatre destinations — Stock (`/`), Ventes, Tableau de bord, Réglages — et d'un seul point d'entrée « Ajouter des cartes ». L'écran Stock est fait : une ligne par carte à vendre (offre), prix modifiable sur place, prix suggéré accepté d'un clic, fiche latérale (prix, cote, annonce, publication, positions). Les autres écrans gardent leur ancienne forme en attendant leur tour, rangés sous Réglages ou dans le menu d'ajout.
+
 **Sprint 1** terminé : catalogue, scan, stock, entrée en stock, recherche, API HTTP et application web (Scanner, Inventaire, Vrac, Rangement). **Sprint 2** entamé : prix et catégories faits ; la publication attend le choix du canal. **Sprint 3** entamé : ventes directes avec préparation et remise.
 
 | Package | Contenu |
@@ -72,6 +74,8 @@ Prix : `GET /api/pricing/variants/{id}?condition=` (estimation avant entrée en 
 Photos : `POST /api/scans` conserve l'image lue et renvoie `photo: { id, url }` ; `POST /api/photos?kind=SCAN_FRONT|SCAN_BACK` dépose une image sans lecture (verso) ; `receive` et `extract` acceptent `photoIds` pour rattacher les photos à la position créée ; la fiche d'une position les renvoie dans `photos`.
 
 Annonces : `GET` / `PUT /api/listings/settings` (modèle de titre et de description, style des photos), `GET /api/listings/offers?q=` (offres vendables, texte rendu, photos), `POST /api/photos?kind=LISTING&source={scan}` (visuel composé à partir d'un scan, remplace le précédent), `POST /api/photos?kind=BACKGROUND` (fond personnel), `GET /api/photos/{id}/content` (contenu servi sur la même origine).
+
+Stock à vendre : `GET /api/stock?q=&status=ALL|TO_PRICE|READY|LISTED|DRAFT&sort=recent|value|name` (une ligne par offre, compteurs par statut, valeur totale), `GET /api/stock/{offerId}` (annonce, photos, positions, cote sur 90 jours). `POST /api/pricing/offers/{id}/price` accepte un prix sans catégorie : elle est déduite du palier de prix.
 
 Statistiques : `GET /api/stats/dashboard`, `GET /api/stats/price-moves?alerts=true|false`, `GET` / `PUT /api/stats/alert-settings`, `POST /api/prices/refresh` (relève les cotes des cartes en stock, puis réévalue les offres).
 
