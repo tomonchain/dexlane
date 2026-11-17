@@ -153,3 +153,33 @@ export async function getStockItemDetail(
      limit ${Math.min(opts.movements ?? 50, 500)}`;
   return { ...item, movements };
 }
+
+export interface InventorySummary {
+  /** Positions non archivées. */
+  positions: number;
+  /** Cartes physiquement présentes (vrac compris). */
+  cards: number;
+  bulkCards: number;
+  /** Cartes identifiées disponibles à la vente (positions actives, hors réservations). */
+  sellable: number;
+  reserved: number;
+  /** Positions en brouillon, à valider. */
+  drafts: number;
+  /** Valeur du stock au coût d'acquisition. */
+  costCents: number;
+}
+
+/** Chiffres clés du stock (écran Inventaire). */
+export async function getInventorySummary(sql: Db): Promise<InventorySummary> {
+  const [row] = await sql<(Omit<InventorySummary, "costCents"> & { costCents: string })[]>`
+    select count(*) filter (where lifecycle <> 'ARCHIVED')::int as positions,
+           coalesce(sum(on_hand) filter (where lifecycle <> 'ARCHIVED'), 0)::int as cards,
+           coalesce(sum(on_hand) filter (where lifecycle <> 'ARCHIVED' and kind = 'BULK'), 0)::int as bulk_cards,
+           coalesce(sum(on_hand - reserved - inspection - quarantine)
+                    filter (where lifecycle = 'ACTIVE' and kind <> 'BULK'), 0)::int as sellable,
+           coalesce(sum(reserved), 0)::int as reserved,
+           count(*) filter (where lifecycle = 'DRAFT')::int as drafts,
+           coalesce(sum(on_hand::bigint * unit_cost_cents) filter (where lifecycle <> 'ARCHIVED'), 0)::text as cost_cents
+      from stock_items`;
+  return { ...row!, costCents: Number(row!.costCents) };
+}

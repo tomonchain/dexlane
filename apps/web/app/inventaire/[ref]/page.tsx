@@ -1,15 +1,27 @@
 "use client";
 
+import {
+  ArrowDownToLine, ArrowLeft, ArrowLeftRight, BadgeCheck, CircleSlash, ClipboardPen, Layers, MoveRight, PackageCheck, PackageMinus,
+  ShieldAlert, Truck, type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { CardThumb } from "@/components/CardChooser";
-import { LocationPicker } from "@/components/LocationPicker";
-import { Sheet } from "@/components/Sheet";
-import { Stepper } from "@/components/Stepper";
+import { toast } from "sonner";
+import { CardThumb } from "@/components/card-chooser";
+import { LocationPicker } from "@/components/location-picker";
+import { Stepper } from "@/components/stepper";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, Eyebrow } from "@/components/ui/card";
+import { Field, Textarea } from "@/components/ui/input";
+import { Code, EmptyState, Loading } from "@/components/ui/misc";
+import { Modal } from "@/components/ui/modal";
 import { ApiError, api, createKeyring } from "@/lib/api";
 import { LIFECYCLE, formatDateTime, formatEuros, movementLabel, positionSubtitle, positionTitle } from "@/lib/format";
-import type { PositionDetail } from "@/lib/types";
+import type { Movement, PositionDetail } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 const KIND: Record<string, string> = { UNIQUE: "Exemplaire unique", FUNGIBLE: "Interchangeable", BULK: "Vrac" };
 const ERRORS: Record<string, string> = {
@@ -19,12 +31,58 @@ const ERRORS: Record<string, string> = {
 };
 const message = (e: unknown) => (e instanceof ApiError ? (ERRORS[e.code] ?? e.message) : (e as Error).message);
 
+const MOVEMENT_ICONS: Record<string, LucideIcon> = {
+  RECEIVE: ArrowDownToLine, MOVE: ArrowLeftRight, ALLOCATE: PackageCheck, RELEASE: PackageMinus, PICK: PackageCheck,
+  SHIP_OUT: Truck, ADJUST: ClipboardPen, BULK_EXTRACT: Layers, QUARANTINE: ShieldAlert, LOST: CircleSlash, DISPOSED: CircleSlash,
+};
+
+function Metric({ label, value, testId, muted }: { label: string; value: React.ReactNode; testId?: string; muted?: boolean }) {
+  return (
+    <div className="grid gap-1.5 bg-card px-4 py-3.5">
+      <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+      <dd className={cn("tabular text-xl leading-none font-semibold tracking-tight", muted && "text-muted-foreground")} data-testid={testId}>{value}</dd>
+    </div>
+  );
+}
+
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-2.5">
+      <dt className="shrink-0 text-sm text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-right text-sm font-medium [overflow-wrap:anywhere]">{children}</dd>
+    </div>
+  );
+}
+
+function MovementRow({ m }: { m: Movement }) {
+  const Icon = MOVEMENT_ICONS[m.movementType] ?? MoveRight;
+  const showDelta = m.qtyDelta !== 0 && m.bucket === "on_hand";
+  return (
+    <li className="flex gap-3 py-3">
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-hidden><Icon className="size-4" /></span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm">
+          <strong className="font-medium">{movementLabel(m)}</strong>
+          {m.movementType === "MOVE" && <Code className="text-muted-foreground"> {m.fromLocationCode} → {m.toLocationCode}</Code>}
+          {m.reason && <span> — {m.reason}</span>}
+        </span>
+        <span className="block text-xs text-muted-foreground">{formatDateTime(m.createdAt)} · {m.actor}</span>
+      </span>
+      {showDelta && (
+        <span className={cn("tabular self-center text-sm font-semibold", m.qtyDelta > 0 ? "text-success" : "text-destructive")}>
+          {m.qtyDelta > 0 ? "+" : "−"}{Math.abs(m.qtyDelta)}
+        </span>
+      )}
+    </li>
+  );
+}
+
 export default function PositionPage() {
   const { ref } = useParams<{ ref: string }>();
   const [position, setPosition] = useState<PositionDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
-  const [sheet, setSheet] = useState<"move" | "adjust" | null>(null);
+  const [modal, setModal] = useState<"move" | "adjust" | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => {
@@ -37,107 +95,124 @@ export default function PositionPage() {
   }, [ref]);
   useEffect(load, [load]);
 
+  const back = (
+    <Button variant="ghost" size="sm" asChild className="-ml-2 justify-self-start text-muted-foreground">
+      <Link href="/inventaire"><ArrowLeft /> Inventaire</Link>
+    </Button>
+  );
+
   if (notFound) {
     return (
-      <div className="stack">
-        <h1>Position introuvable</h1>
-        <p className="muted">Aucune position ne porte le code <span className="mono">{decodeURIComponent(ref)}</span>.</p>
-        <Link className="btn" href="/inventaire">Retour à l'inventaire</Link>
+      <div className="grid gap-5">
+        {back}
+        <EmptyState icon={<CircleSlash />} title="Position introuvable">
+          Aucune position ne porte le code <Code>{decodeURIComponent(ref)}</Code>.
+        </EmptyState>
       </div>
     );
   }
-  if (!position) return error ? <p className="banner error" role="alert">{error}</p> : <p className="row muted" role="status"><span className="spinner" /> Chargement…</p>;
+  if (!position) return error ? <Alert variant="destructive">{error}</Alert> : <Loading />;
 
   const p = position;
-  async function run(action: () => Promise<PositionDetail>) {
+  async function run(action: () => Promise<PositionDetail>, done: string) {
     setBusy(true);
     setError(null);
     try {
       await action();
-      setSheet(null);
+      toast.success(done);
       load();
     } catch (e) {
       setError(message(e));
-      setSheet(null);
     } finally {
+      setModal(null);
       setBusy(false);
     }
   }
 
+  const sellable = p.lifecycle === "ACTIVE" ? p.availableToSell : 0;
+
   return (
-    <div className="stack">
-      <Link className="muted small" href="/inventaire">← Inventaire</Link>
-      <div className="row" style={{ alignItems: "flex-start" }}>
-        {p.card && <CardThumb imageUrl={p.card.imageUrl} large />}
-        <div className="stack-sm grow">
-          <h1>{positionTitle(p)}</h1>
-          <p className="muted">{positionSubtitle(p)}</p>
-          <div className="row wrap">
-            <span className={p.lifecycle === "ACTIVE" ? "badge ok" : "badge warn"}>{LIFECYCLE[p.lifecycle]}</span>
-            <span className="badge">{KIND[p.kind]}</span>
-            {p.card?.variantIncomplete && <span className="badge warn">Variante à confirmer</span>}
+    <div className="grid gap-5">
+      {back}
+
+      <div className="flex items-start gap-4">
+        {p.card ? <CardThumb imageUrl={p.card.imageUrl} size="lg" /> : (
+          <span className="flex aspect-[63/88] w-24 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground ring-1 ring-border" aria-hidden><Layers className="size-6" /></span>
+        )}
+        <div className="grid min-w-0 gap-2">
+          <h1 className="text-2xl leading-tight font-semibold tracking-tight">{positionTitle(p)}</h1>
+          <p className="text-sm text-muted-foreground">{positionSubtitle(p)}</p>
+          <div className="flex flex-wrap gap-1.5">
+            <Badge variant={p.lifecycle === "ACTIVE" ? "success" : p.lifecycle === "DRAFT" ? "warning" : "outline"}>{LIFECYCLE[p.lifecycle]}</Badge>
+            <Badge variant="neutral">{KIND[p.kind]}</Badge>
+            {p.card?.variantIncomplete && <Badge variant="warning">Variante à confirmer</Badge>}
           </div>
         </div>
       </div>
 
-      {error && <p className="banner error" role="alert">{error}</p>}
+      {error && <Alert variant="destructive">{error}</Alert>}
       {p.lifecycle === "DRAFT" && (
-        <p className="banner warn">Brouillon : cette position n'est pas vendable tant qu'elle n'est pas validée.</p>
+        <Alert variant="warning">Brouillon : cette position n'est pas vendable tant qu'elle n'est pas validée.</Alert>
       )}
 
-      <section className="card">
-        <dl className="facts">
-          <div><dt>Position</dt><dd className="mono">{p.unitSku}</dd></div>
-          <div><dt>Emplacement</dt><dd className="mono">{p.locationCode}</dd></div>
-          <div><dt>En stock</dt><dd data-testid="on-hand">{p.onHand}</dd></div>
-          <div><dt>Disponible à la vente</dt><dd>{p.lifecycle === "ACTIVE" ? p.availableToSell : 0}</dd></div>
-          {p.reserved > 0 && <div><dt>Réservé</dt><dd>{p.reserved}</dd></div>}
-          {p.inspection > 0 && <div><dt>En inspection</dt><dd>{p.inspection}</dd></div>}
-          {p.quarantine > 0 && <div><dt>En quarantaine</dt><dd>{p.quarantine}</dd></div>}
-          <div><dt>Coût unitaire</dt><dd>{formatEuros(p.unitCostCents)}</dd></div>
-          {p.offer && <div style={{ gridColumn: "1 / -1" }}><dt>Offre</dt><dd className="mono">{p.offer.offerSku}</dd></div>}
-        </dl>
-      </section>
-
-      <div className="row wrap">
+      <div className="flex flex-wrap gap-2">
         {p.lifecycle === "DRAFT" && (
-          <button type="button" className="btn primary" disabled={busy} onClick={() => run(() => api.activate(p.id))}>Valider (rendre vendable)</button>
+          <Button disabled={busy} onClick={() => run(() => api.activate(p.id), "Position validée")}><BadgeCheck /> Valider (rendre vendable)</Button>
         )}
-        <button type="button" className="btn" disabled={busy} onClick={() => setSheet("move")}>Déplacer</button>
-        <button type="button" className="btn" disabled={busy} onClick={() => setSheet("adjust")}>Corriger le stock</button>
+        <Button variant="outline" disabled={busy} onClick={() => setModal("move")}><ArrowLeftRight /> Déplacer</Button>
+        <Button variant="outline" disabled={busy} onClick={() => setModal("adjust")}><ClipboardPen /> Corriger le stock</Button>
         {p.kind === "BULK" && p.availableToSell > 0 && (
-          <Link className="btn" href={`/?vrac=${p.id}`}>Extraire une carte</Link>
+          <Button variant="outline" asChild><Link href={`/?vrac=${p.id}`}><Layers /> Extraire une carte</Link></Button>
         )}
       </div>
 
-      <section className="card">
-        <h2 className="section-title">Historique</h2>
-        <ul className="timeline">
-          {p.movements.map((m) => (
-            <li key={m.id}>
-              <span>
-                <strong>{movementLabel(m)}</strong>
-                {m.movementType === "MOVE" && <span className="mono small"> {m.fromLocationCode} → {m.toLocationCode}</span>}
-                {m.reason && <span className="small"> — {m.reason}</span>}
-                <span className="muted small" style={{ display: "block" }}>{formatDateTime(m.createdAt)} · {m.actor}</span>
-              </span>
-              {m.qtyDelta !== 0 && m.bucket === "on_hand" && (
-                <span className={m.qtyDelta > 0 ? "delta plus" : "delta minus"}>{m.qtyDelta > 0 ? "+" : "−"}{Math.abs(m.qtyDelta)}</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      </section>
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="grid gap-5">
+          <Card className="overflow-hidden">
+            <dl className="grid grid-cols-2 gap-px bg-border sm:grid-cols-4">
+              <Metric label="En stock" value={p.onHand} testId="on-hand" />
+              <Metric label="Vendable" value={sellable} testId="sellable" />
+              <Metric label="Réservé" value={p.reserved} muted={p.reserved === 0} />
+              <Metric label="Coût unitaire" value={formatEuros(p.unitCostCents)} />
+            </dl>
+          </Card>
 
-      {sheet === "move" && (
-        <LocationPicker value={p.locationCode} onClose={() => setSheet(null)} onPick={(code) => run(() => api.move(p.id, code))} />
+          <Card>
+            <CardContent className="py-2 sm:py-2">
+              <dl className="divide-y">
+                <Fact label="Position"><Code>{p.unitSku}</Code></Fact>
+                <Fact label="Emplacement"><Code>{p.locationCode}</Code></Fact>
+                {p.offer && <Fact label="Offre"><Code className="whitespace-normal">{p.offer.offerSku}</Code></Fact>}
+                {p.offer && <Fact label="État">{p.offer.condition}</Fact>}
+                {p.inspection > 0 && <Fact label="En inspection">{p.inspection}</Fact>}
+                {p.quarantine > 0 && <Fact label="En quarantaine">{p.quarantine}</Fact>}
+                <Fact label="Entrée le">{formatDateTime(p.createdAt)}</Fact>
+              </dl>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardContent className="grid gap-1">
+            <Eyebrow>Historique</Eyebrow>
+            <ul className="divide-y">
+              {p.movements.map((m) => <MovementRow key={m.id} m={m} />)}
+            </ul>
+          </CardContent>
+        </Card>
+      </div>
+
+      {modal === "move" && (
+        <LocationPicker value={p.locationCode} onClose={() => setModal(null)} onPick={(code) => run(() => api.move(p.id, code), `Déplacée en ${code}`)} />
       )}
-      {sheet === "adjust" && <AdjustSheet position={p} busy={busy} onClose={() => setSheet(null)} onSubmit={(count, reason, key) => run(() => api.adjust(p.id, count, reason, key))} />}
+      {modal === "adjust" && (
+        <AdjustModal position={p} busy={busy} onClose={() => setModal(null)} onSubmit={(count, reason, key) => run(() => api.adjust(p.id, count, reason, key), "Stock corrigé")} />
+      )}
     </div>
   );
 }
 
-function AdjustSheet({ position, busy, onClose, onSubmit }: {
+function AdjustModal({ position, busy, onClose, onSubmit }: {
   position: PositionDetail;
   busy: boolean;
   onClose: () => void;
@@ -147,6 +222,7 @@ function AdjustSheet({ position, busy, onClose, onSubmit }: {
   const [reason, setReason] = useState("");
   const keyring = useRef(createKeyring());
   const committed = position.reserved + position.inspection + position.quarantine;
+  const delta = count - position.onHand;
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -154,22 +230,26 @@ function AdjustSheet({ position, busy, onClose, onSubmit }: {
   }
 
   return (
-    <Sheet title="Corriger le stock" onClose={onClose}>
-      <form className="stack" onSubmit={submit}>
-        <p className="muted small">Saisissez la quantité réellement comptée à l'emplacement <span className="mono">{position.locationCode}</span>. Le système enregistre l'écart ({position.onHand} actuellement).</p>
-        <div className="field">
-          <span className="label">Quantité comptée</span>
+    <Modal
+      title="Corriger le stock"
+      description={`Saisissez la quantité réellement comptée en ${position.locationCode}. Le système enregistre l'écart (${position.onHand} actuellement).`}
+      onClose={onClose}
+    >
+      <form className="grid gap-4" onSubmit={submit}>
+        <div className="grid gap-1.5">
+          <span className="text-[13px] leading-none font-medium text-foreground/80">Quantité comptée</span>
           <Stepper value={count} onChange={setCount} min={0} max={position.kind === "UNIQUE" ? 1 : 1_000_000} label="Quantité comptée" />
         </div>
-        {count < committed && <p className="banner warn">{committed} carte{committed > 1 ? "s sont engagées" : " est engagée"} (commande, inspection ou quarantaine) : la correction sera refusée.</p>}
-        <label className="field">
-          <span>Motif (obligatoire)</span>
-          <textarea className="input" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} placeholder="Ex. comptage du 17/11, carte abîmée retirée" required />
-        </label>
-        <button className="btn primary block" disabled={busy || count === position.onHand || !reason.trim()}>
-          {count === position.onHand ? "Aucun écart" : `Enregistrer l'écart (${count - position.onHand > 0 ? "+" : "−"}${Math.abs(count - position.onHand)})`}
-        </button>
+        {count < committed && (
+          <Alert variant="warning">{committed} carte{committed > 1 ? "s sont engagées" : " est engagée"} (commande, inspection ou quarantaine) : la correction sera refusée.</Alert>
+        )}
+        <Field label="Motif (obligatoire)">
+          <Textarea value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} placeholder="Ex. comptage du 17/11, carte abîmée retirée" required />
+        </Field>
+        <Button type="submit" size="lg" disabled={busy || delta === 0 || !reason.trim()}>
+          {delta === 0 ? "Aucun écart" : `Enregistrer l'écart (${delta > 0 ? "+" : "−"}${Math.abs(delta)})`}
+        </Button>
       </form>
-    </Sheet>
+    </Modal>
   );
 }

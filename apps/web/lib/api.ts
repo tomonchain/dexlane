@@ -1,6 +1,6 @@
 import type {
-  AcquisitionLot, Candidate, CardCondition, CatalogSet, InventoryPage, Location, PositionDetail, Received, ReceivedBulkLot,
-  ScanResult, SetSyncReport,
+  AcquisitionLot, Candidate, CardCondition, CatalogSet, InventoryPage, InventorySummary, Location, PositionDetail, Received,
+  ReceivedBulkLot, ScanResult, SetSyncReport,
 } from "./types";
 
 export class ApiError extends Error {
@@ -97,6 +97,7 @@ export const api = {
   ) => request<AcquisitionLot>("POST", "/acquisition-lots", { json: input, idempotencyKey: key }),
 
   inventory: (q: Record<string, string | number | undefined>) => request<InventoryPage>("GET", "/inventory", { query: q }),
+  inventorySummary: () => request<InventorySummary>("GET", "/inventory/summary"),
   position: (ref: string) => request<PositionDetail>("GET", `/inventory/${encodeURIComponent(ref)}`),
   receive: (input: ReceiveInput, key: string) =>
     request<Received>("POST", "/inventory/receive", { json: input, idempotencyKey: key }),

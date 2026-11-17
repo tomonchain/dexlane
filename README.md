@@ -59,6 +59,7 @@ pnpm api                                   # http://127.0.0.1:8787 — écoute l
 | `POST /api/inventory/bulk` | Entrée d'un lot de vrac en une position |
 | `POST /api/inventory/{id}/extract` | Sortie de cartes identifiées d'un lot de vrac |
 | `GET /api/inventory?q=&set=&language=&condition=&kind=&lifecycle=&location=` | Recherche paginée |
+| `GET /api/inventory/summary` | Chiffres clés : cartes en stock, vendables, réservées, brouillons, valeur au coût |
 | `GET /api/inventory/{id ou unit_sku}` | Fiche d'une position et historique des mouvements |
 | `POST /api/inventory/{id}/move` · `/adjust` · `/activate` | Déplacement, correction après comptage (motif obligatoire), validation d'un brouillon |
 
@@ -74,6 +75,7 @@ pnpm --filter @dexlane/web build && pnpm --filter @dexlane/web start   # product
 
 - **Connexion** : on saisit `DEXLANE_API_TOKEN` une fois par appareil. Il est rangé dans un cookie `httpOnly` / `SameSite=Strict` ; le navigateur n'appelle jamais l'API directement, le serveur Next relaie `/api/*` en ajoutant le jeton (`DEXLANE_API_URL`, défaut `http://127.0.0.1:8787`).
 - **Sur le téléphone** : utiliser le build de production (`build` puis `start`). En `dev`, Next ne sert ses ressources qu'à `localhost` ; pour tester depuis une autre machine, lister ses hôtes dans `DEXLANE_DEV_ORIGINS=192.168.1.20,mon-pc.local`. Le serveur doit être joignable depuis le téléphone, de préférence en HTTPS (reverse proxy ou VPN type Tailscale) — le cookie n'est marqué `Secure` qu'en HTTPS. La photo passe par l'appareil photo natif (pas besoin de permission caméra dans le navigateur) puis est réduite à 2000 px avant envoi. « Ajouter à l'écran d'accueil » installe l'application.
+- **Interface** : Tailwind CSS 4 et composants de type shadcn/ui sur primitives Radix (`apps/web/components/ui`), icônes Lucide, tiroirs mobiles vaul, palette de commandes cmdk (⌘K / Ctrl+K : pages et recherche de positions), notifications sonner, police Geist, thème clair / sombre / système. Barre latérale sur ordinateur, onglets en bas sur téléphone.
 - **Garde-fous du scanner** : une carte n'est présélectionnée que si l'identification est sûre ; sinon l'opérateur choisit explicitement. L'état n'est jamais prérempli. Emplacement, coût et lot restent d'une carte à l'autre. Une même saisie renvoyée après une coupure réseau n'est pas enregistrée deux fois.
 - **Visuels** : les miniatures viennent directement de `assets.tcgdex.net`.
 

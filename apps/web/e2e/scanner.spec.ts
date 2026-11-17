@@ -46,20 +46,20 @@ async function chooseLocation(page: Page, code: string) {
   await expect(field).toContainText(code);
 }
 
-const confirm = (page: Page) => page.locator(".actionbar .primary");
+const confirm = (page: Page) => page.getByTestId("confirm");
 const onHand = (page: Page) => page.getByTestId("on-hand");
 /** Bandeau d'erreur de l'application (Next ajoute son propre role="alert" pour l'annonce des pages). */
-const errorBanner = (page: Page) => page.locator(".banner.error");
+const errorBanner = (page: Page) => page.locator('[data-slot="alert"][data-variant="destructive"]');
 
 test("demande le jeton et refuse un jeton invalide", async ({ page }) => {
   await page.goto("/inventaire");
   await page.waitForURL(/\/login\?next=%2Finventaire/);
 
-  await page.getByLabel("Jeton").fill("pas-le-bon-jeton");
+  await page.getByLabel("Jeton", { exact: true }).fill("pas-le-bon-jeton");
   await page.getByRole("button", { name: "Se connecter" }).click();
   await expect(errorBanner(page)).toHaveText("Jeton refusé.");
 
-  await page.getByLabel("Jeton").fill(E2E_TOKEN);
+  await page.getByLabel("Jeton", { exact: true }).fill(E2E_TOKEN);
   await page.getByRole("button", { name: "Se connecter" }).click();
   await page.waitForURL(/\/inventaire$/);
   await expect(page.getByRole("heading", { name: "Inventaire" })).toBeVisible();
@@ -110,15 +110,15 @@ test("lecture incertaine : rien n'est présélectionné, le brouillon se valide 
   await expect(confirm(page)).toHaveText("Reste : la variante, l'état"); // finition non lue : pas de variante suggérée
   await page.getByRole("radio", { name: "Normale" }).click();
   await page.getByRole("radio", { name: "Excellent" }).click();
-  await page.getByLabel("Brouillon").check();
+  await page.getByRole("switch", { name: "Brouillon" }).click();
   await confirm(page).click();
 
   await expect(page.getByText("Brouillon : non vendable")).toBeVisible();
   await page.getByRole("link", { name: "Voir la fiche" }).click();
-  await expect(page.getByText("Disponible à la vente").locator("xpath=following-sibling::dd")).toHaveText("0");
+  await expect(page.getByTestId("sellable")).toHaveText("0");
   await page.getByRole("button", { name: "Valider (rendre vendable)" }).click();
   await expect(page.getByText("Active", { exact: true })).toBeVisible();
-  await expect(page.getByText("Disponible à la vente").locator("xpath=following-sibling::dd")).toHaveText("1");
+  await expect(page.getByTestId("sellable")).toHaveText("1");
 });
 
 test("panne de lecture : recherche manuelle et exemplaire unique", async ({ page }) => {
@@ -134,7 +134,7 @@ test("panne de lecture : recherche manuelle et exemplaire unique", async ({ page
   await page.getByRole("radio", { name: /Dracaufeu/ }).click();
   await page.getByRole("radiogroup", { name: "Variante" }).getByRole("radio").first().click();
   await page.getByRole("radio", { name: "Mint", exact: true }).click();
-  await page.getByLabel("Exemplaire unique").check();
+  await page.getByRole("switch", { name: "Exemplaire unique" }).click();
   await expect(page.getByRole("spinbutton", { name: "Quantité" })).toHaveValue("1");
   await confirm(page).click();
 
@@ -161,7 +161,7 @@ test("vrac : entrée du lot, correction après comptage, extraction d'une carte"
   await page.getByLabel("Motif (obligatoire)").fill("recomptage");
   await page.getByRole("button", { name: "Enregistrer l'écart (−1)" }).click();
   await expect(onHand(page)).toHaveText("999");
-  await expect(page.getByText("Correction — recomptage")).toBeVisible();
+  await expect(page.getByRole("listitem").filter({ hasText: "Correction" })).toContainText("recomptage");
 
   await page.getByRole("link", { name: "Extraire une carte" }).click();
   await expect(page.getByText("Extraction du vrac")).toBeVisible();
@@ -193,6 +193,7 @@ test("catalogue : une série absente se synchronise depuis l'appli, ses cartes d
   const set = page.getByTestId("set-sv03.5");
   await expect(set).toContainText("Non synchronisée");
   await expect(set).toContainText("207 cartes");
+  await expect(page.getByRole("status").filter({ hasText: "synchronisée" })).toHaveText("2 séries synchronisées sur 3");
   await set.getByRole("button", { name: "Synchroniser" }).click();
   await expect(set).toContainText("1 carte importée");
   await expect(set.getByRole("button", { name: "Mettre à jour" })).toBeVisible();

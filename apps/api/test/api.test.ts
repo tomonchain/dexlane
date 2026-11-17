@@ -115,6 +115,10 @@ describe("Parcours A — scan, confirmation, entrée en stock", () => {
     const adjusted = await call("POST", `/api/inventory/${id}/adjust`, { body: { countedOnHand: 1, reason: "une carte abîmée retirée" } });
     expect(adjusted.json).toMatchObject({ onHand: 1, movements: [{ movementType: "ADJUST", qtyDelta: -1 }, {}, {}] });
 
+    expect((await call("GET", "/api/inventory/summary")).json).toEqual({
+      positions: 1, cards: 1, bulkCards: 0, sellable: 1, reserved: 0, drafts: 0, costCents: 150,
+    });
+
     const detail = await call("GET", `/api/inventory/${unitSku}`);
     expect(detail.json).toMatchObject({ id, onHand: 1, locationCode: "BOX-04" });
     expect(detail.json.movements).toHaveLength(3);

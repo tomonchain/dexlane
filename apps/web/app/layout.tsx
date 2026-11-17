@@ -1,6 +1,10 @@
+import { GeistMono } from "geist/font/mono";
+import { GeistSans } from "geist/font/sans";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { Shell } from "@/components/Shell";
+import { Toaster } from "sonner";
+import { AppShell } from "@/components/app-shell";
+import { ThemeProvider } from "@/components/theme";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,16 +19,20 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f4f5f7" },
-    { media: "(prefers-color-scheme: dark)", color: "#0e1014" },
+    { media: "(prefers-color-scheme: light)", color: "#fafafb" },
+    { media: "(prefers-color-scheme: dark)", color: "#0d0e12" },
   ],
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="fr">
+    // suppressHydrationWarning : la classe de thème est posée avant l'hydratation par next-themes.
+    <html lang="fr" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <body>
-        <Shell>{children}</Shell>
+        <ThemeProvider>
+          <AppShell>{children}</AppShell>
+          <Toaster position="top-center" richColors closeButton toastOptions={{ className: "font-sans" }} />
+        </ThemeProvider>
       </body>
     </html>
   );

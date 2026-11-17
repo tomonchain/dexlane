@@ -4,7 +4,7 @@ import { HTTPException } from "hono/http-exception";
 import { createTcgdexClient, findCandidates, listSets, syncSet, syncSetList, type TcgdexClient } from "@dexlane/catalog";
 import type { Db } from "@dexlane/db";
 import {
-  activateStock, adjustStock, createAcquisitionLot, createLocation, extractCardFromBulk, getStockItemDetail,
+  activateStock, adjustStock, createAcquisitionLot, createLocation, extractCardFromBulk, getInventorySummary, getStockItemDetail,
   listAcquisitionLots, listLocations, moveStock, receiveBulk, receiveCard, resolveLocation, searchInventory,
 } from "@dexlane/inventory";
 import {
@@ -150,6 +150,9 @@ export function createApp(deps: AppDeps) {
     const { set, ...q } = parse(s.inventoryQuery, c.req.query());
     return c.json(await searchInventory(sql, { ...q, setId: set }));
   });
+
+  // Déclarée avant la route paramétrée, qui prendrait « summary » pour un identifiant.
+  app.get("/api/inventory/summary", async (c) => c.json(await getInventorySummary(sql)));
 
   /** Fiche d'une position, par identifiant ou par `unit_sku` (scan du QR). */
   app.get("/api/inventory/:ref", async (c) => {
