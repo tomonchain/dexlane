@@ -9,8 +9,10 @@
   "scripts": {
     "db:migrate": "pnpm --filter @dexlane/db migrate",
     "api": "pnpm --filter @dexlane/api start",
+    "web": "pnpm --filter @dexlane/web dev",
+    "e2e": "pnpm --filter @dexlane/web e2e",
     "test": "pnpm -r test",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json && pnpm --filter @dexlane/web typecheck"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

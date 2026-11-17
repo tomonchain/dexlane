@@ -4,7 +4,7 @@ Application personnelle de négoce de cartes Pokémon. Spécification : [`specs-
 
 ## État
 
-**Sprint 1** : côté serveur terminé (catalogue, scan, stock, entrée en stock, recherche, API HTTP). Reste l'interface (`apps/web`).
+**Sprint 1** terminé : catalogue, scan, stock, entrée en stock, recherche, API HTTP et application web (Scanner, Inventaire, Vrac, Rangement). Prochaine étape : Sprint 2 (prix et publication).
 
 | Package | Contenu |
 |---|---|
@@ -15,8 +15,9 @@ Application personnelle de négoce de cartes Pokémon. Spécification : [`specs-
 | `packages/scan` | Lecture de carte par Claude (vision + sortie structurée, repli serveur), identification photo → candidats catalogue, banc d'essai précision/coût |
 | `packages/inventory` | Entrée d'une carte identifiée (offre et SKU attribués automatiquement), lots de vrac et extraction, emplacements hiérarchiques, lots d'acquisition, déplacement, correction d'inventaire auditée, recherche, import idempotent de commandes, allocation commande → positions, survente (Parcours F), picking par scan, emballage, confirmation de dépôt |
 | `apps/api` | API HTTP (Hono) : scan, recherche catalogue, emplacements, entrée en stock, vrac, inventaire. Jeton propriétaire, validation stricte, clés d'idempotence |
+| `apps/web` | Application web installable (Next.js), pensée pour le téléphone : scan photo → candidats → confirmation → rangement, recherche manuelle, inventaire et fiche de position (déplacer, corriger, valider), lots de vrac et extraction, emplacements et lots d'acquisition |
 
-Pas encore commencés : `apps/web`, `apps/worker`, pricing, connecteurs marketplaces, fulfillment PDF.
+Pas encore commencés : `apps/worker`, pricing, connecteurs marketplaces, fulfillment PDF, photos des exemplaires, étiquettes QR.
 
 ## Prérequis
 
@@ -61,6 +62,26 @@ pnpm api                                   # http://127.0.0.1:8787 — écoute l
 | `POST /api/inventory/{id}/move` · `/adjust` · `/activate` | Déplacement, correction après comptage (motif obligatoire), validation d'un brouillon |
 
 Toutes les routes sauf `GET /api/health` exigent `Authorization: Bearer <DEXLANE_API_TOKEN>`. Les créations et corrections (`receive`, `bulk`, `extract`, `adjust`, `acquisition-lots`) exigent un en-tête `Idempotency-Key` : la clé est écrite dans la même transaction que la mutation, donc une requête rejouée (double appui, réseau mobile) renvoie la réponse d'origine avec `Idempotent-Replay: true` sans rien créer en double. Erreurs : `{ "error": { "code", "message", "details" } }` — 400 format, 404 introuvable, 409 état incompatible, 422 règle métier.
+
+Application web :
+
+```sh
+pnpm api                                   # dans un terminal
+pnpm web                                   # dans un autre : http://localhost:3000 (dev)
+pnpm --filter @dexlane/web build && pnpm --filter @dexlane/web start   # production
+```
+
+- **Connexion** : on saisit `DEXLANE_API_TOKEN` une fois par appareil. Il est rangé dans un cookie `httpOnly` / `SameSite=Strict` ; le navigateur n'appelle jamais l'API directement, le serveur Next relaie `/api/*` en ajoutant le jeton (`DEXLANE_API_URL`, défaut `http://127.0.0.1:8787`).
+- **Sur le téléphone** : utiliser le build de production (`build` puis `start`). En `dev`, Next ne sert ses ressources qu'à `localhost` ; pour tester depuis une autre machine, lister ses hôtes dans `DEXLANE_DEV_ORIGINS=192.168.1.20,mon-pc.local`. Le serveur doit être joignable depuis le téléphone, de préférence en HTTPS (reverse proxy ou VPN type Tailscale) — le cookie n'est marqué `Secure` qu'en HTTPS. La photo passe par l'appareil photo natif (pas besoin de permission caméra dans le navigateur) puis est réduite à 2000 px avant envoi. « Ajouter à l'écran d'accueil » installe l'application.
+- **Garde-fous du scanner** : une carte n'est présélectionnée que si l'identification est sûre ; sinon l'opérateur choisit explicitement. L'état n'est jamais prérempli. Emplacement, coût et lot restent d'une carte à l'autre. Une même saisie renvoyée après une coupure réseau n'est pas enregistrée deux fois.
+- **Visuels** : les miniatures viennent directement de `assets.tcgdex.net`.
+
+Tests de bout en bout (navigateur mobile → Next → API → PostgreSQL de test ; seule la lecture Claude est simulée) :
+
+```sh
+pnpm --filter @dexlane/web exec playwright install chromium   # une fois
+TEST_DATABASE_URL=… pnpm e2e
+```
 
 Banc d'essai du scan (spec Sprint 0 — nécessite `ANTHROPIC_API_KEY` ou `ant auth login`) :
 
