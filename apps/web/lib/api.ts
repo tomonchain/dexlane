@@ -1,5 +1,6 @@
 import type {
-  AcquisitionLot, Candidate, CardCondition, InventoryPage, Location, PositionDetail, Received, ReceivedBulkLot, ScanResult,
+  AcquisitionLot, Candidate, CardCondition, CatalogSet, InventoryPage, Location, PositionDetail, Received, ReceivedBulkLot,
+  ScanResult, SetSyncReport,
 } from "./types";
 
 export class ApiError extends Error {
@@ -79,6 +80,11 @@ export const api = {
   scan: (image: Blob, language: string) => request<ScanResult>("POST", "/scans", { blob: image, query: { language } }),
   searchCatalog: (q: { language: string; name?: string; number?: string; set?: string }) =>
     request<{ candidates: Candidate[] }>("GET", "/catalog/cards", { query: q }),
+
+  catalogSets: (language: string) => request<{ sets: CatalogSet[] }>("GET", "/catalog/sets", { query: { language } }),
+  refreshCatalogSets: (language: string) => request<{ count: number }>("POST", "/catalog/sets/refresh", { json: { language } }),
+  syncCatalogSet: (setId: string, language: string) =>
+    request<SetSyncReport>("POST", `/catalog/sets/${encodeURIComponent(setId)}/sync`, { json: { language } }),
 
   locations: () => request<{ locations: Location[] }>("GET", "/locations"),
   createLocation: (code: string, description?: string) =>

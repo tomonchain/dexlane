@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { syncSet } from "@dexlane/catalog";
+import { syncSet, type TcgdexClient } from "@dexlane/catalog";
 import { useTestDb } from "@dexlane/db/testing";
 import type { CardReadingRaw, CardRecognizer } from "@dexlane/scan";
 import { card, fakeClient } from "../../../packages/catalog/test/fixtures";
@@ -14,7 +14,11 @@ const reading: CardReadingRaw = {
 };
 let recognize: CardRecognizer["recognize"];
 const errors: unknown[] = [];
-const app = createApp({ sql, token: TOKEN, recognizer: () => ({ recognize: (image) => recognize(image) }), onError: (e) => errors.push(e) });
+let tcgdex: TcgdexClient;
+const app = createApp({
+  sql, token: TOKEN, recognizer: () => ({ recognize: (image) => recognize(image) }), tcgdex: () => tcgdex,
+  onError: (e) => errors.push(e),
+});
 
 beforeEach(async () => {
   errors.length = 0;
@@ -23,6 +27,9 @@ beforeEach(async () => {
     usage: { inputTokens: 1000, outputTokens: 200, costUsd: 0.008 }, latencyMs: 900,
   });
   const client = fakeClient(["swsh3-136", "base1-4"].map(card));
+  tcgdex = fakeClient(["swsh3-136", "base1-4", "sv03.5-151"].map(card), {
+    listSets: async () => [{ id: "swsh3", name: "Ténèbres Embrasées" }, { id: "sv03.5", name: "151", cardCount: { official: 165, total: 207 } }],
+  });
   await syncSet(sql, client, "fr", "swsh3");
   await syncSet(sql, client, "fr", "base1");
 });
@@ -133,6 +140,46 @@ describe("Parcours A — scan, confirmation, entrée en stock", () => {
     expect(byName.json.candidates[0].variants.length).toBeGreaterThan(0);
     expect((await call("GET", "/api/catalog/cards?number=136&set=SWSH3")).json.candidates[0]).toMatchObject({ name: "Fouinar" });
     expect((await call("GET", "/api/catalog/cards?language=fr")).status).toBe(400);
+  });
+});
+
+describe("catalog synchronisation", () => {
+  it("lists sets, refreshes the list and imports a set on demand", async () => {
+    const before = await call("GET", "/api/catalog/sets");
+    expect(before.json.sets.map((x: { id: string }) => x.id).sort()).toEqual(["base1", "swsh3"]);
+    expect(before.json.sets.find((x: { id: string }) => x.id === "swsh3")).toMatchObject({ name: "Ténèbres Embrasées", cardsSynced: 1 });
+
+    expect((await call("POST", "/api/catalog/sets/refresh", { body: {}, key: null })).json).toEqual({ count: 2 });
+    const listed = await call("GET", "/api/catalog/sets?language=fr");
+    expect(listed.json.sets.find((x: { id: string }) => x.id === "sv03.5")).toMatchObject({ name: "151", cardsSynced: 0, cardCountTotal: 207 });
+    expect((await call("GET", "/api/catalog/cards?name=mew")).json.candidates).toEqual([]);
+
+    const synced = await call("POST", "/api/catalog/sets/SV03.5/sync", { body: { language: "fr" }, key: null });
+    expect([synced.status, synced.json]).toMatchObject([200, { setId: "sv03.5", cards: 1, errorCount: 0 }]);
+    expect((await call("GET", "/api/catalog/cards?name=mew")).json.candidates[0]).toMatchObject({ name: "Mew-ex", setId: "sv03.5" });
+
+    // Rejouer n'ajoute rien.
+    await call("POST", "/api/catalog/sets/sv03.5/sync", { body: {}, key: null });
+    const after = await call("GET", "/api/catalog/sets");
+    expect(after.json.sets.find((x: { id: string }) => x.id === "sv03.5").cardsSynced).toBe(1);
+    expect(after.json.sets[0].cardsSynced).toBeGreaterThan(0); // séries synchronisées en tête
+  });
+
+  it("reports an unknown set and an unreachable source distinctly", async () => {
+    tcgdex = fakeClient([], {
+      getSet: async (_lang, id) => {
+        throw new Error(id === "nope" ? "TCGdex /fr/sets/nope → HTTP 404" : "fetch failed");
+      },
+      listSets: async () => {
+        throw new Error("fetch failed");
+      },
+    });
+    const unknown = await call("POST", "/api/catalog/sets/nope/sync", { body: {}, key: null });
+    expect([unknown.status, unknown.json.error.code]).toEqual([404, "CATALOG_SET_NOT_FOUND"]);
+    const down = await call("POST", "/api/catalog/sets/swsh3/sync", { body: {}, key: null });
+    expect([down.status, down.json.error.code]).toEqual([502, "CATALOG_SOURCE_UNAVAILABLE"]);
+    expect((await call("POST", "/api/catalog/sets/refresh", { body: {}, key: null })).status).toBe(502);
+    expect((await call("POST", "/api/catalog/sets/bad id!/sync", { body: {}, key: null })).status).toBe(400);
   });
 });
 

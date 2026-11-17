@@ -156,3 +156,29 @@ async function upsertVariant(tx: Db, catalogCardId: string, v: MappedVariant): P
     returning id`;
   return inserted!.id;
 }
+
+export interface CatalogSetSummary {
+  id: string;
+  name: string;
+  serieName: string | null;
+  /** AAAA-MM-JJ ; connu seulement une fois la série synchronisée. */
+  releaseDate: string | null;
+  cardCountOfficial: number | null;
+  cardCountTotal: number | null;
+  logoUrl: string | null;
+  /** Cartes de cette série présentes dans le catalogue local (0 = série non synchronisée). */
+  cardsSynced: number;
+  cardsSyncedAt: Date | null;
+}
+
+/** Séries connues pour une langue, avec leur état de synchronisation ; les séries synchronisées d'abord. */
+export function listSets(sql: Db, language: string): Promise<CatalogSetSummary[]> {
+  return sql<CatalogSetSummary[]>`
+    select s.id, s.name, s.serie_name, s.release_date::text as release_date, s.card_count_official,
+           s.card_count_total, s.logo_url, count(c.id)::int as cards_synced, max(c.synced_at) as cards_synced_at
+      from catalog_sets s
+      left join catalog_cards c on c.set_id = s.id and c.language = s.language
+     where s.language = ${language}
+     group by s.id, s.language
+     order by (count(c.id) > 0) desc, s.release_date desc nulls last, s.name`;
+}

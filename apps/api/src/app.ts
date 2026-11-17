@@ -1,7 +1,7 @@
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
-import { findCandidates } from "@dexlane/catalog";
+import { createTcgdexClient, findCandidates, listSets, syncSet, syncSetList, type TcgdexClient } from "@dexlane/catalog";
 import type { Db } from "@dexlane/db";
 import {
   activateStock, adjustStock, createAcquisitionLot, createLocation, extractCardFromBulk, getStockItemDetail,
@@ -21,6 +21,8 @@ export interface AppDeps {
   token: string;
   /** Appelé au premier scan seulement : l'API démarre sans identifiants Claude. */
   recognizer: () => CardRecognizer;
+  /** Source du catalogue (TCGdex par défaut) ; remplaçable dans les tests. */
+  tcgdex?: () => TcgdexClient;
   onError?: (err: unknown) => void;
 }
 
@@ -99,6 +101,30 @@ export function createApp(deps: AppDeps) {
       { limit: q.limit },
     );
     return c.json({ candidates: match.candidates });
+  });
+
+  // ───────────────────────── Synchronisation du catalogue ─────────────────────────
+
+  const catalogSource = () => guardCatalogSource((deps.tcgdex ?? createTcgdexClient)(), deps.onError ?? console.error);
+
+  /** Séries connues et leur état : sans série synchronisée, ni le scan ni la recherche ne trouvent de carte. */
+  app.get("/api/catalog/sets", async (c) => {
+    const { language } = parse(s.languageQuery, c.req.query());
+    return c.json({ sets: await listSets(sql, language) });
+  });
+
+  /** Recharge la liste des séries depuis la source (métadonnées seulement). */
+  app.post("/api/catalog/sets/refresh", async (c) => {
+    const { language } = await parseJsonBody(c, s.languageBody);
+    return c.json({ count: await syncSetList(sql, catalogSource(), language) });
+  });
+
+  /** Importe les cartes, variantes et cotations d'une série. Rejouable sans doublon ; peut durer plus d'une minute. */
+  app.post("/api/catalog/sets/:id/sync", async (c) => {
+    const setId = parse(s.setId, c.req.param("id"));
+    const { language } = await parseJsonBody(c, s.languageBody);
+    const stats = await syncSet(sql, catalogSource(), language, setId);
+    return c.json({ ...stats, errorCount: stats.errors.length, errors: stats.errors.slice(0, 20) });
   });
 
   // ───────────────────────── Emplacements et lots d'acquisition ─────────────────────────
@@ -213,5 +239,25 @@ function guardUpstream(factory: () => CardRecognizer, report: (err: unknown) => 
         throw new HttpError(502, "SCAN_UNAVAILABLE", "the card recognition service is unavailable; enter the card manually");
       }
     },
+  };
+}
+
+/** Série inconnue ou source injoignable : erreur explicite au lieu d'un 500. Les échecs carte par carte restent dans le rapport. */
+function guardCatalogSource(client: TcgdexClient, report: (err: unknown) => void): TcgdexClient {
+  const guard = async <T>(call: Promise<T>): Promise<T> => {
+    try {
+      return await call;
+    } catch (e) {
+      if (e instanceof Error && /HTTP 404/.test(e.message)) {
+        throw new HttpError(404, "CATALOG_SET_NOT_FOUND", "this set does not exist in the catalog source for this language");
+      }
+      report(e);
+      throw new HttpError(502, "CATALOG_SOURCE_UNAVAILABLE", "the catalog source (TCGdex) is unavailable; try again later");
+    }
+  };
+  return {
+    listSets: (language) => guard(client.listSets(language)),
+    getSet: (language, id) => guard(client.getSet(language, id)),
+    getCard: client.getCard,
   };
 }

@@ -15,6 +15,7 @@ const TABS = [
   { href: "/inventaire", label: "Inventaire", icon: icon("M4 6h16M4 12h16M4 18h10") },
   { href: "/vrac", label: "Vrac", icon: icon("M12 3 3 8l9 5 9-5zM3 13l9 5 9-5M3 17.5l9 5 9-5") },
   { href: "/rangement", label: "Rangement", icon: icon("M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z") },
+  { href: "/catalogue", label: "Catalogue", icon: icon("M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zM5 17a3 3 0 0 1 3-3h11M9 8h6") },
 ];
 
 export function Shell({ children }: { children: ReactNode }) {

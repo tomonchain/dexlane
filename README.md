@@ -15,7 +15,7 @@ Application personnelle de négoce de cartes Pokémon. Spécification : [`specs-
 | `packages/scan` | Lecture de carte par Claude (vision + sortie structurée, repli serveur), identification photo → candidats catalogue, banc d'essai précision/coût |
 | `packages/inventory` | Entrée d'une carte identifiée (offre et SKU attribués automatiquement), lots de vrac et extraction, emplacements hiérarchiques, lots d'acquisition, déplacement, correction d'inventaire auditée, recherche, import idempotent de commandes, allocation commande → positions, survente (Parcours F), picking par scan, emballage, confirmation de dépôt |
 | `apps/api` | API HTTP (Hono) : scan, recherche catalogue, emplacements, entrée en stock, vrac, inventaire. Jeton propriétaire, validation stricte, clés d'idempotence |
-| `apps/web` | Application web installable (Next.js), pensée pour le téléphone : scan photo → candidats → confirmation → rangement, recherche manuelle, inventaire et fiche de position (déplacer, corriger, valider), lots de vrac et extraction, emplacements et lots d'acquisition |
+| `apps/web` | Application web installable (Next.js), pensée pour le téléphone : scan photo → candidats → confirmation → rangement, recherche manuelle, inventaire et fiche de position (déplacer, corriger, valider), lots de vrac et extraction, emplacements et lots d'acquisition, synchronisation du catalogue par série |
 
 Pas encore commencés : `apps/worker`, pricing, connecteurs marketplaces, fulfillment PDF, photos des exemplaires, étiquettes QR.
 
@@ -52,6 +52,7 @@ pnpm api                                   # http://127.0.0.1:8787 — écoute l
 |---|---|
 | `POST /api/scans` | Photo (corps brut `image/jpeg`… ou multipart `image`) → lecture, 3 candidats, score, variante suggérée, motifs de revue |
 | `GET /api/catalog/cards?name=&number=&set=&language=` | Recherche manuelle quand le scan ne suffit pas |
+| `GET /api/catalog/sets` · `POST /api/catalog/sets/refresh` · `POST /api/catalog/sets/{id}/sync` | Séries connues et état de synchronisation ; rechargement de la liste ; import d'une série depuis TCGdex |
 | `GET` / `POST /api/locations` | Emplacements (`BOX-03/ROW-12/SLOT-04` crée aussi ses parents) |
 | `GET` / `POST /api/acquisition-lots` | Lots d'acquisition (provenance, coût) |
 | `POST /api/inventory/receive` | Entrée d'une carte confirmée : variante, état, quantité, emplacement, coût |
@@ -83,7 +84,7 @@ Sans `DEXLANE_API_URL`, le serveur Next embarque l'API : un seul déploiement su
 1. Projet Vercel lié au dépôt, **Root Directory** `apps/web` (le build installe tout le monorepo). `apps/web/vercel.json` applique les migrations avant `next build`.
 2. Base : onglet **Storage** du projet → Neon (offre gratuite). L'intégration fournit `DATABASE_URL` (connexions poolées, utilisées par l'application) et `DATABASE_URL_UNPOOLED` (connexion directe, utilisée par les migrations).
 3. Variables d'environnement : `DEXLANE_API_TOKEN` (≥ 24 caractères), `ANTHROPIC_API_KEY` (scan), `ENABLE_EXPERIMENTAL_COREPACK=1` (pnpm de `packageManager`).
-4. Catalogue : la base hébergée démarre vide. Depuis un poste, avec l'URL de la base : `DATABASE_URL=… pnpm --filter @dexlane/catalog sync --lang fr --set <série>`.
+4. Catalogue : la base hébergée démarre vide. Onglet **Catalogue** de l'application : « Charger la liste », puis « Synchroniser » les séries possédées (rejouable, met à jour les cartes et ajoute les cotations du jour). La commande `pnpm --filter @dexlane/catalog sync` reste disponible depuis un poste.
 
 À savoir : préversions et production partagent la même base tant qu'aucune base par branche n'est configurée — une préversion applique donc ses migrations à la base de production. L'application reste protégée par le jeton propriétaire ; il n'y a pas de limitation du nombre de tentatives de connexion, d'où l'exigence d'un jeton long et aléatoire.
 

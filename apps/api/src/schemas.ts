@@ -103,3 +103,7 @@ export const catalogQuery = z
   });
 
 export const scanQuery = z.object({ language: language.default("fr") });
+
+export const languageBody = z.strictObject({ language: language.default("fr") });
+export const languageQuery = z.object({ language: language.default("fr") });
+export const setId = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9.-]{0,39}$/);

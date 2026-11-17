@@ -37,10 +37,13 @@ const recognizer: CardRecognizer = {
 
 await prepareTestDatabase("web");
 const sql = createDb(testDatabaseUrl("web"));
-const client = fakeClient(["swsh3-136", "base1-4", "sv03.5-151"].map(card));
-for (const set of ["swsh3", "base1", "sv03.5"]) await syncSet(sql, client, "fr", set);
+// Le catalogue de départ contient deux séries ; « 151 » (sv03.5) reste à synchroniser depuis l'écran Catalogue.
+const client = fakeClient(["swsh3-136", "base1-4", "sv03.5-151"].map(card), {
+  listSets: async () => [{ id: "swsh3", name: "Ténèbres Embrasées" }, { id: "sv03.5", name: "151", cardCount: { official: 165, total: 207 } }],
+});
+for (const set of ["swsh3", "base1"]) await syncSet(sql, client, "fr", set);
 
 serve(
-  { fetch: createApp({ sql, token: E2E_TOKEN, recognizer: () => recognizer, onError: () => undefined }).fetch, hostname: "127.0.0.1", port: E2E_API_PORT },
+  { fetch: createApp({ sql, token: E2E_TOKEN, recognizer: () => recognizer, tcgdex: () => client, onError: () => undefined }).fetch, hostname: "127.0.0.1", port: E2E_API_PORT },
   (info) => console.log(`e2e api listening on http://127.0.0.1:${info.port}`),
 );

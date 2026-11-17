@@ -178,3 +178,28 @@ test("vrac : entrée du lot, correction après comptage, extraction d'une carte"
   await expect(onHand(page)).toHaveText("998");
   await expect(page.getByText("Extraction du vrac")).toBeVisible();
 });
+
+test("catalogue : une série absente se synchronise depuis l'appli, ses cartes deviennent trouvables", async ({ page }) => {
+  await login(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Rechercher sans photo" }).click();
+  await page.getByLabel("Nom").fill("mew");
+  await page.getByRole("button", { name: "Rechercher dans le catalogue" }).click();
+  await expect(page.getByText("Aucune carte trouvée.")).toBeVisible();
+
+  await page.getByRole("link", { name: "Catalogue" }).click();
+  await expect(page.getByText("2 séries synchronisées sur 2")).toBeVisible();
+  await page.getByRole("button", { name: "Actualiser" }).click();
+  const set = page.getByTestId("set-sv03.5");
+  await expect(set).toContainText("Non synchronisée");
+  await expect(set).toContainText("207 cartes");
+  await set.getByRole("button", { name: "Synchroniser" }).click();
+  await expect(set).toContainText("1 carte importée");
+  await expect(set.getByRole("button", { name: "Mettre à jour" })).toBeVisible();
+
+  await page.getByRole("link", { name: "Scanner" }).click();
+  await page.getByRole("button", { name: "Rechercher sans photo" }).click();
+  await page.getByLabel("Nom").fill("mew");
+  await page.getByRole("button", { name: "Rechercher dans le catalogue" }).click();
+  await expect(page.getByRole("radio", { name: /Mew-ex/ })).toBeVisible();
+});

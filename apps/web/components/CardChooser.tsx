@@ -63,7 +63,7 @@ export function ManualSearch({ language, initial, onResults }: {
     try {
       const { candidates } = await api.searchCatalog({ language, name: name.trim(), number: number.trim(), set: set.trim() });
       onResults(candidates);
-      if (candidates.length === 0) setMessage("Aucune carte trouvée. Vérifiez la langue et la série, ou synchronisez la série dans le catalogue.");
+      if (candidates.length === 0) setMessage("Aucune carte trouvée. Vérifiez la langue, ou synchronisez la série de cette carte depuis l'onglet Catalogue.");
     } catch (err) {
       setMessage((err as Error).message);
     } finally {

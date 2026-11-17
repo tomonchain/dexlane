@@ -3,8 +3,8 @@ import { callApi } from "@/lib/backend";
 import { SESSION_COOKIE, isSameOrigin, jsonError } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
-/** Un scan attend la réponse du modèle de vision : laisser de la marge sur un hébergement serverless. */
-export const maxDuration = 60;
+/** Un scan attend le modèle de vision, une synchronisation de série télécharge des centaines de cartes : laisser de la marge. */
+export const maxDuration = 300;
 
 const FORWARDED_REQUEST_HEADERS = ["content-type", "idempotency-key", "accept"];
 const FORWARDED_RESPONSE_HEADERS = ["content-type", "idempotent-replay"];

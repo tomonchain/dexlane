@@ -1,4 +1,4 @@
-import type { Candidate, CandidateVariant } from "@dexlane/catalog";
+import type { Candidate, CandidateVariant, CatalogSetSummary, SyncStats } from "@dexlane/catalog";
 import type {
   AcquisitionLotRow, CardCondition, InventoryRow, LocationSummary, MovementRow, ReceivedBulk, ReceivedPosition,
 } from "@dexlane/inventory";
@@ -15,6 +15,8 @@ export type Location = Json<LocationSummary>;
 export type AcquisitionLot = Json<AcquisitionLotRow>;
 export type Received = Json<ReceivedPosition>;
 export type ReceivedBulkLot = Json<ReceivedBulk>;
+export type CatalogSet = Json<CatalogSetSummary>;
+export type SetSyncReport = SyncStats & { errorCount: number };
 
 export interface ScanResult {
   requiresReview: boolean;

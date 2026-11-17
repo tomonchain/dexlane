@@ -370,7 +370,10 @@ function Scanner() {
           </div>
         )}
         {scan && scan.candidates.length === 0 && !scanError && (
-          <p className="banner warn" role="status">Aucune carte du catalogue ne correspond à la lecture. Recherchez-la à la main.</p>
+          <p className="banner warn" role="status">
+            Aucune carte du catalogue ne correspond à la lecture. Recherchez-la à la main, ou synchronisez sa série depuis{" "}
+            <Link href="/catalogue" style={{ textDecoration: "underline" }}>le catalogue</Link>.
+          </p>
         )}
 
         {candidates.length > 0 && (
