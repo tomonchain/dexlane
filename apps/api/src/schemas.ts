@@ -129,6 +129,8 @@ export const pricingSettingsBody = z.strictObject({
   floorPercent: z.number().int().min(0).max(100),
   minMarginCents: cents,
   driftPercent: z.number().int().min(1).max(100),
+  roundFromCents: cents,
+  roundStepCents: z.number().int().min(1).max(100_000),
 });
 export const setOfferPriceBody = z.strictObject({
   targetPriceCents: cents,

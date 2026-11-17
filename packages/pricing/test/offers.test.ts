@@ -38,7 +38,7 @@ describe("pricing an offer", () => {
   it("sets the target price from the reference on first pricing when nothing is in doubt", async () => {
     const id = await stock(await variant(2000), { condition: "EX", cost: 300 });
     expect(await offer(id)).toMatchObject({
-      category: "SINGLE", targetPriceCents: 1600, suggestedPriceCents: 1600, floorPriceCents: 1280, priceSource: "AUTO",
+      category: "SINGLE", targetPriceCents: 1600, suggestedPriceCents: 1600, floorPriceCents: 1300, priceSource: "AUTO",
       reasons: [], reference: { quoteType: "LISTED_TREND", amountCents: 2000 }, onHand: 1, averageCostCents: 300,
     });
   });

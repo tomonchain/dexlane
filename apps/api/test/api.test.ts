@@ -239,7 +239,7 @@ describe("pricing", () => {
 
   it("reads and replaces the rules, repricing existing offers", async () => {
     const settings = (await call("GET", "/api/pricing/settings")).json;
-    expect(settings).toMatchObject({ basis: "LISTED_TREND", singleFromCents: 1500, conditionPercent: { EX: 80 } });
+    expect(settings).toMatchObject({ basis: "LISTED_TREND", singleFromCents: 1500, conditionPercent: { EX: 80 }, roundFromCents: 1000, roundStepCents: 100 });
     const saved = await call("PUT", "/api/pricing/settings", { body: { ...settings, maxAgeDays: 30 } });
     expect(saved.json).toMatchObject({ settings: { maxAgeDays: 30 }, repriced: 0 });
     const invalid = await call("PUT", "/api/pricing/settings", { body: { ...settings, lotBelowCents: 1 } });

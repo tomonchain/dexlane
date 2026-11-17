@@ -19,11 +19,25 @@ describe("computePricing", () => {
     expect(price({ condition: "PO" })).toMatchObject({ suggestedCents: 400, category: "LOT" });
   });
 
+  it("rounds computed prices to whole euros from 10 €, and leaves cheaper ones to the cent", () => {
+    expect(price({ quotes: [quote(61237)], isUnique: true })).toMatchObject({ suggestedCents: 61200, floorCents: 49000 });
+    expect(price({ quotes: [quote(61237)], isUnique: true, condition: "EX" }).suggestedCents).toBe(49000); // 489,90 € → 490 €
+    expect(price({ quotes: [quote(1050)] }).suggestedCents).toBe(1100);
+    expect(price({ quotes: [quote(1049)] }).suggestedCents).toBe(1000);
+    expect(price({ quotes: [quote(999)] }).suggestedCents).toBe(999);
+    expect(price({ quotes: [quote(808)] }).suggestedCents).toBe(808);
+    // Pas réglable : aux 5 €.
+    expect(computePricing(input({ quotes: [quote(61237)], isUnique: true }), { ...DEFAULT_SETTINGS, roundStepCents: 500 }).suggestedCents).toBe(61000);
+    // Le plancher imposé par le coût n'est jamais arrondi vers le bas.
+    expect(price({ quotes: [quote(2000)], averageCostCents: 1733 }).floorCents).toBe(1783);
+  });
+
   it("classifies by the spec's indicative thresholds", () => {
     const category = (cents: number, isUnique = false) => price({ quotes: [quote(cents)], isUnique }).category;
     expect([category(50), category(99)]).toEqual(["BULK", "BULK"]);
     expect([category(100), category(499)]).toEqual(["LOT", "LOT"]);
-    expect([category(1500), category(9999)]).toEqual(["SINGLE", "SINGLE"]);
+    expect([category(1500), category(9949)]).toEqual(["SINGLE", "SINGLE"]);
+    expect(category(9950, true)).toBe("PREMIUM"); // 99,50 € s'arrondit à 100 €
     expect(category(10000, true)).toBe("PREMIUM");
   });
 
@@ -78,6 +92,7 @@ describe("validateSettings", () => {
     expect(validateSettings(DEFAULT_SETTINGS)).toBeNull();
     expect(validateSettings({ ...DEFAULT_SETTINGS, lotBelowCents: 50 })).toMatch(/increasing/);
     expect(validateSettings({ ...DEFAULT_SETTINGS, floorPercent: 120 })).not.toBeNull();
+    expect(validateSettings({ ...DEFAULT_SETTINGS, roundStepCents: 0 })).not.toBeNull();
     expect(validateSettings({ ...DEFAULT_SETTINGS, conditionPercent: { ...DEFAULT_SETTINGS.conditionPercent, EX: 0 } })).not.toBeNull();
   });
 });

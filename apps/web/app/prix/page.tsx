@@ -14,14 +14,14 @@ import { Modal } from "@/components/ui/modal";
 import { Pagination, SegmentedTabs } from "@/components/ui/tabs";
 import { ApiError, api } from "@/lib/api";
 import { formatEuros, parseEuros, variantLabel } from "@/lib/format";
-import { CATEGORY_LABEL, CATEGORY_VARIANT, DECIDABLE_CATEGORIES, age, eurosInput, quoteLabel, reasonLabel, tierOf, type Category } from "@/lib/pricing";
+import { CATEGORY_LABEL, CATEGORY_VARIANT, DECIDABLE_CATEGORIES, age, eurosInput, quoteLabel, reasonLabel, roundPrice, tierOf, type Category } from "@/lib/pricing";
 import { CONDITIONS, type OfferPricing, type PricingSettings } from "@/lib/types";
 
 const PAGE_SIZE = 25;
 type Tab = "REVIEW" | "ALL" | "RULES";
 const message = (e: unknown) =>
   e instanceof ApiError && e.code === "FLOOR_ABOVE_TARGET" ? "Le plancher ne peut pas dépasser le prix cible."
-  : e instanceof ApiError && e.code === "INVALID_PRICING_SETTINGS" ? "Règles incohérentes : les seuils doivent être croissants (vrac ≤ lot ≤ unité ≤ premium)."
+  : e instanceof ApiError && e.code === "INVALID_PRICING_SETTINGS" ? "Règles incohérentes : les seuils doivent être croissants (vrac ≤ lot ≤ unité ≤ premium) et le pas d'arrondi d'au moins 0,01 €."
   : (e as Error).message;
 
 export default function PricingPage() {
@@ -215,7 +215,7 @@ function PriceModal({ offer, settings, onClose, onSaved }: { offer: OfferPricing
   const floorCents = floor.trim() === "" ? undefined : parseEuros(floor);
   const autoFloor = targetCents === null ? null
     : Math.min(targetCents, Math.max(
-        Math.round((targetCents * settings.floorPercent) / 100),
+        roundPrice(Math.round((targetCents * settings.floorPercent) / 100), settings),
         offer.averageCostCents > 0 ? offer.averageCostCents + (category === "SINGLE" || category === "PREMIUM" ? settings.minMarginCents : 0) : 0,
       ));
 
@@ -286,7 +286,8 @@ function Rules({ settings, onSaved }: { settings: PricingSettings; onSaved: (s: 
   const [euros, setEuros] = useState({
     bulkBelowCents: eurosInput(settings.bulkBelowCents), lotBelowCents: eurosInput(settings.lotBelowCents),
     singleFromCents: eurosInput(settings.singleFromCents), premiumFromCents: eurosInput(settings.premiumFromCents),
-    minMarginCents: eurosInput(settings.minMarginCents),
+    minMarginCents: eurosInput(settings.minMarginCents), roundFromCents: eurosInput(settings.roundFromCents),
+    roundStepCents: eurosInput(settings.roundStepCents),
   });
   const [conditions, setConditions] = useState(Object.fromEntries(CONDITIONS.map((c) => [c.code, String(settings.conditionPercent[c.code])])));
   const [busy, setBusy] = useState(false);
@@ -308,7 +309,7 @@ function Rules({ settings, onSaved }: { settings: PricingSettings; onSaved: (s: 
     try {
       const saved = await api.savePricingSettings({
         basis, ...(parsed.numbers as Pick<PricingSettings, "maxAgeDays" | "floorPercent" | "driftPercent">),
-        ...(parsed.euros as Pick<PricingSettings, "bulkBelowCents" | "lotBelowCents" | "singleFromCents" | "premiumFromCents" | "minMarginCents">),
+        ...(parsed.euros as Pick<PricingSettings, "bulkBelowCents" | "lotBelowCents" | "singleFromCents" | "premiumFromCents" | "minMarginCents" | "roundFromCents" | "roundStepCents">),
         conditionPercent: parsed.conditions as PricingSettings["conditionPercent"],
       });
       toast.success(`Règles enregistrées, ${saved.repriced} offre${saved.repriced > 1 ? "s recalculées" : " recalculée"}`);
@@ -377,6 +378,10 @@ function Rules({ settings, onSaved }: { settings: PricingSettings; onSaved: (s: 
             {euro("minMarginCents", "Marge minimale à l'unité (€)", "Au-dessus du coût, pour les ventes à l'unité et premium.")}
           </div>
           {number("driftPercent", "Écart qui renvoie en revue (%)", "Entre un prix décidé et la suggestion du moment.")}
+          <div className="grid grid-cols-2 gap-3">
+            {euro("roundFromCents", "Arrondir à partir de (€)", "En dessous, les prix restent au centime.")}
+            {euro("roundStepCents", "Pas d'arrondi (€)", "1,00 = à l'euro ; 5,00 = aux 5 euros.")}
+          </div>
         </CardContent>
       </Card>
 

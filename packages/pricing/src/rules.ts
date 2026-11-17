@@ -42,6 +42,10 @@ export interface PricingSettings {
   minMarginCents: number;
   /** Écart entre prix décidé et suggestion au-delà duquel l'offre revient en revue. */
   driftPercent: number;
+  /** À partir de ce montant, les prix calculés sont arrondis au pas ci-dessous (612,37 € → 612 €). */
+  roundFromCents: number;
+  /** Pas d'arrondi, en centimes : 100 = à l'euro, 500 = aux 5 euros. */
+  roundStepCents: number;
 }
 
 export const DEFAULT_SETTINGS: PricingSettings = {
@@ -55,6 +59,8 @@ export const DEFAULT_SETTINGS: PricingSettings = {
   floorPercent: 80,
   minMarginCents: 50,
   driftPercent: 20,
+  roundFromCents: 1000,
+  roundStepCents: 100,
 };
 
 export interface Quote {
@@ -102,12 +108,18 @@ export function tierOf(priceCents: number, s: PricingSettings): Exclude<OfferCat
   return "PREMIUM";
 }
 
+/** Arrondit un prix calculé au pas configuré, à partir du seuil ; en dessous, il reste au centime. */
+export function roundPrice(cents: number, s: PricingSettings): number {
+  if (s.roundStepCents <= 1 || cents < s.roundFromCents) return cents;
+  return Math.round(cents / s.roundStepCents) * s.roundStepCents;
+}
+
 /**
  * Prix plancher : une part du prix cible, sans descendre sous le coût. La marge minimale par carte ne s'applique
  * qu'aux ventes à l'unité : exigée sur des cartes à quelques centimes, elle enverrait tout le vrac en revue.
  */
 export function floorFor(targetCents: number, averageCostCents: number, s: PricingSettings, category: OfferCategory | null): number {
-  const fromTarget = Math.round((targetCents * s.floorPercent) / 100);
+  const fromTarget = roundPrice(Math.round((targetCents * s.floorPercent) / 100), s);
   const margin = category === "SINGLE" || category === "PREMIUM" ? s.minMarginCents : 0;
   const fromCost = averageCostCents > 0 ? averageCostCents + margin : 0;
   return Math.max(fromTarget, fromCost);
@@ -136,7 +148,7 @@ export function computePricing(input: PricingInput, s: PricingSettings): Pricing
     return { reference: null, suggestedCents: null, tier: null, category: "REVIEW", floorCents: null, reasons: onlyDriftIfManual(input, reasons) };
   }
 
-  const suggestedCents = Math.max(1, Math.round((reference.amountCents * s.conditionPercent[input.condition]) / 100));
+  const suggestedCents = roundPrice(Math.max(1, Math.round((reference.amountCents * s.conditionPercent[input.condition]) / 100)), s);
   const tier = tierOf(suggestedCents, s);
 
   if (reference.ageDays > s.maxAgeDays) reasons.push("STALE_REFERENCE");
@@ -171,12 +183,16 @@ function onlyDriftIfManual(input: PricingInput, reasons: PriceReason[]): PriceRe
 }
 
 export function validateSettings(s: PricingSettings): string | null {
-  const ints = [s.maxAgeDays, s.bulkBelowCents, s.lotBelowCents, s.singleFromCents, s.premiumFromCents, s.floorPercent, s.minMarginCents, s.driftPercent, ...Object.values(s.conditionPercent)];
+  const ints = [
+    s.maxAgeDays, s.bulkBelowCents, s.lotBelowCents, s.singleFromCents, s.premiumFromCents, s.floorPercent, s.minMarginCents,
+    s.driftPercent, s.roundFromCents, s.roundStepCents, ...Object.values(s.conditionPercent),
+  ];
   if (!ints.every((n) => Number.isInteger(n) && n >= 0)) return "all values must be non-negative integers";
   if (!(s.bulkBelowCents <= s.lotBelowCents && s.lotBelowCents <= s.singleFromCents && s.singleFromCents <= s.premiumFromCents)) {
     return "thresholds must be increasing: bulk ≤ lot ≤ single ≤ premium";
   }
   if (s.maxAgeDays < 1 || s.floorPercent > 100 || s.driftPercent < 1) return "maxAgeDays ≥ 1, floorPercent ≤ 100, driftPercent ≥ 1";
   if (Object.values(s.conditionPercent).some((p) => p < 1 || p > 200)) return "condition percentages must be between 1 and 200";
+  if (s.roundStepCents < 1) return "roundStepCents must be at least 1";
   return null;
 }

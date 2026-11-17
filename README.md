@@ -142,6 +142,7 @@ Les compteurs de stock sont une projection du journal `inventory_movements` (app
 ## Prix et catégories — points d'attention
 
 - **Estimation** : dernière cotation importée pour la variante (tendance Cardmarket par défaut, repli sur les moyennes de ventes) × coefficient d'état. La source ne distingue ni la langue ni l'état : le coefficient est une approximation réglable.
+- **Arrondi** : à partir de 10 €, les prix calculés (suggestion, plancher) sont arrondis à l'euro (612,37 € → 612 €) ; seuil et pas réglables. Un prix saisi à la main est gardé tel quel.
 - **Catégorie** : seuils indicatifs de la spécification (vrac < 1 €, lot < 5 €, à l'unité ≥ 15 €, premium ≥ 100 €). Entre 5 et 15 €, l'offre part en revue : la rentabilité à l'unité dépend des frais du canal, pas encore connus.
 - **Jamais de prix silencieux** : cotation absente, trop ancienne (14 jours) ou partagée avec une autre variante, variante incomplète, prix sous le coût → pas de prix posé d'office, l'offre va dans « À revoir » avec son motif.
 - **Pas de repricing automatique** : un prix décidé (par les règles à la première tarification, ou à la main) ne bouge plus. Si la suggestion s'en écarte de plus de 20 %, l'offre revient en revue. Un prix fixé à la main est audité.

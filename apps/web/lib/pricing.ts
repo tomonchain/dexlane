@@ -35,6 +35,12 @@ export function tierOf(priceCents: number, s: PricingSettings): Exclude<Category
   return "PREMIUM";
 }
 
+/** Arrondi des prix calculés (même règle que le serveur) : au pas configuré à partir du seuil. */
+export function roundPrice(cents: number, s: PricingSettings): number {
+  if (s.roundStepCents <= 1 || cents < s.roundFromCents) return cents;
+  return Math.round(cents / s.roundStepCents) * s.roundStepCents;
+}
+
 const DAY_MS = 24 * 3600 * 1000;
 /** « aujourd'hui », « hier », « il y a 12 j ». */
 export function age(iso: string): string {
