@@ -37,9 +37,17 @@ const recognizer: CardRecognizer = {
 
 await prepareTestDatabase("web");
 const sql = createDb(testDatabaseUrl("web"));
+const BLOCKS: Record<string, [string, string[]]> = {
+  base: ["Wizards", ["base1"]],
+  swsh: ["Épée et Bouclier", ["swsh3"]],
+  sv: ["Écarlate et Violet", ["sv03.5"]],
+};
+
 // Le catalogue de départ contient deux séries ; « 151 » (sv03.5) reste à synchroniser depuis l'écran Catalogue.
 const client = fakeClient(["swsh3-136", "base1-4", "sv03.5-151"].map(card), {
   listSets: async () => [{ id: "swsh3", name: "Ténèbres Embrasées" }, { id: "sv03.5", name: "151", cardCount: { official: 165, total: 207 } }],
+  listSeries: async () => [{ id: "base", name: "Wizards" }, { id: "swsh", name: "Épée et Bouclier" }, { id: "sv", name: "Écarlate et Violet" }],
+  getSerie: async (_language, id) => ({ id, name: BLOCKS[id]?.[0] ?? id, sets: (BLOCKS[id]?.[1] ?? []).map((setId) => ({ id: setId, name: setId })) }),
 });
 for (const set of ["swsh3", "base1"]) await syncSet(sql, client, "fr", set);
 // Les cotations enregistrées datent de la capture des réponses : on les rajeunit pour qu'elles servent de référence.

@@ -37,6 +37,25 @@ describe("syncSet", () => {
     ]);
   });
 
+  it("attaches every known set to its block, imported or not, and survives a failing block lookup", async () => {
+    await syncSet(sql, fakeClient([card("swsh3-136")]), "fr", "swsh3");
+    const client = fakeClient([], {
+      listSets: async () => [{ id: "swsh3", name: "Ténèbres Embrasées" }, { id: "sm1", name: "Soleil et Lune" }, { id: "base1", name: "Set de Base" }],
+      listSeries: async () => [{ id: "base", name: "Wizards" }, { id: "sm", name: "Soleil et Lune" }, { id: "swsh", name: "Épée et Bouclier" }],
+      getSerie: async (_lang, id) => ({ id, name: id === "swsh" ? "Épée et Bouclier" : id === "sm" ? "Soleil et Lune" : "Wizards", sets: [{ id: id === "swsh" ? "swsh3" : id === "sm" ? "sm1" : "base1", name: "" }] }),
+    });
+    await syncSetList(sql, client, "fr");
+    const sets = await sql`select id, serie_id, serie_name, serie_position from catalog_sets where language = 'fr' order by serie_position`;
+    expect(sets).toEqual([
+      { id: "base1", serieId: "base", serieName: "Wizards", seriePosition: 1 },
+      { id: "sm1", serieId: "sm", serieName: "Soleil et Lune", seriePosition: 2 },
+      { id: "swsh3", serieId: "swsh", serieName: "Épée et Bouclier", seriePosition: 3 },
+    ]);
+
+    const broken = fakeClient([], { listSets: async () => [{ id: "sv01", name: "Écarlate et Violet" }], listSeries: async () => { throw new Error("fetch failed"); } });
+    expect(await syncSetList(sql, broken, "fr")).toBe(1);
+  });
+
   it("is idempotent", async () => {
     const client = fakeClient([card("swsh3-136"), card("base1-4")]);
     await syncSet(sql, client, "fr", "swsh3");

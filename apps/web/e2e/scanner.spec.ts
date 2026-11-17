@@ -210,6 +210,14 @@ test("catalogue : onglets, import d'une série, détail, puis recherche par auto
   await expect(page.getByRole("tab", { name: /^Importées/ })).toContainText("2");
   await page.getByRole("button", { name: "Actualiser la liste" }).click();
 
+  // Les séries se regroupent par bloc, et le bloc sert de filtre.
+  await expect(page.getByRole("heading", { name: "Épée et Bouclier" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Wizards" })).toBeVisible();
+  await page.getByLabel("Bloc").selectOption({ label: "Wizards (1)" });
+  await expect(page.getByTestId("set-base1")).toBeVisible();
+  await expect(page.getByTestId("set-swsh3")).toHaveCount(0);
+  await page.getByLabel("Bloc").selectOption("");
+
   const pending = page.getByRole("tab", { name: /^Non importées/ });
   await expect(pending).toContainText("1");
   await pending.click();

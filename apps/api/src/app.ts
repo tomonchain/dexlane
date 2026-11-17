@@ -422,6 +422,8 @@ function guardCatalogSource(client: TcgdexClient, report: (err: unknown) => void
     listSets: (language) => guard(client.listSets(language)),
     getSet: (language, id) => guard(client.getSet(language, id)),
     getCard: client.getCard,
+    listSeries: client.listSeries,
+    getSerie: client.getSerie,
   };
 }
 

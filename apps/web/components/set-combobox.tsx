@@ -38,7 +38,7 @@ export function SetCombobox({ language, value, onChange }: { language: string; v
 
   const query = fold(text.trim());
   const options = useMemo(
-    () => (sets ?? []).filter((s) => !query || fold(s.name).includes(query) || s.id.includes(query)).slice(0, MAX_OPTIONS),
+    () => (sets ?? []).filter((s) => !query || fold(s.name).includes(query) || s.id.includes(query) || fold(s.serieName ?? "").includes(query)).slice(0, MAX_OPTIONS),
     [sets, query],
   );
 
@@ -110,7 +110,7 @@ export function SetCombobox({ language, value, onChange }: { language: string; v
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{s.name}</span>
-                <span className="block truncate text-xs text-muted-foreground"><Code>{s.id}</Code> · {s.cardsSynced} carte{s.cardsSynced > 1 ? "s" : ""}</span>
+                <span className="block truncate text-xs text-muted-foreground"><Code>{s.id}</Code>{s.serieName ? ` · ${s.serieName}` : ""} · {s.cardsSynced} carte{s.cardsSynced > 1 ? "s" : ""}</span>
               </span>
               <Check className={cn("size-4 text-primary", s.id !== value && "invisible")} aria-hidden />
             </button>

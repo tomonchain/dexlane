@@ -163,6 +163,7 @@ Les compteurs de stock sont une projection du journal `inventory_movements` (app
 
 ## Catalogue et cotations — points d'attention
 
+- **Blocs** : « Actualiser la liste » rattache chaque série à son bloc (Wizards, Soleil et Lune, Épée et Bouclier…), y compris les séries non importées ; le catalogue se regroupe et se filtre par bloc. Si la source ne répond pas pour les blocs, la liste des séries reste utilisable.
 - **Variantes** : identifiants TCGdex partagés entre langues (unicité par carte). Une variante issue d'un placeholder TCGdex (`variantId: "generated"`, séries très récentes) ou déduite est marquée `incomplete` : à confirmer avant publication.
 - **Cotations** : guide des prix Cardmarket relayé par TCGdex ; toutes langues et tous états confondus (`source_scope`). Reverse = champs `-holo`. Les valeurs nulles ou à 0 sont ignorées.
 - **Ambiguïté** : quand plusieurs variantes partagent un produit Cardmarket (ex. Set de Base 1re édition / sans ombre), leurs cotations sont `variant_ambiguous` et ne doivent pas servir à publier sans revue.

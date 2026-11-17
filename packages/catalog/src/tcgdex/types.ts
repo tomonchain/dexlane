@@ -8,6 +8,17 @@ export interface TcgdexSetBrief {
   cardCount?: { total?: number; official?: number };
 }
 
+/** Bloc éditorial regroupant plusieurs séries (« Épée et Bouclier »). */
+export interface TcgdexSerieBrief {
+  id: string;
+  name: string;
+  logo?: string;
+}
+
+export interface TcgdexSerie extends TcgdexSerieBrief {
+  sets?: TcgdexSetBrief[];
+}
+
 export interface TcgdexCardBrief {
   id: string;
   localId: string;
