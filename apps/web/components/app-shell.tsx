@@ -10,13 +10,13 @@ import { Modal } from "./ui/modal";
 import { ThemeSwitch } from "./theme";
 
 const GROUPS = [
-  { title: "Opérations", hrefs: ["/", "/vrac"] },
+  { title: "Opérations", hrefs: ["/", "/ventes", "/vrac"] },
   { title: "Stock", hrefs: ["/inventaire", "/prix", "/rangement"] },
   { title: "Référentiel", hrefs: ["/catalogue"] },
 ];
 
 /** Onglets du téléphone : les quatre écrans du quotidien, le reste derrière « Plus ». */
-const MOBILE_TABS = ["/", "/inventaire", "/prix", "/rangement"];
+const MOBILE_TABS = ["/", "/inventaire", "/ventes", "/prix"];
 
 const isCurrent = (pathname: string, href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 

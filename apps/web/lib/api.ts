@@ -1,6 +1,7 @@
 import type {
   AcquisitionLot, Candidate, CardCondition, CatalogSet, CatalogSetDetail, InventoryPage, InventorySummary, Location, PositionDetail, Received,
-  OfferPricing, PricingSettings, ReceivedBulkLot, ScanResult, SetSyncReport, VariantQuote,
+  OfferPricing, OrderDetail, OrderList, OrderStage, PricingSettings, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
+  ShippingMode, VariantQuote,
 } from "./types";
 
 export class ApiError extends Error {
@@ -98,6 +99,20 @@ export const api = {
   refreshCatalogSets: (language: string) => request<{ count: number }>("POST", "/catalog/sets/refresh", { json: { language } }),
   syncCatalogSet: (setId: string, language: string) =>
     request<SetSyncReport>("POST", `/catalog/sets/${encodeURIComponent(setId)}/sync`, { json: { language } }),
+
+  sellableOffers: (q?: string) => request<{ offers: SellableOffer[] }>("GET", "/offers/sellable", { query: { q } }),
+  orders: (stage?: OrderStage) => request<OrderList>("GET", "/orders", { query: { stage } }),
+  order: (id: string) => request<OrderDetail>("GET", `/orders/${id}`),
+  createSale: (
+    input: { lines: { offerId: string; qty: number; unitPriceCents: number }[]; shippingMode: ShippingMode; shippingChargedCents?: number; buyerName?: string; note?: string },
+    key: string,
+  ) => request<OrderDetail>("POST", "/orders", { json: input, idempotencyKey: key }),
+  pickAllocation: (orderId: string, allocationId: string, unitSku: string) =>
+    request<OrderDetail>("POST", `/orders/${orderId}/pick`, { json: { allocationId, unitSku } }),
+  packOrder: (orderId: string) => request<OrderDetail>("POST", `/orders/${orderId}/pack`),
+  handOver: (orderId: string, input: { tracking?: string; postageCostCents?: number }) =>
+    request<OrderDetail>("POST", `/orders/${orderId}/handover`, { json: input }),
+  cancelOrder: (orderId: string, reason: string) => request<OrderDetail>("POST", `/orders/${orderId}/cancel`, { json: { reason } }),
 
   pricingSettings: () => request<PricingSettings>("GET", "/pricing/settings"),
   savePricingSettings: (settings: PricingSettings) =>

@@ -1,6 +1,8 @@
 import type { Candidate, CandidateVariant, CatalogSetCard as SetCard, CatalogSetDetail as SetDetail, CatalogSetSummary, SyncStats } from "@dexlane/catalog";
 import type {
-  AcquisitionLotRow, CardCondition, InventoryRow, InventorySummary, LocationSummary, MovementRow, ReceivedBulk, ReceivedPosition,
+  AcquisitionLotRow, CardCondition, InventoryRow, InventorySummary, LocationSummary, MovementRow, OrderDetail as OrderDetailRow,
+  OrderStage, OrderSummary as OrderSummaryRow, ReceivedBulk, ReceivedPosition, SalesTotals, SellableOffer as SellableOfferRow,
+  ShippingMode,
 } from "@dexlane/inventory";
 import type { OfferPricing as PricingRow, PricingSettings, VariantQuote as Quote } from "@dexlane/pricing";
 import type { CardReadingRaw, RecognitionUsage } from "@dexlane/scan";
@@ -53,3 +55,13 @@ export const CONDITIONS: { code: CardCondition; label: string }[] = [
   { code: "PL", label: "Played" },
   { code: "PO", label: "Poor" },
 ];
+
+export type { OrderStage, SalesTotals, ShippingMode };
+export type OrderSummary = Json<OrderSummaryRow>;
+export type OrderDetail = Json<OrderDetailRow>;
+export type SellableOffer = Json<SellableOfferRow>;
+export interface OrderList {
+  items: OrderSummary[];
+  counts: Record<OrderStage, number>;
+  last30Days: SalesTotals;
+}

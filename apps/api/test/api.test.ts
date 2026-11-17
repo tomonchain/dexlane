@@ -249,6 +249,62 @@ describe("pricing", () => {
   });
 });
 
+describe("direct sales", () => {
+  it("sells from stock end to end: reservation, picking by SKU, packing, handover, margin", async () => {
+    await call("POST", "/api/locations", { body: { code: "BOX-01/ROW-03" } });
+    const variantId = await fouinarReverse();
+    const received = (await call("POST", "/api/inventory/receive", {
+      body: { variantId, condition: "NM", quantity: 3, locationCode: "BOX-01/ROW-03", unitCostCents: 20 },
+    })).json;
+    const offerId = received.offer.id as string;
+    const number = String(Number((received.stockItem.unitSku as string).slice(3)));
+
+    expect((await call("GET", "/api/offers/sellable?q=fouin")).json.offers).toMatchObject([{ offerId, availableToSell: 3, card: { name: "Fouinar" } }]);
+
+    const body = { lines: [{ offerId, qty: 2, unitPriceCents: 150 }], shippingMode: "LETTER_UNTRACKED", shippingChargedCents: 200, buyerName: "Camille" };
+    const created = await call("POST", "/api/orders", { body, key: "sale-key-0001" });
+    expect(created.status).toBe(201);
+    expect(created.json).toMatchObject({ stage: "TO_PREPARE", buyerName: "Camille", totals: { grossCents: 500, costCents: 40, marginCents: 460 } });
+    const replay = await call("POST", "/api/orders", { body, key: "sale-key-0001" });
+    expect(replay.json.id).toBe(created.json.id);
+    expect((await call("GET", "/api/offers/sellable")).json.offers[0].availableToSell).toBe(1);
+
+    const id = created.json.id as string;
+    const allocation = created.json.lines[0].allocations[0];
+    expect(allocation).toMatchObject({ locationCode: "BOX-01/ROW-03", unitSku: received.stockItem.unitSku, qty: 2 });
+
+    const tooMany = await call("POST", "/api/orders", { body: { ...body, lines: [{ offerId, qty: 2, unitPriceCents: 150 }] } });
+    expect([tooMany.status, tooMany.json.error.code]).toEqual([409, "INSUFFICIENT_STOCK"]);
+    expect((await call("POST", `/api/orders/${id}/pack`, { key: null })).json.error.code).toBe("NOT_FULLY_PICKED");
+    expect((await call("POST", `/api/orders/${id}/pick`, { body: { allocationId: allocation.id, unitSku: "999999" }, key: null })).json.error.code).toBe("UNKNOWN_SKU");
+
+    const picked = await call("POST", `/api/orders/${id}/pick`, { body: { allocationId: allocation.id, unitSku: number }, key: null });
+    expect(picked.json.lines[0].allocations[0].status).toBe("PICKED");
+    expect((await call("POST", `/api/orders/${id}/pack`, { key: null })).json.stage).toBe("PACKED");
+    const shipped = await call("POST", `/api/orders/${id}/handover`, { body: { postageCostCents: 129 }, key: null });
+    expect(shipped.json).toMatchObject({ stage: "SHIPPED", totals: { postageCents: 129, marginCents: 331 }, shipment: { status: "HANDED_OVER" } });
+
+    const list = (await call("GET", "/api/orders?stage=SHIPPED")).json;
+    expect(list).toMatchObject({ counts: { SHIPPED: 1, TO_PREPARE: 0 }, last30Days: { orders: 1, grossCents: 500, marginCents: 331 } });
+    expect(list.items[0]).toMatchObject({ externalId: created.json.externalId, cards: 2, cardNames: ["Fouinar"] });
+    expect((await call("GET", `/api/inventory/${received.stockItem.id}`)).json).toMatchObject({ onHand: 1, reserved: 0 });
+    expect((await call("POST", `/api/orders/${id}/cancel`, { body: { reason: "trop tard" }, key: null })).json.error.code).toBe("ALREADY_SHIPPED");
+  });
+
+  it("cancels a sale before handover and frees the cards", async () => {
+    await call("POST", "/api/locations", { body: { code: "BOX-01" } });
+    const received = (await call("POST", "/api/inventory/receive", {
+      body: { variantId: await fouinarReverse(), condition: "NM", quantity: 1, locationCode: "BOX-01", unitCostCents: 0 },
+    })).json;
+    const created = await call("POST", "/api/orders", { body: { lines: [{ offerId: received.offer.id, qty: 1, unitPriceCents: 100 }], shippingMode: "HAND_DELIVERY" } });
+    expect((await call("GET", "/api/offers/sellable")).json.offers).toEqual([]);
+    const cancelled = await call("POST", `/api/orders/${created.json.id}/cancel`, { body: { reason: "acheteur désisté" }, key: null });
+    expect(cancelled.json).toMatchObject({ stage: "CANCELLED", shipment: null });
+    expect((await call("GET", "/api/offers/sellable")).json.offers[0].availableToSell).toBe(1);
+    expect((await call("GET", "/api/orders/00000000-0000-4000-8000-000000000000")).status).toBe(404);
+  });
+});
+
 describe("owner password", () => {
   const post = (path: string, body: unknown, headers?: Record<string, string>) => call("POST", `/api/auth/password/${path}`, { body, key: null, headers });
 

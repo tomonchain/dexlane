@@ -25,7 +25,8 @@ export const errorBody = (code: string, message: string, details?: unknown) => (
 /** Règle métier violée → 404 (introuvable), 409 (état courant incompatible) ou 422 (demande invalide). */
 const CONFLICTS = new Set([
   "INSUFFICIENT_STOCK", "ADJUST_BELOW_COMMITTED", "NOT_DRAFT", "NOT_BULK", "ALREADY_SHIPPED", "INVALID_STATE",
-  "LOCATION_HAS_CHILDREN", "LOCATION_IN_USE",
+  "LOCATION_HAS_CHILDREN", "LOCATION_IN_USE", "NOT_FULLY_PICKED", "NOT_FULLY_PACKED", "NOTHING_TO_PACK", "NOTHING_TO_SHIP",
+  "WRONG_ITEM", "SCANNED_POSITION_UNAVAILABLE", "TRACKING_REQUIRED",
 ]);
 export function statusOfDomainError(e: DomainError): ContentfulStatusCode {
   if (e.code.endsWith("_NOT_FOUND")) return 404;

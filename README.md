@@ -4,7 +4,7 @@ Application personnelle de négoce de cartes Pokémon. Spécification : [`specs-
 
 ## État
 
-**Sprint 1** terminé : catalogue, scan, stock, entrée en stock, recherche, API HTTP et application web (Scanner, Inventaire, Vrac, Rangement). **Sprint 2** entamé : prix et catégories faits ; la publication attend le choix du canal.
+**Sprint 1** terminé : catalogue, scan, stock, entrée en stock, recherche, API HTTP et application web (Scanner, Inventaire, Vrac, Rangement). **Sprint 2** entamé : prix et catégories faits ; la publication attend le choix du canal. **Sprint 3** entamé : ventes directes avec préparation et remise.
 
 | Package | Contenu |
 |---|---|
@@ -16,7 +16,7 @@ Application personnelle de négoce de cartes Pokémon. Spécification : [`specs-
 | `packages/pricing` | Moteur de règles de prix (estimation, catégorie, plancher, motifs de revue), tarification des offres, file de revue, règles réglables |
 | `packages/inventory` | Entrée d'une carte identifiée (offre et SKU attribués automatiquement), lots de vrac et extraction, emplacements hiérarchiques, lots d'acquisition, déplacement, correction d'inventaire auditée, recherche, import idempotent de commandes, allocation commande → positions, survente (Parcours F), picking par scan, emballage, confirmation de dépôt |
 | `apps/api` | API HTTP (Hono) : scan, recherche catalogue, emplacements, entrée en stock, vrac, inventaire. Jeton propriétaire, validation stricte, clés d'idempotence |
-| `apps/web` | Application web installable (Next.js), pensée pour le téléphone : scan photo → candidats → confirmation → rangement, recherche manuelle, inventaire et fiche de position (déplacer, corriger, valider), lots de vrac et extraction, emplacements (aide, création en série, arborescence) et lots d'acquisition, catalogue (import par série, détail d'une série avec prix et stock détenu), compte (mot de passe, thème) |
+| `apps/web` | Application web installable (Next.js), pensée pour le téléphone : scan photo → candidats → confirmation → rangement, recherche manuelle, inventaire et fiche de position (déplacer, corriger, valider), lots de vrac et extraction, emplacements (aide, création en série, arborescence) et lots d'acquisition, catalogue (import par série, détail d'une série avec prix et stock détenu), prix (file de revue, règles), ventes directes (saisie, préparation, remise, marge), compte (mot de passe, thème) |
 
 Pas encore commencés : `apps/worker`, connecteurs marketplaces (publication), fulfillment PDF, photos des exemplaires, étiquettes QR.
 
@@ -63,6 +63,8 @@ pnpm api                                   # http://127.0.0.1:8787 — écoute l
 | `GET /api/inventory/summary` | Chiffres clés : cartes en stock, vendables, réservées, brouillons, valeur au coût |
 | `GET /api/inventory/{id ou unit_sku}` | Fiche d'une position et historique des mouvements |
 | `POST /api/inventory/{id}/move` · `/adjust` · `/activate` | Déplacement, correction après comptage (motif obligatoire), validation d'un brouillon |
+
+Ventes : `GET /api/offers/sellable?q=`, `GET` / `POST /api/orders` (vente directe, clé d'idempotence), `GET /api/orders/{id}`, `POST /api/orders/{id}/pick` · `/pack` · `/handover` · `/cancel`.
 
 Prix : `GET /api/pricing/variants/{id}?condition=` (estimation avant entrée en stock), `GET /api/pricing/offers?status=REVIEW|ALL` (file de revue triée par enjeu), `POST /api/pricing/offers/{id}/price` (décision), `GET` / `PUT /api/pricing/settings` (règles), `POST /api/pricing/recompute`.
 
@@ -138,6 +140,15 @@ Les compteurs de stock sont une projection du journal `inventory_movements` (app
 - **Emplacement** : obligatoire et jamais créé implicitement — une faute de frappe renvoie `LOCATION_NOT_FOUND` au lieu de créer une boîte.
 - **Correction d'inventaire** : saisie de la quantité comptée, pas d'un écart ; refusée sous les quantités réservées (cas du Parcours F).
 - **Coût du vrac** : le coût unitaire est stocké en centimes entiers ; 1 000 cartes à 15 € donnent 2 c pièce (20 € reconstitués). Le coût exact reste celui du lot d'acquisition.
+
+## Ventes directes — points d'attention
+
+- **Même cycle qu'une commande de marketplace** : une vente saisie à la main (canal `direct`, numéro `V-000123`) crée une commande, alloue les positions, puis suit prélèvement → emballage → remise. Le connecteur de marketplace n'aura qu'à importer des commandes dans ce même circuit.
+- **Réservation immédiate, jamais de survente** : la vente et l'allocation sont dans une seule transaction ; si le stock disponible ne suffit pas, rien n'est créé.
+- **Prélèvement vérifié** : on saisit le code lu sur la pochette (`SI-000123` ou simplement `123`). Le code d'une autre carte est refusé ; une autre position de la même offre est acceptée et réaffectée.
+- **Remise** : lettre non suivie et remise en main propre se confirment sans numéro ; lettre et colis suivis l'exigent. C'est la confirmation de remise qui sort les cartes du stock physique.
+- **Annulation** : possible jusqu'à la remise, avec motif ; les cartes redeviennent disponibles. Après la remise, c'est un retour (pas encore géré).
+- **Marge** : encaissé − coût d'acquisition des cartes − affranchissement payé. Les frais de canal n'existent pas en vente directe ; ni TVA ni temps passé ne sont comptés.
 
 ## Prix et catégories — points d'attention
 

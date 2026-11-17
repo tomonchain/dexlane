@@ -6,9 +6,10 @@ import {
 } from "@dexlane/catalog";
 import type { Db } from "@dexlane/db";
 import {
-  activateStock, adjustStock, createAcquisitionLot, createLocation, createLocations, deleteLocation, extractCardFromBulk,
-  getInventorySummary, getStockItemDetail, listAcquisitionLots, listLocations, moveStock, receiveBulk, receiveCard,
-  resolveLocation, searchInventory, updateLocationDescription,
+  activateStock, adjustStock, cancelOrder, createAcquisitionLot, createDirectSale, createLocation, createLocations,
+  deleteLocation, extractCardFromBulk, getInventorySummary, getOrderDetail, getStockItemDetail, listAcquisitionLots,
+  listLocations, listOrders, moveStock, packOrder, pickAllocation, receiveBulk, receiveCard, resolveLocation,
+  searchInventory, searchSellableOffers, shipOrder, updateLocationDescription,
 } from "@dexlane/inventory";
 import {
   getPricingSettings, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice,
@@ -219,6 +220,57 @@ export function createApp(deps: AppDeps) {
 
   app.post("/api/pricing/recompute", async (c) => c.json({ repriced: await refreshPricing(sql) }));
 
+  // ───────────────────────── Ventes ─────────────────────────
+
+  /** Offres disponibles à la vente, pour composer une vente directe. */
+  app.get("/api/offers/sellable", async (c) => c.json({ offers: await searchSellableOffers(sql, parse(s.sellableQuery, c.req.query())) }));
+
+  app.get("/api/orders", async (c) => c.json(await listOrders(sql, parse(s.ordersQuery, c.req.query()))));
+
+  /** Vente directe : les cartes sont réservées dans la même transaction, ou la vente est refusée. */
+  app.post("/api/orders", async (c) => {
+    const body = await parseJsonBody(c, s.createSaleBody);
+    return idempotent(c, sql, async (tx) => {
+      const { orderId } = await createDirectSale(tx, { ...body, actor: c.var.actor });
+      return { status: 201, body: await getOrderDetail(tx, orderId) };
+    });
+  });
+
+  app.get("/api/orders/:id", async (c) => c.json(await getOrderDetail(sql, parse(s.orderId, c.req.param("id")))));
+
+  /** Prélèvement confirmé par le code de la position : le mauvais article est refusé. */
+  app.post("/api/orders/:id/pick", async (c) => {
+    const orderId = parse(s.orderId, c.req.param("id"));
+    const body = await parseJsonBody(c, s.pickBody);
+    const order = await getOrderDetail(sql, orderId);
+    if (!order.lines.some((l) => l.allocations.some((a) => a.id === body.allocationId))) {
+      throw new HttpError(404, "ALLOCATION_NOT_FOUND", "this allocation does not belong to the order");
+    }
+    await pickAllocation(sql, { allocationId: body.allocationId, scannedUnitSku: normalizeUnitSku(body.unitSku), actor: c.var.actor });
+    return c.json(await getOrderDetail(sql, orderId));
+  });
+
+  app.post("/api/orders/:id/pack", async (c) => {
+    const orderId = parse(s.orderId, c.req.param("id"));
+    await packOrder(sql, orderId, c.var.actor);
+    return c.json(await getOrderDetail(sql, orderId));
+  });
+
+  /** Dépôt (poste, point relais) ou remise en main propre : les cartes quittent le stock. Rejouable sans effet. */
+  app.post("/api/orders/:id/handover", async (c) => {
+    const orderId = parse(s.orderId, c.req.param("id"));
+    const body = await parseJsonBody(c, s.handoverBody);
+    await shipOrder(sql, { ...body, orderId, actor: c.var.actor });
+    return c.json(await getOrderDetail(sql, orderId));
+  });
+
+  app.post("/api/orders/:id/cancel", async (c) => {
+    const orderId = parse(s.orderId, c.req.param("id"));
+    const { reason } = await parseJsonBody(c, s.cancelOrderBody);
+    await cancelOrder(sql, orderId, c.var.actor, reason);
+    return c.json(await getOrderDetail(sql, orderId));
+  });
+
   // ───────────────────────── Emplacements et lots d'acquisition ─────────────────────────
 
   app.get("/api/locations", async (c) => c.json({ locations: await listLocations(sql, { prefix: c.req.query("prefix") }) }));
@@ -371,4 +423,11 @@ function guardCatalogSource(client: TcgdexClient, report: (err: unknown) => void
     getSet: (language, id) => guard(client.getSet(language, id)),
     getCard: client.getCard,
   };
+}
+
+/** « 123 », « si-123 » ou « SI-000123 » → « SI-000123 » : au picking on tape le numéro, pas le préfixe. */
+function normalizeUnitSku(input: string): string {
+  const text = input.trim().toUpperCase();
+  const digits = /^(?:SI-?)?(\d{1,9})$/.exec(text);
+  return digits ? `SI-${digits[1]!.padStart(6, "0")}` : text;
 }

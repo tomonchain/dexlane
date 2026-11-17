@@ -319,3 +319,59 @@ test("prix : estimation à la saisie, prix posé à l'entrée, décision manuell
   await page.getByRole("tab", { name: /^Toutes/ }).click();
   await expect(page.getByTestId("offer-OF-SWSH3-136-FR-R-GD")).toContainText("2,50 €"); // la décision manuelle tient
 });
+
+test("ventes : vente directe réservée, prélevée par code, emballée, déposée avec suivi, marge calculée", async ({ page }) => {
+  await login(page);
+  // Stock de départ posé par l'API : 3 Fouinar reverse « Played » à 0,20 € pièce.
+  const { candidates } = (await (await page.request.get("/api/catalog/cards?name=fouinar")).json()) as { candidates: { variants: { id: string; finish: string }[] }[] };
+  const variantId = candidates[0]!.variants.find((v) => v.finish === "reverse")!.id;
+  await page.request.post("/api/locations", { data: { code: "BOX-V" } });
+  const received = (await (await page.request.post("/api/inventory/receive", {
+    data: { variantId, condition: "PL", quantity: 3, locationCode: "BOX-V", unitCostCents: 20 },
+    headers: { "Idempotency-Key": `e2e-vente-${Date.now()}` },
+  })).json()) as { stockItem: { unitSku: string } };
+  const sku = received.stockItem.unitSku;
+
+  await page.goto("/ventes");
+  await page.getByRole("link", { name: "Nouvelle vente" }).click();
+  await page.getByLabel("Rechercher une carte en stock").fill("OF-SWSH3-136-FR-R-PL");
+  await page.getByRole("button", { name: "Ajouter Fouinar PL" }).click();
+  const line = page.getByTestId("line-OF-SWSH3-136-FR-R-PL");
+  await line.getByRole("button", { name: /plus$/ }).click();
+  await line.getByLabel("Prix unitaire (€)").fill("1,50");
+  await page.getByRole("radio", { name: "Lettre suivie" }).click();
+  await page.getByLabel("Frais de port facturés (€)").fill("2,00");
+  await page.getByLabel("Acheteur (facultatif)").fill("Camille");
+  await expect(page.getByTestId("sale-total")).toHaveText("5,00 €");
+  await page.getByRole("button", { name: "Enregistrer la vente" }).click();
+
+  // Préparation : l'emplacement est indiqué, un mauvais code est refusé, le bon valide le prélèvement.
+  await expect(page.getByTestId("order-stage")).toHaveText("À préparer");
+  const pick = page.getByTestId(`pick-${sku}`);
+  await expect(pick).toContainText("BOX-V");
+  await expect(page.getByRole("button", { name: /Prélevez toutes les cartes/ })).toBeDisabled();
+  await pick.getByLabel("Code lu sur la pochette").fill("999999");
+  await pick.getByRole("button", { name: `Prélever ${sku}` }).click();
+  await expect(errorBanner(page)).toHaveText("Aucune position ne porte ce code.");
+  await pick.getByLabel("Code lu sur la pochette").fill(String(Number(sku.slice(3))));
+  await pick.getByRole("button", { name: `Prélever ${sku}` }).click();
+  await expect(pick).toContainText("Prélevée");
+
+  await page.getByRole("button", { name: "Marquer comme emballée" }).click();
+  await expect(page.getByTestId("order-stage")).toHaveText("Emballée");
+  await page.getByRole("button", { name: "Confirmer le dépôt" }).click();
+  await page.getByLabel("Numéro de suivi").fill("1A23456789");
+  await page.getByLabel("Affranchissement payé (€)").fill("1,29");
+  await page.getByRole("button", { name: "Confirmer le dépôt" }).last().click();
+  await expect(page.getByTestId("order-stage")).toHaveText("Remise");
+  await expect(page.getByTestId("order-margin")).toHaveText("3,31 €"); // 5,00 − 2 × 0,20 − 1,29
+  await expect(page.getByRole("button", { name: "Annuler la vente" })).toHaveCount(0);
+
+  // Le stock physique a baissé, la vente figure dans les ventes remises.
+  await page.goto("/inventaire?emplacement=BOX-V");
+  await page.getByRole("link", { name: /Fouinar/ }).click();
+  await expect(onHand(page)).toHaveText("1");
+  await page.goto("/ventes");
+  await page.getByRole("tab", { name: /^Remises/ }).click();
+  await expect(page.getByRole("link", { name: /Camille/ })).toContainText("5,00 €");
+});

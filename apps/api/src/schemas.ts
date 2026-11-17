@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CARD_CONDITIONS, type LocationRef } from "@dexlane/inventory";
+import { CARD_CONDITIONS, SHIPPING_MODES, type LocationRef } from "@dexlane/inventory";
 
 const cents = z.number().int().min(0).max(2_000_000_000);
 const location = {
@@ -149,3 +149,24 @@ export const variantQuoteQuery = z.object({
 });
 export const offerId = z.uuid();
 export const variantId = z.uuid();
+
+export const createSaleBody = z.strictObject({
+  lines: z.array(z.strictObject({ offerId: z.uuid(), qty: z.number().int().min(1).max(10_000), unitPriceCents: cents })).min(1).max(100),
+  shippingMode: z.enum(SHIPPING_MODES),
+  shippingChargedCents: cents.optional(),
+  buyerName: z.string().trim().min(1).max(120).optional(),
+  note: z.string().trim().min(1).max(500).optional(),
+});
+export const ordersQuery = z.object({
+  stage: z.enum(["TO_PREPARE", "PACKED", "SHIPPED", "CANCELLED"]).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+});
+export const orderId = z.uuid();
+export const pickBody = z.strictObject({ allocationId: z.uuid(), unitSku: z.string().trim().min(1).max(40) });
+export const handoverBody = z.strictObject({
+  tracking: z.string().trim().min(1).max(80).optional(),
+  postageCostCents: cents.optional(),
+});
+export const cancelOrderBody = z.strictObject({ reason: z.string().trim().min(1).max(300) });
+export const sellableQuery = z.object({ q: z.string().trim().min(1).max(100).optional() });
