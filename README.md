@@ -76,6 +76,17 @@ pnpm --filter @dexlane/web build && pnpm --filter @dexlane/web start   # product
 - **Garde-fous du scanner** : une carte n'est présélectionnée que si l'identification est sûre ; sinon l'opérateur choisit explicitement. L'état n'est jamais prérempli. Emplacement, coût et lot restent d'une carte à l'autre. Une même saisie renvoyée après une coupure réseau n'est pas enregistrée deux fois.
 - **Visuels** : les miniatures viennent directement de `assets.tcgdex.net`.
 
+Déploiement en un seul service (Vercel) :
+
+Sans `DEXLANE_API_URL`, le serveur Next embarque l'API : un seul déploiement suffit, plus une base PostgreSQL.
+
+1. Projet Vercel lié au dépôt, **Root Directory** `apps/web` (le build installe tout le monorepo). `apps/web/vercel.json` applique les migrations avant `next build`.
+2. Base : onglet **Storage** du projet → Neon (offre gratuite). L'intégration fournit `DATABASE_URL` (connexions poolées, utilisées par l'application) et `DATABASE_URL_UNPOOLED` (connexion directe, utilisée par les migrations).
+3. Variables d'environnement : `DEXLANE_API_TOKEN` (≥ 24 caractères), `ANTHROPIC_API_KEY` (scan), `ENABLE_EXPERIMENTAL_COREPACK=1` (pnpm de `packageManager`).
+4. Catalogue : la base hébergée démarre vide. Depuis un poste, avec l'URL de la base : `DATABASE_URL=… pnpm --filter @dexlane/catalog sync --lang fr --set <série>`.
+
+À savoir : préversions et production partagent la même base tant qu'aucune base par branche n'est configurée — une préversion applique donc ses migrations à la base de production. L'application reste protégée par le jeton propriétaire ; il n'y a pas de limitation du nombre de tentatives de connexion, d'où l'exigence d'un jeton long et aléatoire.
+
 Tests de bout en bout (navigateur mobile → Next → API → PostgreSQL de test ; seule la lecture Claude est simulée) :
 
 ```sh

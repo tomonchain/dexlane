@@ -21,4 +21,5 @@ export function withTx<T>(sql: Db, fn: (tx: Db) => Promise<T>): Promise<T> {
   return sql.begin((tx) => fn(tx as unknown as Db)) as Promise<T>;
 }
 
-export { migrate, MIGRATIONS_DIR } from "./migrate";
+// `migrate` vit dans "@dexlane/db/migrate" : il lit des fichiers .sql sur disque et ne doit pas
+// être embarqué dans un bundle applicatif (Next).

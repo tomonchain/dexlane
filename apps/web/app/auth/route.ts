@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { API_URL, SESSION_COOKIE, SESSION_MAX_AGE_S, isHttps, isSameOrigin, jsonError } from "@/lib/session";
+import { callApi } from "@/lib/backend";
+import { SESSION_COOKIE, SESSION_MAX_AGE_S, isHttps, isSameOrigin, jsonError } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -12,11 +13,9 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   let check: Response;
   try {
-    check = await fetch(new URL("/api/locations", API_URL), {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    });
-  } catch {
+    check = await callApi("/api/locations", token);
+  } catch (e) {
+    console.error(e);
     return jsonError(502, "API_UNREACHABLE", "the dexlane API is not reachable");
   }
   if (check.status === 401) return jsonError(401, "UNAUTHORIZED", "invalid token");

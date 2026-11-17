@@ -1,8 +1,5 @@
 import type { NextRequest } from "next/server";
 
-/** API métier (apps/api). Jamais appelée directement par le navigateur : le jeton reste côté serveur. */
-export const API_URL = process.env.DEXLANE_API_URL ?? "http://127.0.0.1:8787";
-
 /** Cookie httpOnly portant le jeton du propriétaire : illisible par le JavaScript de la page. */
 export const SESSION_COOKIE = "dexlane_session";
 export const SESSION_MAX_AGE_S = 90 * 24 * 3600;

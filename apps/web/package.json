@@ -8,19 +8,22 @@
     "build": "NEXT_TELEMETRY_DISABLED=1 next build",
     "start": "NEXT_TELEMETRY_DISABLED=1 next start",
     "typecheck": "tsc --noEmit",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "build:vercel": "pnpm --filter @dexlane/db migrate --skip-if-unconfigured && NEXT_TELEMETRY_DISABLED=1 next build"
   },
   "dependencies": {
-    "next": "^16.4.6",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1"
-  },
-  "devDependencies": {
     "@dexlane/api": "workspace:*",
     "@dexlane/catalog": "workspace:*",
     "@dexlane/db": "workspace:*",
     "@dexlane/inventory": "workspace:*",
     "@dexlane/scan": "workspace:*",
+    "hono": "^4.13.18",
+    "next": "^16.4.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "server-only": "^0.0.1"
+  },
+  "devDependencies": {
     "@hono/node-server": "^2.1.8",
     "@playwright/test": "1.63.0",
     "@types/node": "^22.20.5",
