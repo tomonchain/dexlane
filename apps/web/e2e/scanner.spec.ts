@@ -633,3 +633,24 @@ test("stock : une ligne par carte, prix accepté d'un clic ou saisi sur place, f
   await expect(reverse).toBeVisible();
   await expect(normal).toHaveCount(0);
 });
+
+test("scan sûr à 100 % : malgré une remarque de lecture, la fiche arrive remplie avec l'état par défaut et se valide d'une touche", async ({ page }) => {
+  await login(page);
+  await page.goto("/ajouter");
+  await chooseLocation(page, "BOX-AUTO");
+  await page.getByLabel("État par défaut").selectOption("EX");
+
+  // Carte sous pochette : le modèle le signale, mais nom, numéro et série concordent à 100 %.
+  await page.getByTestId("photo-input").setInputFiles({ name: "carte.png", mimeType: "image/png", buffer: png(13) });
+  await expect(page.getByText("Identification sûre.")).toBeVisible();
+  await expect(page.getByText(/Remarque de lecture : card is inside a sleeve/)).toBeVisible();
+  await expect(page.getByRole("radio", { name: /Fouinar/ })).toBeChecked();
+  await expect(page.getByRole("radio", { name: "Reverse" })).toBeChecked();
+  await expect(page.getByRole("radio", { name: "Excellent" })).toBeChecked();
+  await expect(confirm(page)).toHaveText("Entrer en stock");
+  await expect(confirm(page)).toBeFocused();
+  await page.keyboard.press("Enter");
+
+  await expect(page.getByText("Entrée en stock enregistrée.")).toBeVisible();
+  await expect(page.getByText("OF-SWSH3-136-FR-R-EX")).toBeVisible();
+});

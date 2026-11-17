@@ -1,4 +1,5 @@
 import { ApiError } from "./api";
+import type { CardCondition } from "./types";
 
 /** Réglages qui restent d'une carte à l'autre : on range une série de cartes au même endroit, au même coût. */
 export interface ScanSession {
@@ -6,9 +7,11 @@ export interface ScanSession {
   cost: string;
   lotId: string;
   language: string;
+  /** État appliqué d'office à chaque carte de la session ; vide : à choisir carte par carte. */
+  condition?: CardCondition | "";
 }
 export const SCAN_SESSION_KEY = "dexlane.scan.session";
-export const DEFAULT_SCAN_SESSION: ScanSession = { locationCode: "", cost: "0", lotId: "", language: "fr" };
+export const DEFAULT_SCAN_SESSION: ScanSession = { locationCode: "", cost: "0", lotId: "", language: "fr", condition: "" };
 
 export const LANGUAGES: [string, string][] = [
   ["fr", "Français"], ["en", "Anglais"], ["de", "Allemand"], ["it", "Italien"], ["es", "Espagnol"], ["pt", "Portugais"], ["ja", "Japonais"],

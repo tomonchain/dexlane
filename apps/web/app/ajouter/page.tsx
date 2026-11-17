@@ -120,7 +120,7 @@ function Scanner() {
     setManual(false);
     setCardId(null);
     setVariantId(null);
-    setCondition(null);
+    setCondition(session.condition || null);
     setQuantity(1);
     setUnique(false);
     setDraft(false);
@@ -338,11 +338,22 @@ function Scanner() {
               <p className="text-sm text-muted-foreground">Conservés d'une carte à l'autre.</p>
             </div>
             {storageFields}
-            <Field label="Langue par défaut des cartes">
-              <Select value={session.language} onChange={(e) => setSession({ ...session, language: e.target.value })}>
-                {LANGUAGES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
-              </Select>
-            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Langue par défaut">
+                <Select value={session.language} onChange={(e) => setSession({ ...session, language: e.target.value })}>
+                  {LANGUAGES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+                </Select>
+              </Field>
+              <Field label="État par défaut">
+                <Select value={session.condition ?? ""} onChange={(e) => setSession({ ...session, condition: e.target.value as CardCondition | "" })}>
+                  <option value="">À choisir à chaque carte</option>
+                  {CONDITIONS.map((c) => <option key={c.code} value={c.code}>{c.code} · {c.label}</option>)}
+                </Select>
+              </Field>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Avec un état par défaut, une carte reconnue à 100 % arrive avec sa fiche entièrement remplie : il ne reste qu'à valider.
+            </p>
           </CardContent>
         </Card>
 
@@ -429,7 +440,11 @@ function Scanner() {
             )}
             {scanError && <Alert variant="destructive">{scanError}</Alert>}
             {scan && !scan.requiresReview && (
-              <Alert variant="success"><strong>Identification sûre.</strong> Vérifiez tout de même la variante.</Alert>
+              <Alert variant="success">
+                <strong>Identification sûre.</strong>{" "}
+                {missing.length === 0 ? "La fiche est remplie : vérifiez la variante et l'état, puis validez." : "Vérifiez tout de même la variante."}
+                {reading?.notes && <span className="block text-xs opacity-80">Remarque de lecture : {reading.notes}</span>}
+              </Alert>
             )}
             {scan?.requiresReview && scan.candidates.length > 0 && (
               <Alert variant="warning">
@@ -505,7 +520,9 @@ function Scanner() {
                 </Choice>
               ))}
             </ChoiceGroup>
-            <p className="text-xs text-muted-foreground">Évalué à la main, recto et verso. Jamais prérempli.</p>
+            <p className="text-xs text-muted-foreground">
+              {session.condition ? "Prérempli avec l'état par défaut de la session : corrigez-le si cette carte diffère." : "Évalué à la main, recto et verso."}
+            </p>
           </Step>
 
           <PriceEstimate variantId={variant?.id ?? null} condition={condition} unique={unique} />
@@ -528,7 +545,15 @@ function Scanner() {
           <div className="fixed inset-x-0 bottom-nav z-20 px-3 lg:static lg:px-0">
             <div className="flex gap-2 rounded-2xl border bg-popover/95 p-2 shadow-xl shadow-black/10 backdrop-blur-md lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:backdrop-blur-none">
               <Button variant="outline" size="lg" onClick={() => { resetCard(); setPhase("idle"); }} disabled={submitting}>Annuler</Button>
-              <Button size="lg" onClick={submit} disabled={submitting || missing.length > 0} className="min-w-0 flex-1" data-testid="confirm">
+              <Button
+                key={scan && missing.length === 0 ? "ready" : "pending"}
+                autoFocus={!!scan && missing.length === 0}
+                size="lg"
+                onClick={submit}
+                disabled={submitting || missing.length > 0}
+                className="min-w-0 flex-1"
+                data-testid="confirm"
+              >
                 {submitting ? <><Spinner className="text-primary-foreground" /> Enregistrement…</>
                   : missing.length ? <span className="truncate">Reste : {missing.join(", ")}</span>
                   : bulkId ? <><Layers /> Extraire et ranger</>

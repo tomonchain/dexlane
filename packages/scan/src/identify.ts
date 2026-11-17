@@ -33,7 +33,6 @@ export async function identifyCard(
   if (!r.card_detected) reviewReasons.push("no card detected");
   if (r.name_legibility !== "clear") reviewReasons.push(`name ${r.name_legibility}`);
   if (r.number_legibility !== "clear") reviewReasons.push(`number ${r.number_legibility}`);
-  if (r.notes) reviewReasons.push(`model note: ${r.notes}`);
 
   let language = opts.defaultLanguage ?? "fr";
   if (r.language && r.language !== "other") language = r.language;
@@ -49,6 +48,13 @@ export async function identifyCard(
     },
     { threshold: opts.threshold },
   );
+
+  // Une remarque du modèle (pochette, reflet) impose une vérification, sauf quand tout concorde par ailleurs :
+  // nom et numéro lus nettement, et une seule carte du catalogue qui correspond à 100 %.
+  const exact =
+    match.candidates[0]?.score === 1 && !match.ambiguous &&
+    match.candidates[0].signals.name === 1 && match.candidates[0].signals.number === 1;
+  if (r.notes && !exact) reviewReasons.push(`model note: ${r.notes}`);
 
   return {
     recognition,
