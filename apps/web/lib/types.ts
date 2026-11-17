@@ -4,6 +4,7 @@ import type {
   OrderStage, OrderSummary as OrderSummaryRow, ReceivedBulk, ReceivedPosition, SalesTotals, SellableOffer as SellableOfferRow,
   ShippingMode,
 } from "@dexlane/inventory";
+import type { ListingOffer as ListingOfferRow, ListingSettings, PhotoStyle } from "@dexlane/listings";
 import type { OfferPricing as PricingRow, PricingSettings, VariantQuote as Quote } from "@dexlane/pricing";
 import type { CardReadingRaw, RecognitionUsage } from "@dexlane/scan";
 
@@ -74,3 +75,6 @@ export interface OrderList {
   counts: Record<OrderStage, number>;
   last30Days: SalesTotals;
 }
+
+export type { ListingSettings, PhotoStyle };
+export type ListingOffer = Json<ListingOfferRow>;

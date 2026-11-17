@@ -175,4 +175,31 @@ export const handoverBody = z.strictObject({
 export const cancelOrderBody = z.strictObject({ reason: z.string().trim().min(1).max(300) });
 export const sellableQuery = z.object({ q: z.string().trim().min(1).max(100).optional() });
 
-export const photoQuery = z.object({ kind: z.enum(["SCAN_FRONT", "SCAN_BACK"]).default("SCAN_BACK") });
+export const photoQuery = z
+  .object({ kind: z.enum(["SCAN_FRONT", "SCAN_BACK", "LISTING", "BACKGROUND"]).default("SCAN_BACK"), source: z.uuid().optional() })
+  .refine((q) => (q.kind === "LISTING") === (q.source !== undefined), "source is required for a LISTING photo, and only for it");
+export const photoId = z.uuid();
+
+const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+export const listingSettingsBody = z.strictObject({
+  titleTemplate: z.string().max(300),
+  descriptionTemplate: z.string().max(4000),
+  photo: z.strictObject({
+    background: z.discriminatedUnion("type", [
+      z.strictObject({ type: z.literal("color"), color: hex }),
+      z.strictObject({ type: z.literal("gradient"), from: hex, to: hex, angle: z.number().min(0).max(360) }),
+      z.strictObject({ type: z.literal("image"), photoId: z.uuid() }),
+    ]),
+    size: z.number().int(),
+    marginPercent: z.number(),
+    trimPercent: z.number(),
+    roundCorners: z.boolean(),
+    shadow: z.boolean(),
+    caption: z.string().max(60),
+  }),
+});
+export const listingOffersQuery = z.object({
+  q: z.string().max(100).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});

@@ -6,7 +6,7 @@ import {
 } from "@dexlane/catalog";
 import type { Db } from "@dexlane/db";
 import {
-  activateStock, adjustStock, attachPhotos, cancelOrder, createAcquisitionLot, createDirectSale, createLocation, createLocations,
+  activateStock, adjustStock, attachPhotos, cancelOrder, getPhoto, saveListingPhoto, createAcquisitionLot, createDirectSale, createLocation, createLocations,
   deleteLocation, extractCardFromBulk, getInventorySummary, getOrderDetail, getStockItemDetail, listAcquisitionLots,
   listLocations, listOrders, moveStock, packOrder, pickAllocation, receiveBulk, receiveCard, recordPhoto, resolveLocation,
   searchInventory, searchSellableOffers, shipOrder, updateLocationDescription,
@@ -21,7 +21,8 @@ import {
 import { DomainError } from "@dexlane/shared";
 import { changePassword, passwordStatus, setPassword, verifyPassword } from "./auth";
 import { HttpError, errorBody, idempotent, parse, parseJsonBody, secretEquals, statusOfDomainError } from "./http";
-import type { PhotoStore } from "./photos";
+import { getListingSettings, listListingOffers, saveListingSettings } from "@dexlane/listings";
+import { readPhoto, type PhotoStore } from "./photos";
 import * as s from "./schemas";
 
 export interface AppDeps {
@@ -146,12 +147,18 @@ export function createApp(deps: AppDeps) {
     },
   );
 
+  const FOLDERS = { SCAN_FRONT: "scans", SCAN_BACK: "scans", LISTING: "annonces", BACKGROUND: "fonds" } as const;
+
+  async function putFile(image: CardImage, kind: keyof typeof FOLDERS) {
+    const stored = await deps.photos!.put({ folder: FOLDERS[kind], data: image.data, contentType: image.mediaType });
+    return { storageKey: stored.key, url: stored.url, contentType: image.mediaType, byteSize: image.data.byteLength };
+  }
+
   /** Dépose une image dans le stockage et en garde la référence ; null si aucun stockage n'est configuré ou s'il échoue. */
-  async function storePhoto(image: CardImage, kind: "SCAN_FRONT" | "SCAN_BACK") {
+  async function storePhoto(image: CardImage, kind: "SCAN_FRONT" | "SCAN_BACK" | "BACKGROUND") {
     if (!deps.photos) return null;
     try {
-      const stored = await deps.photos.put({ folder: "scans", data: image.data, contentType: image.mediaType });
-      const row = await recordPhoto(sql, { kind, storageKey: stored.key, url: stored.url, contentType: image.mediaType, byteSize: image.data.byteLength });
+      const row = await recordPhoto(sql, { ...(await putFile(image, kind)), kind });
       return { id: row.id, url: row.url, kind: row.kind };
     } catch (e) {
       (deps.onError ?? console.error)(e);
@@ -159,7 +166,10 @@ export function createApp(deps: AppDeps) {
     }
   }
 
-  /** Photo seule, sans lecture : verso d'une carte, par exemple. */
+  /**
+   * Photo seule, sans lecture : verso d'une carte, fond des visuels d'annonce,
+   * ou visuel d'annonce composé à partir d'un scan (`kind=LISTING&source=<scan>`), qui remplace le précédent.
+   */
   app.post(
     "/api/photos",
     bodyLimit({
@@ -169,13 +179,45 @@ export function createApp(deps: AppDeps) {
       },
     }),
     async (c) => {
-      const { kind } = parse(s.photoQuery, c.req.query());
+      const { kind, source } = parse(s.photoQuery, c.req.query());
       if (!deps.photos) throw new HttpError(503, "PHOTO_STORAGE_UNAVAILABLE", "no photo storage is configured");
-      const photo = await storePhoto(await readImage(c), kind);
+      const image = await readImage(c);
+      if (kind === "LISTING") {
+        await getPhoto(sql, source!); // 404 avant de déposer un fichier pour rien
+        const { photo, replacedUrl } = await saveListingPhoto(sql, source!, await putFile(image, kind));
+        if (replacedUrl) await deps.photos.remove(replacedUrl).catch(deps.onError ?? console.error);
+        return c.json(photo, 201);
+      }
+      const photo = await storePhoto(image, kind);
       if (!photo) throw new HttpError(502, "PHOTO_STORAGE_FAILED", "the photo could not be stored");
       return c.json(photo, 201);
     },
   );
+
+  /** Contenu d'une photo, servi depuis la même origine que l'application : le navigateur peut ainsi la retravailler. */
+  app.get("/api/photos/:id/content", async (c) => {
+    const photo = await getPhoto(sql, parse(s.photoId, c.req.param("id")));
+    let file: Awaited<ReturnType<typeof readPhoto>>;
+    try {
+      file = await readPhoto(photo.url);
+    } catch (e) {
+      (deps.onError ?? console.error)(e);
+      throw new HttpError(502, "PHOTO_STORAGE_FAILED", "the photo could not be read from storage");
+    }
+    return c.body(new Uint8Array(file.data), 200, { "Content-Type": photo.contentType });
+  });
+
+  // ───────────────────────── Annonces ─────────────────────────
+
+  app.get("/api/listings/settings", async (c) => c.json(await getListingSettings(sql)));
+
+  app.put("/api/listings/settings", async (c) => {
+    const body = await parseJsonBody(c, s.listingSettingsBody);
+    return c.json(await saveListingSettings(sql, body, c.var.actor));
+  });
+
+  /** Offres vendables avec le texte de leur annonce et leurs photos. */
+  app.get("/api/listings/offers", async (c) => c.json(await listListingOffers(sql, parse(s.listingOffersQuery, c.req.query()))));
 
   /** Recherche manuelle dans le catalogue quand le scan se trompe ou échoue. */
   app.get("/api/catalog/cards", async (c) => {

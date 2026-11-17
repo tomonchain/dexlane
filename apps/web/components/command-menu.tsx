@@ -1,7 +1,7 @@
 "use client";
 
 import { Command } from "cmdk";
-import { Archive, BookOpen, Images, Layers, Package, Receipt, ScanLine, Search, Tags } from "lucide-react";
+import { Archive, BookOpen, Images, Layers, Megaphone, Package, Receipt, ScanLine, Search, Tags } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Dialog } from "radix-ui";
 import { useEffect, useState } from "react";
@@ -14,6 +14,7 @@ export const PAGES = [
   { href: "/", label: "Scanner", hint: "Entrer une carte en stock", icon: ScanLine },
   { href: "/scanner/lot", label: "Scan en lot", hint: "Importer les images d'un scanner à défilement", icon: Images },
   { href: "/inventaire", label: "Inventaire", hint: "Rechercher et gérer les positions", icon: Package },
+  { href: "/annonces", label: "Annonces", hint: "Textes, photos et modèle d'annonce", icon: Megaphone },
   { href: "/ventes", label: "Ventes", hint: "Vendre, préparer, remettre", icon: Receipt },
   { href: "/prix", label: "Prix", hint: "Estimations, prix cibles et règles", icon: Tags },
   { href: "/rangement", label: "Rangement", hint: "Emplacements et lots d'acquisition", icon: Archive },

@@ -446,3 +446,57 @@ test("scan en lot : images recto verso d'un scanner, vérification ligne à lign
   await expect(page.getByTestId("position-photos")).toContainText("Verso");
   await expect(page.getByText("OF-SWSH3-136-FR-R-NM")).toBeVisible();
 });
+
+test("annonces : modèle de titre, fond des photos, composition du visuel à partir du scan", async ({ page }) => {
+  await login(page);
+  // Une carte scannée puis entrée en stock par l'API : l'offre a son scan.
+  const scanned = (await (await page.request.post("/api/scans?language=fr", { data: png(CLEAR), headers: { "Content-Type": "image/png" } })).json()) as {
+    suggestedVariantId: string; photo: { id: string };
+  };
+  await page.request.post("/api/locations", { data: { code: "BOX-AN" } });
+  await page.request.post("/api/inventory/receive", {
+    data: { variantId: scanned.suggestedVariantId, condition: "MT", quantity: 1, locationCode: "BOX-AN", unitCostCents: 0, photoIds: [scanned.photo.id] },
+    headers: { "Idempotency-Key": `e2e-annonce-${Date.now()}` },
+  });
+
+  await page.goto("/annonces");
+  const listing = page.getByTestId("listing-OF-SWSH3-136-FR-R-MT");
+  await expect(listing.getByTestId("listing-title")).toHaveText("Fouinar 136/189 Ténèbres Embrasées Reverse FR MT Carte Pokémon");
+  await expect(listing).toContainText("Photos à composer");
+
+  // Modèle : l'aperçu suit la saisie, une variable s'insère d'un clic, le titre des offres change après enregistrement.
+  await page.getByRole("tab", { name: "Modèle" }).click();
+  const title = page.getByLabel("Modèle de titre");
+  await title.fill("Pokémon {nom} {numero} - ");
+  await page.getByRole("button", { name: "{etat_nom}" }).click();
+  await expect(title).toHaveValue("Pokémon {nom} {numero} - {etat_nom}");
+  await expect(page.getByTestId("template-preview-title")).toHaveText("Pokémon Dracaufeu 4/102 - Near Mint");
+  await page.getByRole("button", { name: "Enregistrer le modèle" }).click();
+  await expect(page.getByText("Modèle enregistré")).toBeVisible();
+
+  // Photos : un fond prédéfini, un texte, puis enregistrement.
+  await page.getByRole("tab", { name: "Photos" }).click();
+  await page.getByRole("radio", { name: "Sable" }).click();
+  await page.getByLabel("Texte en bas de l'image").fill("dexlane-cards");
+  await page.getByRole("button", { name: "Enregistrer le style" }).click();
+  await expect(page.getByText("Style des photos enregistré")).toBeVisible();
+
+  // Offres : le nouveau titre s'applique, le visuel est composé à partir du scan au format carré choisi.
+  await page.getByRole("tab", { name: "Offres" }).click();
+  await expect(listing.getByTestId("listing-title")).toHaveText("Pokémon Fouinar 136/189 - Mint");
+  await page.getByRole("button", { name: /Composer les photos manquantes/ }).click();
+  await expect(listing).toContainText("1 photo d'annonce");
+  const composed = listing.getByRole("img", { name: "Photo d'annonce" });
+  await expect(composed).toHaveJSProperty("naturalWidth", 1600);
+  await expect(composed).toHaveJSProperty("naturalHeight", 1600);
+  // Recomposer remplace le visuel au lieu d'en ajouter un.
+  const listingPhotoIds = async () => {
+    const { items } = (await (await page.request.get("/api/listings/offers?q=OF-SWSH3-136-FR-R-MT")).json()) as { items: { photos: { id: string; kind: string }[] }[] };
+    return items[0]!.photos.filter((p) => p.kind === "LISTING").map((p) => p.id);
+  };
+  const [before] = await listingPhotoIds();
+  await listing.getByRole("button", { name: /Recomposer les photos/ }).click();
+  await expect.poll(listingPhotoIds).not.toContain(before);
+  expect(await listingPhotoIds()).toHaveLength(1);
+  await expect(listing.getByRole("img", { name: "Photo d'annonce" })).toHaveCount(1);
+});

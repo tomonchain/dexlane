@@ -10,8 +10,9 @@ import { Modal } from "./ui/modal";
 import { ThemeSwitch } from "./theme";
 
 const GROUPS = [
-  { title: "Opérations", hrefs: ["/", "/scanner/lot", "/ventes", "/vrac"] },
-  { title: "Stock", hrefs: ["/inventaire", "/prix", "/rangement"] },
+  { title: "Entrées", hrefs: ["/", "/scanner/lot", "/vrac"] },
+  { title: "Vente", hrefs: ["/annonces", "/ventes", "/prix"] },
+  { title: "Stock", hrefs: ["/inventaire", "/rangement"] },
   { title: "Référentiel", hrefs: ["/catalogue"] },
 ];
 

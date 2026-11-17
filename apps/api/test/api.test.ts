@@ -272,6 +272,51 @@ describe("photos", () => {
   });
 });
 
+describe("listings", () => {
+  const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0x01]);
+  const upload = (query: string, body = jpeg) => call("POST", `/api/photos?${query}`, { body, headers: { "Content-Type": "image/jpeg" }, key: null });
+
+  it("renders the listing of a sellable offer and composes one listing photo per scan", async () => {
+    await call("POST", "/api/locations", { body: { code: "BOX-01" } });
+    const scanned = await scan();
+    const received = await call("POST", "/api/inventory/receive", {
+      body: { variantId: scanned.json.suggestedVariantId, condition: "NM", quantity: 1, locationCode: "BOX-01", unitCostCents: 0, photoIds: [scanned.json.photo.id] },
+    });
+
+    const settings = await call("GET", "/api/listings/settings");
+    expect(settings.json.titleTemplate).toContain("{nom}");
+    const saved = await call("PUT", "/api/listings/settings", { body: { ...settings.json, titleTemplate: "{nom} {numero} {etat} | {variante}" } });
+    expect(saved.status).toBe(200);
+    expect((await call("PUT", "/api/listings/settings", { body: { ...settings.json, titleTemplate: "" } })).status).toBe(422);
+    expect((await call("PUT", "/api/listings/settings", { body: { ...settings.json, extra: true } })).status).toBe(400);
+
+    // Le visuel d'annonce hérite de l'offre du scan ; le recomposer remplace le précédent.
+    expect((await upload("kind=LISTING")).status).toBe(400);
+    expect((await upload(`kind=LISTING&source=${crypto.randomUUID()}`)).status).toBe(404);
+    const first = await upload(`kind=LISTING&source=${scanned.json.photo.id}`);
+    expect(first.json).toMatchObject({ kind: "LISTING", offerId: received.json.offer.id, sourcePhotoId: scanned.json.photo.id });
+    const second = await upload(`kind=LISTING&source=${scanned.json.photo.id}`, new Uint8Array([0xff, 0xd8, 0xff, 0x02]));
+    const content = await app.request(`/api/photos/${second.json.id}/content`, { headers: { Authorization: `Bearer ${TOKEN}` } });
+    expect([content.status, content.headers.get("content-type")]).toEqual([200, "image/jpeg"]);
+    expect([...new Uint8Array(await content.arrayBuffer())]).toEqual([0xff, 0xd8, 0xff, 0x02]);
+
+    const offers = await call("GET", "/api/listings/offers");
+    expect(offers.json.total).toBe(1);
+    expect(offers.json.items[0].text.title).toBe("Fouinar 136/189 NM | Reverse");
+    expect(offers.json.items[0].photos.map((p: { kind: string; id: string }) => [p.kind, p.id])).toEqual([["LISTING", second.json.id], ["SCAN_FRONT", scanned.json.photo.id]]);
+  });
+
+  it("stores a background image and accepts it in the photo style", async () => {
+    const background = await upload("kind=BACKGROUND");
+    expect([background.status, background.json.kind]).toEqual([201, "BACKGROUND"]);
+    const settings = (await call("GET", "/api/listings/settings")).json;
+    const saved = await call("PUT", "/api/listings/settings", {
+      body: { ...settings, photo: { ...settings.photo, background: { type: "image", photoId: background.json.id } } },
+    });
+    expect(saved.json.photo.background).toEqual({ type: "image", photoId: background.json.id });
+  });
+});
+
 describe("direct sales", () => {
   it("sells from stock end to end: reservation, picking by SKU, packing, handover, margin", async () => {
     await call("POST", "/api/locations", { body: { code: "BOX-01/ROW-03" } });

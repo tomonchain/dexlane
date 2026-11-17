@@ -1,5 +1,6 @@
 import type {
-  AcquisitionLot, Candidate, CardCondition, CatalogSet, CatalogSetDetail, InventoryPage, InventorySummary, Location, PositionDetail, Received,
+  AcquisitionLot, Candidate, CardCondition, CatalogSet, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
+  Location, Photo, PositionDetail, Received,
   OfferPricing, OrderDetail, OrderList, OrderStage, PricingSettings, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
   ShippingMode, StoredPhoto, VariantQuote,
 } from "./types";
@@ -93,7 +94,16 @@ export interface BulkInput {
 
 export const api = {
   scan: (image: Blob, language: string) => request<ScanResult>("POST", "/scans", { blob: image, query: { language } }),
-  uploadPhoto: (image: Blob, kind: "SCAN_FRONT" | "SCAN_BACK") => request<StoredPhoto>("POST", "/photos", { blob: image, query: { kind } }),
+  uploadPhoto: (image: Blob, kind: "SCAN_FRONT" | "SCAN_BACK" | "BACKGROUND") => request<StoredPhoto>("POST", "/photos", { blob: image, query: { kind } }),
+  /** Visuel d'annonce composé à partir d'un scan ; remplace le précédent visuel de ce scan. */
+  uploadListingPhoto: (image: Blob, sourcePhotoId: string) => request<Photo>("POST", "/photos", { blob: image, query: { kind: "LISTING", source: sourcePhotoId } }),
+  /** Adresse du contenu d'une photo sur la même origine (utilisable dans un canvas). */
+  photoContentUrl: (photoId: string) => `/api/photos/${photoId}/content`,
+
+  listingSettings: () => request<ListingSettings>("GET", "/listings/settings"),
+  saveListingSettings: (settings: ListingSettings) => request<ListingSettings>("PUT", "/listings/settings", { json: settings }),
+  listingOffers: (q: { q?: string; limit?: number; offset?: number }) =>
+    request<{ items: ListingOffer[]; total: number }>("GET", "/listings/offers", { query: q }),
   searchCatalog: (q: { language: string; name?: string; number?: string; set?: string }) =>
     request<{ candidates: Candidate[] }>("GET", "/catalog/cards", { query: q }),
 
