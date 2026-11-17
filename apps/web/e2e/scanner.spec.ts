@@ -274,3 +274,48 @@ test("emplacements : création en série, description, suppression d'un emplacem
   await expect(row3).toHaveCount(0);
   await expect(page.getByTestId("location-BOX-Z/ROW-02")).toBeVisible();
 });
+
+test("prix : estimation à la saisie, prix posé à l'entrée, décision manuelle et règles", async ({ page }) => {
+  await login(page);
+  await page.goto("/");
+  await chooseLocation(page, "BOX-P");
+  await takePhoto(page, CLEAR);
+  const estimate = page.getByTestId("price-estimate");
+  await expect(estimate).toContainText("Choisissez la variante et l'état");
+  await page.getByRole("radio", { name: "Good", exact: true }).click();
+  await expect(estimate).toContainText("Prix estimé pour cet état");
+  await expect(estimate).toContainText("Cardmarket");
+  await expect(estimate).toContainText("relevée hier");
+  await confirm(page).click();
+  await expect(page.getByTestId("entry-pricing")).toContainText("Prix cible");
+
+  // Décision manuelle : le prix et la catégorie choisis s'affichent partout, et l'offre sort de la revue.
+  await page.getByRole("link", { name: "Prix", exact: true }).click();
+  await page.getByRole("tab", { name: /^Toutes/ }).click();
+  const offer = page.getByTestId("offer-OF-SWSH3-136-FR-R-GD");
+  await offer.getByRole("button", { name: /Fixer le prix/ }).click();
+  await page.getByLabel("Prix cible (€)").fill("2,50");
+  await page.getByLabel("Catégorie de vente").selectOption("LOT");
+  await page.getByRole("button", { name: "Enregistrer le prix" }).click();
+  await expect(offer).toContainText("2,50 €");
+  await expect(offer).toContainText("Lot");
+
+  await page.goto("/inventaire?emplacement=BOX-P");
+  await page.getByRole("link", { name: /Fouinar/ }).click();
+  const pricing = page.getByTestId("offer-pricing");
+  await expect(pricing).toContainText("2,50 €");
+  await expect(pricing).toContainText("2,00 €"); // plancher automatique : 80 % du prix cible
+  await expect(pricing).toContainText("Lot");
+
+  // Règles : un seuil incohérent est refusé, un seuil valide recalcule les offres.
+  await page.goto("/prix");
+  await page.getByRole("tab", { name: "Règles" }).click();
+  await page.getByLabel("Lot en dessous de (€)").fill("0,10");
+  await page.getByRole("button", { name: "Enregistrer les règles" }).click();
+  await expect(errorBanner(page)).toContainText("seuils doivent être croissants");
+  await page.getByLabel("Lot en dessous de (€)").fill("4,00");
+  await page.getByRole("button", { name: "Enregistrer les règles" }).click();
+  await expect(page.getByText(/Règles enregistrées/)).toBeVisible();
+  await page.getByRole("tab", { name: /^Toutes/ }).click();
+  await expect(page.getByTestId("offer-OF-SWSH3-136-FR-R-GD")).toContainText("2,50 €"); // la décision manuelle tient
+});

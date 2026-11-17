@@ -42,6 +42,8 @@ const client = fakeClient(["swsh3-136", "base1-4", "sv03.5-151"].map(card), {
   listSets: async () => [{ id: "swsh3", name: "Ténèbres Embrasées" }, { id: "sv03.5", name: "151", cardCount: { official: 165, total: 207 } }],
 });
 for (const set of ["swsh3", "base1"]) await syncSet(sql, client, "fr", set);
+// Les cotations enregistrées datent de la capture des réponses : on les rajeunit pour qu'elles servent de référence.
+await sql`update price_snapshots set observed_at = now() - interval '1 day'`;
 
 serve(
   { fetch: createApp({ sql, token: E2E_TOKEN, recognizer: () => recognizer, tcgdex: () => client, onError: () => undefined }).fetch, hostname: "127.0.0.1", port: E2E_API_PORT },

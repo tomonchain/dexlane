@@ -60,9 +60,12 @@ export async function syncSetList(sql: Db, client: TcgdexClient, language: strin
       values (${s.id}, ${language}, ${s.name}, ${s.cardCount?.official ?? null}, ${s.cardCount?.total ?? null},
               ${s.logo ?? null}, ${s.symbol ?? null})
       on conflict (id, language) do update set
-        name = excluded.name, card_count_official = excluded.card_count_official,
-        card_count_total = excluded.card_count_total, logo_url = excluded.logo_url,
-        symbol_url = excluded.symbol_url, synced_at = now()`;
+        name = excluded.name,
+        -- La liste est un résumé : un champ absent ne doit pas effacer ce qu'un import complet de la série a appris.
+        card_count_official = coalesce(excluded.card_count_official, catalog_sets.card_count_official),
+        card_count_total = coalesce(excluded.card_count_total, catalog_sets.card_count_total),
+        logo_url = coalesce(excluded.logo_url, catalog_sets.logo_url),
+        symbol_url = coalesce(excluded.symbol_url, catalog_sets.symbol_url), synced_at = now()`;
   }
   return sets.length;
 }

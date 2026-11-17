@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { useTestDb } from "@dexlane/db/testing";
-import { syncSet } from "../src";
+import { syncSet, syncSetList } from "../src";
 import { card, fakeClient } from "./fixtures";
 
 const sql = useTestDb("catalog");
@@ -24,6 +24,17 @@ describe("syncSet", () => {
     expect(prices.map((p) => [p.finish, p.amountCents])).toEqual([["normal", 9], ["reverse", 28]]);
     const updated = card("swsh3-136").variants_detailed![0]!.pricing!.cardmarket!.updated!;
     expect(prices[0]!.observedAt.toISOString()).toBe(new Date(updated).toISOString());
+  });
+
+  it("keeps what a full import learned when the set list is refreshed with a sparser summary", async () => {
+    await syncSet(sql, fakeClient([card("swsh3-136")]), "fr", "swsh3");
+    const listed = await syncSetList(sql, fakeClient([], { listSets: async () => [{ id: "swsh3", name: "Ténèbres Embrasées" }, { id: "sv01", name: "Écarlate et Violet", cardCount: { official: 198, total: 258 } }] }), "fr");
+    expect(listed).toBe(2);
+    const sets = await sql`select id, card_count_official, abbreviation from catalog_sets where language = 'fr' order by id`;
+    expect(sets).toEqual([
+      { id: "sv01", cardCountOfficial: 198, abbreviation: null },
+      { id: "swsh3", cardCountOfficial: 189, abbreviation: "DAA" },
+    ]);
   });
 
   it("is idempotent", async () => {

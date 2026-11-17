@@ -41,6 +41,12 @@ export interface InventoryRow {
     category: string;
     status: string;
     targetPriceCents: number | null;
+    floorPriceCents: number | null;
+    /** Dernier prix calculé par les règles ; peut différer du prix cible, qui est la décision. */
+    suggestedPriceCents: number | null;
+    priceSource: "NONE" | "AUTO" | "MANUAL";
+    priceReasons: string[];
+    reference: { quoteType: string; amountCents: number; observedAt: string } | null;
   } | null;
   card: {
     catalogCardId: string;
@@ -66,7 +72,12 @@ const select = (sql: Db) => sql`
          s.unit_cost_cents, s.acquisition_lot_id, s.created_at, s.location_id, l.code as location_code,
          case when o.id is null then null else jsonb_build_object(
            'id', o.id, 'offerSku', o.offer_sku, 'condition', o.condition, 'isUnique', o.is_unique,
-           'category', o.category, 'status', o.status, 'targetPriceCents', o.target_price_cents) end as offer,
+           'category', o.category, 'status', o.status, 'targetPriceCents', o.target_price_cents,
+           'floorPriceCents', o.floor_price_cents, 'suggestedPriceCents', o.suggested_price_cents,
+           'priceSource', o.price_source, 'priceReasons', o.price_reasons,
+           'reference', case when o.reference_price_cents is null then null else jsonb_build_object(
+             'quoteType', o.reference_quote_type, 'amountCents', o.reference_price_cents,
+             'observedAt', o.reference_observed_at) end) end as offer,
          case when c.id is null then null else jsonb_build_object(
            'catalogCardId', c.id, 'variantId', v.id, 'name', c.name, 'setId', c.set_id,
            'localNumber', c.local_number, 'language', c.language, 'rarity', c.rarity, 'imageUrl', c.image_url,
@@ -167,19 +178,28 @@ export interface InventorySummary {
   drafts: number;
   /** Valeur du stock au coût d'acquisition. */
   costCents: number;
+  /** Valeur du stock au prix cible (à défaut, au prix suggéré) ; le vrac et les cartes sans prix n'y entrent pas. */
+  marketValueCents: number;
+  /** Cartes identifiées en stock sans aucun prix (ni décidé ni suggéré). */
+  unpricedCards: number;
 }
 
 /** Chiffres clés du stock (écran Inventaire). */
 export async function getInventorySummary(sql: Db): Promise<InventorySummary> {
-  const [row] = await sql<(Omit<InventorySummary, "costCents"> & { costCents: string })[]>`
-    select count(*) filter (where lifecycle <> 'ARCHIVED')::int as positions,
-           coalesce(sum(on_hand) filter (where lifecycle <> 'ARCHIVED'), 0)::int as cards,
-           coalesce(sum(on_hand) filter (where lifecycle <> 'ARCHIVED' and kind = 'BULK'), 0)::int as bulk_cards,
-           coalesce(sum(on_hand - reserved - inspection - quarantine)
-                    filter (where lifecycle = 'ACTIVE' and kind <> 'BULK'), 0)::int as sellable,
-           coalesce(sum(reserved), 0)::int as reserved,
-           count(*) filter (where lifecycle = 'DRAFT')::int as drafts,
-           coalesce(sum(on_hand::bigint * unit_cost_cents) filter (where lifecycle <> 'ARCHIVED'), 0)::text as cost_cents
-      from stock_items`;
-  return { ...row!, costCents: Number(row!.costCents) };
+  const [row] = await sql<(Omit<InventorySummary, "costCents" | "marketValueCents"> & { costCents: string; marketValueCents: string })[]>`
+    select count(*) filter (where s.lifecycle <> 'ARCHIVED')::int as positions,
+           coalesce(sum(s.on_hand) filter (where s.lifecycle <> 'ARCHIVED'), 0)::int as cards,
+           coalesce(sum(s.on_hand) filter (where s.lifecycle <> 'ARCHIVED' and s.kind = 'BULK'), 0)::int as bulk_cards,
+           coalesce(sum(s.on_hand - s.reserved - s.inspection - s.quarantine)
+                    filter (where s.lifecycle = 'ACTIVE' and s.kind <> 'BULK'), 0)::int as sellable,
+           coalesce(sum(s.reserved), 0)::int as reserved,
+           count(*) filter (where s.lifecycle = 'DRAFT')::int as drafts,
+           coalesce(sum(s.on_hand::bigint * s.unit_cost_cents) filter (where s.lifecycle <> 'ARCHIVED'), 0)::text as cost_cents,
+           coalesce(sum(s.on_hand::bigint * coalesce(o.target_price_cents, o.suggested_price_cents))
+                    filter (where s.lifecycle <> 'ARCHIVED'), 0)::text as market_value_cents,
+           coalesce(sum(s.on_hand) filter (where s.lifecycle <> 'ARCHIVED' and o.id is not null
+                    and coalesce(o.target_price_cents, o.suggested_price_cents) is null), 0)::int as unpriced_cards
+      from stock_items s
+      left join offers o on o.id = s.offer_id`;
+  return { ...row!, costCents: Number(row!.costCents), marketValueCents: Number(row!.marketValueCents) };
 }

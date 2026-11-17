@@ -116,3 +116,34 @@ const password = z.string().min(1).max(200);
 export const verifyPasswordBody = z.strictObject({ password });
 export const resetPasswordBody = z.strictObject({ newPassword: password });
 export const changePasswordBody = z.strictObject({ currentPassword: password, newPassword: password });
+
+const percent = z.number().int().min(0).max(200);
+export const pricingSettingsBody = z.strictObject({
+  basis: z.enum(["LISTED_TREND", "SOLD_AVG_30D", "SOLD_AVG_7D", "LISTED_LOW"]),
+  maxAgeDays: z.number().int().min(1).max(365),
+  conditionPercent: z.strictObject({ MT: percent, NM: percent, EX: percent, GD: percent, LP: percent, PL: percent, PO: percent }),
+  bulkBelowCents: cents,
+  lotBelowCents: cents,
+  singleFromCents: cents,
+  premiumFromCents: cents,
+  floorPercent: z.number().int().min(0).max(100),
+  minMarginCents: cents,
+  driftPercent: z.number().int().min(1).max(100),
+});
+export const setOfferPriceBody = z.strictObject({
+  targetPriceCents: cents,
+  floorPriceCents: cents.optional(),
+  category: z.enum(["BULK", "LOT", "SINGLE", "PREMIUM"]),
+});
+export const pricingOffersQuery = z.object({
+  status: z.enum(["REVIEW", "ALL"]).default("ALL"),
+  q: z.string().trim().min(1).max(100).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+});
+export const variantQuoteQuery = z.object({
+  condition: z.enum(CARD_CONDITIONS),
+  unique: z.enum(["true", "false"]).default("false"),
+});
+export const offerId = z.uuid();
+export const variantId = z.uuid();

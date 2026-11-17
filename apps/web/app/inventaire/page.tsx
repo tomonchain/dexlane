@@ -16,7 +16,7 @@ import type { InventoryPage, InventorySummary, Position } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const PAGE = 50;
-const COLUMNS = "md:grid-cols-[minmax(0,1fr)_7.5rem_minmax(0,12rem)_7rem_4.5rem_1rem]";
+const COLUMNS = "md:grid-cols-[minmax(0,1fr)_7.5rem_minmax(0,11rem)_7rem_5.5rem_4rem_1rem]";
 const number = new Intl.NumberFormat("fr-FR");
 
 function Stat({ icon, label, value, hint, tone }: { icon: ReactNode; label: string; value: ReactNode; hint?: ReactNode; tone?: "warning" }) {
@@ -104,7 +104,12 @@ export default function InventoryPage() {
           <>
             <Stat icon={<Boxes />} label="Cartes en stock" value={number.format(summary.cards)} hint={summary.bulkCards > 0 ? `dont ${number.format(summary.bulkCards)} en vrac` : `${number.format(summary.positions)} position${summary.positions > 1 ? "s" : ""}`} />
             <Stat icon={<ShoppingBag />} label="Disponibles à la vente" value={number.format(summary.sellable)} hint={summary.reserved > 0 ? `${number.format(summary.reserved)} réservées` : "hors vrac et brouillons"} />
-            <Stat icon={<CircleDollarSign />} label="Valeur au coût" value={formatEuros(summary.costCents)} hint="coût d'acquisition" />
+            <Stat
+              icon={<CircleDollarSign />}
+              label="Valeur estimée"
+              value={formatEuros(summary.marketValueCents)}
+              hint={`coût d'achat ${formatEuros(summary.costCents)}${summary.unpricedCards > 0 ? ` · ${number.format(summary.unpricedCards)} sans prix` : ""}`}
+            />
             <Stat
               icon={<FileClock />}
               label="Brouillons"
@@ -158,7 +163,7 @@ export default function InventoryPage() {
       {items.length > 0 && (
         <Card className="overflow-hidden">
           <div className={cn("hidden gap-4 border-b bg-muted/40 px-4 py-2.5 text-xs font-medium text-muted-foreground md:grid", COLUMNS)}>
-            <span>Carte</span><span>Position</span><span>Emplacement</span><span>Statut</span><span className="text-right">Stock</span><span />
+            <span>Carte</span><span>Position</span><span>Emplacement</span><span>Statut</span><span className="text-right">Prix cible</span><span className="text-right">Stock</span><span />
           </div>
           <div className="divide-y">
             {items.map((p) => (
@@ -178,6 +183,7 @@ export default function InventoryPage() {
                 <Code className="hidden text-[13px] text-muted-foreground md:block">{p.unitSku}</Code>
                 <Code className="hidden truncate text-[13px] md:block">{p.locationCode}</Code>
                 <span className="hidden md:block"><StatusBadge p={p} /></span>
+                <span className="tabular hidden text-right text-sm text-muted-foreground md:block">{p.offer?.targetPriceCents != null ? formatEuros(p.offer.targetPriceCents) : "—"}</span>
                 <span className="tabular text-right text-base font-semibold md:text-sm" title="En stock">{number.format(p.onHand)}</span>
                 <ChevronRight className="hidden size-4 text-muted-foreground md:block" aria-hidden />
               </Link>

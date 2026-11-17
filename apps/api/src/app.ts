@@ -11,6 +11,9 @@ import {
   resolveLocation, searchInventory, updateLocationDescription,
 } from "@dexlane/inventory";
 import {
+  getPricingSettings, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice,
+} from "@dexlane/pricing";
+import {
   MAX_IMAGE_BYTES, RecognitionError, assertSupportedImage, identifyCard,
   type CardImage, type CardRecognizer, type ImageMediaType,
 } from "@dexlane/scan";
@@ -175,8 +178,46 @@ export function createApp(deps: AppDeps) {
     const setId = parse(s.setId, c.req.param("id"));
     const { language } = await parseJsonBody(c, s.languageBody);
     const stats = await syncSet(sql, catalogSource(), language, setId);
-    return c.json({ ...stats, errorCount: stats.errors.length, errors: stats.errors.slice(0, 20) });
+    // Nouvelles cotations : les offres de cette série sont réévaluées (les prix décidés ne bougent pas, les écarts sont signalés).
+    const repriced = await refreshPricing(sql, { setId, language });
+    return c.json({ ...stats, errorCount: stats.errors.length, errors: stats.errors.slice(0, 20), repriced });
   });
+
+  // ───────────────────────── Prix et catégories ─────────────────────────
+
+  /** Tarifie l'offre touchée par une entrée en stock, dans la même transaction, et joint le résultat à la réponse. */
+  async function withPricing<T extends { offer: { id: string } }>(tx: Db, received: T) {
+    await refreshOfferPricing(tx, received.offer.id);
+    const { items } = await listOfferPricing(tx, { offerId: received.offer.id, includeEmpty: true });
+    return { ...received, pricing: items[0] ?? null };
+  }
+
+  app.get("/api/pricing/settings", async (c) => c.json(await getPricingSettings(sql)));
+
+  /** Nouvelles règles : appliquées immédiatement à toutes les offres. */
+  app.put("/api/pricing/settings", async (c) => {
+    const body = await parseJsonBody(c, s.pricingSettingsBody);
+    return c.json(await savePricingSettings(sql, body, c.var.actor));
+  });
+
+  /** Estimation pour une variante et un état, avant l'entrée en stock (Parcours A, étape 4). */
+  app.get("/api/pricing/variants/:id", async (c) => {
+    const variantId = parse(s.variantId, c.req.param("id"));
+    const q = parse(s.variantQuoteQuery, c.req.query());
+    return c.json(await quoteVariant(sql, variantId, q.condition, q.unique === "true"));
+  });
+
+  /** Offres et leurs prix, triées par enjeu ; `status=REVIEW` : la file de revue. */
+  app.get("/api/pricing/offers", async (c) => c.json(await listOfferPricing(sql, parse(s.pricingOffersQuery, c.req.query()))));
+
+  /** Décision de prix et de catégorie ; les règles n'y toucheront plus, elles signaleront seulement un écart. */
+  app.post("/api/pricing/offers/:id/price", async (c) => {
+    const offerId = parse(s.offerId, c.req.param("id"));
+    const body = await parseJsonBody(c, s.setOfferPriceBody);
+    return c.json(await setOfferPrice(sql, { ...body, offerId, actor: c.var.actor }));
+  });
+
+  app.post("/api/pricing/recompute", async (c) => c.json({ repriced: await refreshPricing(sql) }));
 
   // ───────────────────────── Emplacements et lots d'acquisition ─────────────────────────
 
@@ -232,7 +273,7 @@ export function createApp(deps: AppDeps) {
     const body = await parseJsonBody(c, s.receiveCardBody);
     return idempotent(c, sql, async (tx) => ({
       status: 201,
-      body: await receiveCard(tx, { ...body, location: s.toLocationRef(body), actor: c.var.actor }),
+      body: await withPricing(tx, await receiveCard(tx, { ...body, location: s.toLocationRef(body), actor: c.var.actor })),
     }));
   });
 
@@ -249,7 +290,7 @@ export function createApp(deps: AppDeps) {
     const body = await parseJsonBody(c, s.extractBody);
     return idempotent(c, sql, async (tx) => ({
       status: 201,
-      body: await extractCardFromBulk(tx, { ...body, bulkStockItemId, location: s.toLocationRef(body), actor: c.var.actor }),
+      body: await withPricing(tx, await extractCardFromBulk(tx, { ...body, bulkStockItemId, location: s.toLocationRef(body), actor: c.var.actor })),
     }));
   });
 

@@ -1,18 +1,22 @@
 "use client";
 
-import { CircleUserRound, Search } from "lucide-react";
+import { CircleUserRound, Ellipsis, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { CommandMenu, PAGES } from "./command-menu";
+import { Modal } from "./ui/modal";
 import { ThemeSwitch } from "./theme";
 
 const GROUPS = [
   { title: "Opérations", hrefs: ["/", "/vrac"] },
-  { title: "Stock", hrefs: ["/inventaire", "/rangement"] },
+  { title: "Stock", hrefs: ["/inventaire", "/prix", "/rangement"] },
   { title: "Référentiel", hrefs: ["/catalogue"] },
 ];
+
+/** Onglets du téléphone : les quatre écrans du quotidien, le reste derrière « Plus ». */
+const MOBILE_TABS = ["/", "/inventaire", "/prix", "/rangement"];
 
 const isCurrent = (pathname: string, href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
@@ -31,8 +35,10 @@ export function Logo({ className }: { className?: string }) {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [searching, setSearching] = useState(false);
+  const [more, setMore] = useState(false);
 
   if (pathname === "/login") return <main className="min-h-dvh">{children}</main>;
+  const elsewhere = !MOBILE_TABS.some((href) => isCurrent(pathname, href));
 
   return (
     <>
@@ -130,7 +136,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         aria-label="Navigation principale"
         className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
       >
-        {PAGES.map((p) => {
+        {PAGES.filter((p) => MOBILE_TABS.includes(p.href)).map((p) => {
           const current = isCurrent(pathname, p.href);
           return (
             <Link
@@ -148,7 +154,42 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
           );
         })}
+        <button
+          type="button"
+          onClick={() => setMore(true)}
+          aria-haspopup="dialog"
+          className={cn(
+            "relative flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-medium text-muted-foreground outline-none",
+            elsewhere && "text-primary",
+          )}
+        >
+          {elsewhere && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-primary" aria-hidden />}
+          <Ellipsis className="size-[22px]" strokeWidth={elsewhere ? 2.2 : 1.8} aria-hidden />
+          Plus
+        </button>
       </nav>
+
+      {more && (
+        <Modal title="Plus" onClose={() => setMore(false)}>
+          <div className="-mx-1 grid gap-1">
+            {[...PAGES.filter((p) => !MOBILE_TABS.includes(p.href)), { href: "/compte", label: "Compte et réglages", hint: "Mot de passe, thème, déconnexion", icon: CircleUserRound }].map((p) => (
+              <Link
+                key={p.href}
+                href={p.href}
+                onClick={() => setMore(false)}
+                aria-current={isCurrent(pathname, p.href) ? "page" : undefined}
+                className="flex min-h-14 items-center gap-3 rounded-xl px-3 outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/30 aria-[current=page]:bg-brand-soft"
+              >
+                <span className="flex size-9 items-center justify-center rounded-lg bg-muted text-muted-foreground"><p.icon className="size-5" aria-hidden /></span>
+                <span className="grid">
+                  <span className="text-sm font-medium">{p.label}</span>
+                  <span className="text-xs text-muted-foreground">{p.hint}</span>
+                </span>
+              </Link>
+            ))}
+          </div>
+        </Modal>
+      )}
 
       <CommandMenu open={searching} onOpenChange={setSearching} />
     </>

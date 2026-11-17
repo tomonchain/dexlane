@@ -4,7 +4,7 @@ Application personnelle de négoce de cartes Pokémon. Spécification : [`specs-
 
 ## État
 
-**Sprint 1** terminé : catalogue, scan, stock, entrée en stock, recherche, API HTTP et application web (Scanner, Inventaire, Vrac, Rangement). Prochaine étape : Sprint 2 (prix et publication).
+**Sprint 1** terminé : catalogue, scan, stock, entrée en stock, recherche, API HTTP et application web (Scanner, Inventaire, Vrac, Rangement). **Sprint 2** entamé : prix et catégories faits ; la publication attend le choix du canal.
 
 | Package | Contenu |
 |---|---|
@@ -13,11 +13,12 @@ Application personnelle de négoce de cartes Pokémon. Spécification : [`specs-
 | `packages/shared` | Erreurs métier, montants en centimes |
 | `packages/catalog` | Synchronisation TCGdex (séries, cartes, variantes détaillées, cotations Cardmarket datées), recherche des 3 meilleurs candidats à partir d'une lecture OCR |
 | `packages/scan` | Lecture de carte par Claude (vision + sortie structurée, repli serveur), identification photo → candidats catalogue, banc d'essai précision/coût |
+| `packages/pricing` | Moteur de règles de prix (estimation, catégorie, plancher, motifs de revue), tarification des offres, file de revue, règles réglables |
 | `packages/inventory` | Entrée d'une carte identifiée (offre et SKU attribués automatiquement), lots de vrac et extraction, emplacements hiérarchiques, lots d'acquisition, déplacement, correction d'inventaire auditée, recherche, import idempotent de commandes, allocation commande → positions, survente (Parcours F), picking par scan, emballage, confirmation de dépôt |
 | `apps/api` | API HTTP (Hono) : scan, recherche catalogue, emplacements, entrée en stock, vrac, inventaire. Jeton propriétaire, validation stricte, clés d'idempotence |
 | `apps/web` | Application web installable (Next.js), pensée pour le téléphone : scan photo → candidats → confirmation → rangement, recherche manuelle, inventaire et fiche de position (déplacer, corriger, valider), lots de vrac et extraction, emplacements (aide, création en série, arborescence) et lots d'acquisition, catalogue (import par série, détail d'une série avec prix et stock détenu), compte (mot de passe, thème) |
 
-Pas encore commencés : `apps/worker`, pricing, connecteurs marketplaces, fulfillment PDF, photos des exemplaires, étiquettes QR.
+Pas encore commencés : `apps/worker`, connecteurs marketplaces (publication), fulfillment PDF, photos des exemplaires, étiquettes QR.
 
 ## Prérequis
 
@@ -62,6 +63,8 @@ pnpm api                                   # http://127.0.0.1:8787 — écoute l
 | `GET /api/inventory/summary` | Chiffres clés : cartes en stock, vendables, réservées, brouillons, valeur au coût |
 | `GET /api/inventory/{id ou unit_sku}` | Fiche d'une position et historique des mouvements |
 | `POST /api/inventory/{id}/move` · `/adjust` · `/activate` | Déplacement, correction après comptage (motif obligatoire), validation d'un brouillon |
+
+Prix : `GET /api/pricing/variants/{id}?condition=` (estimation avant entrée en stock), `GET /api/pricing/offers?status=REVIEW|ALL` (file de revue triée par enjeu), `POST /api/pricing/offers/{id}/price` (décision), `GET` / `PUT /api/pricing/settings` (règles), `POST /api/pricing/recompute`.
 
 Autres routes : `GET /api/catalog/sets/{id}` (contenu importé d'une série : cartes, variantes, dernier prix tendance, exemplaires en stock), `POST /api/locations/batch`, `PATCH` et `DELETE /api/locations/{id}` (suppression réservée à un emplacement vide et jamais utilisé), `/api/auth/*` (mot de passe du propriétaire, réservé au serveur web).
 
@@ -135,6 +138,16 @@ Les compteurs de stock sont une projection du journal `inventory_movements` (app
 - **Emplacement** : obligatoire et jamais créé implicitement — une faute de frappe renvoie `LOCATION_NOT_FOUND` au lieu de créer une boîte.
 - **Correction d'inventaire** : saisie de la quantité comptée, pas d'un écart ; refusée sous les quantités réservées (cas du Parcours F).
 - **Coût du vrac** : le coût unitaire est stocké en centimes entiers ; 1 000 cartes à 15 € donnent 2 c pièce (20 € reconstitués). Le coût exact reste celui du lot d'acquisition.
+
+## Prix et catégories — points d'attention
+
+- **Estimation** : dernière cotation importée pour la variante (tendance Cardmarket par défaut, repli sur les moyennes de ventes) × coefficient d'état. La source ne distingue ni la langue ni l'état : le coefficient est une approximation réglable.
+- **Catégorie** : seuils indicatifs de la spécification (vrac < 1 €, lot < 5 €, à l'unité ≥ 15 €, premium ≥ 100 €). Entre 5 et 15 €, l'offre part en revue : la rentabilité à l'unité dépend des frais du canal, pas encore connus.
+- **Jamais de prix silencieux** : cotation absente, trop ancienne (14 jours) ou partagée avec une autre variante, variante incomplète, prix sous le coût → pas de prix posé d'office, l'offre va dans « À revoir » avec son motif.
+- **Pas de repricing automatique** : un prix décidé (par les règles à la première tarification, ou à la main) ne bouge plus. Si la suggestion s'en écarte de plus de 20 %, l'offre revient en revue. Un prix fixé à la main est audité.
+- **Plancher** : 80 % du prix cible, sans descendre sous le coût moyen (majoré d'une marge minimale pour les ventes à l'unité).
+- **Recalcul** : à chaque entrée en stock, après l'import d'une série (nouvelles cotations) et à chaque changement de règles. La file « À revoir » est triée par enjeu (quantité × prix).
+- Les frais de canal, le mode d'expédition et le temps passé n'entrent pas encore dans le calcul (spec 4.3) : ils dépendent du canal retenu.
 
 ## Catalogue et cotations — points d'attention
 

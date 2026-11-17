@@ -7,6 +7,7 @@ import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { CandidateList, CardThumb, ManualSearch } from "@/components/card-chooser";
 import { LocationField } from "@/components/location-picker";
+import { PriceEstimate } from "@/components/price-estimate";
 import { Stepper } from "@/components/stepper";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +18,8 @@ import { Code, PageHeader, Spinner } from "@/components/ui/misc";
 import { SwitchRow } from "@/components/ui/switch";
 import { Choice, ChoiceGroup } from "@/components/ui/toggle-group";
 import { ApiError, api, createKeyring } from "@/lib/api";
-import { parseEuros, reviewReason, variantLabel } from "@/lib/format";
+import { formatEuros, parseEuros, reviewReason, variantLabel } from "@/lib/format";
+import { CATEGORY_LABEL, CATEGORY_VARIANT, reasonLabel } from "@/lib/pricing";
 import { prepareImage } from "@/lib/image";
 import { useStored } from "@/lib/storage";
 import { CONDITIONS, type AcquisitionLot, type Candidate, type CardCondition, type PositionDetail, type Received, type ScanResult } from "@/lib/types";
@@ -311,6 +313,17 @@ function Scanner() {
                 Notez ce code sur la pochette. Offre <Code>{last.received.offer.offerSku}</Code>{" "}
                 ({last.received.offer.created ? "nouvelle" : "existante, position ajoutée"}).
               </p>
+              {last.received.pricing && (
+                <p className="flex flex-wrap items-center gap-2 text-sm" data-testid="entry-pricing">
+                  <Badge variant={CATEGORY_VARIANT[last.received.pricing.category]}>{CATEGORY_LABEL[last.received.pricing.category]}</Badge>
+                  {last.received.pricing.targetPriceCents !== null
+                    ? <span>Prix cible <strong className="tabular font-semibold">{formatEuros(last.received.pricing.targetPriceCents)}</strong></span>
+                    : <span className="text-muted-foreground">
+                        {last.received.pricing.reasons[0] ? reasonLabel(last.received.pricing.reasons[0]) : "Prix à décider"} —{" "}
+                        <Link href="/prix" className="font-medium text-primary underline-offset-2 hover:underline">décider dans Prix</Link>
+                      </span>}
+                </p>
+              )}
               {last.received.stockItem.lifecycle === "DRAFT" && (
                 <Alert variant="warning">Brouillon : non vendable tant qu'il n'est pas validé depuis sa fiche.</Alert>
               )}
@@ -516,6 +529,8 @@ function Scanner() {
             </ChoiceGroup>
             <p className="text-xs text-muted-foreground">Évalué à la main, recto et verso. Jamais prérempli.</p>
           </Step>
+
+          <PriceEstimate variantId={variant?.id ?? null} condition={condition} unique={unique} />
 
           <Step n={4} title="Quantité" done>
             <div className="flex items-center justify-between gap-4">

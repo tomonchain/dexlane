@@ -117,6 +117,7 @@ describe("Parcours A — scan, confirmation, entrée en stock", () => {
 
     expect((await call("GET", "/api/inventory/summary")).json).toEqual({
       positions: 1, cards: 1, bulkCards: 0, sellable: 1, reserved: 0, drafts: 0, costCents: 150,
+      marketValueCents: expect.any(Number), unpricedCards: expect.any(Number),
     });
 
     const detail = await call("GET", `/api/inventory/${unitSku}`);
@@ -197,6 +198,54 @@ describe("catalog synchronisation", () => {
     expect([down.status, down.json.error.code]).toEqual([502, "CATALOG_SOURCE_UNAVAILABLE"]);
     expect((await call("POST", "/api/catalog/sets/refresh", { body: {}, key: null })).status).toBe(502);
     expect((await call("POST", "/api/catalog/sets/bad id!/sync", { body: {}, key: null })).status).toBe(400);
+  });
+});
+
+describe("pricing", () => {
+  it("prices a card at intake from the imported quote, lists it, and records a manual decision", async () => {
+    tcgdex = fakeClient(["sv03.5-151"].map(card));
+    await call("POST", "/api/catalog/sets/sv03.5/sync", { body: {}, key: null });
+    const mew = (await call("GET", "/api/catalog/cards?name=mew")).json.candidates[0];
+    const variantId = mew.variants[0].id as string;
+
+    // Une cotation ancienne donne une estimation, mais qui part en revue.
+    await sql`update price_snapshots set observed_at = now() - interval '40 days'`;
+    const preview = await call("GET", `/api/pricing/variants/${variantId}?condition=EX`);
+    expect(preview.json.reasons).toContain("STALE_REFERENCE");
+    expect(preview.json.suggestedCents).toBeGreaterThan(0);
+    await sql`update price_snapshots set observed_at = now() - interval '1 day'`;
+    const fresh = (await call("GET", `/api/pricing/variants/${variantId}?condition=NM`)).json;
+    expect(fresh).toMatchObject({ reasons: ["GREY_ZONE"], category: "REVIEW", reference: { quoteType: "LISTED_TREND" } });
+
+    await call("POST", "/api/locations", { body: { code: "BOX-01" } });
+    const received = await call("POST", "/api/inventory/receive", {
+      body: { variantId, condition: "NM", quantity: 2, locationCode: "BOX-01", unitCostCents: 200 },
+    });
+    expect(received.json.pricing).toMatchObject({ category: "REVIEW", targetPriceCents: null, suggestedPriceCents: fresh.suggestedCents, reasons: ["GREY_ZONE"], onHand: 2 });
+
+    const queue = await call("GET", "/api/pricing/offers?status=REVIEW");
+    expect(queue.json).toMatchObject({ reviewCount: 1, allCount: 1, items: [{ offerId: received.json.offer.id, card: { name: "Mew-ex" } }] });
+    expect((await call("GET", "/api/inventory/summary")).json).toMatchObject({ marketValueCents: 2 * fresh.suggestedCents, unpricedCards: 0 });
+
+    const decided = await call("POST", `/api/pricing/offers/${received.json.offer.id}/price`, { body: { targetPriceCents: 900, category: "SINGLE" }, key: null });
+    expect(decided.json).toMatchObject({ targetPriceCents: 900, floorPriceCents: 720, category: "SINGLE", priceSource: "MANUAL", reasons: [] });
+    expect((await call("GET", "/api/pricing/offers?status=REVIEW")).json.reviewCount).toBe(0);
+    expect((await call("GET", `/api/inventory/${received.json.stockItem.id}`)).json.offer).toMatchObject({ targetPriceCents: 900, floorPriceCents: 720, priceSource: "MANUAL" });
+    expect((await call("GET", "/api/inventory/summary")).json.marketValueCents).toBe(1800);
+
+    const bad = await call("POST", `/api/pricing/offers/${received.json.offer.id}/price`, { body: { targetPriceCents: 500, floorPriceCents: 600, category: "LOT" }, key: null });
+    expect([bad.status, bad.json.error.code]).toEqual([422, "FLOOR_ABOVE_TARGET"]);
+  });
+
+  it("reads and replaces the rules, repricing existing offers", async () => {
+    const settings = (await call("GET", "/api/pricing/settings")).json;
+    expect(settings).toMatchObject({ basis: "LISTED_TREND", singleFromCents: 1500, conditionPercent: { EX: 80 } });
+    const saved = await call("PUT", "/api/pricing/settings", { body: { ...settings, maxAgeDays: 30 } });
+    expect(saved.json).toMatchObject({ settings: { maxAgeDays: 30 }, repriced: 0 });
+    const invalid = await call("PUT", "/api/pricing/settings", { body: { ...settings, lotBelowCents: 1 } });
+    expect([invalid.status, invalid.json.error.code]).toEqual([422, "INVALID_PRICING_SETTINGS"]);
+    expect((await call("PUT", "/api/pricing/settings", { body: { basis: "LISTED_TREND" } })).status).toBe(400);
+    expect((await call("POST", "/api/pricing/recompute", { key: null })).json).toEqual({ repriced: 0 });
   });
 });
 

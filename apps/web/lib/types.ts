@@ -2,6 +2,7 @@ import type { Candidate, CandidateVariant, CatalogSetCard as SetCard, CatalogSet
 import type {
   AcquisitionLotRow, CardCondition, InventoryRow, InventorySummary, LocationSummary, MovementRow, ReceivedBulk, ReceivedPosition,
 } from "@dexlane/inventory";
+import type { OfferPricing as PricingRow, PricingSettings, VariantQuote as Quote } from "@dexlane/pricing";
 import type { CardReadingRaw, RecognitionUsage } from "@dexlane/scan";
 
 /** Forme d'un objet du serveur une fois passé par JSON (les dates deviennent des chaînes). */
@@ -13,7 +14,10 @@ export type PositionDetail = Position & { movements: Json<MovementRow>[] };
 export type Movement = Json<MovementRow>;
 export type Location = Json<LocationSummary>;
 export type AcquisitionLot = Json<AcquisitionLotRow>;
-export type Received = Json<ReceivedPosition>;
+export type OfferPricing = Json<PricingRow>;
+export type VariantQuote = Json<Quote>;
+export type { PricingSettings };
+export type Received = Json<ReceivedPosition> & { pricing: OfferPricing | null };
 export type ReceivedBulkLot = Json<ReceivedBulk>;
 export type CatalogSet = Json<CatalogSetSummary>;
 export type CatalogSetDetail = Json<SetDetail>;

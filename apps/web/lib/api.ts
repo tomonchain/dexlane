@@ -1,6 +1,6 @@
 import type {
   AcquisitionLot, Candidate, CardCondition, CatalogSet, CatalogSetDetail, InventoryPage, InventorySummary, Location, PositionDetail, Received,
-  ReceivedBulkLot, ScanResult, SetSyncReport,
+  OfferPricing, PricingSettings, ReceivedBulkLot, ScanResult, SetSyncReport, VariantQuote,
 } from "./types";
 
 export class ApiError extends Error {
@@ -22,7 +22,7 @@ interface RequestOptions {
   query?: Record<string, string | number | undefined>;
 }
 
-async function request<T>(method: "GET" | "POST" | "PATCH" | "DELETE", path: string, opts: RequestOptions = {}): Promise<T> {
+async function request<T>(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, opts: RequestOptions = {}): Promise<T> {
   const params = new URLSearchParams();
   for (const [k, v] of Object.entries(opts.query ?? {})) if (v !== undefined && v !== "") params.set(k, String(v));
   const headers: Record<string, string> = {};
@@ -98,6 +98,17 @@ export const api = {
   refreshCatalogSets: (language: string) => request<{ count: number }>("POST", "/catalog/sets/refresh", { json: { language } }),
   syncCatalogSet: (setId: string, language: string) =>
     request<SetSyncReport>("POST", `/catalog/sets/${encodeURIComponent(setId)}/sync`, { json: { language } }),
+
+  pricingSettings: () => request<PricingSettings>("GET", "/pricing/settings"),
+  savePricingSettings: (settings: PricingSettings) =>
+    request<{ settings: PricingSettings; repriced: number }>("PUT", "/pricing/settings", { json: settings }),
+  variantQuote: (variantId: string, condition: CardCondition, unique: boolean) =>
+    request<VariantQuote>("GET", `/pricing/variants/${variantId}`, { query: { condition, unique: String(unique) } }),
+  pricedOffers: (q: { status: "REVIEW" | "ALL"; q?: string; limit?: number; offset?: number }) =>
+    request<{ items: OfferPricing[]; total: number; reviewCount: number; allCount: number }>("GET", "/pricing/offers", { query: q }),
+  setOfferPrice: (offerId: string, input: { targetPriceCents: number; floorPriceCents?: number; category: "BULK" | "LOT" | "SINGLE" | "PREMIUM" }) =>
+    request<OfferPricing>("POST", `/pricing/offers/${offerId}/price`, { json: input }),
+  recomputePricing: () => request<{ repriced: number }>("POST", "/pricing/recompute"),
 
   catalogSet: (setId: string, language: string) =>
     request<CatalogSetDetail>("GET", `/catalog/sets/${encodeURIComponent(setId)}`, { query: { language } }),

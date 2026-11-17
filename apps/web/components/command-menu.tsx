@@ -1,7 +1,7 @@
 "use client";
 
 import { Command } from "cmdk";
-import { Archive, BookOpen, Layers, Package, ScanLine, Search } from "lucide-react";
+import { Archive, BookOpen, Layers, Package, ScanLine, Search, Tags } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Dialog } from "radix-ui";
 import { useEffect, useState } from "react";
@@ -13,8 +13,9 @@ import { Code, Spinner } from "./ui/misc";
 export const PAGES = [
   { href: "/", label: "Scanner", hint: "Entrer une carte en stock", icon: ScanLine },
   { href: "/inventaire", label: "Inventaire", hint: "Rechercher et gérer les positions", icon: Package },
-  { href: "/vrac", label: "Vrac", hint: "Enregistrer un lot agrégé", icon: Layers },
+  { href: "/prix", label: "Prix", hint: "Estimations, prix cibles et règles", icon: Tags },
   { href: "/rangement", label: "Rangement", hint: "Emplacements et lots d'acquisition", icon: Archive },
+  { href: "/vrac", label: "Vrac", hint: "Enregistrer un lot agrégé", icon: Layers },
   { href: "/catalogue", label: "Catalogue", hint: "Synchroniser les séries", icon: BookOpen },
 ] as const;
 

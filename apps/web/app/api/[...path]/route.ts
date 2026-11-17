@@ -55,4 +55,4 @@ async function relay(req: NextRequest, ctx: { params: Promise<{ path: string[] }
   return new Response(upstream.body, { status: upstream.status, headers: responseHeaders });
 }
 
-export { relay as GET, relay as POST, relay as PATCH, relay as DELETE };
+export { relay as GET, relay as POST, relay as PUT, relay as PATCH, relay as DELETE };

@@ -15,6 +15,7 @@
     "@dexlane/catalog": "workspace:*",
     "@dexlane/db": "workspace:*",
     "@dexlane/inventory": "workspace:*",
+    "@dexlane/pricing": "workspace:*",
     "@dexlane/scan": "workspace:*",
     "@dexlane/shared": "workspace:*",
     "@hono/node-server": "^2.1.8",
