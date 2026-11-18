@@ -19,7 +19,7 @@ export interface ReceiveStockInput {
 }
 
 /** Entrée en stock d'une nouvelle position (spec Parcours A / B). */
-export function receiveStock(sql: Db, input: ReceiveStockInput): Promise<StockItemRow> {
+export async function receiveStock(sql: Db, input: ReceiveStockInput): Promise<StockItemRow> {
   if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
     throw new DomainError("INVALID_QUANTITY", "quantity must be a positive integer");
   }
@@ -103,7 +103,7 @@ export interface BulkExtractInput {
  * Sort des cartes d'un lot de vrac vers une nouvelle position individualisée (spec Parcours B.5).
  * Les deux mouvements partagent un correlation_id et la même transaction.
  */
-export function extractFromBulk(sql: Db, input: BulkExtractInput): Promise<StockItemRow> {
+export async function extractFromBulk(sql: Db, input: BulkExtractInput): Promise<StockItemRow> {
   if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
     throw new DomainError("INVALID_QUANTITY", "quantity must be a positive integer");
   }
@@ -140,6 +140,63 @@ export function extractFromBulk(sql: Db, input: BulkExtractInput): Promise<Stock
       correlationId,
       actor: input.actor,
     });
+  });
+}
+
+export interface AdjustStockInput {
+  stockItemId: string;
+  /** Quantité physiquement comptée à l'emplacement (valeur absolue, pas un écart). */
+  countedOnHand: number;
+  /** Obligatoire : toute correction est justifiée et auditée. */
+  reason: string;
+  actor: string;
+}
+
+/**
+ * Correction d'inventaire après comptage physique (spec 4.2 « réconciliation par scan physique »).
+ * Journalise un mouvement `ADJUST` de l'écart et un événement d'audit avant/après.
+ * Refuse de descendre sous les quantités engagées (réservées, en inspection, en quarantaine) :
+ * une carte réservée introuvable relève du Parcours F, pas d'une correction silencieuse.
+ */
+export async function adjustStock(sql: Db, input: AdjustStockInput): Promise<StockItemRow> {
+  if (!Number.isInteger(input.countedOnHand) || input.countedOnHand < 0) {
+    throw new DomainError("INVALID_QUANTITY", "countedOnHand must be a non-negative integer");
+  }
+  const reason = input.reason.trim();
+  if (!reason) throw new DomainError("REASON_REQUIRED", "an inventory adjustment needs a reason");
+  return withTx(sql, async (tx) => {
+    const [item] = await tx<StockItemRow[]>`select * from stock_items where id = ${input.stockItemId} for update`;
+    if (!item) throw new DomainError("STOCK_ITEM_NOT_FOUND", "stock item not found");
+    const delta = input.countedOnHand - item.onHand;
+    if (delta === 0) return item;
+    const committed = item.onHand - availableOf(item);
+    if (input.countedOnHand < committed) {
+      throw new DomainError("ADJUST_BELOW_COMMITTED", "counted quantity is lower than reserved/inspection/quarantine quantities", {
+        counted: input.countedOnHand,
+        reserved: item.reserved,
+        inspection: item.inspection,
+        quarantine: item.quarantine,
+      });
+    }
+    if (item.kind === "UNIQUE" && input.countedOnHand > 1) {
+      throw new DomainError("INVALID_QUANTITY", "a unique position holds at most one card");
+    }
+    await applyDelta(tx, {
+      stockItemId: item.id, type: "ADJUST", bucket: "on_hand", qtyDelta: delta, actor: input.actor, reason,
+    });
+    // Position vidée → archivée ; exemplaire retrouvé sur une position archivée → de nouveau active.
+    const lifecycle =
+      input.countedOnHand === 0 && item.lifecycle === "ACTIVE" ? "ARCHIVED"
+      : input.countedOnHand > 0 && item.lifecycle === "ARCHIVED" ? "ACTIVE"
+      : item.lifecycle;
+    if (lifecycle !== item.lifecycle) await tx`update stock_items set lifecycle = ${lifecycle} where id = ${item.id}`;
+    await tx`
+      insert into audit_events (actor, action, entity, entity_id, before, after)
+      values (${input.actor}, 'adjust', 'stock_item', ${item.id},
+              ${tx.json({ onHand: item.onHand, lifecycle: item.lifecycle })},
+              ${tx.json({ onHand: input.countedOnHand, lifecycle, reason })})`;
+    await emit(tx, "InventoryAdjusted", "stock_item", item.id, { delta, countedOnHand: input.countedOnHand, reason });
+    return { ...item, onHand: input.countedOnHand, lifecycle };
   });
 }
 

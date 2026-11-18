@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { useTestDb } from "@dexlane/db/testing";
-import { syncSet } from "../src";
+import { syncSet, syncSetList } from "../src";
 import { card, fakeClient } from "./fixtures";
 
 const sql = useTestDb("catalog");
@@ -24,6 +24,36 @@ describe("syncSet", () => {
     expect(prices.map((p) => [p.finish, p.amountCents])).toEqual([["normal", 9], ["reverse", 28]]);
     const updated = card("swsh3-136").variants_detailed![0]!.pricing!.cardmarket!.updated!;
     expect(prices[0]!.observedAt.toISOString()).toBe(new Date(updated).toISOString());
+  });
+
+  it("keeps what a full import learned when the set list is refreshed with a sparser summary", async () => {
+    await syncSet(sql, fakeClient([card("swsh3-136")]), "fr", "swsh3");
+    const listed = await syncSetList(sql, fakeClient([], { listSets: async () => [{ id: "swsh3", name: "Ténèbres Embrasées" }, { id: "sv01", name: "Écarlate et Violet", cardCount: { official: 198, total: 258 } }] }), "fr");
+    expect(listed).toBe(2);
+    const sets = await sql`select id, card_count_official, abbreviation from catalog_sets where language = 'fr' order by id`;
+    expect(sets).toEqual([
+      { id: "sv01", cardCountOfficial: 198, abbreviation: null },
+      { id: "swsh3", cardCountOfficial: 189, abbreviation: "DAA" },
+    ]);
+  });
+
+  it("attaches every known set to its block, imported or not, and survives a failing block lookup", async () => {
+    await syncSet(sql, fakeClient([card("swsh3-136")]), "fr", "swsh3");
+    const client = fakeClient([], {
+      listSets: async () => [{ id: "swsh3", name: "Ténèbres Embrasées" }, { id: "sm1", name: "Soleil et Lune" }, { id: "base1", name: "Set de Base" }],
+      listSeries: async () => [{ id: "base", name: "Wizards" }, { id: "sm", name: "Soleil et Lune" }, { id: "swsh", name: "Épée et Bouclier" }],
+      getSerie: async (_lang, id) => ({ id, name: id === "swsh" ? "Épée et Bouclier" : id === "sm" ? "Soleil et Lune" : "Wizards", sets: [{ id: id === "swsh" ? "swsh3" : id === "sm" ? "sm1" : "base1", name: "" }] }),
+    });
+    await syncSetList(sql, client, "fr");
+    const sets = await sql`select id, serie_id, serie_name, serie_position from catalog_sets where language = 'fr' order by serie_position`;
+    expect(sets).toEqual([
+      { id: "base1", serieId: "base", serieName: "Wizards", seriePosition: 1 },
+      { id: "sm1", serieId: "sm", serieName: "Soleil et Lune", seriePosition: 2 },
+      { id: "swsh3", serieId: "swsh", serieName: "Épée et Bouclier", seriePosition: 3 },
+    ]);
+
+    const broken = fakeClient([], { listSets: async () => [{ id: "sv01", name: "Écarlate et Violet" }], listSeries: async () => { throw new Error("fetch failed"); } });
+    expect(await syncSetList(sql, broken, "fr")).toBe(1);
   });
 
   it("is idempotent", async () => {

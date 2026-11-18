@@ -1,10 +1,14 @@
-import type { TcgdexCard, TcgdexSet, TcgdexSetBrief } from "./types";
+import type { TcgdexCard, TcgdexSerie, TcgdexSerieBrief, TcgdexSet, TcgdexSetBrief } from "./types";
 
 export interface TcgdexClient {
   listSets(language: string): Promise<TcgdexSetBrief[]>;
   getSet(language: string, setId: string): Promise<TcgdexSet>;
   /** null si la carte n'existe pas dans cette langue. */
   getCard(language: string, cardId: string): Promise<TcgdexCard | null>;
+  /** Blocs, dans l'ordre de publication de la source. */
+  listSeries(language: string): Promise<TcgdexSerieBrief[]>;
+  /** Un bloc et ses séries ; null s'il n'existe pas dans cette langue. */
+  getSerie(language: string, serieId: string): Promise<TcgdexSerie | null>;
 }
 
 export interface HttpClientOptions {
@@ -42,6 +46,8 @@ export function createTcgdexClient(opts: HttpClientOptions = {}): TcgdexClient {
     listSets: async (lang) => (await get<TcgdexSetBrief[]>(`/${lang}/sets`))!,
     getSet: async (lang, id) => (await get<TcgdexSet>(`/${lang}/sets/${encodeURIComponent(id)}`))!,
     getCard: (lang, id) => get<TcgdexCard>(`/${lang}/cards/${encodeURIComponent(id)}`, true),
+    listSeries: async (lang) => (await get<TcgdexSerieBrief[]>(`/${lang}/series`)) ?? [],
+    getSerie: (lang, id) => get<TcgdexSerie>(`/${lang}/series/${encodeURIComponent(id)}`, true),
   };
 }
 

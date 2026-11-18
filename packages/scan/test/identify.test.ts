@@ -44,6 +44,18 @@ describe("identifyCard", () => {
     expect(r.suggestedVariantId).toBe(reverse.id);
   });
 
+  it("lets a 100 % match through despite a model note, but keeps the note as a reason when the match is not exact", async () => {
+    const sleeved = await identifyCard(sql, scripted({ a: { notes: "card is inside a sleeve" } }), img("a"));
+    expect(sleeved.match.candidates[0]!.score).toBe(1);
+    expect(sleeved).toMatchObject({ requiresReview: false, reviewReasons: [] });
+    expect(sleeved.recognition.reading.notes).toBe("card is inside a sleeve");
+
+    const approximate = await identifyCard(sql, scripted({ a: { name: "Fouinard", notes: "glare on the name" } }), img("a"));
+    expect(approximate.match.candidates[0]!.score).toBeLessThan(1);
+    expect(approximate.reviewReasons).toContain("model note: glare on the name");
+    expect(approximate.requiresReview).toBe(true);
+  });
+
   it("sends partially legible readings to review even when the match is strong", async () => {
     const r = await identifyCard(sql, scripted({ a: { number_legibility: "partial" } }), img("a"));
     expect(r.match.candidates[0]!.setId).toBe("swsh3");

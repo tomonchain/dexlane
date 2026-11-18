@@ -4,7 +4,13 @@ Application personnelle de négoce de cartes Pokémon. Spécification : [`specs-
 
 ## État
 
-**Sprint 1** en cours : modèle de stock, cœur transactionnel, catalogue.
+**Page d'accueil** (`/`) : sans session, une page de présentation publique (ce que fait Dexlane, le parcours en quatre gestes, un bouton de connexion) ; avec une session, l'accueil « Aujourd'hui » — ce qui attend une action (lots à revoir, brouillons, cartes à tarifer, cartes prêtes non planifiées, mises en ligne du jour ou en échec, ventes à préparer ou à remettre, alertes de cote), chaque ligne menant droit à l'écran concerné, puis quatre chiffres. Le Stock est à `/stock`. La page publique n'est pas indexée par les moteurs (`robots: noindex`), et sur Vercel elle n'est visible de tous que si la protection des déploiements le permet (domaine personnalisé ou protection levée).
+
+**Assistant de démarrage** (`/bienvenue`) : à la première utilisation, six étapes — création du compte, mode de scan (scanner, téléphone ou fichiers), import des séries (sélection par bloc, barre d'avancement), emplacements, stratégie de prix, canaux de vente. Tout sauf le compte et le mode de scan peut être passé ; l'assistant se relance depuis Réglages.
+
+**Refonte en cours** : l'application se réorganise autour de six destinations — Accueil (`/`), Stock (`/stock`), Annonces, Ventes, Tableau de bord, Réglages — et d'un seul point d'entrée « Ajouter des cartes ». L'écran Stock est fait : une ligne par carte à vendre (offre), prix modifiable sur place, prix suggéré accepté d'un clic, fiche latérale (prix, cote, annonce, publication, positions). Les autres écrans gardent leur ancienne forme en attendant leur tour, rangés sous Réglages ou dans le menu d'ajout.
+
+**Sprint 1** terminé : catalogue, scan, stock, entrée en stock, recherche, API HTTP et application web (Scanner, Inventaire, Vrac, Rangement). **Sprint 2** entamé : prix et catégories faits ; la publication attend le choix du canal. **Sprint 3** entamé : ventes directes avec préparation et remise.
 
 | Package | Contenu |
 |---|---|
@@ -13,9 +19,13 @@ Application personnelle de négoce de cartes Pokémon. Spécification : [`specs-
 | `packages/shared` | Erreurs métier, montants en centimes |
 | `packages/catalog` | Synchronisation TCGdex (séries, cartes, variantes détaillées, cotations Cardmarket datées), recherche des 3 meilleurs candidats à partir d'une lecture OCR |
 | `packages/scan` | Lecture de carte par Claude (vision + sortie structurée, repli serveur), identification photo → candidats catalogue, banc d'essai précision/coût |
-| `packages/inventory` | Entrée en stock, déplacement, extraction du vrac, import idempotent de commandes, allocation commande → positions, survente (Parcours F), picking par scan, emballage, confirmation de dépôt |
+| `packages/pricing` | Moteur de règles de prix (estimation, catégorie, plancher, motifs de revue), tarification des offres, file de revue, règles réglables. Statistiques : tableau de bord (stock, ventes par mois et par canal), variations de cote des cartes détenues, seuils d'alerte |
+| `packages/listings` | Annonces : modèle de titre et de description à variables, style des photos, offres vendables avec leur texte et leurs photos. Canaux de vente : interface de connecteur, mode simulation, publication, alignement des quantités, import des commandes |
+| `packages/inventory` | Entrée d'une carte identifiée (offre et SKU attribués automatiquement), lots de vrac et extraction, emplacements hiérarchiques, lots d'acquisition, déplacement, correction d'inventaire auditée, recherche, import idempotent de commandes, allocation commande → positions, survente (Parcours F), picking par scan, emballage, confirmation de dépôt |
+| `apps/api` | API HTTP (Hono) : scan, recherche catalogue, emplacements, entrée en stock, vrac, inventaire. Jeton propriétaire, validation stricte, clés d'idempotence |
+| `apps/web` | Application web installable (Next.js), pensée pour le téléphone : scan photo → candidats → confirmation → rangement, recherche manuelle, inventaire et fiche de position (déplacer, corriger, valider), lots de vrac et extraction, emplacements (aide, création en série, arborescence) et lots d'acquisition, catalogue (import par série, détail d'une série avec prix et stock détenu), prix (file de revue, règles), ventes directes (saisie, préparation, remise, marge), scan en lot (images d'un scanner à défilement), photos des exemplaires, annonces (modèle, fond des photos, visuels composés, canaux), statistiques (chiffres clés, variations de prix, alertes), compte (mot de passe, thème) |
 
-Pas encore commencés : `apps/web`, `apps/api`, `apps/worker`, pricing, connecteurs marketplaces, fulfillment PDF.
+Pas encore commencés : `apps/worker`, connecteurs réels eBay et CardTrader (le socle et la simulation sont en place ; les connecteurs attendent les accès API), fulfillment PDF, étiquettes QR.
 
 ## Prérequis
 
@@ -37,6 +47,97 @@ Catalogue :
 ```sh
 pnpm --filter @dexlane/catalog sync --lang fr --list-only          # métadonnées de toutes les séries
 pnpm --filter @dexlane/catalog sync --lang fr --set swsh3 --set sv01 # cartes, variantes, cotations
+```
+
+API :
+
+```sh
+# .env : DATABASE_URL, DEXLANE_API_TOKEN (≥ 24 caractères, ex. `openssl rand -hex 24`), ANTHROPIC_API_KEY pour le scan
+pnpm api                                   # http://127.0.0.1:8787 — écoute locale uniquement par défaut (HOST, PORT)
+```
+
+| Route | Rôle |
+|---|---|
+| `POST /api/scans` | Photo (corps brut `image/jpeg`… ou multipart `image`) → lecture, 3 candidats, score, variante suggérée, motifs de revue |
+| `GET /api/catalog/cards?name=&number=&set=&language=` | Recherche manuelle quand le scan ne suffit pas |
+| `GET /api/catalog/sets` · `POST /api/catalog/sets/refresh` · `POST /api/catalog/sets/{id}/sync` | Séries connues et état de synchronisation ; rechargement de la liste ; import d'une série depuis TCGdex |
+| `GET` / `POST /api/locations` | Emplacements (`BOX-03/ROW-12/SLOT-04` crée aussi ses parents) |
+| `GET` / `POST /api/acquisition-lots` | Lots d'acquisition (provenance, coût) |
+| `POST /api/inventory/receive` | Entrée d'une carte confirmée : variante, état, quantité, emplacement, coût |
+| `POST /api/inventory/bulk` | Entrée d'un lot de vrac en une position |
+| `POST /api/inventory/{id}/extract` | Sortie de cartes identifiées d'un lot de vrac |
+| `GET /api/inventory?q=&set=&language=&condition=&kind=&lifecycle=&location=` | Recherche paginée |
+| `GET /api/inventory/summary` | Chiffres clés : cartes en stock, vendables, réservées, brouillons, valeur au coût |
+| `GET /api/inventory/{id ou unit_sku}` | Fiche d'une position et historique des mouvements |
+| `POST /api/inventory/{id}/move` · `/adjust` · `/activate` | Déplacement, correction après comptage (motif obligatoire), validation d'un brouillon |
+
+Ventes : `GET /api/offers/sellable?q=`, `GET` / `POST /api/orders` (vente directe, clé d'idempotence), `GET /api/orders/{id}`, `POST /api/orders/{id}/pick` · `/pack` · `/handover` · `/cancel`.
+
+Prix : `GET /api/pricing/variants/{id}?condition=` (estimation avant entrée en stock), `GET /api/pricing/offers?status=REVIEW|ALL` (file de revue triée par enjeu), `POST /api/pricing/offers/{id}/price` (décision), `GET` / `PUT /api/pricing/settings` (règles), `POST /api/pricing/recompute`.
+
+Photos : `POST /api/scans` conserve l'image lue et renvoie `photo: { id, url }` ; `POST /api/photos?kind=SCAN_FRONT|SCAN_BACK` dépose une image sans lecture (verso) ; `receive` et `extract` acceptent `photoIds` pour rattacher les photos à la position créée ; la fiche d'une position les renvoie dans `photos`.
+
+Photos après coup : `POST /api/stock/{offerId}/photos?kind=SCAN_FRONT|SCAN_BACK` ajoute une photo à une carte déjà en stock (entrée sans scan, ou photo à refaire) ; `DELETE /api/photos/{id}` la retire, avec le visuel d'annonce qui en était tiré.
+
+Annonces : `GET` / `PUT /api/listings/settings` (modèle de titre et de description, style des photos), `GET /api/listings/offers?q=` (offres vendables, texte rendu, photos), `POST /api/photos?kind=LISTING&source={scan}` (visuel composé à partir d'un scan, remplace le précédent), `POST /api/photos?kind=BACKGROUND` (fond personnel), `GET /api/photos/{id}/content` (contenu servi sur la même origine).
+
+Lots scannés : `GET` / `POST /api/scan-batches`, `GET` / `PATCH /api/scan-batches/{id}`, `POST /api/scan-batches/{id}/items?position=&fileName=` (image d'une carte à son rang ; un rang déjà enregistré est renvoyé sans relecture), `POST /api/scan-items/{id}/back` (verso), `PATCH /api/scan-items/{id}` (carte, variante, état, mise à l'écart), `POST /api/scan-batches/{id}/receive` (entrée en stock dans l'ordre, tout ou rien).
+
+Mise en ligne planifiée : `GET /api/publications` (planning par jour, échecs récents), `POST /api/publications/plan` (`offerIds` facultatif, `channel`, `startOn`, `perDay`), `POST /api/publications/cancel`, `POST /api/publications/run` (publie ce qui est dû ; lancé chaque jour par la tâche planifiée). `POST /api/photos?kind=PROMO` dépose l'image de fin d'annonce, réglée par `promoPhotoId` dans les réglages d'annonce.
+
+Stock à vendre : `GET /api/stock?q=&status=ALL|TO_PRICE|READY|LISTED|DRAFT&sort=recent|value|name` (une ligne par offre, compteurs par statut, valeur totale), `GET /api/stock/{offerId}` (annonce, photos, positions, cote sur 90 jours). `POST /api/pricing/offers/{id}/price` accepte un prix sans catégorie : elle est déduite du palier de prix.
+
+Statistiques : `GET /api/stats/dashboard`, `GET /api/stats/price-moves?alerts=true|false`, `GET` / `PUT /api/stats/alert-settings`, `POST /api/prices/refresh` (relève les cotes des cartes en stock, puis réévalue les offres).
+
+Canaux : `GET /api/channels`, `PUT /api/channels/{ebay|cardtrader}` (`OFF`, `SIMULATION`, `LIVE`), `POST /api/channels/sync`, `POST /api/listings/offers/{id}/publish`, `POST /api/listings/{id}/end`, `POST /api/listings/{id}/simulate-order`.
+
+Autres routes : `GET /api/catalog/sets/{id}` (contenu importé d'une série : cartes, variantes, dernier prix tendance, exemplaires en stock), `POST /api/locations/batch`, `PATCH` et `DELETE /api/locations/{id}` (suppression réservée à un emplacement vide et jamais utilisé), `/api/auth/*` (mot de passe du propriétaire, réservé au serveur web).
+
+Toutes les routes sauf `GET /api/health` exigent `Authorization: Bearer <DEXLANE_API_TOKEN>`. Les créations et corrections (`receive`, `bulk`, `extract`, `adjust`, `acquisition-lots`) exigent un en-tête `Idempotency-Key` : la clé est écrite dans la même transaction que la mutation, donc une requête rejouée (double appui, réseau mobile) renvoie la réponse d'origine avec `Idempotent-Replay: true` sans rien créer en double. Erreurs : `{ "error": { "code", "message", "details" } }` — 400 format, 404 introuvable, 409 état incompatible, 422 règle métier.
+
+Application web :
+
+```sh
+pnpm api                                   # dans un terminal
+pnpm web                                   # dans un autre : http://localhost:3000 (dev)
+pnpm --filter @dexlane/web build && pnpm --filter @dexlane/web start   # production
+```
+
+- **Connexion** : par mot de passe (10 caractères minimum). À la première connexion, l'écran demande `DEXLANE_API_TOKEN` comme jeton d'installation pour choisir le mot de passe ; le même jeton sert de clé de secours (« Mot de passe oublié ? »). Le mot de passe est stocké haché (scrypt) ; après 5 essais infructueux, la connexion est bloquée 30 s, puis le double à chaque nouvel échec, jusqu'à 15 min.
+- **Session** : cookie `httpOnly` / `SameSite=Strict` signé par le serveur web, valable 30 jours ; il ne contient ni le mot de passe ni le jeton. Changer le mot de passe (page Compte) déconnecte les autres appareils. Le navigateur n'appelle jamais l'API directement : le serveur Next relaie `/api/*` avec son propre `DEXLANE_API_TOKEN` (lu dans le `.env` de la racine en développement ; `DEXLANE_API_URL` par défaut : API embarquée).
+- **Sur le téléphone** : utiliser le build de production (`build` puis `start`). En `dev`, Next ne sert ses ressources qu'à `localhost` ; pour tester depuis une autre machine, lister ses hôtes dans `DEXLANE_DEV_ORIGINS=192.168.1.20,mon-pc.local`. Le serveur doit être joignable depuis le téléphone, de préférence en HTTPS (reverse proxy ou VPN type Tailscale) — le cookie n'est marqué `Secure` qu'en HTTPS. La photo passe par l'appareil photo natif (pas besoin de permission caméra dans le navigateur) puis est réduite à 2000 px avant envoi. « Ajouter à l'écran d'accueil » installe l'application.
+- **Interface** : Tailwind CSS 4 et composants de type shadcn/ui sur primitives Radix (`apps/web/components/ui`), icônes Lucide, tiroirs mobiles vaul, palette de commandes cmdk (⌘K / Ctrl+K : pages et recherche de positions), notifications sonner, police Geist, thème clair / sombre / système. Barre latérale sur ordinateur, onglets en bas sur téléphone.
+- **Garde-fous du scanner** : une carte n'est présélectionnée que si l'identification est sûre ; sinon l'opérateur choisit explicitement. L'état n'est jamais prérempli. Emplacement, coût et lot restent d'une carte à l'autre. Une même saisie renvoyée après une coupure réseau n'est pas enregistrée deux fois.
+- **Lots scannés** (`/scanner/lot`) : un lot est une pile de cartes passée au scanner à défilement et rangée dans une boîte, dans l'ordre. On relie une fois le dossier où le scanner enregistre ses images (Chrome ou Edge) : chaque carte scannée arrive d'elle-même, est lue et prend son rang. En recto verso, deux fichiers par carte, dans l'ordre des noms ; un recto attend son verso, un fichier en cours d'écriture attend d'être complet, et les images déjà présentes à la liaison sont ignorées. Le lot vit côté serveur : fermer l'onglet ne perd ni les lectures ni les corrections, et relier à nouveau le dossier ne relit rien. La revue corrige carte, variante et état, ou écarte une carte ; l'entrée en stock se fait d'un bloc quand tout est décidé, pour que les codes `SI-…` suivent exactement la pile. Pour aller vite pendant la revue : la variante que le scan n'a pas pu lire (normale, reverse, holo) s'applique d'un clic à toutes les cartes concernées, et la correction d'une carte enchaîne sur la suivante à corriger. Une fois le lot en stock, ses visuels d'annonce se composent seuls et la mise en ligne de ses cartes se planifie depuis le même écran. Formats lus : JPEG, PNG, WebP (pas de PDF ni de TIFF). **Sans scanner**, le même lot s'alimente au téléphone : un bouton photographie le recto puis le verso de chaque carte (ou le recto seul), dans l'ordre des prises de vue ; le lot ouvert sur un autre appareil se met à jour tout seul, pour faire la revue sur l'ordinateur. Les photos de téléphone ne sont pas recadrées automatiquement : cadrer serré.
+- **Annonces** (`/annonces`) : chaque offre vendable y a son titre et sa description, rendus à partir d'un modèle à variables (`{nom}`, `{numero}`, `{serie}`, `{variante}`, `{langue}`, `{etat}`, `{prix}`…). Le titre est limité à 80 caractères (limite eBay) et coupé au dernier mot ; une ligne dont les variables sont vides disparaît. L'onglet Photos règle la mise en scène des scans : fond (couleur, dégradé ou image personnelle), marge, rognage du liseré du scanner, coins arrondis, ombre, texte. Le visuel carré est composé dans le navigateur — l'aperçu est exactement le fichier enregistré — puis déposé dans le stockage ; recomposer remplace l'ancien.
+- **Visuels** : les miniatures viennent directement de `assets.tcgdex.net`.
+
+Déploiement en un seul service (Vercel) :
+
+Sans `DEXLANE_API_URL`, le serveur Next embarque l'API : un seul déploiement suffit, plus une base PostgreSQL.
+
+1. Projet Vercel lié au dépôt, **Root Directory** `apps/web` (le build installe tout le monorepo). `apps/web/vercel.json` applique les migrations avant `next build`.
+2. Base : onglet **Storage** du projet → Neon (offre gratuite). L'intégration fournit `DATABASE_URL` (connexions poolées, utilisées par l'application) et `DATABASE_URL_UNPOOLED` (connexion directe, utilisée par les migrations).
+3. Variables d'environnement : `DEXLANE_API_TOKEN` (≥ 24 caractères ; jeton d'installation et clé de secours du mot de passe), `ANTHROPIC_API_KEY` (scan), `ENABLE_EXPERIMENTAL_COREPACK=1` (pnpm de `packageManager`).
+4. Tâche quotidienne : `apps/web/vercel.json` déclare un cron (`/cron/daily`, chaque nuit) qui relève les cotes des cartes en stock et synchronise les canaux. Elle exige la variable `CRON_SECRET` (valeur aléatoire), que Vercel présente à chaque appel ; sans elle, la route refuse tout.
+5. Photos : onglet **Storage** → Blob (accès public), relié au projet ; l'intégration fournit `BLOB_READ_WRITE_TOKEN`. Sans cette variable, tout fonctionne mais les images scannées ne sont pas conservées.
+6. Catalogue : la base hébergée démarre vide. Onglet **Catalogue** de l'application : « Charger la liste », puis « Synchroniser » les séries possédées (rejouable, met à jour les cartes et ajoute les cotations du jour). La commande `pnpm --filter @dexlane/catalog sync` reste disponible depuis un poste.
+
+À savoir : préversions et production partagent la même base tant qu'aucune base par branche n'est configurée ; c'est pourquoi une préversion n'applique pas les migrations (voir « Intégration continue et déploiement »). L'application est protégée par le mot de passe du propriétaire, avec blocage temporaire après des essais infructueux répétés.
+
+Intégration continue et déploiement :
+
+- **CI** (`.github/workflows/ci.yml`, GitHub Actions) : deux tâches en parallèle contre un PostgreSQL jetable — types et tests unitaires d'un côté, build de production et parcours navigateur de l'autre (traces conservées 7 jours en cas d'échec). Installation figée (`--frozen-lockfile`), droits en lecture seule sauf pour les tâches de fusion, exécution précédente annulée par un nouveau push.
+- **Livraison automatique** : un push sur une branche de travail `claude/**` est vérifié *fusionné avec `main`* ; si tout est vert, la tâche « Livraison » ouvre la pull request au besoin et la fusionne (uniquement le commit vérifié), puis Vercel déploie la production depuis `main`. Aucune étape manuelle. Pour retenir un changement, poser l'étiquette `hold` sur sa pull request avant la fin de la CI. L'ouverture automatique d'une pull request demande, une fois, Settings → Actions → General → « Allow GitHub Actions to create and approve pull requests ».
+- **Autres pull requests** : vérifiées par la même CI, fusion manuelle. Chaque branche poussée reçoit une prévisualisation Vercel.
+- **Migrations** : appliquées par le build de production seulement. Une prévisualisation partage par défaut la base de production et ne doit pas en changer le schéma ; avec une base par prévisualisation (branche Neon), poser `MIGRATE_ON_PREVIEW=1`. Conséquence : une prévisualisation dont le code attend une migration non encore appliquée peut échouer tant que la branche n'est pas fusionnée.
+- **Dépendances** : Dependabot propose une fois par mois les mises à jour, regroupées. Les mineures et correctives se fusionnent seules une fois la CI verte ; les versions majeures attendent une relecture.
+
+Tests de bout en bout (navigateur mobile → Next → API → PostgreSQL de test ; seule la lecture Claude est simulée) :
+
+```sh
+pnpm --filter @dexlane/web exec playwright install chromium   # une fois
+TEST_DATABASE_URL=… pnpm e2e
 ```
 
 Banc d'essai du scan (spec Sprint 0 — nécessite `ANTHROPIC_API_KEY` ou `ant auth login`) :
@@ -66,8 +167,68 @@ Les tests tournent contre un vrai PostgreSQL : la base de test de chaque package
 
 Les compteurs de stock sont une projection du journal `inventory_movements` (append-only) ; un test vérifie qu'ils restent égaux au rejeu du journal.
 
+## Entrée en stock — points d'attention
+
+- **Offre** : une seule offre interchangeable par (variante, état), créée à la première entrée ; chaque entrée crée une nouvelle position (`unit_sku` `SI-000123`, un QR par position). Un exemplaire `unique` reçoit sa propre offre (`…-U000123`).
+- **`offer_sku`** : `OF-<série>-<numéro>-<langue>-<variante>-<état>`, ex. `OF-BASE1-004-FR-H1-NM` ; suffixe `-2`, `-3`… si deux variantes produisent le même code. Format à valider contre les contraintes de SKU du canal retenu (Sprint 0).
+- **Non vendable tant que non validé** : une position `draft` ne compte pas dans le disponible ; une commande dessus part en survente. Une nouvelle offre naît `DRAFT` / `REVIEW` (prix et catégorie : Sprint 2).
+- **Photos** : l'image d'un scan est déposée dans le stockage d'objets pendant la lecture, puis rattachée à la position (et à son offre) à l'entrée en stock. Les fichiers sont publics mais à une adresse non devinable, pour qu'une marketplace puisse les télécharger. Une photo déjà rattachée ne change jamais de position ; un échec du stockage ne bloque ni le scan ni l'entrée en stock.
+- **Emplacement** : obligatoire et jamais créé implicitement — une faute de frappe renvoie `LOCATION_NOT_FOUND` au lieu de créer une boîte.
+- **Correction d'inventaire** : saisie de la quantité comptée, pas d'un écart ; refusée sous les quantités réservées (cas du Parcours F).
+- **Coût du vrac** : le coût unitaire est stocké en centimes entiers ; 1 000 cartes à 15 € donnent 2 c pièce (20 € reconstitués). Le coût exact reste celui du lot d'acquisition.
+
+## Prix automatiques — l'algorithme
+
+1. **Fourchette du marché** (état « comme neuf ») à partir des dernières cotes Cardmarket : la *valeur liquide* est la plus basse des cotes de vente (tendance, moyenne des ventes sur 7 et 30 jours) — le prix auquel la carte part sans attendre ; le *plus haut soutenu* est la plus haute, plafonnée à +25 % de la valeur liquide pour ignorer un pic isolé.
+2. **Stratégie** : « Vendre vite » se place à la valeur liquide et s'aligne sur l'annonce la moins chère, sans brader de plus de 10 % ; « Équilibré » (par défaut) à mi-chemin ; « Marge maximale » au plus haut soutenu.
+3. **État** : le prix est ramené à l'état de l'exemplaire par un coefficient (EX 80 %, GD 65 %…), puis arrondi à l'euro à partir de 10 €.
+4. **Jamais sous le prix d'achat** : si ce prix est inférieur au coût moyen (plus la marge minimale pour une vente à l'unité), il est tenu au coût et l'offre porte le motif `HELD_AT_COST` — elle se vendra plus lentement. Un prix posé par les règles qui passe sous le coût (nouveaux exemplaires plus chers) est recalculé ; un prix décidé à la main est seulement signalé.
+
+Ce n'est pas une optimisation statistique : faute d'historique de ventes propre, c'est une règle explicable, à affiner quand les ventes donneront des délais réels. Les cartes entre 5 et 15 € sont tarifées d'office comme les autres ; seuls un doute sur la cote (absente, périmée, partagée entre variantes) ou sur la variante laissent une carte sans prix.
+
+## Statistiques et alertes de prix — points d'attention
+
+- **Cote suivie** : la tendance Cardmarket (`LISTED_TREND`) fournie par TCGdex, datée par la source. Un relevé n'est ajouté que si la source a publié une nouvelle date : relancer le relevé ne crée pas de doublon.
+- **Variation** : dernier relevé comparé au relevé le plus récent d'au moins N jours plus tôt (7 par défaut). Une carte sans relevé assez ancien n'apparaît pas encore : l'historique se construit au fil des relevés quotidiens.
+- **Alerte** : variation d'au moins X % *et* d'au moins Y € (15 % et 1 € par défaut), pour ne pas signaler une carte passée de 0,10 € à 0,15 €. Tri par enjeu : écart × exemplaires détenus. Les alertes se consultent dans l'application ; rien n'est envoyé par courriel ou notification.
+- **Le prix décidé ne bouge pas tout seul** : une cote qui s'éloigne du prix cible devient un motif de revue dans Prix, comme avant.
+- **Ventes** : une vente compte dans le mois où elle a été remise ; marge = encaissé − coût des cartes − affranchissement (les frais de canal ne sont pas encore connus).
+
+## Canaux de vente — points d'attention
+
+- **Trois modes par canal** : désactivé, simulation, réel. Le mode réel exige un connecteur configuré (`ChannelAdapter` passé à `createApp`) ; aucun n'est encore écrit, faute d'accès API. Le contrat suit le modèle d'eBay : une annonce par `offer_sku`, une quantité tenue à jour, des commandes qu'on vient chercher.
+- **Simulation** : le canal accepte tout et n'envoie rien. « Simuler un achat » crée une commande par le même chemin qu'une vraie (import idempotent, réservation, envoi à préparer) : elle réserve réellement le stock, à annuler après essai. Quitter la simulation termine les annonces simulées.
+- **Prête à publier** : une offre doit avoir un prix cible, au moins une photo de l'exemplaire et une variante confirmée ; sinon la publication est refusée avec la liste de ce qui manque.
+- **Double vente entre canaux** : après toute écriture sur `/api/orders` ou `/api/inventory`, la quantité annoncée est réalignée sur le stock vendable (moins la marge `buffer`). À zéro, l'annonce passe en pause ; elle reprend au réassort. Un échec côté canal laisse l'annonce en `ERROR`, retentée à la synchronisation suivante.
+- **Commandes de canal** : déjà conclues ailleurs, elles ne sont jamais refusées ; si le stock manque, elles partent en survente (Parcours F) au lieu d'échouer.
+- **Mise en ligne planifiée** : depuis le Stock, des cartes sélectionnées (ou toutes les cartes prêtes, dans l'ordre d'entrée en stock) sont réparties sur des jours consécutifs, N par jour. La tâche quotidienne publie ce qui est dû — tôt le matin, heure de Paris pour le calendrier — et une publication impossible (prix ou photo manquante, stock épuisé, canal éteint) est marquée en échec avec son motif sans bloquer les autres. Replanifier une carte déplace sa date ; une carte déjà en ligne sur le canal est laissée de côté.
+- **Visuel d'annonce composé d'office** : dès qu'une photo arrive (lot entré en stock, photo ajoutée après coup) et avant toute publication ou planification, le visuel « carte sur fond » est composé dans le navigateur s'il manque. Réglable dans Réglages → Modèle d'annonce et photos (`autoCompose`) ; désactivé, les photos partent telles quelles.
+- **Image de fin d'annonce** : réglée une fois (Annonces → Photos), elle est ajoutée en dernière photo de chaque annonce publiée, après les photos de la carte.
+- **Prix** : l'annonce garde le prix du moment de la publication ; un prix cible modifié ensuite est signalé, « Mettre à jour » le renvoie.
+
+## Ventes directes — points d'attention
+
+- **Même cycle qu'une commande de marketplace** : une vente saisie à la main (canal `direct`, numéro `V-000123`) crée une commande, alloue les positions, puis suit prélèvement → emballage → remise. Le connecteur de marketplace n'aura qu'à importer des commandes dans ce même circuit.
+- **Réservation immédiate, jamais de survente** : la vente et l'allocation sont dans une seule transaction ; si le stock disponible ne suffit pas, rien n'est créé.
+- **Prélèvement vérifié** : on saisit le code lu sur la pochette (`SI-000123` ou simplement `123`). Le code d'une autre carte est refusé ; une autre position de la même offre est acceptée et réaffectée.
+- **Remise** : lettre non suivie et remise en main propre se confirment sans numéro ; lettre et colis suivis l'exigent. C'est la confirmation de remise qui sort les cartes du stock physique.
+- **Annulation** : possible jusqu'à la remise, avec motif ; les cartes redeviennent disponibles. Après la remise, c'est un retour (pas encore géré).
+- **Marge** : encaissé − coût d'acquisition des cartes − affranchissement payé. Les frais de canal n'existent pas en vente directe ; ni TVA ni temps passé ne sont comptés.
+
+## Prix et catégories — points d'attention
+
+- **Estimation** : dernière cotation importée pour la variante (tendance Cardmarket par défaut, repli sur les moyennes de ventes) × coefficient d'état. La source ne distingue ni la langue ni l'état : le coefficient est une approximation réglable.
+- **Arrondi** : à partir de 10 €, les prix calculés (suggestion, plancher) sont arrondis à l'euro (612,37 € → 612 €) ; seuil et pas réglables. Un prix saisi à la main est gardé tel quel.
+- **Catégorie** : seuils indicatifs de la spécification (vrac < 1 €, lot < 5 €, à l'unité ≥ 15 €, premium ≥ 100 €). Entre 5 et 15 €, l'offre part en revue : la rentabilité à l'unité dépend des frais du canal, pas encore connus.
+- **Jamais de prix silencieux** : cotation absente, trop ancienne (14 jours) ou partagée avec une autre variante, variante incomplète, prix sous le coût → pas de prix posé d'office, l'offre va dans « À revoir » avec son motif.
+- **Pas de repricing automatique** : un prix décidé (par les règles à la première tarification, ou à la main) ne bouge plus. Si la suggestion s'en écarte de plus de 20 %, l'offre revient en revue. Un prix fixé à la main est audité.
+- **Plancher** : 80 % du prix cible, sans descendre sous le coût moyen (majoré d'une marge minimale pour les ventes à l'unité).
+- **Recalcul** : à chaque entrée en stock, après l'import d'une série (nouvelles cotations) et à chaque changement de règles. La file « À revoir » est triée par enjeu (quantité × prix).
+- Les frais de canal, le mode d'expédition et le temps passé n'entrent pas encore dans le calcul (spec 4.3) : ils dépendent du canal retenu.
+
 ## Catalogue et cotations — points d'attention
 
+- **Blocs** : « Actualiser la liste » rattache chaque série à son bloc (Wizards, Soleil et Lune, Épée et Bouclier…), y compris les séries non importées ; le catalogue se regroupe et se filtre par bloc. Si la source ne répond pas pour les blocs, la liste des séries reste utilisable.
 - **Variantes** : identifiants TCGdex partagés entre langues (unicité par carte). Une variante issue d'un placeholder TCGdex (`variantId: "generated"`, séries très récentes) ou déduite est marquée `incomplete` : à confirmer avant publication.
 - **Cotations** : guide des prix Cardmarket relayé par TCGdex ; toutes langues et tous états confondus (`source_scope`). Reverse = champs `-holo`. Les valeurs nulles ou à 0 sont ignorées.
 - **Ambiguïté** : quand plusieurs variantes partagent un produit Cardmarket (ex. Set de Base 1re édition / sans ombre), leurs cotations sont `variant_ambiguous` et ne doivent pas servir à publier sans revue.

@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./order": "./src/order.ts"
   },
   "scripts": {
     "test": "vitest run",
@@ -14,6 +15,7 @@
     "@anthropic-ai/sdk": "^1.8.0",
     "@dexlane/catalog": "workspace:*",
     "@dexlane/db": "workspace:*",
+    "@dexlane/inventory": "workspace:*",
     "@dexlane/shared": "workspace:*",
     "zod": "^4.6.7"
   }

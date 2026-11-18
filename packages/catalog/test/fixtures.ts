@@ -20,6 +20,8 @@ export function fakeClient(cards: TcgdexCard[], overrides: Partial<TcgdexClient>
       };
     },
     getCard: async (_lang, id) => structuredClone(byId.get(id)) ?? null,
+    listSeries: async () => [],
+    getSerie: async () => null,
     ...overrides,
   };
 }

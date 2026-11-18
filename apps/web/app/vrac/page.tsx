@@ -1,0 +1,144 @@
+"use client";
+
+import { ArrowRight, Check, Layers } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { LocationField } from "@/components/location-picker";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, Eyebrow } from "@/components/ui/card";
+import { Field, Input, Select } from "@/components/ui/input";
+import { Code, PageHeader, Spinner } from "@/components/ui/misc";
+import { Choice, ChoiceGroup } from "@/components/ui/toggle-group";
+import { ApiError, api, createKeyring } from "@/lib/api";
+import { formatEuros, parseEuros } from "@/lib/format";
+import { useStored } from "@/lib/storage";
+import type { AcquisitionLot, ReceivedBulkLot } from "@/lib/types";
+
+const TYPES = ["communes", "peu communes", "rares", "holos", "reverses", "dresseurs", "énergies", "mélange"];
+const LANGUAGES: [string, string][] = [["", "Mélangées / inconnue"], ["fr", "Français"], ["en", "Anglais"], ["de", "Allemand"], ["it", "Italien"], ["es", "Espagnol"], ["ja", "Japonais"]];
+
+export default function BulkPage() {
+  const [locationCode, setLocationCode] = useStored("dexlane.bulk.location", "");
+  const [cardType, setCardType] = useState("communes");
+  const [scope, setScope] = useState("");
+  const [scopeKind, setScopeKind] = useState<"setId" | "era">("era");
+  const [language, setLanguage] = useState("fr");
+  const [quantity, setQuantity] = useState("");
+  const [cost, setCost] = useState("0");
+  const [lotId, setLotId] = useState("");
+  const [lots, setLots] = useState<AcquisitionLot[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<ReceivedBulkLot | null>(null);
+  const keyring = useRef(createKeyring());
+
+  useEffect(() => {
+    api.lots().then((r) => setLots(r.lots)).catch(() => setLots([]));
+  }, []);
+
+  const count = /^\d{1,7}$/.test(quantity.trim()) ? Number(quantity) : 0;
+  const totalCents = parseEuros(cost);
+  const ready = count > 0 && totalCents !== null && locationCode !== "";
+  const unitPreview = ready ? formatEuros(Math.round(totalCents! / count)) : null;
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!ready) return;
+    setBusy(true);
+    setError(null);
+    const payload = {
+      descriptor: { cardType, [scopeKind]: scope.trim() || undefined, language: language || undefined },
+      quantity: count,
+      locationCode,
+      totalCostCents: totalCents!,
+      acquisitionLotId: lotId || undefined,
+    };
+    try {
+      setDone(await api.receiveBulk(payload, keyring.current.keyFor(payload)));
+      keyring.current.reset();
+      setQuantity("");
+      window.scrollTo(0, 0);
+    } catch (err) {
+      setError(err instanceof ApiError && err.code === "LOCATION_NOT_FOUND" ? "Cet emplacement n'existe pas." : (err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="mx-auto grid max-w-2xl gap-5" onSubmit={submit}>
+      <PageHeader title="Lot de vrac" description="Un lot compté ou pesé entre en une seule position, sans scanner chaque carte." />
+
+      {done && (
+        <Card className="overflow-hidden border-success/25" aria-live="polite">
+          <div className="flex items-center gap-2 border-b border-success/15 bg-success-soft px-4 py-2.5 text-sm font-medium text-success sm:px-5">
+            <Check className="size-4" strokeWidth={2.5} aria-hidden /> Lot enregistré.
+          </div>
+          <CardContent className="grid gap-3">
+            <div className="grid gap-1">
+              <Eyebrow>Code de la position</Eyebrow>
+              <p className="font-mono text-3xl font-semibold tracking-tight">{done.stockItem.unitSku}</p>
+            </div>
+            <p className="text-sm"><strong className="font-semibold">{done.descriptor.label}</strong> × {done.stockItem.onHand}, rangé en <Code>{done.locationCode}</Code></p>
+            <p className="text-sm text-muted-foreground">Coût unitaire retenu : {formatEuros(done.stockItem.unitCostCents)} (arrondi au centime).</p>
+            <Button variant="link" size="sm" asChild className="justify-self-start">
+              <Link href={`/inventaire/${done.stockItem.unitSku}`}>Voir la fiche <ArrowRight /></Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardContent className="grid gap-4">
+          <h2 className="text-[15px] font-semibold tracking-tight">Contenu</h2>
+          <ChoiceGroup value={cardType} onValueChange={setCardType} aria-label="Type de cartes">
+            {TYPES.map((t) => <Choice key={t} value={t} className="capitalize">{t}</Choice>)}
+          </ChoiceGroup>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Regroupement">
+              <Select value={scopeKind} onChange={(e) => setScopeKind(e.target.value as "setId" | "era")}>
+                <option value="era">Époque</option>
+                <option value="setId">Série (identifiant)</option>
+              </Select>
+            </Field>
+            <Field label={scopeKind === "era" ? "Époque (facultatif)" : "Série (facultatif)"}>
+              <Input value={scope} onChange={(e) => setScope(e.target.value)} placeholder={scopeKind === "era" ? "Écarlate et Violet" : "sv01"} autoCorrect="off" />
+            </Field>
+          </div>
+          <Field label="Langue">
+            <Select value={language} onChange={(e) => setLanguage(e.target.value)}>
+              {LANGUAGES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+            </Select>
+          </Field>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="grid gap-4">
+          <h2 className="text-[15px] font-semibold tracking-tight">Quantité et coût</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Nombre de cartes">
+              <Input inputMode="numeric" value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="1000" required className="tabular" />
+            </Field>
+            <Field label="Coût total du lot (€)" hint={unitPreview ? `soit ${unitPreview} par carte` : undefined}>
+              <Input inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} onFocus={(e) => e.target.select()} aria-invalid={totalCents === null} className="tabular" />
+            </Field>
+          </div>
+          <Field label="Lot d'acquisition">
+            <Select value={lotId} onChange={(e) => setLotId(e.target.value)}>
+              <option value="">Aucun</option>
+              {lots.map((l) => <option key={l.id} value={l.id}>{l.purchaseDate} · {l.sourceType}{l.sellerRef ? ` · ${l.sellerRef}` : ""}</option>)}
+            </Select>
+          </Field>
+          <LocationField value={locationCode} onChange={setLocationCode} />
+        </CardContent>
+      </Card>
+
+      {error && <Alert variant="destructive">{error}</Alert>}
+      <Button type="submit" size="xl" disabled={busy || !ready}>
+        {busy ? <><Spinner className="text-primary-foreground" /> Enregistrement…</> : <><Layers /> Enregistrer le lot</>}
+      </Button>
+    </form>
+  );
+}

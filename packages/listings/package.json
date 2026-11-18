@@ -1,0 +1,18 @@
+{
+  "name": "@dexlane/listings",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./template": "./src/template.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@dexlane/db": "workspace:*",
+    "@dexlane/inventory": "workspace:*",
+    "@dexlane/shared": "workspace:*"
+  }
+}

@@ -60,11 +60,33 @@ export async function syncSetList(sql: Db, client: TcgdexClient, language: strin
       values (${s.id}, ${language}, ${s.name}, ${s.cardCount?.official ?? null}, ${s.cardCount?.total ?? null},
               ${s.logo ?? null}, ${s.symbol ?? null})
       on conflict (id, language) do update set
-        name = excluded.name, card_count_official = excluded.card_count_official,
-        card_count_total = excluded.card_count_total, logo_url = excluded.logo_url,
-        symbol_url = excluded.symbol_url, synced_at = now()`;
+        name = excluded.name,
+        -- La liste est un résumé : un champ absent ne doit pas effacer ce qu'un import complet de la série a appris.
+        card_count_official = coalesce(excluded.card_count_official, catalog_sets.card_count_official),
+        card_count_total = coalesce(excluded.card_count_total, catalog_sets.card_count_total),
+        logo_url = coalesce(excluded.logo_url, catalog_sets.logo_url),
+        symbol_url = coalesce(excluded.symbol_url, catalog_sets.symbol_url), synced_at = now()`;
   }
+  // Le rattachement aux blocs est un confort d'affichage : s'il échoue, la liste des séries reste utilisable.
+  await syncSeries(sql, client, language).catch(() => 0);
   return sets.length;
+}
+
+/** Rattache chaque série à son bloc, pour toutes les séries connues (importées ou non). Renvoie le nombre de blocs lus. */
+export async function syncSeries(sql: Db, client: TcgdexClient, language: string): Promise<number> {
+  const series = await client.listSeries(language);
+  let position = 0;
+  for (const brief of series) {
+    position++;
+    const serie = await client.getSerie(language, brief.id);
+    const setIds = (serie?.sets ?? []).map((s) => s.id);
+    if (setIds.length === 0) continue;
+    await sql`
+      update catalog_sets
+         set serie_id = ${brief.id}, serie_name = ${serie?.name ?? brief.name}, serie_position = ${position}
+       where language = ${language} and id in ${sql(setIds)}`;
+  }
+  return series.length;
 }
 
 async function upsertSet(sql: Db, set: TcgdexSet, language: string): Promise<void> {
@@ -155,4 +177,137 @@ async function upsertVariant(tx: Db, catalogCardId: string, v: MappedVariant): P
             ${tx.json(v.attributes as never)})
     returning id`;
   return inserted!.id;
+}
+
+export interface CatalogSetSummary {
+  id: string;
+  name: string;
+  /** Bloc auquel la série appartient ; null tant que la liste des blocs n'a pas été chargée. */
+  serieId: string | null;
+  serieName: string | null;
+  seriePosition: number | null;
+  /** AAAA-MM-JJ ; connu seulement une fois la série synchronisée. */
+  releaseDate: string | null;
+  cardCountOfficial: number | null;
+  cardCountTotal: number | null;
+  logoUrl: string | null;
+  /** Cartes de cette série présentes dans le catalogue local (0 = série non synchronisée). */
+  cardsSynced: number;
+  cardsSyncedAt: Date | null;
+}
+
+/** Séries connues pour une langue, avec leur état de synchronisation ; les séries synchronisées d'abord. */
+export function listSets(sql: Db, language: string): Promise<CatalogSetSummary[]> {
+  return sql<CatalogSetSummary[]>`
+    select s.id, s.name, s.serie_id, s.serie_name, s.serie_position, s.release_date::text as release_date,
+           s.card_count_official, s.card_count_total, s.logo_url, count(c.id)::int as cards_synced,
+           max(c.synced_at) as cards_synced_at
+      from catalog_sets s
+      left join catalog_cards c on c.set_id = s.id and c.language = s.language
+     where s.language = ${language}
+     group by s.id, s.language
+     order by (count(c.id) > 0) desc, s.release_date desc nulls last, s.name`;
+}
+
+export interface CatalogSetCard {
+  id: string;
+  localNumber: string;
+  name: string;
+  rarity: string | null;
+  category: string | null;
+  imageUrl: string | null;
+  /** Cartes de cette impression actuellement en stock (toutes variantes et tous états). */
+  owned: number;
+  variants: {
+    id: string;
+    finish: string;
+    edition: string;
+    subtype: string;
+    stamp: string;
+    incomplete: boolean;
+    /** Dernier prix tendance connu (Cardmarket via TCGdex), toutes langues et tous états confondus. */
+    trendCents: number | null;
+    priceAt: string | null;
+    priceAmbiguous: boolean | null;
+  }[];
+}
+
+export interface CatalogSetDetail {
+  set: CatalogSetSummary & { abbreviation: string | null; abbreviationLocalized: string | null; syncedAt: Date };
+  cards: CatalogSetCard[];
+}
+
+/** Contenu importé d'une série : cartes dans l'ordre de la numérotation, variantes, dernier prix tendance, stock détenu. */
+export async function getSetDetail(sql: Db, language: string, setId: string): Promise<CatalogSetDetail | null> {
+  const [set] = await sql<CatalogSetDetail["set"][]>`
+    select s.id, s.name, s.serie_id, s.serie_name, s.serie_position, s.release_date::text as release_date,
+           s.card_count_official, s.card_count_total, s.logo_url, s.abbreviation, s.abbreviation_localized, s.synced_at,
+           (select count(*)::int from catalog_cards c where c.set_id = s.id and c.language = s.language) as cards_synced,
+           (select max(c.synced_at) from catalog_cards c where c.set_id = s.id and c.language = s.language) as cards_synced_at
+      from catalog_sets s
+     where s.id = ${setId} and s.language = ${language}`;
+  if (!set) return null;
+
+  const cards = await sql<CatalogSetCard[]>`
+    select c.id, c.local_number, c.name, c.rarity, c.category, c.image_url,
+           coalesce((select sum(si.on_hand)::int
+                       from card_variants ov
+                       join offers o on o.variant_id = ov.id
+                       join stock_items si on si.offer_id = o.id and si.lifecycle <> 'ARCHIVED'
+                      where ov.catalog_card_id = c.id), 0) as owned,
+           coalesce(jsonb_agg(jsonb_build_object(
+             'id', v.id, 'finish', v.finish, 'edition', v.edition, 'subtype', v.subtype, 'stamp', v.stamp,
+             'incomplete', v.incomplete, 'trendCents', p.amount_cents, 'priceAt', p.observed_at,
+             'priceAmbiguous', p.variant_ambiguous) order by v.finish, v.edition, v.subtype)
+             filter (where v.id is not null), '[]'::jsonb) as variants
+      from catalog_cards c
+      left join card_variants v on v.catalog_card_id = c.id
+      left join lateral (
+        select ps.amount_cents, ps.observed_at, ps.variant_ambiguous
+          from price_snapshots ps
+         where ps.variant_id = v.id and ps.quote_type = 'LISTED_TREND'
+         order by ps.observed_at desc limit 1) p on true
+     where c.set_id = ${setId} and c.language = ${language}
+     group by c.id
+     order by nullif(left(regexp_replace(c.local_number, '\\D', '', 'g'), 9), '')::int nulls last, c.local_number`;
+  return { set, cards };
+}
+
+/**
+ * Rafraîchit les cotations des cartes détenues en stock, les plus anciennement synchronisées d'abord.
+ * Bien plus léger qu'une resynchronisation de séries entières : c'est ce que lance la tâche quotidienne.
+ */
+export async function refreshOwnedPrices(
+  sql: Db,
+  client: TcgdexClient,
+  opts: { limit?: number; concurrency?: number } = {},
+): Promise<{ cards: number; pricesInserted: number; errors: number; remaining: number }> {
+  const limit = opts.limit ?? 400;
+  const owned = await sql<{ language: string; tcgdexId: string; total: number }[]>`
+    select c.language, c.external_ids->>'tcgdex' as tcgdex_id, count(*) over ()::int as total
+      from catalog_cards c
+     where c.external_ids ? 'tcgdex'
+       and exists (
+         select 1 from card_variants v
+           join offers o on o.variant_id = v.id
+           join stock_items s on s.offer_id = o.id
+          where v.catalog_card_id = c.id and s.on_hand > 0 and s.lifecycle <> 'ARCHIVED')
+     order by c.synced_at nulls first, c.id
+     limit ${limit}`;
+  const stats = { cards: 0, pricesInserted: 0, errors: 0, remaining: Math.max((owned[0]?.total ?? 0) - owned.length, 0) };
+  const queue = [...owned];
+  const worker = async () => {
+    for (let card = queue.shift(); card; card = queue.shift()) {
+      try {
+        const detail = await client.getCard(card.language, card.tcgdexId);
+        if (!detail) throw new Error("card not found");
+        stats.pricesInserted += (await upsertCard(sql, mapTcgdexCard(detail, card.language))).pricesInserted;
+        stats.cards++;
+      } catch {
+        stats.errors++;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: opts.concurrency ?? 8 }, worker));
+  return stats;
 }

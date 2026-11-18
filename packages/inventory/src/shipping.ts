@@ -3,7 +3,10 @@ import { withTx, type Db } from "@dexlane/db";
 import { DomainError } from "@dexlane/shared";
 import { applyDelta, emit, type AllocationRow } from "./internal";
 
-export type ShippingMode = "LETTER_UNTRACKED" | "LETTER_TRACKED" | "PARCEL_TRACKED";
+export const SHIPPING_MODES = ["LETTER_UNTRACKED", "LETTER_TRACKED", "PARCEL_TRACKED", "HAND_DELIVERY"] as const;
+export type ShippingMode = (typeof SHIPPING_MODES)[number];
+/** Modes qui se confirment sans numéro de suivi. */
+export const needsTracking = (mode: ShippingMode) => mode === "LETTER_TRACKED" || mode === "PARCEL_TRACKED";
 
 export interface CreateShipmentInput {
   orderId: string;
@@ -41,7 +44,7 @@ export function confirmHandover(sql: Db, shipmentId: string, actor: string): Pro
     if (shipment.status !== "PENDING" && shipment.status !== "LABELLED") {
       return { shipmentId, status: "ALREADY_HANDED_OVER" };
     }
-    if (shipment.mode !== "LETTER_UNTRACKED" && !shipment.tracking) {
+    if (needsTracking(shipment.mode) && !shipment.tracking) {
       throw new DomainError("TRACKING_REQUIRED", "a tracked shipment needs a tracking number before handover");
     }
 

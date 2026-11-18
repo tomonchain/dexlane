@@ -1,0 +1,17 @@
+{
+  "name": "@dexlane/pricing",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@dexlane/db": "workspace:*",
+    "@dexlane/inventory": "workspace:*",
+    "@dexlane/shared": "workspace:*"
+  }
+}
