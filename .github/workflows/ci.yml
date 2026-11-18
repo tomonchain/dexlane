@@ -138,7 +138,10 @@ jobs:
           if [ -z "$pr" ]; then
             # Demande, dans Settings → Actions → General, « Allow GitHub Actions to create and approve pull requests ».
             body=$(printf 'Livraison automatique de la branche `%s` après une CI verte.\n\n%s\n' "$GITHUB_REF_NAME" "$(git log --reverse --format='- %s' origin/main..HEAD)")
-            gh pr create --base main --head "$GITHUB_REF_NAME" --title "$(git log -1 --format=%s)" --body "$body"
+            if ! gh pr create --base main --head "$GITHUB_REF_NAME" --title "$(git log -1 --format=%s)" --body "$body"; then
+              echo "::error::La CI n'a pas le droit d'ouvrir une pull request. Cochez Settings → Actions → General → « Allow GitHub Actions to create and approve pull requests », ou ouvrez la pull request à la main puis relancez cette tâche."
+              exit 1
+            fi
             pr=$(gh pr list --head "$GITHUB_REF_NAME" --base main --state open --json number --jq '.[0].number')
           fi
           if gh pr view "$pr" --json labels --jq '.labels[].name' | grep -qx "hold"; then

@@ -129,6 +129,7 @@ Intégration continue et déploiement :
 
 - **CI** (`.github/workflows/ci.yml`, GitHub Actions) : deux tâches en parallèle contre un PostgreSQL jetable — types et tests unitaires d'un côté, build de production et parcours navigateur de l'autre (traces conservées 7 jours en cas d'échec). Installation figée (`--frozen-lockfile`), droits en lecture seule sauf pour les tâches de fusion, exécution précédente annulée par un nouveau push.
 - **Livraison automatique** : un push sur une branche de travail `claude/**` est vérifié *fusionné avec `main`* ; si tout est vert, la tâche « Livraison » ouvre la pull request au besoin et la fusionne (uniquement le commit vérifié), puis Vercel déploie la production depuis `main`. Aucune étape manuelle. Pour retenir un changement, poser l'étiquette `hold` sur sa pull request avant la fin de la CI. L'ouverture automatique d'une pull request demande, une fois, Settings → Actions → General → « Allow GitHub Actions to create and approve pull requests ».
+- **Suivre une livraison** : onglet Actions du dépôt (exécution « CI », tâche « Livraison »), puis onglet Deployments du projet Vercel. Un échec de la CI ne fusionne rien : la production reste sur la version précédente.
 - **Autres pull requests** : vérifiées par la même CI, fusion manuelle. Chaque branche poussée reçoit une prévisualisation Vercel.
 - **Migrations** : appliquées par le build de production seulement. Une prévisualisation partage par défaut la base de production et ne doit pas en changer le schéma ; avec une base par prévisualisation (branche Neon), poser `MIGRATE_ON_PREVIEW=1`. Conséquence : une prévisualisation dont le code attend une migration non encore appliquée peut échouer tant que la branche n'est pas fusionnée.
 - **Dépendances** : Dependabot propose une fois par mois les mises à jour, regroupées. Les mineures et correctives se fusionnent seules une fois la CI verte ; les versions majeures attendent une relecture.
@@ -136,7 +137,7 @@ Intégration continue et déploiement :
 Tests de bout en bout (navigateur mobile → Next → API → PostgreSQL de test ; seule la lecture Claude est simulée) :
 
 ```sh
-pnpm --filter @dexlane/web exec playwright install chromium   # une fois
+pnpm --filter @dexlane/web exec playwright install chromium   # une fois (ou PLAYWRIGHT_CHROMIUM_PATH=/chemin/vers/chromium)
 TEST_DATABASE_URL=… pnpm e2e
 ```
 
