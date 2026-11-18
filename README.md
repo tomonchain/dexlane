@@ -137,7 +137,7 @@ Intégration continue et déploiement :
 Tests de bout en bout (navigateur mobile → Next → API → PostgreSQL de test ; seule la lecture Claude est simulée) :
 
 ```sh
-pnpm --filter @dexlane/web exec playwright install chromium   # une fois
+pnpm --filter @dexlane/web exec playwright install chromium   # une fois (ou PLAYWRIGHT_CHROMIUM_PATH=/chemin/vers/chromium)
 TEST_DATABASE_URL=… pnpm e2e
 ```
 

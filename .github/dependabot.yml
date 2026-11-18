@@ -16,3 +16,7 @@ updates:
     groups:
       mineures-et-correctifs:
         update-types: [minor, patch]
+    ignore:
+      # Les types de Node suivent la version de Node utilisée (22), pas la dernière parue.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]

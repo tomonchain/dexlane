@@ -12,7 +12,13 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   reporter: "list",
-  use: { baseURL: `http://127.0.0.1:${E2E_WEB_PORT}`, locale: "fr-FR", trace: "off" },
+  use: {
+    baseURL: `http://127.0.0.1:${E2E_WEB_PORT}`,
+    locale: "fr-FR",
+    trace: "off",
+    // Sur un poste où Chromium est déjà installé ailleurs (pas de `playwright install` possible), indiquer son chemin.
+    launchOptions: process.env.PLAYWRIGHT_CHROMIUM_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH } : undefined,
+  },
   projects: [{ name: "mobile", use: { ...devices["Pixel 7"] } }],
   webServer: [
     {
