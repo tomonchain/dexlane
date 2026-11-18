@@ -45,7 +45,7 @@ export function Logo({ className }: { className?: string }) {
         <span className="absolute h-[18px] w-[13px] -translate-x-[3px] -rotate-12 rounded-[3px] bg-foreground/15" />
         <span className="absolute h-[18px] w-[13px] translate-x-[2px] rotate-6 rounded-[3px] bg-brand" />
       </span>
-      <span className="text-[15px] font-semibold tracking-tight">dexlane</span>
+      <span className="text-base font-semibold tracking-tight">dexlane</span>
     </span>
   );
 }
@@ -58,7 +58,7 @@ function AddMenu({ compact, intake }: { compact?: boolean; intake: IntakeMode })
       <DropdownMenu.Trigger
         className={cn(
           "flex items-center justify-center gap-2 rounded-md bg-primary text-sm font-medium text-primary-foreground shadow-xs transition-colors outline-none hover:bg-primary/90 focus-visible:ring-[3px] focus-visible:ring-ring/30",
-          compact ? "size-11 rounded-full" : "h-9 w-full px-3",
+          compact ? "size-11 rounded-full" : "h-10 w-full px-3",
         )}
         aria-label={compact ? "Ajouter des cartes" : undefined}
       >
@@ -124,11 +124,11 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
           <button
             type="button"
             onClick={() => setSearching(true)}
-            className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-[13px] text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/30"
+            className="flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-sm text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/30"
           >
-            <Search className="size-4" aria-hidden />
+            <Search className="size-[18px]" aria-hidden />
             <span className="flex-1 text-left">Rechercher</span>
-            <kbd className="font-mono text-[10px] text-muted-foreground/80">⌘K</kbd>
+            <kbd className="font-mono text-[11px] text-muted-foreground/80">⌘K</kbd>
           </button>
         </div>
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-3" aria-label="Navigation principale">
@@ -140,11 +140,11 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
                 href={item.href}
                 aria-current={current ? "page" : undefined}
                 className={cn(
-                  "flex h-8 items-center gap-2.5 rounded-md px-2 text-[13px] font-medium text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/30",
+                  "flex h-9 items-center gap-3 rounded-md px-2.5 text-sm font-medium text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/30",
                   current && "bg-accent text-foreground",
                 )}
               >
-                <item.icon className="size-4" aria-hidden />
+                <item.icon className="size-[18px]" aria-hidden />
                 {item.label}
               </Link>
             );
@@ -157,7 +157,7 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
             aria-label="Compte"
             className="flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/30"
           >
-            <CircleUserRound className="size-4" aria-hidden />
+            <CircleUserRound className="size-[18px]" aria-hidden />
           </Link>
         </div>
       </aside>
@@ -190,7 +190,7 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
               href={item.href}
               aria-current={isCurrent(pathname, item) ? "page" : undefined}
               className={cn(
-                "flex h-14 flex-col items-center justify-center gap-0.5 text-[10.5px] font-medium text-muted-foreground outline-none",
+                "flex h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-muted-foreground outline-none",
                 isCurrent(pathname, item) && "text-foreground",
               )}
             >
