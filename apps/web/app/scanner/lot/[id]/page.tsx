@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Check, FolderOpen, FolderUp, PackagePlus, Pencil, Undo2, X } from "lucide-react";
+import { ArrowLeft, Camera, Check, FolderOpen, FolderUp, PackagePlus, Pencil, Undo2, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -42,6 +42,10 @@ export default function ScanBatchPage() {
   const [editing, setEditing] = useState<string | null>(null);
   const [receiving, setReceiving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const captureRef = useRef<HTMLInputElement>(null);
+  /** Recto déjà photographié, en attente de son verso. */
+  const [pendingFront, setPendingFront] = useState<{ position: number; file: File; preview: string } | null>(null);
+  const [touch, setTouch] = useState(false);
   const itemsRef = useRef<ScanItem[]>([]);
   const queued = useRef(new Set<number>());
   const sizes = useRef(new Map<string, number>());
@@ -132,6 +136,48 @@ export default function ScanBatchPage() {
       clearInterval(timer);
     };
   }, [folder, batch, enqueue]);
+
+  // Sans scanner : le téléphone prend les photos. Sur les autres appareils, le lot se met à jour tout seul.
+  useEffect(() => setTouch(window.matchMedia("(pointer: coarse)").matches), []);
+  const batchId = batch?.id;
+  const received = !!batch?.receivedAt;
+  useEffect(() => {
+    if (!batchId || received || editing) return;
+    const timer = setInterval(() => {
+      const idle = active.current === 0 && waiting.current.length === 0;
+      if (idle && document.visibilityState === "visible") void refresh().catch(() => undefined);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [batchId, received, editing, refresh]);
+
+  const nextPosition = () => Math.max(itemsRef.current.at(-1)?.position ?? 0, ...queued.current, 0) + 1;
+  const photoName = (position: number, side: "recto" | "verso") => `photo_${String(position).padStart(3, "0")}_${side}.jpg`;
+
+  /** Une photo vient d'être prise : recto de la carte suivante, ou verso de la carte en cours. */
+  function onCapture(file: File) {
+    if (!batch) return;
+    setError(null);
+    if (batch.paired && !pendingFront) {
+      setPendingFront({ position: nextPosition(), file, preview: URL.createObjectURL(file) });
+      return;
+    }
+    const position = pendingFront?.position ?? nextPosition();
+    enqueue([{
+      position, front: photoName(position, "recto"), back: pendingFront ? photoName(position, "verso") : null,
+      frontFile: pendingFront?.file ?? file, backFile: pendingFront ? file : null,
+    }]);
+    closePending();
+  }
+  function closePending() {
+    if (pendingFront) URL.revokeObjectURL(pendingFront.preview);
+    setPendingFront(null);
+  }
+  /** Carte sans verso exploitable : le recto part seul. */
+  function sendWithoutBack() {
+    if (!pendingFront) return;
+    enqueue([{ position: pendingFront.position, front: photoName(pendingFront.position, "recto"), back: null, frontFile: pendingFront.file, backFile: null }]);
+    closePending();
+  }
 
   async function connect() {
     const picked = await pickFolder();
@@ -244,7 +290,35 @@ export default function ScanBatchPage() {
               e.target.value = "";
             }}
           />
-          {folder ? (
+          <input
+            ref={captureRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            hidden
+            data-testid="capture-input"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file) onCapture(file);
+            }}
+          />
+          {touch && !folder ? (
+            <>
+              {pendingFront && <img src={pendingFront.preview} alt={`Recto de la carte ${pendingFront.position}`} className="aspect-[63/88] w-10 rounded-[3px] bg-muted object-cover ring-1 ring-border" />}
+              <span className="min-w-0 flex-1 basis-40 text-sm text-muted-foreground" role="status">
+                {pendingFront ? `Carte ${pendingFront.position} : retournez-la et photographiez le verso.`
+                  : inFlight > 0 ? `Lecture de ${inFlight} carte${inFlight > 1 ? "s" : ""}… Vous pouvez continuer à photographier.`
+                  : "Photographiez les cartes une à une, bien à plat et cadrées serré."}
+              </span>
+              <Button onClick={() => captureRef.current?.click()} data-testid="capture">
+                <Camera /> {pendingFront ? `Verso · carte ${pendingFront.position}` : `${batch.paired ? "Recto · carte" : "Carte"} ${nextPosition()}`}
+              </Button>
+              {pendingFront ? <Button variant="ghost" onClick={sendWithoutBack}>Sans verso</Button>
+                : <Button variant="outline" onClick={() => fileRef.current?.click()}><FolderUp /> Depuis la galerie</Button>}
+              {!pendingFront && canWatchFolder() && <Button variant="outline" onClick={connect}><FolderOpen /> Relier le dossier du scanner</Button>}
+            </>
+          ) : folder ? (
             <>
               <span className="relative flex size-2.5" aria-hidden>
                 <span className="absolute inline-flex size-full animate-ping rounded-full bg-success opacity-60" />
@@ -264,6 +338,9 @@ export default function ScanBatchPage() {
               </span>
               {canWatchFolder() && <Button onClick={connect}><FolderOpen /> Relier le dossier du scanner</Button>}
               <Button variant="outline" onClick={() => fileRef.current?.click()}><FolderUp /> Choisir des images</Button>
+              <p className="basis-full text-[13px] text-muted-foreground">
+                Pas de scanner ? Ouvrez ce lot sur votre téléphone et photographiez les cartes : elles apparaissent ici au fur et à mesure.
+              </p>
             </>
           )}
         </div>
@@ -293,12 +370,12 @@ export default function ScanBatchPage() {
             <table className="w-full table-fixed border-collapse text-left text-sm">
               <thead className="border-b bg-muted/50 text-xs text-muted-foreground">
                 <tr>
-                  <th className="h-9 w-12 px-3 text-right font-medium">N°</th>
-                  <th className="w-24 px-3 font-medium">Scan</th>
+                  <th className="h-9 w-9 px-2 text-right font-medium sm:w-12 sm:px-3">N°</th>
+                  <th className="w-[5.25rem] px-2 font-medium sm:w-24 sm:px-3">Scan</th>
                   <th className="px-3 font-medium">Carte</th>
                   <th className="hidden w-56 px-3 font-medium md:table-cell">Variante</th>
                   <th className="hidden w-32 px-3 font-medium sm:table-cell">État</th>
-                  <th className="w-36 px-3 font-medium" />
+                  <th className="w-[5.5rem] px-2 font-medium sm:w-36 sm:px-3" />
                 </tr>
               </thead>
               <tbody>
@@ -308,8 +385,8 @@ export default function ScanBatchPage() {
                   return (
                     <tr key={item.id} data-testid="batch-row" data-status={item.unitSku ? "received" : item.skipped ? "skipped" : item.ready ? "ready" : "pending"}
                       className={cn("border-b last:border-b-0", item.skipped && "opacity-45", attention && "bg-brand-soft/40")}>
-                      <td className={cn("tabular border-l-2 px-3 text-right text-xs text-muted-foreground", attention ? "border-l-brand" : "border-l-transparent")}>{item.position}</td>
-                      <td className="px-3 py-1.5">
+                      <td className={cn("tabular border-l-2 px-2 text-right text-xs text-muted-foreground sm:px-3", attention ? "border-l-brand" : "border-l-transparent")}>{item.position}</td>
+                      <td className="px-2 py-1.5 sm:px-3">
                         <button type="button" onClick={() => setEditing(item.id)} disabled={done} aria-label={`Voir le scan ${item.position}`} className="flex gap-1 rounded outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30">
                           {[item.frontPhoto, item.backPhoto].map((p, side) => p && (
                             <img key={p.id} src={p.url} alt={side === 0 ? "Recto" : "Verso"} loading="lazy" className="aspect-[63/88] w-8 rounded-[3px] bg-muted object-cover ring-1 ring-border" />
@@ -320,7 +397,7 @@ export default function ScanBatchPage() {
                       <td className="px-3">
                         {item.card ? (
                           <span className="flex items-center gap-2.5">
-                            <CardThumb imageUrl={item.card.imageUrl} size="sm" className="w-8 rounded-[3px]" />
+                            <CardThumb imageUrl={item.card.imageUrl} size="sm" className="hidden w-8 rounded-[3px] sm:block" />
                             <span className="grid min-w-0">
                               <span className="truncate font-medium">{item.card.name}</span>
                               <span className="truncate text-xs text-muted-foreground">{item.card.setName ?? item.card.setId} · {item.card.localNumber}{!item.sure ? " · choisie à la main" : ""}</span>
@@ -349,15 +426,15 @@ export default function ScanBatchPage() {
                           </Select>
                         )}
                       </td>
-                      <td className="px-3 text-right whitespace-nowrap">
+                      <td className="px-2 text-right whitespace-nowrap sm:px-3">
                         {item.unitSku ? (
                           <Link href={`/inventaire/${item.unitSku}`} className="font-mono text-xs font-medium underline-offset-2 outline-none hover:underline focus-visible:underline" data-testid="batch-sku">{item.unitSku}</Link>
                         ) : item.skipped ? (
                           <Button variant="ghost" size="sm" onClick={() => patchItem(item, { skipped: false })}><Undo2 /> Reprendre</Button>
                         ) : (
                           <>
-                            <Button variant={item.card ? "ghost" : "outline"} size="sm" onClick={() => setEditing(item.id)} aria-label={item.card ? `Corriger la carte ${item.position}` : undefined}>
-                              <Pencil /> {!item.card && "Choisir"}
+                            <Button variant={item.card ? "ghost" : "outline"} size="sm" onClick={() => setEditing(item.id)} aria-label={item.card ? `Corriger la carte ${item.position}` : `Choisir la carte ${item.position}`}>
+                              <Pencil /> {!item.card && <span className="hidden sm:inline">Choisir</span>}
                             </Button>
                             <Button variant="ghost" size="icon-sm" onClick={() => patchItem(item, { skipped: true })} aria-label={`Écarter la carte ${item.position}`} title="Écarter du lot"><X /></Button>
                           </>

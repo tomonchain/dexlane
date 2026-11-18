@@ -424,7 +424,7 @@ test("lot scanné : cartes reçues dans l'ordre du scanner, revue conservée apr
   await expect(page.getByTestId("batch-counts")).toContainText("2 à corriger");
 
   // Lecture incertaine : la carte et la variante sont choisies à la main, avec un état à elle.
-  await rows.nth(1).getByRole("button", { name: "Choisir" }).click();
+  await rows.nth(1).getByRole("button", { name: "Choisir la carte 2" }).click();
   const dialog = page.getByRole("dialog", { name: "Carte n° 2" });
   await dialog.getByRole("radio", { name: /Fouinar/ }).click();
   await dialog.getByRole("radio", { name: "Normale" }).click();
@@ -769,4 +769,39 @@ test("mise en ligne planifiée : image de fin d'annonce, sélection de cartes, r
   await schedule.getByRole("button", { name: /^Annuler les mises en ligne du/ }).click();
   await expect(page.getByText("1 mise en ligne annulée")).toBeVisible();
   await expect(schedule).toHaveCount(0);
+});
+
+test("sans scanner : le téléphone photographie recto puis verso, les cartes entrent dans le lot dans l'ordre des prises de vue", async ({ page }) => {
+  await login(page);
+  await page.request.post("/api/locations", { data: { code: "BOITE-09" } });
+  const batch = (await (await page.request.post("/api/scan-batches", { data: { locationCode: "BOITE-09", defaultCondition: "NM" } })).json()) as { id: string };
+  await page.goto(`/scanner/lot/${batch.id}`);
+  const shoot = (width: number) => page.getByTestId("capture-input").setInputFiles({ name: "image.png", mimeType: "image/png", buffer: png(width) });
+  const capture = page.getByTestId("capture");
+  const rows = page.getByTestId("batch-row");
+
+  // Carte 1 : recto, puis verso. Rien n'est envoyé tant que le verso n'est pas pris.
+  await expect(capture).toHaveText("Recto · carte 1");
+  await shoot(CLEAR);
+  await expect(capture).toHaveText("Verso · carte 1");
+  await expect(page.getByText("Carte 1 : retournez-la et photographiez le verso.")).toBeVisible();
+  await expect(rows).toHaveCount(0);
+  await shoot(30);
+  await expect(rows).toHaveCount(1);
+  await expect(rows.nth(0)).toContainText("Fouinar");
+  await expect(rows.nth(0).getByRole("img", { name: /Recto|Verso/ })).toHaveCount(2);
+
+  // Carte 2 : verso inutile, le recto part seul. La numérotation suit les prises de vue.
+  await expect(capture).toHaveText("Recto · carte 2");
+  await shoot(PARTIAL_NAME);
+  await page.getByRole("button", { name: "Sans verso" }).click();
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(1)).toContainText("Carte à choisir");
+  await expect(rows.nth(1).getByRole("img", { name: /Recto|Verso/ })).toHaveCount(1);
+  await expect(capture).toHaveText("Recto · carte 3");
+
+  // Une carte photographiée depuis un autre appareil apparaît d'elle-même.
+  await page.request.post(`/api/scan-batches/${batch.id}/items?position=3&fileName=autre.png`, { data: png(CLEAR), headers: { "Content-Type": "image/png" } });
+  await expect(rows).toHaveCount(3, { timeout: 15_000 });
+  await expect(capture).toHaveText("Recto · carte 4");
 });
