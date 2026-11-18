@@ -81,3 +81,36 @@ export function listPhotos(sql: Db, where: { stockItemId: string } | { offerIds:
      where ${"stockItemId" in where ? sql`stock_item_id = ${where.stockItemId}` : sql`offer_id in ${sql(where.offerIds)}`}
      order by kind, created_at`;
 }
+
+/**
+ * Photo ajoutée après coup à une carte déjà en stock : rattachée à l'offre et à sa première position.
+ * Sert quand la carte est entrée sans photo (recherche manuelle) ou que le scan est à refaire.
+ */
+export function addOfferPhoto(sql: Db, offerId: string, file: StoredFile & { kind: "SCAN_FRONT" | "SCAN_BACK" }): Promise<PhotoRow> {
+  return withTx(sql, async (tx) => {
+    const [position] = await tx<{ id: string }[]>`
+      select id from stock_items where offer_id = ${offerId} and lifecycle <> 'ARCHIVED' order by (on_hand > 0) desc, created_at limit 1`;
+    if (!position) throw new DomainError("OFFER_NOT_FOUND", "this card is not in stock");
+    const [row] = await tx<PhotoRow[]>`
+      insert into photos (kind, storage_key, url, content_type, byte_size, stock_item_id, offer_id)
+      values (${file.kind}, ${file.storageKey}, ${file.url}, ${file.contentType}, ${file.byteSize}, ${position.id}, ${offerId})
+      returning ${columns(tx)}`;
+    return row!;
+  });
+}
+
+/**
+ * Retire une photo d'exemplaire, avec le visuel d'annonce qui en était tiré. Renvoie les adresses des fichiers
+ * à supprimer du stockage. Les fonds et images de fin d'annonce se gèrent dans les réglages, pas ici.
+ */
+export function deletePhoto(sql: Db, photoId: string): Promise<string[]> {
+  return withTx(sql, async (tx) => {
+    const photo = await getPhoto(tx, photoId);
+    if (photo.kind === "BACKGROUND" || photo.kind === "PROMO") throw new DomainError("PHOTO_NOT_FOUND", "this photo cannot be removed here");
+    const derived = await tx<{ url: string }[]>`select url from photos where source_photo_id = ${photoId}`;
+    await tx`update scan_items set front_photo_id = null where front_photo_id = ${photoId}`;
+    await tx`update scan_items set back_photo_id = null where back_photo_id = ${photoId}`;
+    await tx`delete from photos where id = ${photoId}`; // les visuels dérivés partent en cascade
+    return [photo.url, ...derived.map((d) => d.url)];
+  });
+}

@@ -360,6 +360,35 @@ describe("scan batches", () => {
   });
 });
 
+describe("photos added after the fact", () => {
+  it("lets a card that entered stock without a photo get one later, which unblocks its listing, and removes it again", async () => {
+    await call("POST", "/api/locations", { body: { code: "BOX-01" } });
+    const { candidates } = (await call("GET", "/api/catalog/cards?name=fouinar")).json;
+    const received = await call("POST", "/api/inventory/receive", {
+      body: { variantId: candidates[0].variants[0].id, condition: "NM", quantity: 1, locationCode: "BOX-01", unitCostCents: 0 },
+    });
+    const offerId = received.json.offer.id;
+    await call("PUT", "/api/channels/ebay", { body: { mode: "SIMULATION" } });
+    const jpeg = { body: new Uint8Array([0xff, 0xd8, 0xff, 5]), headers: { "Content-Type": "image/jpeg" }, key: null };
+
+    expect((await call("GET", `/api/stock/${offerId}`)).json.missing).toEqual(["PHOTO"]);
+    expect((await call("POST", `/api/listings/offers/${offerId}/publish`, { body: { channel: "ebay" } })).json.error.code).toBe("LISTING_NOT_READY");
+    expect((await call("POST", `/api/stock/${crypto.randomUUID()}/photos`, jpeg)).status).toBe(404);
+
+    const added = await call("POST", `/api/stock/${offerId}/photos?kind=SCAN_FRONT`, jpeg);
+    expect([added.status, added.json.kind, added.json.offerId, added.json.stockItemId]).toEqual([201, "SCAN_FRONT", offerId, received.json.stockItem.id]);
+    const detail = (await call("GET", `/api/stock/${offerId}`)).json;
+    expect([detail.missing, detail.photos.length, detail.photoUrl]).toEqual([[], 1, added.json.url]);
+    expect((await call("POST", `/api/listings/offers/${offerId}/publish`, { body: { channel: "ebay" } })).json.status).toBe("ACTIVE");
+
+    // Le visuel d'annonce tiré de la photo part avec elle.
+    await call("POST", `/api/photos?kind=LISTING&source=${added.json.id}`, jpeg);
+    expect((await call("DELETE", `/api/photos/${added.json.id}`, { key: null })).status).toBe(200);
+    expect((await call("GET", `/api/stock/${offerId}`)).json).toMatchObject({ photos: [], missing: ["PHOTO"] });
+    expect((await call("DELETE", `/api/photos/${added.json.id}`, { key: null })).status).toBe(404);
+  });
+});
+
 describe("application settings", () => {
   it("remembers the onboarding progress and the way cards come in", async () => {
     expect((await call("GET", "/api/app-settings")).json).toEqual({ onboardingDone: false, intakeMode: null });

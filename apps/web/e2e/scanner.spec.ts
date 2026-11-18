@@ -861,3 +861,37 @@ test("sans scanner : le téléphone photographie recto puis verso, les cartes en
   await expect(rows).toHaveCount(3, { timeout: 15_000 });
   await expect(capture).toHaveText("Recto · carte 4");
 });
+
+test("annonce bloquée faute de photo : la photo s'ajoute après coup depuis Annonces et débloque la publication", async ({ page }) => {
+  await login(page);
+  await page.request.put("/api/channels/ebay", { data: { mode: "SIMULATION" } });
+  await page.request.post("/api/locations", { data: { code: "BOX-PH" } });
+  // Carte entrée par recherche manuelle, donc sans aucune photo.
+  const { candidates } = (await (await page.request.get("/api/catalog/cards?name=fouinar")).json()) as { candidates: { variants: { id: string; finish: string }[] }[] };
+  await page.request.post("/api/inventory/receive", {
+    data: { variantId: candidates[0]!.variants.find((v) => v.finish === "normal")!.id, condition: "MT", quantity: 1, locationCode: "BOX-PH", unitCostCents: 1 },
+    headers: { "Idempotency-Key": `e2e-photo-${Date.now()}` },
+  });
+
+  await page.goto("/annonces");
+  await page.getByLabel("Rechercher une offre").fill("OF-SWSH3-136-FR-N-MT");
+  const listing = page.getByTestId("listing-OF-SWSH3-136-FR-N-MT");
+  const publish = listing.getByRole("button", { name: "Publier sur eBay" });
+  await expect(listing).toContainText("Photo manquante");
+  await expect(listing).toContainText("Une annonce a besoin d'au moins une photo");
+  await expect(publish).toBeDisabled();
+
+  // La photo est ajoutée sur place : l'annonce devient publiable.
+  await listing.getByTestId("offer-photo-input").setInputFiles({ name: "recto.png", mimeType: "image/png", buffer: png(40, 56) });
+  await expect(page.getByText("Photo ajoutée")).toBeVisible();
+  await expect(listing.getByTestId("offer-photos").getByRole("img", { name: "Recto" })).toBeVisible();
+  await expect(listing).not.toContainText("Photo manquante");
+  await expect(listing.getByRole("button", { name: "Ajouter le verso" })).toBeVisible();
+  await publish.click();
+  await expect(listing.getByTestId("channel-ebay")).toContainText("En ligne");
+
+  // Une photo ratée se retire, et se remplace.
+  await listing.getByRole("button", { name: "Retirer la photo du recto" }).click();
+  await expect(page.getByText("Photo retirée")).toBeVisible();
+  await expect(listing.getByRole("button", { name: "Ajouter une photo" })).toBeVisible();
+});

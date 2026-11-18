@@ -6,7 +6,7 @@ import {
 } from "@dexlane/catalog";
 import type { Db } from "@dexlane/db";
 import {
-  activateStock, adjustStock, attachPhotos, cancelOrder, getPhoto, saveListingPhoto, createAcquisitionLot, createDirectSale, createLocation, createLocations,
+  activateStock, addOfferPhoto, adjustStock, attachPhotos, cancelOrder, deletePhoto, getPhoto, saveListingPhoto, createAcquisitionLot, createDirectSale, createLocation, createLocations,
   deleteLocation, extractCardFromBulk, getInventorySummary, getOrderDetail, getStockItemDetail, listAcquisitionLots,
   listLocations, listOrders, moveStock, packOrder, pickAllocation, receiveBulk, receiveCard, recordPhoto, resolveLocation,
   searchInventory, searchSellableOffers, shipOrder, updateLocationDescription,
@@ -321,6 +321,30 @@ export function createApp(deps: AppDeps) {
 
   /** Le stock, une ligne par carte à vendre, avec son statut sur le chemin de la vente. */
   app.get("/api/stock", async (c) => c.json(await listStock(sql, parse(s.stockQuery, c.req.query()))));
+
+  /** Photo ajoutée après coup à une carte déjà en stock (entrée sans scan, ou scan à refaire). */
+  app.post("/api/stock/:offerId/photos", scanBody(), async (c) => {
+    const offerId = parse(s.offerId, c.req.param("offerId"));
+    const { kind } = parse(s.offerPhotoQuery, c.req.query());
+    if (!deps.photos) throw new HttpError(503, "PHOTO_STORAGE_UNAVAILABLE", "no photo storage is configured");
+    await getStockDetail(sql, offerId); // 404 avant de déposer un fichier pour rien
+    const image = await readImage(c);
+    let file: Awaited<ReturnType<typeof putFile>>;
+    try {
+      file = await putFile(image, kind);
+    } catch (e) {
+      (deps.onError ?? console.error)(e);
+      throw new HttpError(502, "PHOTO_STORAGE_FAILED", "the photo could not be stored");
+    }
+    return c.json(await addOfferPhoto(sql, offerId, { ...file, kind }), 201);
+  });
+
+  /** Retire une photo d'exemplaire et le visuel d'annonce qui en était tiré. */
+  app.delete("/api/photos/:id", async (c) => {
+    const urls = await deletePhoto(sql, parse(s.photoId, c.req.param("id")));
+    if (deps.photos) await Promise.all(urls.map((url) => deps.photos!.remove(url).catch(deps.onError ?? console.error)));
+    return c.json({ ok: true });
+  });
 
   /** Tout ce qui concerne une carte : annonce, photos, positions, historique de cote. */
   app.get("/api/stock/:offerId", async (c) => c.json(await getStockDetail(sql, parse(s.offerId, c.req.param("offerId")))));

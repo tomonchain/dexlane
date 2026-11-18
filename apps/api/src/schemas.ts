@@ -264,3 +264,5 @@ export const appSettingsBody = z.strictObject({
   onboardingDone: z.boolean().optional(),
   intakeMode: z.enum(["SCANNER", "CAMERA", "FILES"]).nullable().optional(),
 });
+
+export const offerPhotoQuery = z.object({ kind: z.enum(["SCAN_FRONT", "SCAN_BACK"]).default("SCAN_FRONT") });

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { TITLE_MAX, VARIABLES, buildListingText, type ListingSubject } from "@dexlane/listings/template";
 import { CardThumb } from "@/components/card-chooser";
+import { OfferPhotos } from "@/components/offer-photos";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -279,6 +280,10 @@ function OfferCard({ offer, channels, busy, disabled, onCompose, onAct }: {
             {channels.map((channel) => <ChannelRow key={channel.id} offer={offer} channel={channel} onAct={onAct} />)}
           </div>
         )}
+        <div className="grid gap-1.5">
+          <OfferPhotos offerId={offer.offerId} photos={offer.photos} run={onAct} disabled={disabled} />
+          {scans.length === 0 && <p className="text-[13px] text-muted-foreground">Une annonce a besoin d'au moins une photo de la carte : prenez-la ou choisissez un fichier.</p>}
+        </div>
         <details className="group rounded-lg bg-muted/40 px-3 py-2 text-sm">
           <summary className="cursor-pointer font-medium text-muted-foreground outline-none select-none group-open:mb-2 focus-visible:underline">Description</summary>
           <p className="whitespace-pre-wrap" data-testid="listing-description">{offer.text.description}</p>

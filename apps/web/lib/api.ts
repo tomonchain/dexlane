@@ -97,6 +97,10 @@ export const api = {
   uploadPhoto: (image: Blob, kind: "SCAN_FRONT" | "SCAN_BACK" | "BACKGROUND" | "PROMO") => request<StoredPhoto>("POST", "/photos", { blob: image, query: { kind } }),
   /** Visuel d'annonce composé à partir d'un scan ; remplace le précédent visuel de ce scan. */
   uploadListingPhoto: (image: Blob, sourcePhotoId: string) => request<Photo>("POST", "/photos", { blob: image, query: { kind: "LISTING", source: sourcePhotoId } }),
+  /** Photo ajoutée après coup à une carte déjà en stock. */
+  addOfferPhoto: (offerId: string, image: Blob, kind: "SCAN_FRONT" | "SCAN_BACK") =>
+    request<Photo>("POST", `/stock/${offerId}/photos`, { blob: image, query: { kind } }),
+  deletePhoto: (photoId: string) => request<{ ok: true }>("DELETE", `/photos/${photoId}`),
   /** Adresse du contenu d'une photo sur la même origine (utilisable dans un canvas). */
   photoContentUrl: (photoId: string) => `/api/photos/${photoId}/content`,
 

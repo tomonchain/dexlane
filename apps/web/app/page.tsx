@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import { CardThumb } from "@/components/card-chooser";
+import { OfferPhotos } from "@/components/offer-photos";
 import { Sparkline } from "@/components/charts";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/input";
@@ -559,6 +560,7 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
             <Button variant="ghost" size="icon-sm" onClick={() => copy(d.text.description, "Description")} aria-label="Copier la description"><Copy /></Button>
           </div>
         </details>
+        <OfferPhotos offerId={d.offerId} photos={d.photos} disabled={busy} run={(action) => void run(action)} />
         {d.missing.length > 0 && <p className="text-[13px] text-muted-foreground">Pour publier, il manque {d.missing.map((m) => BLOCKERS[m]).join(" et ")}.</p>}
         {d.planned && (
           <p className="flex items-center gap-2 text-[13px]">
