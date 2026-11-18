@@ -38,6 +38,8 @@ async function login(page: Page) {
   const { passwordSet } = (await (await page.request.get("/auth")).json()) as { passwordSet: boolean };
   const data = passwordSet ? { password: E2E_PASSWORD } : { setupToken: E2E_TOKEN, newPassword: E2E_PASSWORD };
   expect((await page.request.post("/auth", { data })).ok()).toBe(true);
+  // L'assistant de démarrage a son propre parcours : ailleurs, il est considéré comme terminé.
+  expect((await page.request.put("/api/app-settings", { data: { onboardingDone: true } })).ok()).toBe(true);
 }
 
 /** Choisit l'emplacement dans la feuille, en le créant s'il n'existe pas encore. */
@@ -54,20 +56,72 @@ const onHand = (page: Page) => page.getByTestId("on-hand");
 /** Bandeau d'erreur de l'application (Next ajoute son propre role="alert" pour l'annonce des pages). */
 const errorBanner = (page: Page) => page.locator('[data-slot="alert"][data-variant="destructive"]');
 
-test("première connexion : le jeton d'installation permet de choisir le mot de passe, qui sert ensuite seul", async ({ page }) => {
+test("première utilisation : l'assistant crée le compte, règle le scan, importe une série, crée les emplacements, la stratégie de prix et un canal", async ({ page }) => {
+  test.setTimeout(60_000);
   await page.goto("/inventaire");
-  await page.waitForURL(/\/login\?next=%2Finventaire/);
-  await expect(page.getByRole("heading", { name: "Première connexion" })).toBeVisible();
+  await page.waitForURL(/\/bienvenue$/);
+  await expect(page.getByRole("heading", { name: "Créez votre compte" })).toBeVisible();
 
+  // 1. Compte : un mauvais jeton est refusé, le bon crée le compte.
   await page.getByLabel("Jeton d'installation").fill("pas-le-bon-jeton-pas-le-bon-jeton");
-  await page.getByLabel("Nouveau mot de passe").fill(E2E_PASSWORD);
+  await page.getByLabel(/^Mot de passe/).fill(E2E_PASSWORD);
   await page.getByLabel("Confirmer le mot de passe").fill(E2E_PASSWORD);
-  await page.getByRole("button", { name: "Créer le mot de passe" }).click();
+  await page.getByRole("button", { name: "Créer mon compte" }).click();
   await expect(errorBanner(page)).toHaveText("Jeton d'installation refusé.");
-
   await page.getByLabel("Jeton d'installation").fill(E2E_TOKEN);
-  await page.getByRole("button", { name: "Créer le mot de passe" }).click();
-  await page.waitForURL(/\/inventaire$/);
+  await page.getByRole("button", { name: "Créer mon compte" }).click();
+
+  // 2. Mode de scan.
+  await expect(page.getByRole("heading", { name: "Comment scannez-vous vos cartes ?" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continuer" })).toBeDisabled();
+  await page.getByRole("radio", { name: /Appareil photo du téléphone/ }).click();
+  await page.getByRole("button", { name: "Continuer" }).click();
+
+  // 3. Séries : les séries déjà présentes sont cochées d'office, « 151 » s'importe avec une barre d'avancement.
+  await expect(page.getByRole("heading", { name: "Quelles séries avez-vous ?" })).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: /Ténèbres Embrasées/ })).toBeDisabled();
+  // Les cartes anglaises ont leur propre catalogue : rien n'y est encore importé.
+  await page.getByLabel("Langue des cartes").selectOption("en");
+  await expect(page.getByRole("checkbox", { name: /Ténèbres Embrasées/ })).toBeEnabled();
+  await page.getByLabel("Rechercher une série").fill("151");
+  await page.getByRole("checkbox", { name: /^151/ }).check();
+  await page.getByRole("button", { name: "Importer 1 série" }).click();
+  await expect(page.getByTestId("import-progress")).toContainText("Import terminé");
+  await expect(page.getByTestId("import-progress")).toContainText("1 / 1");
+  await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "1");
+  await page.getByRole("button", { name: "Continuer" }).click();
+
+  // 4. Emplacements : deux boîtes et un classeur, nommés d'office.
+  await page.getByLabel("Nombre de boîtes").fill("2");
+  await page.getByLabel("Nombre de classeurs").fill("1");
+  await expect(page.getByTestId("location-preview")).toHaveText("BOITE-01  BOITE-02  CLASSEUR-01");
+  await page.getByRole("button", { name: "Créer 3 emplacements" }).click();
+
+  // 5. Prix : la stratégie choisie est enregistrée.
+  await expect(page.getByRole("heading", { name: "Comment fixer vos prix ?" })).toBeVisible();
+  await expect(page.getByRole("radio", { name: /Équilibré/ })).toBeChecked();
+  await page.getByRole("radio", { name: /Vendre vite/ }).click();
+  await page.getByRole("button", { name: "Continuer" }).click();
+
+  // 6. Canaux : étape passée, puis fin de l'assistant.
+  await expect(page.getByRole("heading", { name: "Où vendez-vous ?" })).toBeVisible();
+  await page.getByTestId("channel-card-ebay").getByRole("radio", { name: "Simulation" }).click();
+  await expect(page.getByText("eBay : simulation")).toBeVisible();
+  await page.getByRole("button", { name: "Terminer" }).click();
+  await expect(page.getByRole("heading", { name: "Tout est prêt" })).toBeVisible();
+  await page.getByRole("button", { name: "Aller au stock" }).click();
+  await page.waitForURL(/\/$/);
+  await expect(page.getByRole("heading", { name: "Stock" })).toBeVisible();
+
+  // Tout a été enregistré, et l'assistant ne se rouvre plus.
+  const json = async (path: string) => (await page.request.get(path)).json();
+  expect(await json("/api/app-settings")).toEqual({ onboardingDone: true, intakeMode: "CAMERA" });
+  expect((await json("/api/pricing/settings")).strategy).toBe("FAST");
+  expect(((await json("/api/locations")).locations as { code: string }[]).map((l) => l.code)).toEqual(expect.arrayContaining(["BOITE-01", "BOITE-02", "CLASSEUR-01"]));
+  expect(((await json("/api/channels")).channels as { id: string; mode: string }[]).find((c) => c.id === "ebay")!.mode).toBe("SIMULATION");
+  await page.request.put("/api/channels/ebay", { data: { mode: "OFF" } });
+  await page.request.put("/api/pricing/settings", { data: { ...(await json("/api/pricing/settings")), strategy: "BALANCED" } });
+  await page.goto("/inventaire");
   await expect(page.getByRole("heading", { name: "Inventaire" })).toBeVisible();
 
   // Déconnexion depuis le compte, puis retour par le seul mot de passe.
@@ -116,7 +170,9 @@ test("photo lisible : la carte entre en stock et se retrouve dans l'inventaire",
   await expect(page.getByRole("status").filter({ hasText: "position" })).toHaveText("1 position");
   await page.getByRole("link", { name: /Fouinar/ }).click();
   await expect(onHand(page)).toHaveText("2");
-  await expect(page.getByText("1,50 €")).toBeVisible();
+  // Achetée 1,50 € alors que le marché est plus bas : le coût s'affiche, et le prix est tenu à ce coût.
+  await expect(page.getByText("1,50 €").first()).toBeVisible();
+  await expect(page.getByTestId("offer-pricing")).toContainText("prix tenu au coût");
   await expect(page.getByText(sku)).toBeVisible();
 });
 
@@ -472,7 +528,7 @@ test("annonces : modèle de titre, fond des photos, composition du visuel à par
   await expect(listing).toContainText("Photos à composer");
 
   // Modèle : l'aperçu suit la saisie, une variable s'insère d'un clic, le titre des offres change après enregistrement.
-  await page.getByRole("tab", { name: "Modèle" }).click();
+  await page.goto("/reglages/annonces");
   const title = page.getByLabel("Modèle de titre");
   await title.fill("Pokémon {nom} {numero} - ");
   await page.getByRole("button", { name: "{etat_nom}" }).click();
@@ -489,7 +545,7 @@ test("annonces : modèle de titre, fond des photos, composition du visuel à par
   await expect(page.getByText("Style des photos enregistré")).toBeVisible();
 
   // Offres : le nouveau titre s'applique, le visuel est composé à partir du scan au format carré choisi.
-  await page.getByRole("tab", { name: "Offres" }).click();
+  await page.goto("/annonces");
   await expect(listing.getByTestId("listing-title")).toHaveText("Pokémon Fouinar 136/189 - Mint");
   await page.getByRole("button", { name: /Composer les photos manquantes/ }).click();
   await expect(listing).toContainText("1 photo d'annonce");
@@ -526,14 +582,14 @@ test("canaux : simulation eBay — publication, achat simulé qui arrive dans le
   await expect(listing.getByTestId("channel-ebay")).toHaveCount(0);
 
   // Canaux : le mode réel est indisponible sans connecteur, la simulation s'active d'un clic.
-  await page.getByRole("tab", { name: "Canaux" }).click();
+  await page.goto("/reglages/canaux");
   const ebay = page.getByTestId("channel-card-ebay");
   await expect(ebay.getByRole("radio", { name: "Réel" })).toBeDisabled();
   await expect(ebay.getByText("Passer en réel : obtenir l'accès")).toBeVisible();
   await ebay.getByRole("radio", { name: "Simulation" }).click();
   await expect(page.getByText("eBay : simulation")).toBeVisible();
 
-  await page.getByRole("tab", { name: "Offres" }).click();
+  await page.goto("/annonces");
   const channel = listing.getByTestId("channel-ebay");
   await channel.getByRole("button", { name: "Publier sur eBay" }).click();
   await expect(channel).toContainText("En ligne");
@@ -730,7 +786,7 @@ test("mise en ligne planifiée : image de fin d'annonce, sélection de cartes, r
   }
 
   // Image de fin d'annonce, réglée une fois.
-  await page.goto("/annonces");
+  await page.goto("/reglages/annonces");
   await page.getByRole("tab", { name: "Photos" }).click();
   await page.getByTestId("promo-input").setInputFiles({ name: "rachat.png", mimeType: "image/png", buffer: png(40, 40) });
   await expect(page.getByText("Image de fin d'annonce enregistrée")).toBeVisible();

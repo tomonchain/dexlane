@@ -46,6 +46,7 @@ export default function ScanBatchPage() {
   /** Recto déjà photographié, en attente de son verso. */
   const [pendingFront, setPendingFront] = useState<{ position: number; file: File; preview: string } | null>(null);
   const [touch, setTouch] = useState(false);
+  const [intake, setIntake] = useState<"SCANNER" | "CAMERA" | "FILES" | null>(null);
   const itemsRef = useRef<ScanItem[]>([]);
   const queued = useRef(new Set<number>());
   const sizes = useRef(new Map<string, number>());
@@ -138,7 +139,10 @@ export default function ScanBatchPage() {
   }, [folder, batch, enqueue]);
 
   // Sans scanner : le téléphone prend les photos. Sur les autres appareils, le lot se met à jour tout seul.
-  useEffect(() => setTouch(window.matchMedia("(pointer: coarse)").matches), []);
+  useEffect(() => {
+    setTouch(window.matchMedia("(pointer: coarse)").matches);
+    api.appSettings().then((s) => setIntake(s.intakeMode)).catch(() => undefined);
+  }, []);
   const batchId = batch?.id;
   const received = !!batch?.receivedAt;
   useEffect(() => {
@@ -333,14 +337,18 @@ export default function ScanBatchPage() {
             <>
               <span className="min-w-0 flex-1 basis-64 text-sm text-muted-foreground" role="status">
                 {inFlight > 0 ? <span className="flex items-center gap-2 text-foreground"><Spinner /> Lecture de {inFlight} carte{inFlight > 1 ? "s" : ""}…</span>
+                  : intake === "CAMERA" ? "Ouvrez ce lot sur votre téléphone et photographiez les cartes, recto puis verso : elles apparaissent ici au fur et à mesure."
+                  : intake === "FILES" ? "Choisissez vos photos : elles sont rangées par nom de fichier, recto puis verso."
                   : canWatchFolder() ? "Reliez le dossier où le scanner enregistre ses images : chaque carte scannée arrive ici toute seule."
                   : "Ce navigateur ne sait pas suivre un dossier (utilisez Chrome ou Edge). Choisissez les images une fois le scan terminé."}
               </span>
-              {canWatchFolder() && <Button onClick={connect}><FolderOpen /> Relier le dossier du scanner</Button>}
-              <Button variant="outline" onClick={() => fileRef.current?.click()}><FolderUp /> Choisir des images</Button>
-              <p className="basis-full text-[13px] text-muted-foreground">
-                Pas de scanner ? Ouvrez ce lot sur votre téléphone et photographiez les cartes : elles apparaissent ici au fur et à mesure.
-              </p>
+              {canWatchFolder() && <Button variant={intake === "CAMERA" || intake === "FILES" ? "outline" : "default"} onClick={connect}><FolderOpen /> Relier le dossier du scanner</Button>}
+              <Button variant={intake === "FILES" ? "default" : "outline"} onClick={() => fileRef.current?.click()}><FolderUp /> Choisir des images</Button>
+              {intake !== "CAMERA" && (
+                <p className="basis-full text-[13px] text-muted-foreground">
+                  Pas de scanner ? Ouvrez ce lot sur votre téléphone et photographiez les cartes : elles apparaissent ici au fur et à mesure.
+                </p>
+              )}
             </>
           )}
         </div>

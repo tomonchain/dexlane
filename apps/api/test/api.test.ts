@@ -360,6 +360,15 @@ describe("scan batches", () => {
   });
 });
 
+describe("application settings", () => {
+  it("remembers the onboarding progress and the way cards come in", async () => {
+    expect((await call("GET", "/api/app-settings")).json).toEqual({ onboardingDone: false, intakeMode: null });
+    expect((await call("PUT", "/api/app-settings", { body: { intakeMode: "CAMERA" } })).json).toEqual({ onboardingDone: false, intakeMode: "CAMERA" });
+    expect((await call("PUT", "/api/app-settings", { body: { onboardingDone: true } })).json).toEqual({ onboardingDone: true, intakeMode: "CAMERA" });
+    expect((await call("PUT", "/api/app-settings", { body: { intakeMode: "FAX" } })).status).toBe(400);
+  });
+});
+
 describe("scheduled publications", () => {
   it("plans ready offers day by day, publishes what is due with the promo image last, and cancels the rest", async () => {
     await call("POST", "/api/locations", { body: { code: "BOX-01" } });

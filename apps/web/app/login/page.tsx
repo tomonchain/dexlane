@@ -43,7 +43,11 @@ export default function LoginPage() {
 
   useEffect(() => {
     api.authStatus()
-      .then((s) => setMode(s.passwordSet ? "login" : "setup"))
+      .then((s) => {
+        // Aucun compte encore : l'assistant de démarrage s'en charge.
+        if (!s.passwordSet) window.location.replace("/bienvenue");
+        else setMode("login");
+      })
       .catch((e) => {
         setError(authMessage(e));
         setMode("login");

@@ -547,7 +547,7 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
         </div>
       </Section>
 
-      <Section title="Annonce" aside={<Link href="/annonces" className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">Modèle et photos</Link>}>
+      <Section title="Annonce" aside={<Link href="/reglages/annonces" className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">Modèle et photos</Link>}>
         <div className="flex items-start gap-2">
           <p className="flex-1 text-sm leading-snug [overflow-wrap:anywhere]" data-testid="stock-listing-title">{d.text.title}</p>
           <Button variant="ghost" size="icon-sm" onClick={() => copy(d.text.title, "Titre")} aria-label="Copier le titre"><Copy /></Button>

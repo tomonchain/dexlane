@@ -4,7 +4,9 @@ Application personnelle de négoce de cartes Pokémon. Spécification : [`specs-
 
 ## État
 
-**Refonte en cours** : l'application se réorganise autour de quatre destinations — Stock (`/`), Ventes, Tableau de bord, Réglages — et d'un seul point d'entrée « Ajouter des cartes ». L'écran Stock est fait : une ligne par carte à vendre (offre), prix modifiable sur place, prix suggéré accepté d'un clic, fiche latérale (prix, cote, annonce, publication, positions). Les autres écrans gardent leur ancienne forme en attendant leur tour, rangés sous Réglages ou dans le menu d'ajout.
+**Assistant de démarrage** (`/bienvenue`) : à la première utilisation, six étapes — création du compte, mode de scan (scanner, téléphone ou fichiers), import des séries (sélection par bloc, barre d'avancement), emplacements, stratégie de prix, canaux de vente. Tout sauf le compte et le mode de scan peut être passé ; l'assistant se relance depuis Réglages.
+
+**Refonte en cours** : l'application se réorganise autour de cinq destinations — Stock (`/`), Annonces, Ventes, Tableau de bord, Réglages — et d'un seul point d'entrée « Ajouter des cartes ». L'écran Stock est fait : une ligne par carte à vendre (offre), prix modifiable sur place, prix suggéré accepté d'un clic, fiche latérale (prix, cote, annonce, publication, positions). Les autres écrans gardent leur ancienne forme en attendant leur tour, rangés sous Réglages ou dans le menu d'ajout.
 
 **Sprint 1** terminé : catalogue, scan, stock, entrée en stock, recherche, API HTTP et application web (Scanner, Inventaire, Vrac, Rangement). **Sprint 2** entamé : prix et catégories faits ; la publication attend le choix du canal. **Sprint 3** entamé : ventes directes avec préparation et remise.
 
@@ -162,6 +164,15 @@ Les compteurs de stock sont une projection du journal `inventory_movements` (app
 - **Emplacement** : obligatoire et jamais créé implicitement — une faute de frappe renvoie `LOCATION_NOT_FOUND` au lieu de créer une boîte.
 - **Correction d'inventaire** : saisie de la quantité comptée, pas d'un écart ; refusée sous les quantités réservées (cas du Parcours F).
 - **Coût du vrac** : le coût unitaire est stocké en centimes entiers ; 1 000 cartes à 15 € donnent 2 c pièce (20 € reconstitués). Le coût exact reste celui du lot d'acquisition.
+
+## Prix automatiques — l'algorithme
+
+1. **Fourchette du marché** (état « comme neuf ») à partir des dernières cotes Cardmarket : la *valeur liquide* est la plus basse des cotes de vente (tendance, moyenne des ventes sur 7 et 30 jours) — le prix auquel la carte part sans attendre ; le *plus haut soutenu* est la plus haute, plafonnée à +25 % de la valeur liquide pour ignorer un pic isolé.
+2. **Stratégie** : « Vendre vite » se place à la valeur liquide et s'aligne sur l'annonce la moins chère, sans brader de plus de 10 % ; « Équilibré » (par défaut) à mi-chemin ; « Marge maximale » au plus haut soutenu.
+3. **État** : le prix est ramené à l'état de l'exemplaire par un coefficient (EX 80 %, GD 65 %…), puis arrondi à l'euro à partir de 10 €.
+4. **Jamais sous le prix d'achat** : si ce prix est inférieur au coût moyen (plus la marge minimale pour une vente à l'unité), il est tenu au coût et l'offre porte le motif `HELD_AT_COST` — elle se vendra plus lentement. Un prix posé par les règles qui passe sous le coût (nouveaux exemplaires plus chers) est recalculé ; un prix décidé à la main est seulement signalé.
+
+Ce n'est pas une optimisation statistique : faute d'historique de ventes propre, c'est une règle explicable, à affiner quand les ventes donneront des délais réels. Les cartes entre 5 et 15 € sont tarifées d'office comme les autres ; seuls un doute sur la cote (absente, périmée, partagée entre variantes) ou sur la variante laissent une carte sans prix.
 
 ## Statistiques et alertes de prix — points d'attention
 

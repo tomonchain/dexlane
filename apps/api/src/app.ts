@@ -25,6 +25,7 @@ import {
   syncChannels, syncQuantities, type ChannelAdapters,
 } from "@dexlane/listings";
 import { readPhoto, type PhotoStore } from "./photos";
+import { getAppSettings, saveAppSettings } from "./settings";
 import * as s from "./schemas";
 
 export interface AppDeps {
@@ -227,6 +228,11 @@ export function createApp(deps: AppDeps) {
 
   /** Offres vendables avec le texte de leur annonce et leurs photos. */
   app.get("/api/listings/offers", async (c) => c.json(await listListingOffers(sql, parse(s.listingOffersQuery, c.req.query()))));
+
+  // ───────────────────────── Réglages de l'application ─────────────────────────
+
+  app.get("/api/app-settings", async (c) => c.json(await getAppSettings(sql)));
+  app.put("/api/app-settings", async (c) => c.json(await saveAppSettings(sql, await parseJsonBody(c, s.appSettingsBody))));
 
   // ───────────────────────── Mise en ligne planifiée ─────────────────────────
 

@@ -1,5 +1,5 @@
 import type {
-  AcquisitionLot, AlertSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, PriceMoves, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
+  AcquisitionLot, AlertSettings, AppSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, PriceMoves, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
   Location, Photo, PositionDetail, Received,
   OfferPricing, OrderDetail, OrderList, OrderStage, PricingSettings, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
   PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockPage, StockStatus, StoredPhoto, VariantQuote,
@@ -104,6 +104,9 @@ export const api = {
   saveListingSettings: (settings: ListingSettings) => request<ListingSettings>("PUT", "/listings/settings", { json: settings }),
   listingOffers: (q: { q?: string; limit?: number; offset?: number }) =>
     request<{ items: ListingOffer[]; total: number }>("GET", "/listings/offers", { query: q }),
+
+  appSettings: () => request<AppSettings>("GET", "/app-settings"),
+  saveAppSettings: (change: Partial<AppSettings>) => request<AppSettings>("PUT", "/app-settings", { json: change }),
 
   schedule: () => request<Schedule>("GET", "/publications"),
   planPublications: (input: { offerIds?: string[]; channel: ChannelId; startOn: string; perDay: number }) =>

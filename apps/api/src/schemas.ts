@@ -259,3 +259,8 @@ export const planBody = z.strictObject({
   perDay: z.number().int().min(1).max(500),
 });
 export const cancelPlanBody = z.strictObject({ plannedOn: day.optional(), channel: channelId.optional(), offerId: z.uuid().optional() });
+
+export const appSettingsBody = z.strictObject({
+  onboardingDone: z.boolean().optional(),
+  intakeMode: z.enum(["SCANNER", "CAMERA", "FILES"]).nullable().optional(),
+});

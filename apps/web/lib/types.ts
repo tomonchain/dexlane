@@ -102,3 +102,8 @@ export type ScanItem = Json<ScanItemRow>;
 
 export type { PlanResult };
 export type Schedule = Json<ScheduleRow>;
+
+export interface AppSettings {
+  onboardingDone: boolean;
+  intakeMode: "SCANNER" | "CAMERA" | "FILES" | null;
+}
