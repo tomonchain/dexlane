@@ -1,0 +1,92 @@
+name: CI
+
+# Chaque pull request et chaque arrivée sur main sont vérifiées. Vercel déploie de son côté :
+# une prévisualisation par branche, la production depuis main.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Un nouveau push sur une pull request rend l'exécution précédente inutile ; sur main, chaque commit va au bout.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Lecture seule : la CI ne publie rien et ne modifie pas le dépôt.
+permissions:
+  contents: read
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+  # Base jetable du conteneur ci-dessous ; les tests créent leurs propres bases « …_test » et les vident.
+  TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/dexlane_test
+
+jobs:
+  checks:
+    name: Types et tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      # La version de pnpm est celle du champ packageManager, la même qu'en local et sur Vercel.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Installer les dépendances
+        run: pnpm install --frozen-lockfile
+      - name: Vérifier les types
+        run: pnpm typecheck
+      - name: Tests unitaires et d'intégration
+        run: pnpm test
+
+  e2e:
+    name: Parcours navigateur
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Installer les dépendances
+        run: pnpm install --frozen-lockfile
+      - name: Installer le navigateur de test
+        run: pnpm --filter @dexlane/web exec playwright install --with-deps chromium
+      # Construit l'application comme en production, puis déroule les parcours contre une vraie base.
+      - name: Parcours de bout en bout
+        run: pnpm e2e
+      - name: Conserver les traces en cas d'échec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-resultats
+          path: apps/web/test-results
+          retention-days: 7

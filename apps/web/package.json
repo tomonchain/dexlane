@@ -9,7 +9,7 @@
     "start": "NEXT_TELEMETRY_DISABLED=1 next start",
     "typecheck": "tsc --noEmit",
     "e2e": "playwright test",
-    "build:vercel": "pnpm --filter @dexlane/db migrate --skip-if-unconfigured && NEXT_TELEMETRY_DISABLED=1 next build"
+    "build:vercel": "pnpm --filter @dexlane/db migrate --skip-if-unconfigured --not-on-preview && NEXT_TELEMETRY_DISABLED=1 next build"
   },
   "dependencies": {
     "@dexlane/api": "workspace:*",
