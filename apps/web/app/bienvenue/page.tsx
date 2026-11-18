@@ -100,7 +100,7 @@ export default function WelcomePage() {
             <Button size="lg" onClick={() => finish("/scanner/lot")}>
               {settings?.intakeMode === "CAMERA" ? "Créer mon premier lot à photographier" : settings?.intakeMode === "FILES" ? "Créer mon premier lot d'images" : "Créer mon premier lot scanné"} <ArrowRight />
             </Button>
-            <Button size="lg" variant="outline" onClick={() => finish("/")}>Aller au stock</Button>
+            <Button size="lg" variant="outline" onClick={() => finish("/stock")}>Aller au stock</Button>
           </div>
         </section>
       )}

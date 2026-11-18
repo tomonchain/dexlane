@@ -31,7 +31,12 @@ export function issueSession(sessionVersion: number): string {
 }
 
 export function readSession(req: NextRequest): { sessionVersion: number } | null {
-  const [version, payload, signature] = (req.cookies.get(SESSION_COOKIE)?.value ?? "").split(".");
+  return parseSession(req.cookies.get(SESSION_COOKIE)?.value);
+}
+
+/** Session portée par la valeur du cookie, si elle est authentique et non expirée. */
+export function parseSession(cookie: string | undefined): { sessionVersion: number } | null {
+  const [version, payload, signature] = (cookie ?? "").split(".");
   if (version !== "v1" || !payload || !signature || !secretEquals(signature, sign(payload))) return null;
   try {
     const { sv, exp } = JSON.parse(Buffer.from(payload, "base64url").toString()) as { sv?: unknown; exp?: unknown };

@@ -4,9 +4,11 @@ Application personnelle de négoce de cartes Pokémon. Spécification : [`specs-
 
 ## État
 
+**Page d'accueil** (`/`) : sans session, une page de présentation publique (ce que fait Dexlane, le parcours en quatre gestes, un bouton de connexion) ; avec une session, l'accueil « Aujourd'hui » — ce qui attend une action (lots à revoir, brouillons, cartes à tarifer, cartes prêtes non planifiées, mises en ligne du jour ou en échec, ventes à préparer ou à remettre, alertes de cote), chaque ligne menant droit à l'écran concerné, puis quatre chiffres. Le Stock est à `/stock`. La page publique n'est pas indexée par les moteurs (`robots: noindex`), et sur Vercel elle n'est visible de tous que si la protection des déploiements le permet (domaine personnalisé ou protection levée).
+
 **Assistant de démarrage** (`/bienvenue`) : à la première utilisation, six étapes — création du compte, mode de scan (scanner, téléphone ou fichiers), import des séries (sélection par bloc, barre d'avancement), emplacements, stratégie de prix, canaux de vente. Tout sauf le compte et le mode de scan peut être passé ; l'assistant se relance depuis Réglages.
 
-**Refonte en cours** : l'application se réorganise autour de cinq destinations — Stock (`/`), Annonces, Ventes, Tableau de bord, Réglages — et d'un seul point d'entrée « Ajouter des cartes ». L'écran Stock est fait : une ligne par carte à vendre (offre), prix modifiable sur place, prix suggéré accepté d'un clic, fiche latérale (prix, cote, annonce, publication, positions). Les autres écrans gardent leur ancienne forme en attendant leur tour, rangés sous Réglages ou dans le menu d'ajout.
+**Refonte en cours** : l'application se réorganise autour de six destinations — Accueil (`/`), Stock (`/stock`), Annonces, Ventes, Tableau de bord, Réglages — et d'un seul point d'entrée « Ajouter des cartes ». L'écran Stock est fait : une ligne par carte à vendre (offre), prix modifiable sur place, prix suggéré accepté d'un clic, fiche latérale (prix, cote, annonce, publication, positions). Les autres écrans gardent leur ancienne forme en attendant leur tour, rangés sous Réglages ou dans le menu d'ajout.
 
 **Sprint 1** terminé : catalogue, scan, stock, entrée en stock, recherche, API HTTP et application web (Scanner, Inventaire, Vrac, Rangement). **Sprint 2** entamé : prix et catégories faits ; la publication attend le choix du canal. **Sprint 3** entamé : ventes directes avec préparation et remise.
 

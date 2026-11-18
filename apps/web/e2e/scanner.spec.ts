@@ -110,7 +110,7 @@ test("première utilisation : l'assistant crée le compte, règle le scan, impor
   await page.getByRole("button", { name: "Terminer" }).click();
   await expect(page.getByRole("heading", { name: "Tout est prêt" })).toBeVisible();
   await page.getByRole("button", { name: "Aller au stock" }).click();
-  await page.waitForURL(/\/$/);
+  await page.waitForURL(/\/stock$/);
   await expect(page.getByRole("heading", { name: "Stock" })).toBeVisible();
 
   // Tout a été enregistré, et l'assistant ne se rouvre plus.
@@ -137,7 +137,7 @@ test("première utilisation : l'assistant crée le compte, règle le scan, impor
   await expect(errorBanner(page)).toHaveText("Mot de passe incorrect.");
   await page.getByLabel("Mot de passe", { exact: true }).fill(E2E_PASSWORD);
   await page.getByRole("button", { name: "Se connecter" }).click();
-  await expect(page.getByRole("heading", { name: "Stock" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Aujourd'hui" })).toBeVisible();
 
   // Sans session, l'API relayée reste fermée.
   await page.context().clearCookies();
@@ -662,7 +662,7 @@ test("stock : une ligne par carte, prix accepté d'un clic ou saisi sur place, f
   await receive({ variantId: scanned.suggestedVariantId, condition: "PO", photoIds: [scanned.photo.id] });
   await page.request.put("/api/channels/ebay", { data: { mode: "SIMULATION" } });
 
-  await page.goto("/");
+  await page.goto("/stock");
   await expect(page.getByRole("heading", { name: "Stock" })).toBeVisible();
   await expect(page.getByTestId("stock-totals")).toContainText("carte");
   await page.getByLabel("Rechercher dans le stock").fill("BOX"); // ne correspond à aucune carte : la recherche porte sur les cartes
@@ -793,7 +793,7 @@ test("mise en ligne planifiée : image de fin d'annonce, sélection de cartes, r
   await expect(page.getByTestId("promo").getByRole("img", { name: "Image de fin d'annonce" })).toBeVisible();
 
   // Stock : deux cartes sélectionnées, une par jour à partir d'aujourd'hui.
-  await page.goto("/");
+  await page.goto("/stock");
   await page.getByLabel("Rechercher dans le stock").fill("OF-SWSH3-136-FR-N-");
   await page.getByTestId("stock-OF-SWSH3-136-FR-N-LP").getByRole("checkbox").check();
   await page.getByTestId("stock-OF-SWSH3-136-FR-N-PL").getByRole("checkbox").check();
@@ -948,4 +948,29 @@ test("lot sans temps mort : variante appliquée en masse, corrections enchaîné
   expect(detail.photos.filter((p) => p.kind === "LISTING").length).toBeGreaterThanOrEqual(1);
   expect(detail.planned).toMatchObject({ channel: "ebay" });
   await page.request.post("/api/publications/cancel", { data: {} });
+});
+
+test("page d'accueil : vitrine publique sans session, puis « Aujourd'hui » avec ce qui attend une fois connecté", async ({ page }) => {
+  // Visiteur : la présentation du produit, sans navigation d'application ni donnée du stock.
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Du carton de cartes à l'annonce en ligne." })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Navigation principale" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Quatre gestes, dans l'ordre." })).toBeVisible();
+  await page.getByRole("link", { name: "Ouvrir Dexlane" }).click();
+  await page.waitForURL(/\/login$/);
+
+  // Propriétaire : un lot en cours apparaît dans « À faire » et mène droit au lot.
+  await login(page);
+  await page.request.post("/api/locations", { data: { code: "BOITE-11" } });
+  const batch = (await (await page.request.post("/api/scan-batches", { data: { name: "Lot d'accueil", locationCode: "BOITE-11", paired: false } })).json()) as { id: string };
+  await page.request.post(`/api/scan-batches/${batch.id}/items?position=1&fileName=a.png`, { data: png(CLEAR), headers: { "Content-Type": "image/png" } });
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Aujourd'hui" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Navigation principale" }).first()).toBeVisible();
+  await expect(page.getByTestId("home-value")).toContainText("€");
+  const task = page.getByTestId("home-task").filter({ hasText: "Lot d'accueil" });
+  await expect(task).toContainText("carte à corriger");
+  await task.click();
+  await page.waitForURL(new RegExp(`/scanner/lot/${batch.id}$`));
+  await expect(page.getByRole("heading", { name: "Lot d'accueil" })).toBeVisible();
 });

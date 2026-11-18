@@ -1,10 +1,12 @@
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import type { Metadata, Viewport } from "next";
+import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 import { Toaster } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { ThemeProvider } from "@/components/theme";
+import { SESSION_COOKIE, parseSession } from "@/lib/session";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -24,13 +26,20 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // La racine du site est publique pour un visiteur, et l'accueil de l'application pour le propriétaire connecté.
+  let signedIn = false;
+  try {
+    signedIn = parseSession((await cookies()).get(SESSION_COOKIE)?.value) !== null;
+  } catch {
+    signedIn = false; // serveur sans jeton configuré : tout visiteur voit la page publique
+  }
   return (
     // suppressHydrationWarning : la classe de thème est posée avant l'hydratation par next-themes.
     <html lang="fr" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <body>
         <ThemeProvider>
-          <AppShell>{children}</AppShell>
+          <AppShell signedIn={signedIn}>{children}</AppShell>
           <Toaster position="top-center" richColors closeButton toastOptions={{ className: "font-sans" }} />
         </ThemeProvider>
       </body>

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChartColumn, CircleUserRound, Images, Layers, Megaphone, Package, Plus, Receipt, ScanLine, Search, Settings, type LucideIcon } from "lucide-react";
+import { ChartColumn, CircleUserRound, House, Images, Layers, Megaphone, Package, Plus, Receipt, ScanLine, Search, Settings, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { DropdownMenu } from "radix-ui";
@@ -12,14 +12,15 @@ import { ThemeSwitch } from "./theme";
 
 /** Les quatre destinations. Tout le reste se trouve dans le parcours (ajout, fiche d'une carte) ou dans Réglages. */
 const NAV: { href: string; label: string; icon: LucideIcon; match: string[] }[] = [
-  { href: "/", label: "Stock", icon: Package, match: ["/inventaire"] },
+  { href: "/", label: "Accueil", icon: House, match: [] },
+  { href: "/stock", label: "Stock", icon: Package, match: ["/stock", "/inventaire"] },
   { href: "/annonces", label: "Annonces", icon: Megaphone, match: ["/annonces"] },
   { href: "/ventes", label: "Ventes", icon: Receipt, match: ["/ventes"] },
   { href: "/statistiques", label: "Tableau de bord", icon: ChartColumn, match: ["/statistiques"] },
   { href: "/reglages", label: "Réglages", icon: Settings, match: ["/reglages", "/prix", "/rangement", "/catalogue", "/compte"] },
 ];
-/** Sur téléphone, quatre onglets autour du bouton d'ajout ; le tableau de bord se trouve dans Réglages. */
-const MOBILE_NAV = [NAV[0]!, NAV[1]!, null, NAV[2]!, NAV[4]!];
+/** Sur téléphone, quatre onglets autour du bouton d'ajout ; Réglages est dans l'en-tête, le tableau de bord dans Réglages. */
+const MOBILE_NAV = [NAV[0]!, NAV[1]!, null, NAV[2]!, NAV[3]!];
 const NO_SHELL = ["/login", "/bienvenue"];
 type IntakeMode = "SCANNER" | "CAMERA" | "FILES" | null;
 /** Le lot se présente selon le matériel choisi dans l'assistant de démarrage. */
@@ -35,7 +36,7 @@ const ADD: { href: string; label: string; hint: string; icon: LucideIcon }[] = [
 ];
 
 const isCurrent = (pathname: string, item: (typeof NAV)[number]) =>
-  item.href === "/" ? pathname === "/" || item.match.some((m) => pathname.startsWith(m)) : item.match.some((m) => pathname.startsWith(m));
+  item.href === "/" ? pathname === "/" : item.match.some((m) => pathname.startsWith(m));
 
 export function Logo({ className }: { className?: string }) {
   return (
@@ -86,12 +87,13 @@ function AddMenu({ compact, intake }: { compact?: boolean; intake: IntakeMode })
   );
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, signedIn }: { children: ReactNode; signedIn: boolean }) {
   const pathname = usePathname();
   const [searching, setSearching] = useState(false);
 
   const router = useRouter();
-  const bare = NO_SHELL.includes(pathname);
+  // Sans session, la racine est la page de présentation publique : pas de navigation d'application autour.
+  const bare = NO_SHELL.includes(pathname) || (pathname === "/" && !signedIn);
   const [intake, setIntake] = useState<IntakeMode>(null);
 
   // Première utilisation : tant que l'assistant de démarrage n'a pas été terminé ou passé, il s'ouvre de lui-même.
@@ -163,9 +165,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* En-tête (téléphone) */}
       <header className="sticky top-0 z-30 flex h-12 items-center justify-between border-b bg-background px-4 pt-[env(safe-area-inset-top)] lg:hidden">
         <Link href="/" className="outline-none"><Logo /></Link>
-        <button type="button" onClick={() => setSearching(true)} aria-label="Rechercher" className="flex size-9 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent">
-          <Search className="size-[18px]" aria-hidden />
-        </button>
+        <span className="flex items-center">
+          <button type="button" onClick={() => setSearching(true)} aria-label="Rechercher" className="flex size-9 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent">
+            <Search className="size-[18px]" aria-hidden />
+          </button>
+          <Link href="/reglages" aria-label="Réglages" className="flex size-9 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent">
+            <Settings className="size-[18px]" aria-hidden />
+          </Link>
+        </span>
       </header>
 
       <div className="lg:pl-56">

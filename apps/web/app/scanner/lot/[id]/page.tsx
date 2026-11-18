@@ -335,7 +335,7 @@ export default function ScanBatchPage() {
             {channels.length > 0 && !visuals && (
               <Button size="sm" onClick={() => setPlanning(true)}><CalendarClock /> Planifier la mise en ligne</Button>
             )}
-            <Button asChild variant="outline" size="sm"><Link href="/">Voir le stock</Link></Button>
+            <Button asChild variant="outline" size="sm"><Link href="/stock">Voir le stock</Link></Button>
           </span>
         </div>
       ) : (

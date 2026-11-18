@@ -1,7 +1,7 @@
 "use client";
 
 import { Command } from "cmdk";
-import { Archive, BookOpen, Boxes, ChartColumn, Images, Layers, Megaphone, Package, Receipt, ScanLine, Search, Settings, Tags } from "lucide-react";
+import { Archive, BookOpen, Boxes, ChartColumn, House, Images, Layers, Megaphone, Package, Receipt, ScanLine, Search, Settings, Tags } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Dialog } from "radix-ui";
 import { useEffect, useState } from "react";
@@ -11,7 +11,8 @@ import type { Position } from "@/lib/types";
 import { Code, Spinner } from "./ui/misc";
 
 export const PAGES = [
-  { href: "/", label: "Stock", hint: "Toutes les cartes à vendre : prix, annonce, statut", icon: Package },
+  { href: "/", label: "Accueil", hint: "Ce qu'il y a à faire aujourd'hui", icon: House },
+  { href: "/stock", label: "Stock", hint: "Toutes les cartes à vendre : prix, annonce, statut", icon: Package },
   { href: "/ajouter", label: "Ajouter une carte", hint: "Photo ou recherche, puis entrée en stock", icon: ScanLine },
   { href: "/scanner/lot", label: "Ajouter un lot d'images", hint: "Importer les images d'un scanner à défilement", icon: Images },
   { href: "/vrac", label: "Ajouter du vrac", hint: "Enregistrer un lot agrégé", icon: Layers },
