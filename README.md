@@ -127,10 +127,11 @@ Sans `DEXLANE_API_URL`, le serveur Next embarque l'API : un seul déploiement su
 
 Intégration continue et déploiement :
 
-- **CI** (`.github/workflows/ci.yml`, GitHub Actions) : sur chaque pull request et chaque arrivée sur `main`, deux tâches en parallèle contre un PostgreSQL jetable — types et tests unitaires d'un côté, build de production et parcours navigateur de l'autre (traces conservées 7 jours en cas d'échec). Installation figée (`--frozen-lockfile`), droits en lecture seule, exécution précédente annulée quand la pull request reçoit un nouveau push.
-- **Déploiement par Git** (Vercel) : chaque branche poussée reçoit une prévisualisation ; `main` est la production. On ne déploie donc pas à la main : on fusionne une pull request dont la CI est verte. À régler une fois dans GitHub (Settings → Branches) : protéger `main` en exigeant les vérifications « Types et tests » et « Parcours navigateur ».
+- **CI** (`.github/workflows/ci.yml`, GitHub Actions) : deux tâches en parallèle contre un PostgreSQL jetable — types et tests unitaires d'un côté, build de production et parcours navigateur de l'autre (traces conservées 7 jours en cas d'échec). Installation figée (`--frozen-lockfile`), droits en lecture seule sauf pour les tâches de fusion, exécution précédente annulée par un nouveau push.
+- **Livraison automatique** : un push sur une branche de travail `claude/**` est vérifié *fusionné avec `main`* ; si tout est vert, la tâche « Livraison » ouvre la pull request au besoin et la fusionne (uniquement le commit vérifié), puis Vercel déploie la production depuis `main`. Aucune étape manuelle. Pour retenir un changement, poser l'étiquette `hold` sur sa pull request avant la fin de la CI. L'ouverture automatique d'une pull request demande, une fois, Settings → Actions → General → « Allow GitHub Actions to create and approve pull requests ».
+- **Autres pull requests** : vérifiées par la même CI, fusion manuelle. Chaque branche poussée reçoit une prévisualisation Vercel.
 - **Migrations** : appliquées par le build de production seulement. Une prévisualisation partage par défaut la base de production et ne doit pas en changer le schéma ; avec une base par prévisualisation (branche Neon), poser `MIGRATE_ON_PREVIEW=1`. Conséquence : une prévisualisation dont le code attend une migration non encore appliquée peut échouer tant que la branche n'est pas fusionnée.
-- **Dépendances** : Dependabot propose une fois par mois les mises à jour, regroupées, qui passent par la même CI.
+- **Dépendances** : Dependabot propose une fois par mois les mises à jour, regroupées. Les mineures et correctives se fusionnent seules une fois la CI verte ; les versions majeures attendent une relecture.
 
 Tests de bout en bout (navigateur mobile → Next → API → PostgreSQL de test ; seule la lecture Claude est simulée) :
 
