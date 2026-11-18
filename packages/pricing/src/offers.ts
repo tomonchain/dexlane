@@ -79,14 +79,22 @@ interface OfferState {
   averageCostCents: number;
 }
 
-async function applyPricing(tx: Db, offer: OfferState, quotes: Quote[], settings: PricingSettings): Promise<PricingResult> {
-  const result = computePricing(
+async function applyPricing(tx: Db, initial: OfferState, quotes: Quote[], settings: PricingSettings): Promise<PricingResult> {
+  let offer = initial;
+  const compute = (current: OfferState) => computePricing(
     {
-      condition: offer.condition, isUnique: offer.isUnique, variantIncomplete: offer.variantIncomplete,
-      averageCostCents: offer.averageCostCents, quotes, current: { priceSource: offer.priceSource, targetPriceCents: offer.targetPriceCents }, now: new Date(),
+      condition: current.condition, isUnique: current.isUnique, variantIncomplete: current.variantIncomplete,
+      averageCostCents: current.averageCostCents, quotes, current: { priceSource: current.priceSource, targetPriceCents: current.targetPriceCents }, now: new Date(),
     },
     settings,
   );
+  let result = compute(offer);
+  // Un prix posé par les règles ne reste jamais sous le prix d'achat : si de nouveaux exemplaires plus chers font
+  // monter le coût, il est recalculé. Un prix décidé à la main, lui, est seulement signalé.
+  if (offer.priceSource === "AUTO" && result.reasons.includes("BELOW_COST")) {
+    offer = { ...offer, priceSource: "NONE", targetPriceCents: null };
+    result = compute(offer);
+  }
   const blocked = result.reasons.some((r) => BLOCKING_REASONS.has(r));
   const observed = tx`
     suggested_price_cents = ${result.suggestedCents}, reference_price_cents = ${result.reference?.amountCents ?? null},

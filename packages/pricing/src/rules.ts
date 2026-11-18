@@ -15,16 +15,26 @@ export type PriceReason =
   | "STALE_REFERENCE"     // cotation trop ancienne
   | "AMBIGUOUS_REFERENCE" // cotation partagée avec une autre variante
   | "VARIANT_INCOMPLETE"  // variante à confirmer dans le catalogue
-  | "GREY_ZONE"           // entre lot et vente à l'unité : rentabilité à décider
-  | "BELOW_COST"          // le plancher imposé par le coût dépasse le prix
+  | "GREY_ZONE"           // (ancien motif, plus émis) entre lot et vente à l'unité
+  | "BELOW_COST"          // le prix décidé ne couvre plus le coût d'achat
+  | "HELD_AT_COST"        // le marché est sous le prix d'achat : prix tenu au coût, vente plus lente
   | "PREMIUM_NOT_UNIQUE"  // valeur premium sur une offre interchangeable : à individualiser
   | "DRIFT";              // le prix décidé s'écarte de la suggestion actuelle
 
 export const BLOCKING_REASONS: ReadonlySet<PriceReason> = new Set([
-  "NO_REFERENCE", "STALE_REFERENCE", "AMBIGUOUS_REFERENCE", "VARIANT_INCOMPLETE", "GREY_ZONE", "BELOW_COST",
+  "NO_REFERENCE", "STALE_REFERENCE", "AMBIGUOUS_REFERENCE", "VARIANT_INCOMPLETE", "BELOW_COST",
 ]);
 
+/**
+ * Où se placer dans la fourchette du marché :
+ * FAST — au prix qui part tout de suite ; BALANCED — entre ce prix et le plus haut que le marché soutient ; MARGIN — au plus haut.
+ */
+export type PricingStrategy = "FAST" | "BALANCED" | "MARGIN";
+export const STRATEGIES: PricingStrategy[] = ["FAST", "BALANCED", "MARGIN"];
+
 export interface PricingSettings {
+  /** Arbitrage entre vitesse de vente et marge. */
+  strategy: PricingStrategy;
   /** Cotation de référence préférée ; les autres servent de repli dans l'ordre de QUOTE_TYPES. */
   basis: QuoteType;
   /** Au-delà, la cotation est jugée périmée (spec : « prix non publiable si donnée trop ancienne »). */
@@ -49,6 +59,7 @@ export interface PricingSettings {
 }
 
 export const DEFAULT_SETTINGS: PricingSettings = {
+  strategy: "BALANCED",
   basis: "LISTED_TREND",
   maxAgeDays: 14,
   conditionPercent: { MT: 100, NM: 100, EX: 80, GD: 65, LP: 50, PL: 35, PO: 20 },
@@ -87,9 +98,20 @@ export interface Reference extends Quote {
   ageDays: number;
 }
 
+/** Ce que le marché dit d'une carte, toutes cotes confondues (état « comme neuf »). */
+export interface MarketBand {
+  /** Prix auquel la carte se vend sans attendre : la plus basse des cotes de vente. */
+  liquidCents: number;
+  /** Plus haut prix que le marché soutient encore (plafonné pour ignorer un pic isolé). */
+  richCents: number;
+  /** Annonce la moins chère du moment, si connue. */
+  lowCents: number | null;
+}
+
 export interface PricingResult {
   reference: Reference | null;
-  /** Prix estimé pour cet état : référence × coefficient d'état. */
+  market: MarketBand | null;
+  /** Prix estimé pour cet état : position dans la fourchette du marché × coefficient d'état, jamais sous le coût. */
   suggestedCents: number | null;
   /** Catégorie selon les seuils, sans tenir compte des motifs de revue. */
   tier: Exclude<OfferCategory, "REVIEW"> | null;
@@ -134,6 +156,38 @@ export function pickReference(quotes: Quote[], s: PricingSettings, now: Date): R
   return null;
 }
 
+/** Une cote de vente isolée au-dessus des autres (pic d'une semaine) ne tire pas le prix de plus de 25 %. */
+const RICH_CAP = 1.25;
+/** « Vendre vite » s'aligne sur l'annonce la moins chère, sans brader de plus de 10 % sous la valeur liquide. */
+const FAST_UNDERCUT = 0.9;
+
+/**
+ * Fourchette du marché à partir des dernières cotes : tendance et moyennes des ventes sur 7 et 30 jours.
+ * À défaut de cote de vente, l'annonce la moins chère sert seule de repère.
+ */
+export function marketBand(quotes: Quote[]): MarketBand | null {
+  const amount = (type: QuoteType) => quotes.find((q) => q.quoteType === type && q.amountCents > 0)?.amountCents ?? null;
+  const low = amount("LISTED_LOW");
+  const sold = [amount("LISTED_TREND"), amount("SOLD_AVG_7D"), amount("SOLD_AVG_30D")].filter((v): v is number => v !== null);
+  if (sold.length === 0) return low === null ? null : { liquidCents: low, richCents: low, lowCents: low };
+  const liquid = Math.min(...sold);
+  return { liquidCents: liquid, richCents: Math.min(Math.max(...sold), Math.round(liquid * RICH_CAP)), lowCents: low };
+}
+
+/** Prix de marché (état « comme neuf ») selon la stratégie. */
+export function marketPrice(band: MarketBand, strategy: PricingStrategy): number {
+  if (strategy === "MARGIN") return band.richCents;
+  if (strategy === "BALANCED") return Math.round((band.liquidCents + band.richCents) / 2);
+  const undercut = band.lowCents !== null && band.lowCents < band.liquidCents;
+  return undercut ? Math.max(band.lowCents!, Math.round(band.liquidCents * FAST_UNDERCUT)) : band.liquidCents;
+}
+
+/** Arrondi au pas supérieur : un plancher de coût ne s'arrondit jamais vers le bas. */
+function roundUpPrice(cents: number, s: PricingSettings): number {
+  if (s.roundStepCents <= 1 || cents < s.roundFromCents) return cents;
+  return Math.ceil(cents / s.roundStepCents) * s.roundStepCents;
+}
+
 /**
  * Cœur du moteur de règles : pur, sans base ni horloge implicite, donc entièrement testable.
  * Ne décide jamais d'un prix à la place de l'opérateur quand un doute existe — il le signale.
@@ -145,16 +199,25 @@ export function computePricing(input: PricingInput, s: PricingSettings): Pricing
   if (!reference) {
     reasons.push("NO_REFERENCE");
     if (input.variantIncomplete) reasons.push("VARIANT_INCOMPLETE");
-    return { reference: null, suggestedCents: null, tier: null, category: "REVIEW", floorCents: null, reasons: onlyDriftIfManual(input, reasons) };
+    return { reference: null, market: null, suggestedCents: null, tier: null, category: "REVIEW", floorCents: null, reasons: onlyDriftIfManual(input, reasons) };
   }
 
-  const suggestedCents = roundPrice(Math.max(1, Math.round((reference.amountCents * s.conditionPercent[input.condition]) / 100)), s);
+  // 1. Le marché : où la carte se vend, selon la stratégie, ramené à l'état de l'exemplaire.
+  const market = marketBand(input.quotes)!;
+  const atCondition = Math.max(1, Math.round((marketPrice(market, s.strategy) * s.conditionPercent[input.condition]) / 100));
+  // 2. Le coût : jamais sous le prix d'achat (plus la marge minimale pour une vente à l'unité).
+  //    Si le marché est en dessous, le prix est tenu au coût et l'offre le signale : elle se vendra moins vite.
+  const costFloor = input.averageCostCents > 0
+    ? input.averageCostCents + (["SINGLE", "PREMIUM"].includes(tierOf(Math.max(atCondition, input.averageCostCents), s)) ? s.minMarginCents : 0)
+    : 0;
+  const held = costFloor > roundPrice(atCondition, s);
+  const suggestedCents = held ? roundUpPrice(costFloor, s) : roundPrice(atCondition, s);
   const tier = tierOf(suggestedCents, s);
 
   if (reference.ageDays > s.maxAgeDays) reasons.push("STALE_REFERENCE");
   if (reference.variantAmbiguous) reasons.push("AMBIGUOUS_REFERENCE");
   if (input.variantIncomplete) reasons.push("VARIANT_INCOMPLETE");
-  if (suggestedCents >= s.lotBelowCents && suggestedCents < s.singleFromCents) reasons.push("GREY_ZONE");
+  if (held) reasons.push("HELD_AT_COST");
   if (tier === "PREMIUM" && !input.isUnique) reasons.push("PREMIUM_NOT_UNIQUE");
 
   // Le plancher et l'écart se jugent sur le prix décidé s'il existe, sinon sur la suggestion.
@@ -169,6 +232,7 @@ export function computePricing(input: PricingInput, s: PricingSettings): Pricing
   const kept = onlyDriftIfManual(input, reasons);
   return {
     reference,
+    market,
     suggestedCents,
     tier,
     category: kept.some((r) => BLOCKING_REASONS.has(r)) ? "REVIEW" : tier,
@@ -188,6 +252,7 @@ export function validateSettings(s: PricingSettings): string | null {
     s.driftPercent, s.roundFromCents, s.roundStepCents, ...Object.values(s.conditionPercent),
   ];
   if (!ints.every((n) => Number.isInteger(n) && n >= 0)) return "all values must be non-negative integers";
+  if (!STRATEGIES.includes(s.strategy)) return "unknown pricing strategy";
   if (!(s.bulkBelowCents <= s.lotBelowCents && s.lotBelowCents <= s.singleFromCents && s.singleFromCents <= s.premiumFromCents)) {
     return "thresholds must be increasing: bulk ≤ lot ≤ single ≤ premium";
   }

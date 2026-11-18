@@ -216,16 +216,20 @@ describe("pricing", () => {
     expect(preview.json.suggestedCents).toBeGreaterThan(0);
     await sql`update price_snapshots set observed_at = now() - interval '1 day'`;
     const fresh = (await call("GET", `/api/pricing/variants/${variantId}?condition=NM`)).json;
-    expect(fresh).toMatchObject({ reasons: ["GREY_ZONE"], category: "REVIEW", reference: { quoteType: "LISTED_TREND" } });
+    expect(fresh).toMatchObject({ reasons: [], category: "SINGLE", reference: { quoteType: "LISTED_TREND" } });
+    // Le prix se place dans la fourchette du marché, entre ce qui part tout de suite et le plus haut soutenu.
+    expect(fresh.market.liquidCents).toBeLessThanOrEqual(fresh.suggestedCents);
+    expect(fresh.suggestedCents).toBeLessThanOrEqual(fresh.market.richCents);
 
     await call("POST", "/api/locations", { body: { code: "BOX-01" } });
     const received = await call("POST", "/api/inventory/receive", {
       body: { variantId, condition: "NM", quantity: 2, locationCode: "BOX-01", unitCostCents: 200 },
     });
-    expect(received.json.pricing).toMatchObject({ category: "REVIEW", targetPriceCents: null, suggestedPriceCents: fresh.suggestedCents, reasons: ["GREY_ZONE"], onHand: 2 });
+    // Rien ne fait douter : le prix est posé d'office à l'entrée en stock.
+    expect(received.json.pricing).toMatchObject({ category: "SINGLE", targetPriceCents: fresh.suggestedCents, priceSource: "AUTO", reasons: [], onHand: 2 });
 
-    const queue = await call("GET", "/api/pricing/offers?status=REVIEW");
-    expect(queue.json).toMatchObject({ reviewCount: 1, allCount: 1, items: [{ offerId: received.json.offer.id, card: { name: "Mew-ex" } }] });
+    const queue = await call("GET", "/api/pricing/offers?status=ALL");
+    expect(queue.json).toMatchObject({ reviewCount: 0, allCount: 1, items: [{ offerId: received.json.offer.id, card: { name: "Mew-ex" } }] });
     expect((await call("GET", "/api/inventory/summary")).json).toMatchObject({ marketValueCents: 2 * fresh.suggestedCents, unpricedCards: 0 });
 
     const decided = await call("POST", `/api/pricing/offers/${received.json.offer.id}/price`, { body: { targetPriceCents: 900, category: "SINGLE" }, key: null });
@@ -240,9 +244,10 @@ describe("pricing", () => {
 
   it("reads and replaces the rules, repricing existing offers", async () => {
     const settings = (await call("GET", "/api/pricing/settings")).json;
-    expect(settings).toMatchObject({ basis: "LISTED_TREND", singleFromCents: 1500, conditionPercent: { EX: 80 }, roundFromCents: 1000, roundStepCents: 100 });
-    const saved = await call("PUT", "/api/pricing/settings", { body: { ...settings, maxAgeDays: 30 } });
-    expect(saved.json).toMatchObject({ settings: { maxAgeDays: 30 }, repriced: 0 });
+    expect(settings).toMatchObject({ strategy: "BALANCED", basis: "LISTED_TREND", singleFromCents: 1500, conditionPercent: { EX: 80 }, roundFromCents: 1000, roundStepCents: 100 });
+    const saved = await call("PUT", "/api/pricing/settings", { body: { ...settings, maxAgeDays: 30, strategy: "FAST" } });
+    expect(saved.json).toMatchObject({ settings: { maxAgeDays: 30, strategy: "FAST" }, repriced: 0 });
+    expect((await call("PUT", "/api/pricing/settings", { body: { ...settings, strategy: "YOLO" } })).status).toBe(400);
     const invalid = await call("PUT", "/api/pricing/settings", { body: { ...settings, lotBelowCents: 1 } });
     expect([invalid.status, invalid.json.error.code]).toEqual([422, "INVALID_PRICING_SETTINGS"]);
     expect((await call("PUT", "/api/pricing/settings", { body: { basis: "LISTED_TREND" } })).status).toBe(400);

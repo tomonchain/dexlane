@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/c
 import { Field, Input, Select } from "@/components/ui/input";
 import { Code, EmptyState, Loading, PageHeader, Spinner } from "@/components/ui/misc";
 import { Modal } from "@/components/ui/modal";
+import { StrategyPicker } from "@/components/strategy-picker";
 import { Pagination, SegmentedTabs } from "@/components/ui/tabs";
 import { ApiError, api } from "@/lib/api";
 import { formatEuros, parseEuros, variantLabel } from "@/lib/format";
@@ -137,7 +138,7 @@ export default function PricingPage() {
         <>
           <Card className="divide-y overflow-hidden">
             {data.items.map((o) => {
-              const canAccept = o.suggestedPriceCents !== null && o.suggestedPriceCents !== o.targetPriceCents && !o.reasons.includes("GREY_ZONE") && !o.reasons.includes("NO_REFERENCE");
+              const canAccept = o.suggestedPriceCents !== null && o.suggestedPriceCents !== o.targetPriceCents && !o.reasons.includes("NO_REFERENCE");
               return (
                 <div key={o.offerId} className="grid gap-3 px-4 py-3.5 sm:px-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center" data-testid={`offer-${o.offerSku}`}>
                   <div className="flex min-w-0 items-start gap-3">
@@ -280,6 +281,7 @@ const QUOTE_BASES: [PricingSettings["basis"], string][] = [
 
 function Rules({ settings, onSaved }: { settings: PricingSettings; onSaved: (s: PricingSettings) => void }) {
   const [basis, setBasis] = useState(settings.basis);
+  const [strategy, setStrategy] = useState(settings.strategy);
   const [numbers, setNumbers] = useState({
     maxAgeDays: String(settings.maxAgeDays), floorPercent: String(settings.floorPercent), driftPercent: String(settings.driftPercent),
   });
@@ -308,7 +310,7 @@ function Rules({ settings, onSaved }: { settings: PricingSettings; onSaved: (s: 
     setError(null);
     try {
       const saved = await api.savePricingSettings({
-        basis, ...(parsed.numbers as Pick<PricingSettings, "maxAgeDays" | "floorPercent" | "driftPercent">),
+        strategy, basis, ...(parsed.numbers as Pick<PricingSettings, "maxAgeDays" | "floorPercent" | "driftPercent">),
         ...(parsed.euros as Pick<PricingSettings, "bulkBelowCents" | "lotBelowCents" | "singleFromCents" | "premiumFromCents" | "minMarginCents" | "roundFromCents" | "roundStepCents">),
         conditionPercent: parsed.conditions as PricingSettings["conditionPercent"],
       });
@@ -334,11 +336,20 @@ function Rules({ settings, onSaved }: { settings: PricingSettings; onSaved: (s: 
 
   return (
     <form className="grid gap-5 lg:grid-cols-2" onSubmit={submit}>
+      <Card className="lg:col-span-2">
+        <CardContent className="grid gap-4">
+          <div className="grid gap-1">
+            <CardTitle>Stratégie</CardTitle>
+            <CardDescription>Où placer le prix dans la fourchette du marché : plus bas pour vendre vite, plus haut pour la marge.</CardDescription>
+          </div>
+          <StrategyPicker value={strategy} onChange={setStrategy} />
+        </CardContent>
+      </Card>
       <Card>
         <CardContent className="grid gap-4">
           <div className="grid gap-1">
             <CardTitle>Référence</CardTitle>
-            <CardDescription>La cotation dont part l'estimation. Les autres servent de repli si elle manque.</CardDescription>
+            <CardDescription>La cotation affichée à côté du prix, et dont la date décide si les cotes sont encore fraîches.</CardDescription>
           </div>
           <Field label="Cotation de référence">
             <Select value={basis} onChange={(e) => setBasis(e.target.value as PricingSettings["basis"])}>

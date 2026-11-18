@@ -17,6 +17,7 @@ export const REASON_LABEL: Record<string, string> = {
   VARIANT_INCOMPLETE: "Variante à confirmer dans le catalogue",
   GREY_ZONE: "Entre lot et vente à l'unité : à vous de décider",
   BELOW_COST: "Le prix ne couvre pas le coût d'achat",
+  HELD_AT_COST: "Marché sous le prix d'achat : prix tenu au coût, vente plus lente",
   PREMIUM_NOT_UNIQUE: "Valeur premium : à vendre en exemplaire unique",
   DRIFT: "Le marché a bougé depuis votre prix",
 };
@@ -50,3 +51,9 @@ export function age(iso: string): string {
 
 /** Montant en euros pour un champ de saisie : « 12,50 ». */
 export const eurosInput = (cents: number) => (cents / 100).toFixed(2).replace(".", ",");
+
+export const STRATEGY_OPTIONS: { value: "FAST" | "BALANCED" | "MARGIN"; label: string; hint: string }[] = [
+  { value: "FAST", label: "Vendre vite", hint: "Au prix qui part tout de suite, aligné sur l'annonce la moins chère." },
+  { value: "BALANCED", label: "Équilibré", hint: "Entre le prix qui part tout de suite et le plus haut que le marché soutient." },
+  { value: "MARGIN", label: "Marge maximale", hint: "Au plus haut prix que le marché soutient : plus de marge, vente plus lente." },
+];

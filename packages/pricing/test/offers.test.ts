@@ -47,11 +47,12 @@ describe("pricing an offer", () => {
     const none = await stock(await variant(null));
     const stale = await stock(await variant(2000, { ageDays: 40 }));
     const ambiguous = await stock(await variant(2000, { ambiguous: true }));
-    const grey = await stock(await variant(900));
+    const midRange = await stock(await variant(900));
     expect(await offer(none)).toMatchObject({ category: "REVIEW", targetPriceCents: null, reasons: ["NO_REFERENCE"], priceSource: "NONE" });
     expect(await offer(stale)).toMatchObject({ category: "REVIEW", targetPriceCents: null, suggestedPriceCents: 2000, reasons: ["STALE_REFERENCE"] });
     expect(await offer(ambiguous)).toMatchObject({ category: "REVIEW", targetPriceCents: null, reasons: ["AMBIGUOUS_REFERENCE"] });
-    expect(await offer(grey)).toMatchObject({ category: "REVIEW", targetPriceCents: null, reasons: ["GREY_ZONE"] });
+    // Entre 5 et 15 €, la carte est tarifée d'office comme les autres.
+    expect(await offer(midRange)).toMatchObject({ category: "SINGLE", targetPriceCents: 900, reasons: [], priceSource: "AUTO" });
   });
 
   it("never moves a decided price by itself: a market move becomes a review reason", async () => {
@@ -66,13 +67,22 @@ describe("pricing an offer", () => {
     expect(await offer(id)).toMatchObject({ targetPriceCents: 2000, suggestedPriceCents: 3000, reasons: ["DRIFT"], category: "SINGLE" });
   });
 
-  it("raises the floor with the cost of newly received copies and flags a price below cost", async () => {
+  it("lifts an automatic price that fell under the cost of newly received copies, and only flags a manual one", async () => {
     const v = await variant(2000);
     const id = await stock(v, { cost: 500 });
     expect((await offer(id)).floorPriceCents).toBe(1600);
     await receiveCard(sql, { variantId: v, condition: "NM", quantity: 3, location: { code: "BOX-01" }, unitCostCents: 2500, actor: ACTOR });
     await refreshOfferPricing(sql, id);
-    expect(await offer(id)).toMatchObject({ onHand: 4, averageCostCents: 2000, targetPriceCents: 2000, floorPriceCents: 2050, category: "REVIEW", reasons: ["BELOW_COST"] });
+    expect(await offer(id)).toMatchObject({
+      onHand: 4, averageCostCents: 2000, targetPriceCents: 2100, floorPriceCents: 2050, category: "SINGLE", reasons: ["HELD_AT_COST"], priceSource: "AUTO",
+    });
+
+    const manual = await variant(2000);
+    const manualId = await stock(manual, { cost: 500 });
+    await setOfferPrice(sql, { offerId: manualId, targetPriceCents: 1800, actor: ACTOR });
+    await receiveCard(sql, { variantId: manual, condition: "NM", quantity: 3, location: { code: "BOX-01" }, unitCostCents: 2500, actor: ACTOR });
+    await refreshOfferPricing(sql, manualId);
+    expect(await offer(manualId)).toMatchObject({ targetPriceCents: 1800, priceSource: "MANUAL", reasons: ["BELOW_COST"] });
   });
 });
 
@@ -90,7 +100,7 @@ describe("manual decision", () => {
     expect(await offer(id)).toMatchObject({ targetPriceCents: 1000, suggestedPriceCents: 1500, category: "SINGLE", reasons: ["DRIFT"] });
 
     const [audit] = await sql`select actor, before, after from audit_events where action = 'offer_price_set'`;
-    expect(audit).toMatchObject({ actor: ACTOR, before: { targetPriceCents: null, priceSource: "NONE" }, after: { targetPriceCents: 1000, category: "SINGLE" } });
+    expect(audit).toMatchObject({ actor: ACTOR, before: { targetPriceCents: 900, priceSource: "AUTO" }, after: { targetPriceCents: 1000, category: "SINGLE" } });
   });
 
   it("rejects a floor above the target and negative prices", async () => {
@@ -104,7 +114,7 @@ describe("manual decision", () => {
 describe("review queue and settings", () => {
   it("lists offers by value at stake and counts those to review", async () => {
     const cheap = await stock(await variant(300, { name: "Rattata" }), { quantity: 2 });
-    const big = await stock(await variant(900, { name: "Dracaufeu" }), { quantity: 10 });
+    const big = await stock(await variant(900, { name: "Dracaufeu", ambiguous: true }), { quantity: 10 });
     const fine = await stock(await variant(2500, { name: "Mewtwo" }));
 
     const all = await listOfferPricing(sql);
@@ -116,14 +126,16 @@ describe("review queue and settings", () => {
   });
 
   it("applies new rules to every offer at once and validates them", async () => {
-    const grey = await stock(await variant(900));
-    expect((await offer(grey)).category).toBe("REVIEW");
+    const old = await stock(await variant(900, { ageDays: 20 }));
+    expect(await offer(old)).toMatchObject({ category: "REVIEW", targetPriceCents: null, reasons: ["STALE_REFERENCE"] });
     expect(await getPricingSettings(sql)).toEqual(DEFAULT_SETTINGS);
 
-    const saved = await savePricingSettings(sql, { ...DEFAULT_SETTINGS, singleFromCents: 500 }, ACTOR);
+    // Une cote de 20 jours devient acceptable : l'offre est tarifée aussitôt.
+    const saved = await savePricingSettings(sql, { ...DEFAULT_SETTINGS, maxAgeDays: 30, strategy: "MARGIN" }, ACTOR);
     expect(saved.repriced).toBe(1);
-    expect(await offer(grey)).toMatchObject({ category: "SINGLE", targetPriceCents: 900, reasons: [] });
-    expect((await getPricingSettings(sql)).singleFromCents).toBe(500);
+    expect(await offer(old)).toMatchObject({ category: "SINGLE", targetPriceCents: 900, reasons: [] });
+    expect(await getPricingSettings(sql)).toMatchObject({ maxAgeDays: 30, strategy: "MARGIN" });
+    await expect(savePricingSettings(sql, { ...DEFAULT_SETTINGS, strategy: "YOLO" as never }, ACTOR)).rejects.toMatchObject({ code: "INVALID_PRICING_SETTINGS" });
     await expect(savePricingSettings(sql, { ...DEFAULT_SETTINGS, lotBelowCents: 10 }, ACTOR)).rejects.toMatchObject({ code: "INVALID_PRICING_SETTINGS" });
   });
 
