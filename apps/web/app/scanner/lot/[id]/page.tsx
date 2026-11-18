@@ -1,11 +1,12 @@
 "use client";
 
-import { ArrowLeft, Camera, Check, FolderOpen, FolderUp, PackagePlus, Pencil, Undo2, X } from "lucide-react";
+import { ArrowLeft, CalendarClock, Camera, Check, FolderOpen, FolderUp, PackagePlus, Pencil, Undo2, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CandidateList, CardThumb, ManualSearch } from "@/components/card-chooser";
+import { PlanModal } from "@/components/plan-modal";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
 import { Code, Spinner } from "@/components/ui/misc";
@@ -15,8 +16,9 @@ import { ApiError, api } from "@/lib/api";
 import { variantLabel } from "@/lib/format";
 import { prepareImage } from "@/lib/image";
 import { canWatchFolder, cardsFromFiles, cardsInFolder, pickFolder, readFolder, type FolderCard } from "@/lib/scan-source";
-import { CONDITIONS, type Candidate, type CardCondition, type ScanBatch, type ScanItem } from "@/lib/types";
+import { CONDITIONS, type Candidate, type CardCondition, type ChannelState, type ScanBatch, type ScanItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { composeMissingVisuals } from "@/lib/visuals";
 
 const CONCURRENCY = 3;
 const POLL_MS = 2000;
@@ -41,6 +43,11 @@ export default function ScanBatchPage() {
   const [onlyPending, setOnlyPending] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [receiving, setReceiving] = useState(false);
+  /** Après l'entrée en stock : composition des visuels d'annonce, puis planification de la mise en ligne. */
+  const [visuals, setVisuals] = useState<{ done: number; total: number } | null>(null);
+  const [channels, setChannels] = useState<ChannelState[]>([]);
+  const [planning, setPlanning] = useState(false);
+  const [applying, setApplying] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const captureRef = useRef<HTMLInputElement>(null);
   /** Recto déjà photographié, en attente de son verso. */
@@ -228,11 +235,49 @@ export default function ScanBatchPage() {
       toast.success(`${r.received} carte${r.received > 1 ? "s" : ""} en stock, de ${r.firstSku} à ${r.lastSku}`);
       setFolder(null);
       await refresh();
+      // Les photos d'annonce se préparent toutes seules : rien à lancer à la main avant la mise en ligne.
+      void composeMissingVisuals(itemsRef.current.map((i) => i.offerId), (done, total) => setVisuals({ done, total }))
+        .catch(() => 0)
+        .finally(() => setVisuals(null));
     } catch (e) {
       setError(message(e));
     } finally {
       setReceiving(false);
     }
+  }
+
+  const isReceived = !!batch?.receivedAt;
+  useEffect(() => {
+    if (isReceived) api.channels().then((r) => setChannels(r.channels.filter((c) => c.mode !== "OFF"))).catch(() => setChannels([]));
+  }, [isReceived]);
+
+  /** Variante laissée ouverte par le scan (normale, reverse ou holo ?) : appliquée d'un coup à toutes les cartes concernées. */
+  async function applyFinish(finish: string) {
+    setApplying(true);
+    setError(null);
+    try {
+      const targets = itemsRef.current.flatMap((item) => {
+        if (item.skipped || item.unitSku || item.variantId || !item.card) return [];
+        const matches = item.card.variants.filter((v) => v.finish === finish);
+        return matches.length === 1 ? [{ id: item.id, variantId: matches[0]!.id }] : [];
+      });
+      for (let i = 0; i < targets.length; i += 5) {
+        await Promise.all(targets.slice(i, i + 5).map((t) => api.updateScanItem(t.id, { variantId: t.variantId })));
+      }
+      toast.success(`Variante appliquée à ${targets.length} carte${targets.length > 1 ? "s" : ""}`);
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      await refresh().catch(() => undefined);
+      setApplying(false);
+    }
+  }
+
+  /** Enregistre la correction ; `next` enchaîne sur la carte suivante encore à corriger. */
+  async function saveEdit(item: ScanItem, body: Parameters<typeof api.updateScanItem>[1], next: boolean) {
+    await patchItem(item, body);
+    const open = itemsRef.current.filter((i) => !i.skipped && !i.ready && !i.unitSku && i.id !== item.id);
+    setEditing(next ? (open.find((i) => i.position > item.position) ?? open[0])?.id ?? null : null);
   }
 
   if (!batch) return error ? <p role="alert" className="text-sm text-destructive">{error}</p> : <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status"><Spinner /> Chargement…</p>;
@@ -242,6 +287,13 @@ export default function ScanBatchPage() {
   const pending = kept.filter((i) => !i.ready && !i.unitSku);
   const shown = onlyPending ? pending : items;
   const edited = items.find((i) => i.id === editing) ?? null;
+  // Cartes reconnues dont seule la variante reste ouverte, comptées par finition applicable sans ambiguïté.
+  const open = kept.filter((i) => !i.unitSku && i.card && !i.variantId);
+  const withoutVariant = open.length;
+  const openFinishes = ["normal", "reverse", "holo"]
+    .map((finish) => [finish, open.filter((i) => i.card!.variants.filter((v) => v.finish === finish).length === 1).length] as const)
+    .filter(([, count]) => count > 0);
+  const lotOffers = [...new Set(items.map((i) => i.offerId).filter((offerId): offerId is string => !!offerId))];
   const first = items.find((i) => i.unitSku)?.unitSku;
   const last = [...items].reverse().find((i) => i.unitSku)?.unitSku;
 
@@ -278,7 +330,13 @@ export default function ScanBatchPage() {
             <strong className="font-semibold">{batch.counts.received} carte{batch.counts.received > 1 ? "s" : ""} en stock</strong>, dans l'ordre du scan :
             de <Code>{first}</Code> à <Code>{last}</Code>, boîte <Code>{batch.locationCode}</Code>.
           </span>
-          <Button asChild variant="outline" size="sm" className="ml-auto"><Link href="/">Voir le stock</Link></Button>
+          <span className="ml-auto flex flex-wrap items-center gap-2">
+            {visuals && <span className="tabular flex items-center gap-2 text-[13px] text-muted-foreground" role="status"><Spinner /> Photos d'annonce {visuals.done} / {visuals.total}</span>}
+            {channels.length > 0 && !visuals && (
+              <Button size="sm" onClick={() => setPlanning(true)}><CalendarClock /> Planifier la mise en ligne</Button>
+            )}
+            <Button asChild variant="outline" size="sm"><Link href="/">Voir le stock</Link></Button>
+          </span>
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card px-4 py-3">
@@ -371,6 +429,16 @@ export default function ScanBatchPage() {
               >
                 <span className="size-2 rounded-full bg-brand" aria-hidden /> {pending.length} à corriger
               </button>
+            )}
+            {!done && openFinishes.length > 0 && (
+              <span className="flex flex-wrap items-center gap-1.5" data-testid="bulk-variant">
+                <span className="text-[13px] text-muted-foreground">Variante non lue sur {withoutVariant} carte{withoutVariant > 1 ? "s" : ""} :</span>
+                {openFinishes.map(([finish, count]) => (
+                  <Button key={finish} variant="outline" size="sm" disabled={applying} onClick={() => applyFinish(finish)}>
+                    {variantLabel({ finish, edition: "", stamp: "", subtype: "" })} ({count})
+                  </Button>
+                ))}
+              </span>
             )}
           </div>
 
@@ -471,19 +539,39 @@ export default function ScanBatchPage() {
       )}
 
       {edited && !done && (
-        <ItemEditor item={edited} language={batch.language} batchCondition={batch.defaultCondition} onClose={() => setEditing(null)} onSave={(body) => patchItem(edited, body).then(() => setEditing(null))} />
+        <ItemEditor
+          key={edited.id}
+          item={edited}
+          language={batch.language}
+          batchCondition={batch.defaultCondition}
+          hasNext={pending.some((i) => i.id !== edited.id)}
+          onClose={() => setEditing(null)}
+          onSave={(body, next) => saveEdit(edited, body, next)}
+        />
+      )}
+      {planning && (
+        <PlanModal
+          channels={channels}
+          selected={lotOffers}
+          readyCount={lotOffers.length}
+          scope={`Les cartes de ce lot (${lotOffers.length} annonce${lotOffers.length > 1 ? "s" : ""}), dans l'ordre du scan.`}
+          onClose={() => setPlanning(false)}
+          onPlanned={() => setPlanning(false)}
+        />
       )}
     </div>
   );
 }
 
 /** Correction d'une carte : le scan en grand, les propositions de la lecture, la recherche manuelle, la variante. */
-function ItemEditor({ item, language, batchCondition, onClose, onSave }: {
+function ItemEditor({ item, language, batchCondition, hasNext, onClose, onSave }: {
   item: ScanItem;
   language: string;
   batchCondition: CardCondition | null;
+  /** D'autres cartes attendent une correction : on peut enchaîner sans refermer. */
+  hasNext: boolean;
   onClose: () => void;
-  onSave: (body: { catalogCardId: string; variantId: string | null; condition: CardCondition | null }) => Promise<void>;
+  onSave: (body: { catalogCardId: string; variantId: string | null; condition: CardCondition | null }, next: boolean) => Promise<void>;
 }) {
   const [condition, setCondition] = useState<CardCondition | null>(item.condition);
   const [candidates, setCandidates] = useState<Candidate[]>(item.candidates);
@@ -535,9 +623,16 @@ function ItemEditor({ item, language, batchCondition, onClose, onSave }: {
           {CONDITIONS.map((c) => <option key={c.code} value={c.code}>{c.code} · {c.label}</option>)}
         </Select>
       </label>
-      <Button size="lg" disabled={!cardId} onClick={() => onSave({ catalogCardId: cardId!, variantId, condition })}>
-        <Check strokeWidth={2.5} /> Utiliser cette carte
-      </Button>
+      <div className="grid gap-2">
+        {hasNext && (
+          <Button size="lg" disabled={!cardId} onClick={() => onSave({ catalogCardId: cardId!, variantId, condition }, true)}>
+            <Check strokeWidth={2.5} /> Utiliser et passer à la suivante
+          </Button>
+        )}
+        <Button size="lg" variant={hasNext ? "outline" : "default"} disabled={!cardId} onClick={() => onSave({ catalogCardId: cardId!, variantId, condition }, false)}>
+          {!hasNext && <Check strokeWidth={2.5} />} Utiliser cette carte
+        </Button>
+      </div>
     </Modal>
   );
 }

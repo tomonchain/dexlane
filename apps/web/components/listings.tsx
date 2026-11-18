@@ -22,6 +22,7 @@ import { formatDateTime, formatEuros } from "@/lib/format";
 import { prepareImage } from "@/lib/image";
 import type { ChannelId, ChannelMode, ChannelState, ListingBlocker, ListingOffer, ListingSettings, ListingState, Photo, PhotoStyle } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { composeMissingVisuals } from "@/lib/visuals";
 
 const PAGE_SIZE = 20;
 const ERRORS: Record<string, string> = {
@@ -189,6 +190,7 @@ function ChannelRow({ offer, channel, onAct }: { offer: ListingOffer; channel: C
   const listing = offer.listings.find((l) => l.channel === channel.id);
   const simulated = listing ? listing.simulated : channel.mode === "SIMULATION";
   const publish = () => onAct(async () => {
+    await composeMissingVisuals([offer.offerId]).catch(() => 0);
     await api.publishListing(offer.offerId, channel.id);
     return listing ? `Annonce ${channel.label} mise à jour` : `Publiée sur ${channel.label}${simulated ? " (simulation)" : ""}`;
   });
@@ -572,6 +574,22 @@ export function PhotoStyleEditor({ settings, onSaved }: { settings: ListingSetti
             <SwitchRow label="Ombre portée" description="Détache la carte du fond." checked={style.shadow} onCheckedChange={(shadow) => patch({ shadow })} />
           </div>
 
+          <div className="border-t pt-4">
+            <SwitchRow
+              label="Composer le visuel automatiquement"
+              description="Dès qu'une photo arrive (lot entré en stock, photo ajoutée) et avant chaque mise en ligne. Désactivez-le pour publier vos photos telles quelles."
+              checked={settings.autoCompose}
+              disabled={uploading}
+              onCheckedChange={async (autoCompose) => {
+                try {
+                  onSaved(await api.saveListingSettings({ ...settings, autoCompose }));
+                  toast.success(autoCompose ? "Composition automatique activée" : "Composition automatique désactivée");
+                } catch (e) {
+                  setError(message(e));
+                }
+              }}
+            />
+          </div>
           <div className="grid gap-2 border-t pt-5" data-testid="promo">
             <Eyebrow>Image de fin d'annonce</Eyebrow>
             <p className="text-sm text-muted-foreground">Ajoutée en dernière photo de chaque annonce : « On rachète vos cartes », vos conditions d'envoi, votre logo…</p>

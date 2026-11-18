@@ -29,6 +29,8 @@ export interface ListingSettings {
   photo: PhotoStyle;
   /** Image ajoutée en dernière photo de chaque annonce (message commercial) ; null : aucune. */
   promoPhotoId: string | null;
+  /** Le visuel d'annonce (carte sur le fond choisi) est composé d'office dès qu'une photo arrive. */
+  autoCompose: boolean;
 }
 
 export const DEFAULT_LISTING_SETTINGS: ListingSettings = {
@@ -49,6 +51,7 @@ export const DEFAULT_LISTING_SETTINGS: ListingSettings = {
     size: 1600, marginPercent: 9, trimPercent: 0, roundCorners: true, shadow: true, caption: "",
   },
   promoPhotoId: null,
+  autoCompose: true,
 };
 
 export const VARIABLES = [

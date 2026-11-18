@@ -24,6 +24,7 @@ const SCENARIOS: Record<number, Partial<CardReadingRaw>> = {
   10: {},
   11: { name: "Fouin", name_legibility: "partial", finish_hint: "unknown" },
   13: { notes: "card is inside a sleeve, slight glare" },
+  14: { finish_hint: "unknown" },
 };
 
 const recognizer: CardRecognizer = {

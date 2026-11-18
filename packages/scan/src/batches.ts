@@ -37,8 +37,9 @@ export interface ScanItem {
   variantId: string | null;
   condition: CardCondition | null;
   skipped: boolean;
-  /** Entrée en stock : le code attribué. */
+  /** Entrée en stock : le code attribué, et l'offre à laquelle la carte appartient désormais. */
   unitSku: string | null;
+  offerId: string | null;
   /** Rien ne manque : carte, variante et état (le sien ou celui du lot). */
   ready: boolean;
 }
@@ -113,7 +114,7 @@ export async function listItems(sql: Db, batchId: string): Promise<ScanItem[]> {
              'variants', coalesce((select jsonb_agg(jsonb_build_object('id', v.id, 'finish', v.finish, 'edition', v.edition, 'stamp', v.stamp,
                                                                          'subtype', v.subtype, 'incomplete', v.incomplete) order by v.finish, v.edition, v.subtype)
                                      from card_variants v where v.catalog_card_id = c.id), '[]'::jsonb)) end as card,
-           s.unit_sku,
+           s.unit_sku, s.offer_id,
            (not i.skipped and i.stock_item_id is null and i.variant_id is not null and coalesce(i.condition, b.default_condition) is not null) as ready
       from scan_items i
       join scan_batches b on b.id = i.batch_id

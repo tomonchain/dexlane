@@ -5,6 +5,7 @@ import { useRef } from "react";
 import { api } from "@/lib/api";
 import { prepareImage } from "@/lib/image";
 import type { Photo } from "@/lib/types";
+import { composeMissingVisuals } from "@/lib/visuals";
 import { Button } from "./ui/button";
 
 /**
@@ -55,6 +56,7 @@ export function OfferPhotos({ offerId, photos, run, disabled }: {
           e.target.value = "";
           if (file) run(async () => {
             await api.addOfferPhoto(offerId, await prepareImage(file), next);
+            await composeMissingVisuals([offerId]).catch(() => 0);
             return next === "SCAN_BACK" ? "Verso ajouté" : "Photo ajoutée";
           });
         }}

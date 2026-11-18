@@ -195,12 +195,12 @@ export default function PositionPage() {
         </div>
 
         <div className="grid gap-5">
-        {p.photos.length > 0 && (
+        {p.photos.some((photo) => photo.kind !== "LISTING") && (
           <Card data-testid="position-photos">
             <CardContent className="grid gap-3">
               <Eyebrow>Photos de l'exemplaire</Eyebrow>
               <div className="flex flex-wrap gap-3">
-                {p.photos.map((photo) => (
+                {p.photos.filter((photo) => photo.kind !== "LISTING").map((photo) => (
                   <a key={photo.id} href={photo.url} target="_blank" rel="noreferrer" className="grid gap-1 rounded-lg outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30">
                     <img className="aspect-[63/88] w-28 rounded-lg bg-muted object-cover ring-1 ring-border" src={photo.url} alt={PHOTO_KIND[photo.kind]} loading="lazy" />
                     <span className="text-center text-xs text-muted-foreground">{PHOTO_KIND[photo.kind]}</span>

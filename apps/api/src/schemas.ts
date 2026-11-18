@@ -199,6 +199,7 @@ export const listingSettingsBody = z.strictObject({
     caption: z.string().max(60),
   }),
   promoPhotoId: z.uuid().nullable().default(null),
+  autoCompose: z.boolean().default(true),
 });
 export const listingOffersQuery = z.object({
   q: z.string().max(100).optional(),

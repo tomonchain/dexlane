@@ -62,3 +62,7 @@ export function positionSubtitle(p: Pick<Position, "card" | "bulk" | "offer">): 
 
 const dateTime = new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Paris" });
 export const formatDateTime = (iso: string) => dateTime.format(new Date(iso));
+
+const shortDay = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+/** « 2026-11-18 » → « mer. 18 nov » */
+export const dayLabel = (day: string) => shortDay.format(new Date(`${day}T12:00:00`)).replace(/\.$/, "");

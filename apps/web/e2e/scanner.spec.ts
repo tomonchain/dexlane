@@ -895,3 +895,57 @@ test("annonce bloquée faute de photo : la photo s'ajoute après coup depuis Ann
   await expect(page.getByText("Photo retirée")).toBeVisible();
   await expect(listing.getByRole("button", { name: "Ajouter une photo" })).toBeVisible();
 });
+
+test("lot sans temps mort : variante appliquée en masse, corrections enchaînées, photos d'annonce prêtes, planification directe", async ({ page }) => {
+  test.setTimeout(60_000);
+  await login(page);
+  await page.request.put("/api/channels/ebay", { data: { mode: "SIMULATION" } });
+  await page.request.post("/api/locations", { data: { code: "BOITE-10" } });
+  const batch = (await (await page.request.post("/api/scan-batches", { data: { locationCode: "BOITE-10", defaultCondition: "NM", paired: false } })).json()) as { id: string };
+  await page.goto(`/scanner/lot/${batch.id}`);
+  const FINISH_UNKNOWN = 14;
+  const file = (name: string, width: number) => ({ name, mimeType: "image/png", buffer: png(width) });
+  await page.getByTestId("batch-input").setInputFiles([
+    file("c1.png", FINISH_UNKNOWN), file("c2.png", FINISH_UNKNOWN), file("c3.png", PARTIAL_NAME), file("c4.png", PARTIAL_NAME),
+  ]);
+  const rows = page.getByTestId("batch-row");
+  await expect(rows).toHaveCount(4);
+
+  // Deux cartes reconnues dont le scan n'a pas vu la finition : un clic règle les deux.
+  const bulk = page.getByTestId("bulk-variant");
+  await expect(bulk).toContainText("Variante non lue sur 2 cartes");
+  await bulk.getByRole("button", { name: "Reverse (2)" }).click();
+  await expect(page.getByText("Variante appliquée à 2 cartes")).toBeVisible();
+  await expect(rows.nth(0)).toHaveAttribute("data-status", "ready");
+  await expect(rows.nth(1)).toHaveAttribute("data-status", "ready");
+  await expect(bulk).toHaveCount(0);
+
+  // Deux cartes à choisir : la correction de la première ouvre directement la seconde.
+  await rows.nth(2).getByRole("button", { name: "Choisir la carte 3" }).click();
+  const third = page.getByRole("dialog", { name: "Carte n° 3" });
+  await third.getByRole("radio", { name: /Fouinar/ }).click();
+  await third.getByRole("radio", { name: "Normale" }).click();
+  await third.getByRole("button", { name: "Utiliser et passer à la suivante" }).click();
+  const fourth = page.getByRole("dialog", { name: "Carte n° 4" });
+  await fourth.getByRole("radio", { name: /Fouinar/ }).click();
+  await fourth.getByRole("radio", { name: "Reverse" }).click();
+  await expect(fourth.getByRole("button", { name: "Utiliser et passer à la suivante" })).toHaveCount(0);
+  await fourth.getByRole("button", { name: "Utiliser cette carte" }).click();
+  await expect(fourth).toHaveCount(0);
+
+  // Entrée en stock : les visuels d'annonce se composent d'eux-mêmes, puis la mise en ligne se planifie d'ici.
+  await page.getByTestId("batch-save").click();
+  const done = page.getByTestId("batch-done");
+  await expect(done).toContainText("4 cartes en stock");
+  await done.getByRole("button", { name: "Planifier la mise en ligne" }).click();
+  const dialog = page.getByRole("dialog", { name: "Planifier la mise en ligne" });
+  await expect(dialog).toContainText("Les cartes de ce lot (2 annonces)");
+  await dialog.getByRole("button", { name: "Planifier", exact: true }).click();
+  await expect(page.getByText(/2 cartes planifiées sur 1 jour/)).toBeVisible();
+
+  const { items } = (await (await page.request.get(`/api/scan-batches/${batch.id}`)).json()) as { items: { offerId: string }[] };
+  const detail = (await (await page.request.get(`/api/stock/${items[0]!.offerId}`)).json()) as { photos: { kind: string }[]; planned: unknown };
+  expect(detail.photos.filter((p) => p.kind === "LISTING").length).toBeGreaterThanOrEqual(1);
+  expect(detail.planned).toMatchObject({ channel: "ebay" });
+  await page.request.post("/api/publications/cancel", { data: {} });
+});
