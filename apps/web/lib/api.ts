@@ -1,7 +1,7 @@
 import type {
   AcquisitionLot, AlertSettings, AppSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, PriceMoves, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
   Location, Photo, PositionDetail, Received,
-  OfferPricing, OrderDetail, OrderList, OrderStage, PricingSettings, ShippingRun, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
+  OfferPricing, OrderDetail, PriceHistory, OrderList, OrderStage, PricingSettings, ShippingRun, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
   PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockPage, StockStatus, StoredPhoto, VariantQuote,
 } from "./types";
 
@@ -186,6 +186,7 @@ export const api = {
     request<{ settings: PricingSettings; repriced: number }>("PUT", "/pricing/settings", { json: settings }),
   variantQuote: (variantId: string, condition: CardCondition, unique: boolean) =>
     request<VariantQuote>("GET", `/pricing/variants/${variantId}`, { query: { condition, unique: String(unique) } }),
+  priceHistory: (variantId: string, days: number) => request<PriceHistory>("GET", `/pricing/variants/${variantId}/history`, { query: { days } }),
   pricedOffers: (q: { status: "REVIEW" | "ALL"; q?: string; limit?: number; offset?: number }) =>
     request<{ items: OfferPricing[]; total: number; reviewCount: number; allCount: number }>("GET", "/pricing/offers", { query: q }),
   setOfferPrice: (offerId: string, input: { targetPriceCents: number; floorPriceCents?: number; category?: "BULK" | "LOT" | "SINGLE" | "PREMIUM" }) =>

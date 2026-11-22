@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { useTestDb } from "@dexlane/db/testing";
 import { createLocation, receiveCard } from "@dexlane/inventory";
 import {
-  DEFAULT_SETTINGS, estimateVariants, getPricingSettings, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing,
+  DEFAULT_SETTINGS, estimateVariants, getPricingSettings, listOfferPricing, priceHistory, quoteVariant, refreshOfferPricing, refreshPricing,
   savePricingSettings, setOfferPrice,
 } from "../src";
 
@@ -165,6 +165,24 @@ describe("review queue and settings", () => {
     expect(estimates.get(listed)).toMatchObject({ cents: 900, sales: null });
     expect(estimates.has(unknown)).toBe(false);
     expect((await estimateVariants(sql, [])).size).toBe(0);
+  });
+
+  it("returns a card's price history per quote, oldest first, within the requested window", async () => {
+    const v = await variant(null);
+    // Trois relevés de ventes sur 7 jours (il y a 40, 10 et 1 jours), un de tendance, et une moyenne 1 jour qui n'est pas suivie.
+    await quote(v, 900, 40, false, "SOLD_AVG_7D");
+    await quote(v, 1100, 10, false, "SOLD_AVG_7D");
+    await quote(v, 1200, 1, false, "SOLD_AVG_7D");
+    await quote(v, 1300, 1, false, "LISTED_TREND");
+    await quote(v, 5000, 1, false, "SOLD_AVG_1D");
+
+    const month = await priceHistory(sql, v, 30);
+    expect(month.series.map((s) => [s.quoteType, s.points.map((p) => p.cents)])).toEqual([["SOLD_AVG_7D", [1100, 1200]], ["LISTED_TREND", [1300]]]);
+    // L'historique complet remonte au premier relevé, que la période demandée l'atteigne ou non.
+    expect(Math.round((Date.now() - month.since!.getTime()) / 86_400_000)).toBe(40);
+    expect((await priceHistory(sql, v, 90)).series[0]!.points.map((p) => p.cents)).toEqual([900, 1100, 1200]);
+    expect(await priceHistory(sql, await variant(null), 90)).toEqual({ series: [], since: null });
+    await expect(priceHistory(sql, "00000000-0000-4000-8000-000000000000", 90)).rejects.toMatchObject({ code: "VARIANT_NOT_FOUND" });
   });
 
   it("previews a quote for a variant before any stock exists", async () => {

@@ -153,6 +153,7 @@ export const variantQuoteQuery = z.object({
 });
 export const offerId = z.uuid();
 export const variantId = z.uuid();
+export const priceHistoryQuery = z.object({ days: z.coerce.number().int().min(7).max(730).default(90) });
 
 export const createSaleBody = z.strictObject({
   lines: z.array(z.strictObject({ offerId: z.uuid(), qty: z.number().int().min(1).max(10_000), unitPriceCents: cents })).min(1).max(100),

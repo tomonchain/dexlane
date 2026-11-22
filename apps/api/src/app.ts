@@ -12,7 +12,7 @@ import {
   searchInventory, searchSellableOffers, shipOrder, updateLocationDescription,
 } from "@dexlane/inventory";
 import {
-  estimateVariants, getPricingSettings, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice, getAlertSettings, getDashboard, listPriceMoves, saveAlertSettings,
+  estimateVariants, getPricingSettings, priceHistory, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice, getAlertSettings, getDashboard, listPriceMoves, saveAlertSettings,
 } from "@dexlane/pricing";
 import {
   MAX_IMAGE_BYTES, RecognitionError, assertSupportedImage, identifyCard, type CardImage, type CardRecognizer, type ImageMediaType, addItem, createBatch, findItem, getBatch, listBatches, listItems, receiveBatch, receiveReady, setItemBack, updateBatch, updateItem,
@@ -500,6 +500,12 @@ export function createApp(deps: AppDeps) {
     const variantId = parse(s.variantId, c.req.param("id"));
     const q = parse(s.variantQuoteQuery, c.req.query());
     return c.json(await quoteVariant(sql, variantId, q.condition, q.unique === "true"));
+  });
+
+  /** Évolution des prix d'une carte : moyennes des ventes, tendance et annonce la moins chère sur la période. */
+  app.get("/api/pricing/variants/:id/history", async (c) => {
+    const { days } = parse(s.priceHistoryQuery, c.req.query());
+    return c.json(await priceHistory(sql, parse(s.variantId, c.req.param("id")), days));
   });
 
   /** Offres et leurs prix, triées par enjeu ; `status=REVIEW` : la file de revue. */
