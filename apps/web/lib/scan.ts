@@ -11,6 +11,17 @@ export interface ScanSession {
   condition?: CardCondition | "";
 }
 export const SCAN_SESSION_KEY = "dexlane.scan.session";
+
+/** Dernier réglage du pilote automatique, repris d'un lot à l'autre. */
+export interface AutopilotPrefs { on: boolean; publishMode: "NONE" | "NOW" | "DAILY"; perDay: string }
+export const AUTOPILOT_KEY = "dexlane.scan.autopilot";
+export const DEFAULT_AUTOPILOT: AutopilotPrefs = { on: false, publishMode: "NOW", perDay: "20" };
+export const PUBLISH_MODES: { value: AutopilotPrefs["publishMode"]; label: string }[] = [
+  { value: "NOW", label: "Tout de suite" }, { value: "DAILY", label: "Étalée par jour" }, { value: "NONE", label: "Pas de mise en ligne" },
+];
+/** « mise en ligne immédiate », « 20 mises en ligne par jour », « sans mise en ligne ». */
+export const publishModeLabel = (mode: AutopilotPrefs["publishMode"], perDay: number | null) =>
+  mode === "NOW" ? "mise en ligne immédiate" : mode === "DAILY" ? `${perDay} mise${(perDay ?? 0) > 1 ? "s" : ""} en ligne par jour` : "sans mise en ligne";
 export const DEFAULT_SCAN_SESSION: ScanSession = { locationCode: "", cost: "0", lotId: "", language: "fr", condition: "" };
 
 export const LANGUAGES: [string, string][] = [

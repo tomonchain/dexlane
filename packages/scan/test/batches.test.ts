@@ -3,7 +3,7 @@ import { syncSet } from "@dexlane/catalog";
 import { useTestDb } from "@dexlane/db/testing";
 import { createLocation, recordPhoto } from "@dexlane/inventory";
 import { card, fakeClient } from "../../catalog/test/fixtures";
-import { addItem, createBatch, getBatch, identifyCard, listBatches, listItems, planCards, receiveBatch, setItemBack, updateBatch, updateItem, type CardRecognizer } from "../src";
+import { addItem, createBatch, getBatch, identifyCard, listBatches, listItems, planCards, receiveBatch, receiveReady, setItemBack, updateBatch, updateItem, type CardRecognizer } from "../src";
 
 const sql = useTestDb("scan");
 const ACTOR = "test";
@@ -97,5 +97,51 @@ describe("a scan batch", () => {
     await expect(updateItem(sql, first.id, { condition: "PO" })).rejects.toMatchObject({ code: "ITEM_ALREADY_RECEIVED" });
     await expect(updateBatch(sql, batch.id, { defaultCondition: "PO" })).rejects.toMatchObject({ code: "BATCH_ALREADY_RECEIVED" });
     expect((await listBatches(sql))[0]).toMatchObject({ id: batch.id, counts: { items: 3, received: 2, skipped: 1 } });
+  });
+
+  it("on autopilot, receives complete cards as they come without waiting for the doubtful ones", async () => {
+    // Le pilote automatique exige un état par défaut : sans lui, aucune carte n'est complète.
+    await setup();
+    await expect(createBatch(sql, { location: { code: "BOITE-07" }, autopilot: true })).rejects.toMatchObject({ code: "AUTOPILOT_NEEDS_CONDITION" });
+    await expect(createBatch(sql, { location: { code: "BOITE-07" }, autopilot: true, defaultCondition: "NM", publishMode: "DAILY" })).rejects.toMatchObject({ code: "INVALID_SCHEDULE" });
+    const batch = await createBatch(sql, { location: { code: "BOITE-07" }, autopilot: true, defaultCondition: "NM", publishMode: "DAILY", publishPerDay: 20, paired: false });
+    expect(batch).toMatchObject({ autopilot: true, publishMode: "DAILY", publishPerDay: 20 });
+
+    const first = await scan(batch.id, 1);
+    const doubtful = await scan(batch.id, 2, { name: "Fouin", name_legibility: "partial" });
+    const third = await scan(batch.id, 3);
+    const priced: string[] = [];
+    const run = await receiveReady(sql, batch.id, ACTOR, async (_tx, r) => priced.push(r.offer.offerSku));
+    // Les cartes 1 et 3 entrent, dans l'ordre du scan ; la 2 attend une décision sans bloquer les autres.
+    expect(run.received.map((r) => r.offer.offerSku)).toEqual(["OF-SWSH3-136-FR-R-NM", "OF-SWSH3-136-FR-R-NM"]);
+    expect(priced).toHaveLength(2);
+    let items = await listItems(sql, batch.id);
+    expect(items.map((i) => !!i.unitSku)).toEqual([true, false, true]);
+    expect(Number(items[2]!.unitSku!.slice(3))).toBe(Number(items[0]!.unitSku!.slice(3)) + 1);
+    expect((await getBatch(sql, batch.id))).toMatchObject({ receivedAt: null, counts: { items: 3, toReview: 1, received: 2 } });
+    expect((await receiveReady(sql, batch.id, ACTOR)).received).toEqual([]); // rien de nouveau : rien n'est repris
+
+    // Une fois corrigée, la carte douteuse suit ; le lot reste ouvert pour les cartes suivantes.
+    const candidate = doubtful.candidates[0]!;
+    await updateItem(sql, doubtful.id, { catalogCardId: candidate.catalogCardId, variantId: candidate.variants.find((v) => v.finish === "normal")!.id });
+    expect((await receiveReady(sql, batch.id, ACTOR)).received.map((r) => r.offer.offerSku)).toEqual(["OF-SWSH3-136-FR-N-NM"]);
+    expect((await scan(batch.id, 4)).position).toBe(4);
+    // Couper le pilote automatique ne demande rien d'autre ; retirer l'état par défaut en le gardant est refusé.
+    await expect(updateBatch(sql, batch.id, { defaultCondition: null })).rejects.toMatchObject({ code: "AUTOPILOT_NEEDS_CONDITION" });
+    expect(await updateBatch(sql, batch.id, { autopilot: false, publishMode: "NONE" })).toMatchObject({ autopilot: false, publishMode: "NONE", publishPerDay: null });
+    void first; void third;
+  });
+
+  it("on autopilot with front and back scans, waits for the back before receiving a card", async () => {
+    await setup();
+    const batch = await createBatch(sql, { location: { code: "BOITE-07" }, autopilot: true, defaultCondition: "NM" });
+    const withBack = await scan(batch.id, 1);
+    const frontOnly = await scan(batch.id, 2);
+    await setItemBack(sql, withBack.id, (await photo("SCAN_BACK")).id);
+    expect((await receiveReady(sql, batch.id, ACTOR)).received).toHaveLength(1);
+    expect((await listItems(sql, batch.id)).map((i) => !!i.unitSku)).toEqual([true, false]);
+    // Le verso n'est jamais arrivé : passé le délai, la carte entre avec son seul recto.
+    expect((await receiveReady(sql, batch.id, ACTOR, undefined, { now: new Date(Date.now() + 61_000) })).received).toHaveLength(1);
+    void frontOnly;
   });
 });

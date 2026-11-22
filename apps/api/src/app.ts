@@ -7,7 +7,7 @@ import {
 import type { Db } from "@dexlane/db";
 import {
   activateStock, addOfferPhoto, adjustStock, attachPhotos, cancelOrder, deletePhoto, getPhoto, saveListingPhoto, createAcquisitionLot, createDirectSale, createLocation, createLocations,
-  deleteLocation, extractCardFromBulk, getInventorySummary, getOrderDetail, getStockItemDetail, listAcquisitionLots,
+  deleteLocation, extractCardFromBulk, getInventorySummary, getOrderDetail, listPreparation, markSlipsPrinted, getStockItemDetail, listAcquisitionLots,
   listLocations, listOrders, moveStock, packOrder, pickAllocation, receiveBulk, receiveCard, recordPhoto, resolveLocation,
   searchInventory, searchSellableOffers, shipOrder, updateLocationDescription,
 } from "@dexlane/inventory";
@@ -15,13 +15,13 @@ import {
   estimateVariants, getPricingSettings, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice, getAlertSettings, getDashboard, listPriceMoves, saveAlertSettings,
 } from "@dexlane/pricing";
 import {
-  MAX_IMAGE_BYTES, RecognitionError, assertSupportedImage, identifyCard, type CardImage, type CardRecognizer, type ImageMediaType, addItem, createBatch, findItem, getBatch, listBatches, listItems, receiveBatch, setItemBack, updateBatch, updateItem,
+  MAX_IMAGE_BYTES, RecognitionError, assertSupportedImage, identifyCard, type CardImage, type CardRecognizer, type ImageMediaType, addItem, createBatch, findItem, getBatch, listBatches, listItems, receiveBatch, receiveReady, setItemBack, updateBatch, updateItem,
 } from "@dexlane/scan";
 import { DomainError } from "@dexlane/shared";
 import { changePassword, passwordStatus, setPassword, verifyPassword } from "./auth";
 import { HttpError, errorBody, idempotent, parse, parseJsonBody, secretEquals, statusOfDomainError } from "./http";
 import {
-  cancelPublications, endListing, getListingSettings, getSchedule, getStockDetail, listChannels, listStock, planPublications, runDuePublications, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
+  cancelPublications, endListing, getListingSettings, getSchedule, getStockDetail, listChannels, listStock, planPublications, queuePublications, runDuePublications, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
   syncChannels, syncQuantities, type ChannelAdapters,
 } from "@dexlane/listings";
 import { readPhoto, type PhotoStore } from "./photos";
@@ -317,6 +317,27 @@ export function createApp(deps: AppDeps) {
     return c.json({ ...result, batch: await getBatch(sql, id) });
   });
 
+  /**
+   * Pilote automatique : entre en stock les cartes complètes du lot, pose leur prix et les met en file de mise en ligne
+   * sur chaque canal actif, selon le réglage du lot. Les cartes à vérifier attendent, sans bloquer les autres.
+   * Rejouable à volonté : ce qui est déjà entré n'est pas repris.
+   */
+  app.post("/api/scan-batches/:id/autopilot", async (c) => {
+    const id = parse(s.batchId, c.req.param("id"));
+    const batch = await getBatch(sql, id);
+    if (!batch.autopilot) throw new HttpError(409, "AUTOPILOT_OFF", "the autopilot is switched off for this batch");
+    const { received } = await receiveReady(sql, id, c.var.actor, (tx, position) => refreshOfferPricing(tx, position.offer.id));
+    const offerIds = [...new Set(received.map((r) => r.offer.id))];
+    let queued = 0;
+    if (batch.publishMode !== "NONE" && offerIds.length > 0) {
+      for (const channel of (await listChannels(sql, live)).filter((ch) => ch.mode !== "OFF")) {
+        queued += (await queuePublications(sql, { offerIds, channel: channel.id, perDay: batch.publishMode === "DAILY" ? batch.publishPerDay : null, actor: c.var.actor })).queued;
+      }
+    }
+    if (received.length > 0) await syncQuantities(sql, live).catch(deps.onError ?? console.error);
+    return c.json({ received: received.length, offerIds, queued, batch: await getBatch(sql, id) });
+  });
+
   // ───────────────────────── Stock à vendre ─────────────────────────
 
   /** Le stock, une ligne par carte à vendre, avec son statut sur le chemin de la vente. */
@@ -508,6 +529,18 @@ export function createApp(deps: AppDeps) {
       return { status: 201, body: await getOrderDetail(tx, orderId) };
     });
   });
+
+  /**
+   * Préparation des envois du jour : les commandes à préparer avec leurs prélèvements, et ce qu'il faut pour imprimer
+   * bons de livraison et reçus (coordonnées du vendeur, papier de l'imprimante).
+   */
+  app.get("/api/orders/preparation", async (c) => {
+    const { seller, slipPaper } = await getAppSettings(sql);
+    return c.json({ orders: await listPreparation(sql), seller, slipPaper });
+  });
+
+  app.post("/api/orders/preparation/printed", async (c) =>
+    c.json({ marked: await markSlipsPrinted(sql, (await parseJsonBody(c, s.slipsPrintedBody)).orderIds) }));
 
   app.get("/api/orders/:id", async (c) => c.json(await getOrderDetail(sql, parse(s.orderId, c.req.param("id")))));
 

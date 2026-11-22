@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  cancelOrder, createDirectSale, createLocation, getOfferAvailability, getOrderDetail, listOrders, packOrder, pickAllocation,
+  cancelOrder, createDirectSale, createLocation, getOfferAvailability, getOrderDetail, listOrders, listPreparation, markSlipsPrinted, packOrder, pickAllocation,
   receiveCard, searchSellableOffers, shipOrder,
 } from "../src";
 import { ACTOR, journalDrift, makeVariant, stockRow, useTestDb } from "./helpers";
@@ -46,6 +46,32 @@ describe("direct sale", () => {
       allocations: [{ status: "RESERVED", qty: 2, unitSku: pika.stockItem.unitSku, locationCode: "BOX-01/ROW-02" }],
     });
     expect((await listOrders(sql)).counts).toEqual({ TO_PREPARE: 1, PACKED: 0, SHIPPED: 0, CANCELLED: 0 });
+  });
+
+  it("lists what to prepare for the daily shipping run, oldest first, and remembers what was printed", async () => {
+    const pika = await stocked("Pikachu", 3, 100, "BOX-01/ROW-02");
+    const mew = await stocked("Mewtwo", 2, 4000);
+    const first = await sale([{ offerId: pika.offer.id, qty: 1, unitPriceCents: 500 }], {
+      buyerName: "Camille Martin", addressLines: [" 12 rue des Lilas ", "", "69003 Lyon"], shippingChargedCents: 150,
+    });
+    const second = await sale([{ offerId: mew.offer.id, qty: 1, unitPriceCents: 9000 }]);
+    const packed = await sale([{ offerId: mew.offer.id, qty: 1, unitPriceCents: 9000 }]);
+    await prepare(packed.orderId); // déjà emballée : plus rien à imprimer pour elle
+
+    const run = await listPreparation(sql);
+    expect(run.map((o) => o.externalId)).toEqual([first.externalId, second.externalId]);
+    expect(run[0]).toMatchObject({
+      buyerName: "Camille Martin", addressLines: ["12 rue des Lilas", "69003 Lyon"], slipPrintedAt: null,
+      totals: { itemsCents: 500, shippingChargedCents: 150, grossCents: 650 },
+      lines: [{ qty: 1, card: { name: "Pikachu" }, allocations: [{ locationCode: "BOX-01/ROW-02", unitSku: pika.stockItem.unitSku, scan: null }] }],
+    });
+    expect(run[1]).toMatchObject({ buyerName: null, addressLines: [] });
+
+    expect(await markSlipsPrinted(sql, [first.orderId])).toBe(1);
+    expect(await markSlipsPrinted(sql, [])).toBe(0);
+    const after = await listPreparation(sql);
+    expect(after[0]!.slipPrintedAt).toBeInstanceOf(Date);
+    expect(after[1]!.slipPrintedAt).toBeNull();
   });
 
   it("refuses a sale the stock cannot cover and leaves no trace", async () => {

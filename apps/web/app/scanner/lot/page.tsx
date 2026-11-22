@@ -12,7 +12,7 @@ import { SwitchRow } from "@/components/ui/switch";
 import { Choice, ChoiceGroup } from "@/components/ui/toggle-group";
 import { ApiError, api } from "@/lib/api";
 import { formatDateTime, parseEuros } from "@/lib/format";
-import { DEFAULT_SCAN_SESSION, SCAN_SESSION_KEY, type ScanSession } from "@/lib/scan";
+import { AUTOPILOT_KEY, DEFAULT_AUTOPILOT, DEFAULT_SCAN_SESSION, PUBLISH_MODES, SCAN_SESSION_KEY, type AutopilotPrefs, type ScanSession } from "@/lib/scan";
 import { useStored } from "@/lib/storage";
 import { CONDITIONS, type CardCondition, type ScanBatch } from "@/lib/types";
 
@@ -22,6 +22,11 @@ export default function ScanBatchesPage() {
   const [batches, setBatches] = useState<ScanBatch[] | null>(null);
   const [condition, setCondition] = useState<CardCondition | null>(null);
   const [paired, setPaired] = useState(true);
+  const [auto, setAuto] = useStored<AutopilotPrefs>(AUTOPILOT_KEY, DEFAULT_AUTOPILOT);
+  const perDay = /^\d{1,3}$/.test(auto.perDay.trim()) && Number(auto.perDay) >= 1 && Number(auto.perDay) <= 500 ? Number(auto.perDay) : null;
+  const autoValid = !auto.on || auto.publishMode !== "DAILY" || perDay !== null;
+  // Le pilote automatique a besoin d'un état pour chaque carte : sans choix, « Near Mint ».
+  const lotCondition = condition ?? (auto.on ? "NM" : null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,7 +41,10 @@ export default function ScanBatchesPage() {
     setCreating(true);
     setError(null);
     try {
-      const batch = await api.createScanBatch({ locationCode: session.locationCode, unitCostCents: costCents, defaultCondition: condition, language: session.language, paired });
+      const batch = await api.createScanBatch({
+        locationCode: session.locationCode, unitCostCents: costCents, defaultCondition: lotCondition, language: session.language, paired,
+        ...(auto.on ? { autopilot: true, publishMode: auto.publishMode, publishPerDay: auto.publishMode === "DAILY" ? perDay : null } : {}),
+      });
       router.push(`/scanner/lot/${batch.id}`);
     } catch (err) {
       setError(err instanceof ApiError && err.code === "LOCATION_NOT_FOUND" ? "Cette boîte n'existe pas." : (err as Error).message);
@@ -61,14 +69,37 @@ export default function ScanBatchesPage() {
         </div>
         <div className="grid gap-1.5">
           <span className="text-[13px] leading-none font-medium text-foreground/80">État des cartes du lot</span>
-          <ChoiceGroup value={condition} onValueChange={setCondition} aria-label="État des cartes du lot" className="grid grid-cols-7 gap-1.5">
+          <ChoiceGroup value={lotCondition} onValueChange={setCondition} aria-label="État des cartes du lot" className="grid grid-cols-7 gap-1.5">
             {CONDITIONS.map((c) => <Choice key={c.code} value={c.code} aria-label={c.label} title={c.label} className="px-0 font-mono text-[13px]">{c.code}</Choice>)}
           </ChoiceGroup>
-          <span className="text-xs text-muted-foreground">Facultatif ici, modifiable carte par carte pendant la revue.</span>
+          <span className="text-xs text-muted-foreground">{auto.on ? "Appliqué à chaque carte du lot ; modifiable carte par carte avant son entrée en stock." : "Facultatif ici, modifiable carte par carte pendant la revue."}</span>
         </div>
         <SwitchRow label="Recto et verso" description="Le scanner produit deux images par carte : recto puis verso." checked={paired} onCheckedChange={setPaired} />
+        <SwitchRow
+          label="Pilote automatique"
+          description="Chaque carte reconnue sans doute entre en stock, reçoit son prix et part à la mise en ligne, sans attendre la fin du lot. Seules les cartes à vérifier vous attendent."
+          checked={auto.on}
+          onCheckedChange={(on) => setAuto({ ...auto, on })}
+        />
+        {auto.on && (
+          <div className="grid gap-1.5" data-testid="autopilot-publish">
+            <span className="text-[13px] leading-none font-medium text-foreground/80">Mise en ligne</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <ChoiceGroup value={auto.publishMode} onValueChange={(mode) => mode && setAuto({ ...auto, publishMode: mode })} aria-label="Mise en ligne" className="flex flex-wrap gap-1.5">
+                {PUBLISH_MODES.map((m) => <Choice key={m.value} value={m.value} className="px-3 text-[13px]">{m.label}</Choice>)}
+              </ChoiceGroup>
+              {auto.publishMode === "DAILY" && (
+                <label className="flex items-center gap-2 text-[13px] text-muted-foreground">
+                  <Input inputMode="numeric" value={auto.perDay} onChange={(e) => setAuto({ ...auto, perDay: e.target.value })} aria-label="Mises en ligne par jour" aria-invalid={perDay === null} className="tabular h-9 w-16 text-center md:h-9" />
+                  par jour
+                </label>
+              )}
+            </div>
+            <span className="text-xs text-muted-foreground">Sur chaque canal de vente activé dans les réglages.</span>
+          </div>
+        )}
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-        <Button type="submit" disabled={creating || !session.locationCode || costCents === null} className="justify-self-start">
+        <Button type="submit" disabled={creating || !session.locationCode || costCents === null || !autoValid} className="justify-self-start">
           {creating ? <Spinner className="text-primary-foreground" /> : <Plus />} Créer le lot
         </Button>
       </form>
@@ -86,7 +117,7 @@ export default function ScanBatchesPage() {
                   </span>
                 </span>
                 <span className="text-[13px] whitespace-nowrap text-muted-foreground">
-                  {b.receivedAt ? "En stock" : b.counts.toReview > 0 ? `${b.counts.toReview} à corriger` : b.counts.items > 0 ? "Prêt" : "Vide"}
+                  {b.receivedAt ? "En stock" : b.counts.toReview > 0 ? `${b.counts.toReview} à corriger` : b.autopilot ? `Pilote automatique · ${b.counts.received} en stock` : b.counts.items > 0 ? "Prêt" : "Vide"}
                 </span>
                 <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
               </Link>

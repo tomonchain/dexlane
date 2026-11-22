@@ -81,7 +81,9 @@ Photos après coup : `POST /api/stock/{offerId}/photos?kind=SCAN_FRONT|SCAN_BACK
 
 Annonces : `GET` / `PUT /api/listings/settings` (modèle de titre et de description, style des photos), `GET /api/listings/offers?q=` (offres vendables, texte rendu, photos), `POST /api/photos?kind=LISTING&source={scan}` (visuel composé à partir d'un scan, remplace le précédent), `POST /api/photos?kind=BACKGROUND` (fond personnel), `GET /api/photos/{id}/content` (contenu servi sur la même origine).
 
-Lots scannés : `GET` / `POST /api/scan-batches`, `GET` / `PATCH /api/scan-batches/{id}`, `POST /api/scan-batches/{id}/items?position=&fileName=` (image d'une carte à son rang ; un rang déjà enregistré est renvoyé sans relecture), `POST /api/scan-items/{id}/back` (verso), `PATCH /api/scan-items/{id}` (carte, variante, état, mise à l'écart), `POST /api/scan-batches/{id}/receive` (entrée en stock dans l'ordre, tout ou rien).
+Lots scannés : `GET` / `POST /api/scan-batches`, `GET` / `PATCH /api/scan-batches/{id}`, `POST /api/scan-batches/{id}/items?position=&fileName=` (image d'une carte à son rang ; un rang déjà enregistré est renvoyé sans relecture), `POST /api/scan-items/{id}/back` (verso), `PATCH /api/scan-items/{id}` (carte, variante, état, mise à l'écart), `POST /api/scan-batches/{id}/receive` (entrée en stock dans l'ordre, tout ou rien), `POST /api/scan-batches/{id}/autopilot` (pilote automatique : entre en stock les cartes complètes, pose leur prix, les met en file de mise en ligne ; rejouable).
+
+Préparation des envois : `GET /api/orders/preparation` (commandes à préparer avec prélèvements, en-tête du vendeur, papier), `POST /api/orders/preparation/printed` (`orderIds` : bons imprimés).
 
 Mise en ligne planifiée : `GET /api/publications` (planning par jour, échecs récents), `POST /api/publications/plan` (`offerIds` facultatif, `channel`, `startOn`, `perDay`), `POST /api/publications/cancel`, `POST /api/publications/run` (publie ce qui est dû ; lancé chaque jour par la tâche planifiée). `POST /api/photos?kind=PROMO` dépose l'image de fin d'annonce, réglée par `promoPhotoId` dans les réglages d'annonce.
 
@@ -208,6 +210,19 @@ L'estimation, sa fiabilité et le détail des moyennes sont conservés sur l'off
 - **Visuel d'annonce composé d'office** : dès qu'une photo arrive (lot entré en stock, photo ajoutée après coup) et avant toute publication ou planification, le visuel « carte sur fond » est composé dans le navigateur s'il manque. Réglable dans Réglages → Modèle d'annonce et photos (`autoCompose`) ; désactivé, les photos partent telles quelles.
 - **Image de fin d'annonce** : réglée une fois (Annonces → Photos), elle est ajoutée en dernière photo de chaque annonce publiée, après les photos de la carte.
 - **Prix** : l'annonce garde le prix du moment de la publication ; un prix cible modifié ensuite est signalé, « Mettre à jour » le renvoie.
+
+## Du scanner à l'envoi — le parcours sans intervention
+
+1. **La pile passe au scanner.** Un lot en « pilote automatique » (option à la création du lot, activable ou coupable à tout moment) ne demande plus de revue : chaque carte reconnue sans doute entre en stock dans l'ordre du scan avec l'état du lot, reçoit son prix d'après les ventes réussies, voit sa photo d'annonce composée et part à la mise en ligne sur chaque canal actif — le jour même, ou étalée à N par jour sans déplacer ce qui est déjà planifié.
+2. **Seules les exceptions attendent.** Une carte mal lue, sans variante sûre ou sans cote fiable reste « à vérifier » ou « à tarifer » sans bloquer les autres ; corrigée, elle suit toute seule. En recto verso, une carte attend son verso une minute au plus.
+3. **Une fois par jour, les envois.** Ventes → « Préparer les envois » produit un seul document : la liste de prélèvement rangée par boîte (avec le rang de la carte dans sa pile scannée), puis un bon de livraison et un reçu par commande. Le papier se règle (rouleau thermique 80 ou 58 mm, étiquette 100 × 150 mm, A4), une feuille par page pour que l'imprimante coupe entre chaque. Les commandes imprimées sont marquées et ne reviennent pas le lendemain ; elles restent réimprimables.
+
+Ce qui reste une action de votre part, et pourquoi :
+
+- **Relier le dossier du scanner** à l'ouverture du lot : un navigateur ne lit un dossier qu'après un clic d'autorisation. Un petit programme installé sur le poste du scanner supprimerait ce clic ; il n'est pas écrit.
+- **Cliquer « Imprimer »** : une page web ne peut pas imprimer seule. Le lien `/ventes/preparation?imprimer=1` ouvre directement la boîte d'impression ; Chrome lancé avec `--kiosk-printing` l'imprime alors sans confirmation.
+- **La mise en ligne est simulée** tant que les connecteurs eBay et CardTrader ne sont pas branchés.
+- Si l'onglet du lot est fermé avant la fin, ce qui est en file est publié par la tâche quotidienne.
 
 ## Ventes directes — points d'attention
 

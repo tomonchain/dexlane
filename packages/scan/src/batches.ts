@@ -8,6 +8,9 @@ export * from "./order";
 
 // ───────────────────────── Sessions ─────────────────────────
 
+/** Ce que le pilote automatique fait d'une carte entrée en stock : rien de plus, la publier le jour même, ou l'étaler. */
+export type PublishMode = "NONE" | "NOW" | "DAILY";
+
 export interface ScanBatch {
   id: string;
   name: string;
@@ -17,6 +20,10 @@ export interface ScanBatch {
   defaultCondition: CardCondition | null;
   language: string;
   paired: boolean;
+  /** Pilote automatique : les cartes complètes entrent en stock et partent à la mise en ligne sans attendre la revue. */
+  autopilot: boolean;
+  publishMode: PublishMode;
+  publishPerDay: number | null;
   receivedAt: Date | null;
   createdAt: Date;
   /** Cartes du lot, puis celles qui attendent une décision, puis celles déjà en stock. */
@@ -52,10 +59,24 @@ export interface CreateBatchInput {
   defaultCondition?: CardCondition | null;
   language?: string;
   paired?: boolean;
+  autopilot?: boolean;
+  publishMode?: PublishMode;
+  publishPerDay?: number | null;
+}
+
+/** Réglages cohérents du pilote automatique, ou l'erreur qui dit ce qui manque. */
+function autopilotOf(input: { autopilot: boolean; publishMode: PublishMode; publishPerDay: number | null; defaultCondition: CardCondition | null }) {
+  if (input.autopilot && !input.defaultCondition) {
+    throw new DomainError("AUTOPILOT_NEEDS_CONDITION", "the autopilot needs a default condition for the batch");
+  }
+  if (input.publishMode === "DAILY" && !(Number.isInteger(input.publishPerDay) && input.publishPerDay! >= 1 && input.publishPerDay! <= 500)) {
+    throw new DomainError("INVALID_SCHEDULE", "between 1 and 500 listings a day");
+  }
+  return { autopilot: input.autopilot, publishMode: input.publishMode, publishPerDay: input.publishMode === "DAILY" ? input.publishPerDay : null };
 }
 
 const batchSelect = (sql: Db) => sql`
-  select b.id, b.name, l.code as location_code, b.unit_cost_cents, b.acquisition_lot_id, b.default_condition, b.language, b.paired, b.received_at, b.created_at,
+  select b.id, b.name, l.code as location_code, b.unit_cost_cents, b.acquisition_lot_id, b.default_condition, b.language, b.paired, b.autopilot, b.publish_mode, b.publish_per_day, b.received_at, b.created_at,
          jsonb_build_object(
            'items', count(i.id),
            'toReview', count(i.id) filter (where not i.skipped and i.stock_item_id is null and (i.variant_id is null or coalesce(i.condition, b.default_condition) is null)),
@@ -68,10 +89,14 @@ const batchSelect = (sql: Db) => sql`
 export async function createBatch(sql: Db, input: CreateBatchInput): Promise<ScanBatch> {
   const location = await resolveLocation(sql, input.location);
   const name = input.name?.trim() || `Lot du ${new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Paris" }).format(new Date())}`;
+  const auto = autopilotOf({
+    autopilot: input.autopilot ?? false, publishMode: input.publishMode ?? "NONE", publishPerDay: input.publishPerDay ?? null,
+    defaultCondition: input.defaultCondition ?? null,
+  });
   const [row] = await sql<{ id: string }[]>`
-    insert into scan_batches (name, location_id, unit_cost_cents, acquisition_lot_id, default_condition, language, paired)
+    insert into scan_batches (name, location_id, unit_cost_cents, acquisition_lot_id, default_condition, language, paired, autopilot, publish_mode, publish_per_day)
     values (${name}, ${location.id}, ${input.unitCostCents ?? 0}, ${input.acquisitionLotId ?? null}, ${input.defaultCondition ?? null},
-            ${input.language ?? "fr"}, ${input.paired ?? true})
+            ${input.language ?? "fr"}, ${input.paired ?? true}, ${auto.autopilot}, ${auto.publishMode}, ${auto.publishPerDay})
     returning id`;
   return getBatch(sql, row!.id);
 }
@@ -89,17 +114,26 @@ export function listBatches(sql: Db): Promise<ScanBatch[]> {
 export async function updateBatch(
   sql: Db,
   batchId: string,
-  change: { name?: string; location?: LocationRef; unitCostCents?: number; defaultCondition?: CardCondition | null },
+  change: {
+    name?: string; location?: LocationRef; unitCostCents?: number; defaultCondition?: CardCondition | null;
+    autopilot?: boolean; publishMode?: PublishMode; publishPerDay?: number | null;
+  },
 ): Promise<ScanBatch> {
   const batch = await getBatch(sql, batchId);
   if (batch.receivedAt) throw new DomainError("BATCH_ALREADY_RECEIVED", "this batch has already been received into stock");
   const location = change.location ? await resolveLocation(sql, change.location) : null;
+  const defaultCondition = change.defaultCondition === undefined ? batch.defaultCondition : change.defaultCondition;
+  const auto = autopilotOf({
+    autopilot: change.autopilot ?? batch.autopilot, publishMode: change.publishMode ?? batch.publishMode,
+    publishPerDay: change.publishPerDay === undefined ? batch.publishPerDay : change.publishPerDay, defaultCondition,
+  });
   await sql`
     update scan_batches set
       name = ${change.name?.trim() || batch.name},
       location_id = coalesce(${location?.id ?? null}, location_id),
       unit_cost_cents = ${change.unitCostCents ?? batch.unitCostCents},
-      default_condition = ${change.defaultCondition === undefined ? batch.defaultCondition : change.defaultCondition}
+      default_condition = ${defaultCondition},
+      autopilot = ${auto.autopilot}, publish_mode = ${auto.publishMode}, publish_per_day = ${auto.publishPerDay}
     where id = ${batchId}`;
   return getBatch(sql, batchId);
 }
@@ -210,6 +244,37 @@ export async function updateItem(
   });
 }
 
+type AfterReceive = (tx: Db, received: ReceivedPosition) => Promise<unknown>;
+interface BatchRow { locationId: string; unitCostCents: number; acquisitionLotId: string | null; defaultCondition: CardCondition | null; paired: boolean; receivedAt: Date | null }
+interface PendingItem { id: string; position: number; variantId: string | null; condition: CardCondition | null; frontPhotoId: string | null; backPhotoId: string | null; createdAt: Date }
+
+const lockBatch = async (tx: Db, batchId: string): Promise<BatchRow> => {
+  const [batch] = await tx<BatchRow[]>`
+    select location_id, unit_cost_cents, acquisition_lot_id, default_condition, paired, received_at from scan_batches where id = ${batchId} for update`;
+  if (!batch) throw new DomainError("SCAN_BATCH_NOT_FOUND", `scan batch ${batchId} does not exist`);
+  return batch;
+};
+const pendingItems = (tx: Db, batchId: string) => tx<PendingItem[]>`
+  select id, position, variant_id, condition, front_photo_id, back_photo_id, created_at from scan_items
+   where batch_id = ${batchId} and not skipped and stock_item_id is null order by position`;
+
+/** Entre des cartes en stock dans l'ordre donné, photos attachées ; renvoie ce qui a été créé, carte par carte. */
+async function receiveItems(tx: Db, batch: BatchRow, items: PendingItem[], actor: string, afterEach: AfterReceive): Promise<ReceivedPosition[]> {
+  const all: ReceivedPosition[] = [];
+  for (const item of items) {
+    const received = await receiveCard(tx, {
+      variantId: item.variantId!, condition: (item.condition ?? batch.defaultCondition)!, quantity: 1, location: { id: batch.locationId },
+      unitCostCents: batch.unitCostCents, acquisitionLotId: batch.acquisitionLotId ?? undefined, actor,
+    });
+    const photos = [item.frontPhotoId, item.backPhotoId].filter((p): p is string => !!p);
+    await attachPhotos(tx, photos, { stockItemId: received.stockItem.id, offerId: received.offer.id });
+    await tx`update scan_items set stock_item_id = ${received.stockItem.id} where id = ${item.id}`;
+    await afterEach(tx, received);
+    all.push(received);
+  }
+  return all;
+}
+
 /**
  * Entre le lot en stock, carte par carte dans l'ordre du scan : les codes attribués se suivent comme la pile dans la boîte.
  * Tout ou rien tant qu'une carte attend une décision ; les cartes écartées sont sautées.
@@ -218,32 +283,42 @@ export function receiveBatch(
   sql: Db,
   batchId: string,
   actor: string,
-  afterEach: (tx: Db, received: ReceivedPosition) => Promise<unknown> = async () => undefined,
+  afterEach: AfterReceive = async () => undefined,
 ): Promise<{ received: number; firstSku: string | null; lastSku: string | null }> {
   return withTx(sql, async (tx) => {
-    const [batch] = await tx<{ locationId: string; unitCostCents: number; acquisitionLotId: string | null; defaultCondition: CardCondition | null; receivedAt: Date | null }[]>`
-      select location_id, unit_cost_cents, acquisition_lot_id, default_condition, received_at from scan_batches where id = ${batchId} for update`;
-    if (!batch) throw new DomainError("SCAN_BATCH_NOT_FOUND", `scan batch ${batchId} does not exist`);
-    const items = await tx<{ id: string; position: number; variantId: string | null; condition: CardCondition | null; frontPhotoId: string | null; backPhotoId: string | null }[]>`
-      select id, position, variant_id, condition, front_photo_id, back_photo_id from scan_items
-       where batch_id = ${batchId} and not skipped and stock_item_id is null order by position`;
+    const batch = await lockBatch(tx, batchId);
+    const items = await pendingItems(tx, batchId);
     const pending = items.filter((i) => !i.variantId || !(i.condition ?? batch.defaultCondition));
     if (pending.length > 0) {
       throw new DomainError("BATCH_NOT_READY", "some cards still need a decision", { positions: pending.map((i) => i.position) });
     }
-    const skus: string[] = [];
-    for (const item of items) {
-      const received = await receiveCard(tx, {
-        variantId: item.variantId!, condition: (item.condition ?? batch.defaultCondition)!, quantity: 1, location: { id: batch.locationId },
-        unitCostCents: batch.unitCostCents, acquisitionLotId: batch.acquisitionLotId ?? undefined, actor,
-      });
-      const photos = [item.frontPhotoId, item.backPhotoId].filter((p): p is string => !!p);
-      await attachPhotos(tx, photos, { stockItemId: received.stockItem.id, offerId: received.offer.id });
-      await tx`update scan_items set stock_item_id = ${received.stockItem.id} where id = ${item.id}`;
-      await afterEach(tx, received);
-      skus.push(received.stockItem.unitSku);
-    }
+    const skus = (await receiveItems(tx, batch, items, actor, afterEach)).map((r) => r.stockItem.unitSku);
     await tx`update scan_batches set received_at = now() where id = ${batchId}`;
     return { received: skus.length, firstSku: skus[0] ?? null, lastSku: skus.at(-1) ?? null };
+  });
+}
+
+/** Délai laissé au verso pour arriver avant qu'une carte recto verso entre en stock sans lui. */
+export const BACK_GRACE_MS = 60_000;
+
+/**
+ * Pilote automatique : entre en stock, dans l'ordre du scan, les cartes complètes (carte, variante, état), sans attendre
+ * celles qui demandent une décision — elles suivront une fois corrigées. Dans un lot recto verso, une carte attend son verso
+ * pendant `backGraceMs`. Le lot reste ouvert : d'autres cartes peuvent encore arriver.
+ */
+export function receiveReady(
+  sql: Db,
+  batchId: string,
+  actor: string,
+  afterEach: AfterReceive = async () => undefined,
+  opts: { backGraceMs?: number; now?: Date } = {},
+): Promise<{ received: ReceivedPosition[] }> {
+  return withTx(sql, async (tx) => {
+    const batch = await lockBatch(tx, batchId);
+    if (batch.receivedAt) return { received: [] };
+    const cutoff = (opts.now ?? new Date()).getTime() - (opts.backGraceMs ?? BACK_GRACE_MS);
+    const ready = (await pendingItems(tx, batchId)).filter((i) =>
+      i.variantId && (i.condition ?? batch.defaultCondition) && (!batch.paired || i.backPhotoId || i.createdAt.getTime() <= cutoff));
+    return { received: await receiveItems(tx, batch, ready, actor, afterEach) };
   });
 }

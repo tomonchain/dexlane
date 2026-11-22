@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { useTestDb } from "@dexlane/db/testing";
 import { attachPhotos, createLocation, receiveCard, recordPhoto } from "@dexlane/inventory";
 import {
-  DEFAULT_LISTING_SETTINGS, cancelPublications, getSchedule, listStock, planPublications, publishListing, runDuePublications, saveListingSettings,
+  DEFAULT_LISTING_SETTINGS, cancelPublications, getSchedule, listStock, planPublications, publishListing, queuePublications, runDuePublications, saveListingSettings,
   setChannelMode, todayInParis, type ChannelAdapter, type PublishInput,
 } from "../src";
 
@@ -30,6 +30,33 @@ async function ready(name: string, opts: { price?: number | null; photo?: boolea
   }
   return r.offer.id;
 }
+
+describe("queueing publications one card after another", () => {
+  it("publishes the same day, or fills each day up to the daily rate without moving what is already planned", async () => {
+    await expect(queuePublications(sql, { offerIds: [await ready("Z")], channel: "ebay", perDay: null, actor: ACTOR })).rejects.toMatchObject({ code: "CHANNEL_DISABLED" });
+    await setChannelMode(sql, {}, "ebay", "SIMULATION", ACTOR);
+    const ids = [await ready("A"), await ready("B"), await ready("C"), await ready("D")];
+    const unpriced = await ready("Sans prix", { price: null });
+
+    // Deux par jour : A et B aujourd'hui, C demain ; la carte sans prix est laissée de côté.
+    expect(await queuePublications(sql, { offerIds: [ids[0]!, ids[1]!, ids[2]!, unpriced], channel: "ebay", perDay: 2, actor: ACTOR })).toEqual({ queued: 3, lastDay: day(1) });
+    // Une carte arrivée ensuite prend la place libre du lendemain ; une carte déjà en file n'est pas doublée.
+    expect(await queuePublications(sql, { offerIds: [ids[2]!, ids[3]!], channel: "ebay", perDay: 2, actor: ACTOR })).toEqual({ queued: 1, lastDay: day(1) });
+    expect((await getSchedule(sql)).days).toEqual([
+      { plannedOn: today, channel: "ebay", count: 2, cardNames: ["A", "B"] },
+      { plannedOn: day(1), channel: "ebay", count: 2, cardNames: ["C", "D"] },
+    ]);
+
+    // Les publications faites dans la journée comptent dans le rythme du jour.
+    expect(await runDuePublications(sql, {}, ACTOR)).toEqual({ published: 2, failed: 0 });
+    const late = await ready("E");
+    expect(await queuePublications(sql, { offerIds: [late], channel: "ebay", perDay: 2, actor: ACTOR })).toEqual({ queued: 1, lastDay: day(2) });
+    // Sans rythme : le jour même, quel que soit le nombre déjà publié ; une carte déjà en ligne n'est pas remise en file.
+    const now = await ready("F");
+    expect(await queuePublications(sql, { offerIds: [now, ids[0]!], channel: "ebay", perDay: null, actor: ACTOR })).toEqual({ queued: 1, lastDay: today });
+    expect(await queuePublications(sql, { offerIds: [], channel: "ebay", perDay: null, actor: ACTOR })).toEqual({ queued: 0, lastDay: null });
+  });
+});
 
 describe("scheduling publications", () => {
   it("spreads ready offers over consecutive days in stock order and skips what cannot be listed", async () => {

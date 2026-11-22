@@ -108,7 +108,14 @@ export type ScanItem = Json<ScanItemRow>;
 export type { PlanResult };
 export type Schedule = Json<ScheduleRow>;
 
+/** Papier des bons de livraison et reçus. */
+export type SlipPaper = "ROLL_80" | "ROLL_58" | "LABEL_100X150" | "A4";
+export interface Seller { name: string; address: string; legal: string }
 export interface AppSettings {
   onboardingDone: boolean;
   intakeMode: "SCANNER" | "CAMERA" | "FILES" | null;
+  slipPaper: SlipPaper;
+  seller: Seller;
 }
+/** Préparation des envois : les commandes à préparer et ce qu'il faut pour imprimer leurs bons. */
+export interface ShippingRun { orders: OrderDetail[]; seller: Seller; slipPaper: SlipPaper }

@@ -43,12 +43,22 @@ export function searchSellableOffers(sql: Db, opts: { q?: string; limit?: number
 
 // ───────────────────────── Création ─────────────────────────
 
+/** Adresse telle qu'elle est conservée sur la commande : le nom, puis les lignes de l'adresse postale. */
+function shippingAddressOf(name: string | undefined, lines: string[] | undefined): Record<string, unknown> | undefined {
+  const cleanName = name?.trim();
+  const cleanLines = (lines ?? []).map((l) => l.trim()).filter(Boolean);
+  if (!cleanName && cleanLines.length === 0) return undefined;
+  return { ...(cleanName ? { name: cleanName } : {}), ...(cleanLines.length ? { lines: cleanLines } : {}) };
+}
+
 export interface DirectSaleInput {
   lines: { offerId: string; qty: number; unitPriceCents: number }[];
   shippingMode: ShippingMode;
   /** Frais de port facturés à l'acheteur, inclus dans le total encaissé. */
   shippingChargedCents?: number;
   buyerName?: string;
+  /** Adresse de livraison, une ligne par élément (rue, code postal et ville, pays). */
+  addressLines?: string[];
   note?: string;
   actor: string;
 }
@@ -86,7 +96,7 @@ export async function createDirectSale(sql: Db, input: DirectSaleInput): Promise
       grossCents: input.lines.reduce((sum, l) => sum + l.qty * l.unitPriceCents, 0) + shippingChargedCents,
       currency: "EUR",
       orderedAt: new Date(),
-      shippingAddress: input.buyerName?.trim() ? { name: input.buyerName.trim() } : undefined,
+      shippingAddress: shippingAddressOf(input.buyerName, input.addressLines),
       lines: input.lines.map((l, i) => ({ externalLineId: String(i + 1), offerSku: skuById.get(l.offerId)!, qty: l.qty, unitPriceCents: l.unitPriceCents })),
     });
     if (input.note?.trim()) await tx`update orders set note = ${input.note.trim()} where id = ${orderId}`;
@@ -187,6 +197,10 @@ export async function listOrders(
 
 export interface OrderDetail extends OrderSummary {
   note: string | null;
+  /** Lignes de l'adresse de livraison, si la commande en porte une. */
+  addressLines: string[];
+  /** Dernière impression du bon de livraison et du reçu. */
+  slipPrintedAt: Date | null;
   lines: {
     id: string;
     offerId: string;
@@ -203,6 +217,8 @@ export interface OrderDetail extends OrderSummary {
       unitSku: string;
       locationCode: string;
       unitCostCents: number;
+      /** Rang de la carte dans la pile scannée : dans la boîte, c'est là qu'elle se trouve. */
+      scan: { batchName: string; position: number } | null;
     }[];
   }[];
   shipment: {
@@ -221,17 +237,25 @@ export async function getOrderDetail(sql: Db, orderId: string): Promise<OrderDet
   const summary = items[0];
   if (!summary) throw new DomainError("ORDER_NOT_FOUND", "order not found");
 
-  const [extra] = await sql<{ note: string | null }[]>`select note from orders where id = ${orderId}`;
+  const [extra] = await sql<{ note: string | null; addressLines: string[]; slipPrintedAt: Date | null }[]>`
+    select note, slip_printed_at,
+           coalesce((select jsonb_agg(line) from jsonb_array_elements_text(
+             case when jsonb_typeof(shipping_address->'lines') = 'array' then shipping_address->'lines' else '[]'::jsonb end) line), '[]'::jsonb) as address_lines
+      from orders where id = ${orderId}`;
   const lines = await sql<OrderDetail["lines"]>`
     select ol.id, ol.offer_id, f.offer_sku, f.condition, ol.qty, ol.unit_price_cents,
            jsonb_build_object('name', c.name, 'setId', c.set_id, 'localNumber', c.local_number, 'language', c.language,
                               'imageUrl', c.image_url, 'finish', v.finish, 'edition', v.edition) as card,
            coalesce((select jsonb_agg(jsonb_build_object(
                        'id', a.id, 'status', a.status, 'qty', a.qty, 'unitSku', s.unit_sku,
-                       'locationCode', loc.code, 'unitCostCents', s.unit_cost_cents) order by loc.code, s.unit_sku)
+                       'locationCode', loc.code, 'unitCostCents', s.unit_cost_cents,
+                       'scan', case when si.id is null then null else jsonb_build_object('batchName', sb.name, 'position', si.position) end)
+                       order by loc.code, s.unit_sku)
                        from order_allocations a
                        join stock_items s on s.id = a.stock_item_id
                        join locations loc on loc.id = s.location_id
+                       left join scan_items si on si.stock_item_id = s.id
+                       left join scan_batches sb on sb.id = si.batch_id
                       where a.order_line_id = ol.id and a.status <> 'RELEASED'), '[]'::jsonb) as allocations
       from order_lines ol
       join offers f on f.id = ol.offer_id
@@ -249,6 +273,8 @@ export async function getOrderDetail(sql: Db, orderId: string): Promise<OrderDet
   return {
     ...summary,
     note: extra?.note ?? null,
+    addressLines: extra?.addressLines ?? [],
+    slipPrintedAt: extra?.slipPrintedAt ?? null,
     lines,
     shipment: shipment ?? null,
     totals: {
@@ -272,6 +298,23 @@ async function listOrdersById(sql: Db, orderId: string) {
       join catalog_cards c on c.id = v.catalog_card_id
      where ol.order_id = ${orderId}`;
   return { items: all.map(({ fulfillmentStatus, ...o }) => ({ ...o, ...agg!, stage: stageOf(fulfillmentStatus) })) };
+}
+
+// ───────────────────────── Préparation des envois ─────────────────────────
+
+/** Commandes à préparer, des plus anciennes aux plus récentes, avec tout ce qu'il faut pour les prélever et les imprimer. */
+export async function listPreparation(sql: Db): Promise<OrderDetail[]> {
+  const pending = await sql<{ id: string }[]>`
+    select id from orders where fulfillment_status = ${STAGE_STATUS.TO_PREPARE} order by ordered_at, id limit 200`;
+  const orders: OrderDetail[] = [];
+  for (const { id } of pending) orders.push(await getOrderDetail(sql, id));
+  return orders;
+}
+
+/** Note que les bons de ces commandes ont été imprimés : elles ne reviennent plus dans l'impression du jour. */
+export async function markSlipsPrinted(sql: Db, orderIds: string[]): Promise<number> {
+  if (orderIds.length === 0) return 0;
+  return (await sql`update orders set slip_printed_at = now() where id in ${sql(orderIds)} returning id`).length;
 }
 
 // ───────────────────────── Dépôt et annulation ─────────────────────────

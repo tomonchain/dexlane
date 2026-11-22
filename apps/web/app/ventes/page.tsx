@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, CircleDollarSign, Plus, Receipt, ShoppingBag, TrendingUp } from "lucide-react";
+import { ChevronRight, CircleDollarSign, Plus, Printer, Receipt, ShoppingBag, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { Alert } from "@/components/ui/alert";
@@ -58,7 +58,10 @@ export default function SalesPage() {
       <PageHeader
         title="Ventes"
         description="Ventes directes : les cartes sont réservées à l'enregistrement, puis prélevées, emballées et remises."
-        actions={<Button asChild><Link href="/ventes/nouvelle"><Plus /> Nouvelle vente</Link></Button>}
+        actions={<>
+          <Button asChild variant="outline"><Link href="/ventes/preparation"><Printer /> Préparer les envois</Link></Button>
+          <Button asChild><Link href="/ventes/nouvelle"><Plus /> Nouvelle vente</Link></Button>
+        </>}
       />
 
       {totals && (

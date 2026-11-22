@@ -400,10 +400,15 @@ describe("photos added after the fact", () => {
 
 describe("application settings", () => {
   it("remembers the onboarding progress and the way cards come in", async () => {
-    expect((await call("GET", "/api/app-settings")).json).toEqual({ onboardingDone: false, intakeMode: null });
-    expect((await call("PUT", "/api/app-settings", { body: { intakeMode: "CAMERA" } })).json).toEqual({ onboardingDone: false, intakeMode: "CAMERA" });
-    expect((await call("PUT", "/api/app-settings", { body: { onboardingDone: true } })).json).toEqual({ onboardingDone: true, intakeMode: "CAMERA" });
+    const blank = { slipPaper: "ROLL_80", seller: { name: "", address: "", legal: "" } };
+    expect((await call("GET", "/api/app-settings")).json).toEqual({ onboardingDone: false, intakeMode: null, ...blank });
+    expect((await call("PUT", "/api/app-settings", { body: { intakeMode: "CAMERA" } })).json).toEqual({ onboardingDone: false, intakeMode: "CAMERA", ...blank });
+    expect((await call("PUT", "/api/app-settings", { body: { onboardingDone: true } })).json).toEqual({ onboardingDone: true, intakeMode: "CAMERA", ...blank });
     expect((await call("PUT", "/api/app-settings", { body: { intakeMode: "FAX" } })).status).toBe(400);
+    // Papier de l'imprimante et en-tête des bons de livraison.
+    const seller = { name: "Cartes du Rhône", address: "3 quai Victor Augagneur\n69003 Lyon", legal: "SIRET 000 000 000 00000" };
+    expect((await call("PUT", "/api/app-settings", { body: { slipPaper: "LABEL_100X150", seller } })).json).toMatchObject({ intakeMode: "CAMERA", slipPaper: "LABEL_100X150", seller });
+    expect((await call("PUT", "/api/app-settings", { body: { slipPaper: "A5" } })).status).toBe(400);
   });
 });
 
@@ -531,6 +536,13 @@ describe("direct sales", () => {
     expect([tooMany.status, tooMany.json.error.code]).toEqual([409, "INSUFFICIENT_STOCK"]);
     expect((await call("POST", `/api/orders/${id}/pack`, { key: null })).json.error.code).toBe("NOT_FULLY_PICKED");
     expect((await call("POST", `/api/orders/${id}/pick`, { body: { allocationId: allocation.id, unitSku: "999999" }, key: null })).json.error.code).toBe("UNKNOWN_SKU");
+
+    // Préparation du jour : la commande, son prélèvement, puis la marque d'impression.
+    const run = (await call("GET", "/api/orders/preparation")).json;
+    expect(run).toMatchObject({ slipPaper: "ROLL_80", seller: { name: "" }, orders: [{ id, slipPrintedAt: null, addressLines: [], lines: [{ allocations: [{ locationCode: "BOX-01/ROW-03" }] }] }] });
+    expect((await call("POST", "/api/orders/preparation/printed", { body: { orderIds: [id] }, key: null })).json).toEqual({ marked: 1 });
+    expect((await call("GET", "/api/orders/preparation")).json.orders[0].slipPrintedAt).toEqual(expect.any(String));
+    expect((await call("POST", "/api/orders/preparation/printed", { body: { orderIds: [] }, key: null })).status).toBe(400);
 
     const picked = await call("POST", `/api/orders/${id}/pick`, { body: { allocationId: allocation.id, unitSku: number }, key: null });
     expect(picked.json.lines[0].allocations[0].status).toBe("PICKED");
