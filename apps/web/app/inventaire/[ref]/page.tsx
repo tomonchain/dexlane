@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { toast } from "sonner";
 import { CardThumb } from "@/components/card-chooser";
 import { LocationPicker } from "@/components/location-picker";
+import { SalesBasis } from "@/components/sales-basis";
 import { Stepper } from "@/components/stepper";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +21,7 @@ import { Code, EmptyState, Loading } from "@/components/ui/misc";
 import { Modal } from "@/components/ui/modal";
 import { ApiError, api, createKeyring } from "@/lib/api";
 import { LIFECYCLE, formatDateTime, formatEuros, movementLabel, positionSubtitle, positionTitle } from "@/lib/format";
-import { CATEGORY_LABEL, CATEGORY_VARIANT, age, quoteLabel, reasonLabel, type Category } from "@/lib/pricing";
+import { CATEGORY_LABEL, CATEGORY_VARIANT, reasonLabel, type Category } from "@/lib/pricing";
 import type { Movement, PositionDetail } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -222,11 +223,7 @@ export default function PositionPage() {
                 <div className="grid gap-0.5"><dt className="text-xs text-muted-foreground">Plancher</dt><dd className="text-lg font-semibold text-muted-foreground">{p.offer.floorPriceCents === null ? "—" : formatEuros(p.offer.floorPriceCents)}</dd></div>
                 <div className="grid gap-0.5"><dt className="text-xs text-muted-foreground">Suggéré</dt><dd className="text-lg font-semibold text-muted-foreground">{p.offer.suggestedPriceCents === null ? "—" : formatEuros(p.offer.suggestedPriceCents)}</dd></div>
               </dl>
-              {p.offer.reference && (
-                <p className="text-xs text-muted-foreground">
-                  Référence : {quoteLabel(p.offer.reference.quoteType)} Cardmarket {formatEuros(p.offer.reference.amountCents)}, relevée {age(p.offer.reference.observedAt)}.
-                </p>
-              )}
+              {p.offer.reference && <SalesBasis reference={p.offer.reference} sales={p.offer.sales} className="text-xs text-muted-foreground" />}
               {p.offer.priceReasons.length > 0 && (
                 <Alert variant="warning"><ul className="grid gap-0.5">{p.offer.priceReasons.map((r) => <li key={r}>{reasonLabel(r)}</li>)}</ul></Alert>
               )}

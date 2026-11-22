@@ -4,10 +4,11 @@ import { TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { formatEuros } from "@/lib/format";
-import { CATEGORY_LABEL, CATEGORY_VARIANT, age, quoteLabel, reasonLabel } from "@/lib/pricing";
+import { CATEGORY_LABEL, CATEGORY_VARIANT, reasonLabel } from "@/lib/pricing";
 import type { CardCondition, VariantQuote } from "@/lib/types";
 import { Alert } from "./ui/alert";
 import { Badge } from "./ui/badge";
+import { SalesBasis } from "./sales-basis";
 import { Card, CardContent } from "./ui/card";
 import { Skeleton } from "./ui/misc";
 
@@ -48,18 +49,11 @@ export function PriceEstimate({ variantId, condition, unique }: { variantId: str
           <Skeleton className="h-12" />
         ) : (
           <>
-            <div className="flex items-end justify-between gap-4">
-              <div className="grid gap-0.5">
-                <span className="text-xs text-muted-foreground">Prix estimé pour cet état</span>
-                <span className="tabular text-2xl leading-none font-semibold tracking-tight">{quote.suggestedCents === null ? "—" : formatEuros(quote.suggestedCents)}</span>
-              </div>
-              {quote.reference && (
-                <span className="text-right text-xs text-muted-foreground">
-                  {quoteLabel(quote.reference.quoteType)} Cardmarket <span className="tabular font-medium text-foreground">{formatEuros(quote.reference.amountCents)}</span>
-                  <br />relevée {age(quote.reference.observedAt)}
-                </span>
-              )}
+            <div className="grid gap-0.5">
+              <span className="text-xs text-muted-foreground">Prix estimé pour cet état</span>
+              <span className="tabular text-2xl leading-none font-semibold tracking-tight">{quote.suggestedCents === null ? "—" : formatEuros(quote.suggestedCents)}</span>
             </div>
+            {quote.reference && <SalesBasis reference={quote.reference} sales={quote.sales} className="text-[13px] text-muted-foreground" />}
             {quote.reasons.length > 0 && (
               <Alert variant="warning">
                 {quote.reasons.length === 1 ? reasonLabel(quote.reasons[0]!) : (
@@ -67,7 +61,7 @@ export function PriceEstimate({ variantId, condition, unique }: { variantId: str
                 )}
               </Alert>
             )}
-            <p className="text-xs text-muted-foreground">Référence toutes langues et tous états confondus, corrigée par un coefficient d'état. Le prix se décide ensuite dans « Prix ».</p>
+            <p className="text-xs text-muted-foreground">Ventes toutes langues et tous états confondus, corrigées par un coefficient d'état. Le prix se décide ensuite dans le stock.</p>
           </>
         )}
       </CardContent>

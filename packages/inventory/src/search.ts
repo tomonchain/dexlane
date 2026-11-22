@@ -48,6 +48,8 @@ export interface InventoryRow {
     priceSource: "NONE" | "AUTO" | "MANUAL";
     priceReasons: string[];
     reference: { quoteType: string; amountCents: number; observedAt: string } | null;
+    /** Estimation d'après les ventes réussies ; null sans vente récente. */
+    sales: { cents: number; confidence: "HIGH" | "MEDIUM" | "LOW"; sales: { quoteType: string; amountCents: number }[] } | null;
   } | null;
   card: {
     catalogCardId: string;
@@ -78,7 +80,8 @@ const select = (sql: Db) => sql`
            'priceSource', o.price_source, 'priceReasons', o.price_reasons,
            'reference', case when o.reference_price_cents is null then null else jsonb_build_object(
              'quoteType', o.reference_quote_type, 'amountCents', o.reference_price_cents,
-             'observedAt', o.reference_observed_at) end) end as offer,
+             'observedAt', o.reference_observed_at) end,
+           'sales', o.sales_estimate) end as offer,
          case when c.id is null then null else jsonb_build_object(
            'catalogCardId', c.id, 'variantId', v.id, 'name', c.name, 'setId', c.set_id,
            'localNumber', c.local_number, 'language', c.language, 'rarity', c.rarity, 'imageUrl', c.image_url,

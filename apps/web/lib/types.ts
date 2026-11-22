@@ -32,12 +32,17 @@ export type Location = Json<LocationSummary>;
 export type AcquisitionLot = Json<AcquisitionLotRow>;
 export type OfferPricing = Json<PricingRow>;
 export type VariantQuote = Json<Quote>;
+/** Estimation d'après les ventes réussies, telle que l'API la sert partout (stock, prix, catalogue, saisie). */
+export interface SalesEstimate { cents: number; confidence: "HIGH" | "MEDIUM" | "LOW"; sales: { quoteType: string; amountCents: number }[] }
 export type { PricingSettings };
 export type Received = Json<ReceivedPosition> & { pricing: OfferPricing | null };
 export type ReceivedBulkLot = Json<ReceivedBulk>;
 export type CatalogSet = Json<CatalogSetSummary>;
-export type CatalogSetDetail = Json<SetDetail>;
-export type CatalogSetCard = Json<SetCard>;
+/** Prix du marché d'une variante : d'après les ventes réussies, ou les annonces quand `sales` est null. */
+export interface VariantEstimate { cents: number; sales: SalesEstimate | null; observedAt: string; variantAmbiguous: boolean }
+type SetCardJson = Json<SetCard>;
+export type CatalogSetCard = Omit<SetCardJson, "variants"> & { variants: (SetCardJson["variants"][number] & { estimate: VariantEstimate | null })[] };
+export type CatalogSetDetail = Omit<Json<SetDetail>, "cards"> & { cards: CatalogSetCard[] };
 export type SetSyncReport = SyncStats & { errorCount: number };
 
 export interface ScanResult {

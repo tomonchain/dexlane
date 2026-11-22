@@ -24,7 +24,17 @@ export const REASON_LABEL: Record<string, string> = {
 export const reasonLabel = (code: string) => REASON_LABEL[code] ?? code;
 
 export const QUOTE_LABEL: Record<string, string> = {
-  LISTED_TREND: "Tendance", SOLD_AVG_30D: "Ventes 30 j", SOLD_AVG_7D: "Ventes 7 j", LISTED_LOW: "Prix le plus bas",
+  SOLD_ESTIMATE: "Ventes réussies", SOLD_AVG_7D: "7 j", SOLD_AVG_30D: "30 j", SOLD_AVG_1D: "veille",
+  LISTED_TREND: "Tendance", LISTED_LOW: "Prix le plus bas",
+};
+/** Fiabilité d'une estimation d'après les ventes. */
+export const CONFIDENCE_LABEL: Record<"HIGH" | "MEDIUM" | "LOW", string> = {
+  HIGH: "fiable", MEDIUM: "prix en mouvement", LOW: "peu de ventes",
+};
+export const CONFIDENCE_HINT: Record<"HIGH" | "MEDIUM" | "LOW", string> = {
+  HIGH: "Des ventes cette semaine et ce mois, à des prix proches.",
+  MEDIUM: "Les ventes de la semaine s'écartent de plus de 20 % de celles du mois.",
+  LOW: "Une seule période de ventes renseignée : estimation à confirmer.",
 };
 export const quoteLabel = (type: string) => QUOTE_LABEL[type] ?? type;
 
@@ -53,7 +63,7 @@ export function age(iso: string): string {
 export const eurosInput = (cents: number) => (cents / 100).toFixed(2).replace(".", ",");
 
 export const STRATEGY_OPTIONS: { value: "FAST" | "BALANCED" | "MARGIN"; label: string; hint: string }[] = [
-  { value: "FAST", label: "Vendre vite", hint: "Au prix qui part tout de suite, aligné sur l'annonce la moins chère." },
-  { value: "BALANCED", label: "Équilibré", hint: "Entre le prix qui part tout de suite et le plus haut que le marché soutient." },
-  { value: "MARGIN", label: "Marge maximale", hint: "Au plus haut prix que le marché soutient : plus de marge, vente plus lente." },
+  { value: "FAST", label: "Vendre vite", hint: "Au bas des ventes réussies, aligné sur l'annonce la moins chère : la carte part tout de suite." },
+  { value: "BALANCED", label: "Équilibré", hint: "Au prix auquel la carte s'est vendue : ventes du mois, ajustées par celles de la semaine." },
+  { value: "MARGIN", label: "Marge maximale", hint: "Au haut des ventes réussies : plus de marge, vente plus lente." },
 ];

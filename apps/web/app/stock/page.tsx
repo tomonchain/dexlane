@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { CardThumb } from "@/components/card-chooser";
 import { OfferPhotos } from "@/components/offer-photos";
 import { PlanModal } from "@/components/plan-modal";
+import { SalesBasis } from "@/components/sales-basis";
 import { Sparkline } from "@/components/charts";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
@@ -16,7 +17,7 @@ import { Modal } from "@/components/ui/modal";
 import { Pagination, SegmentedTabs } from "@/components/ui/tabs";
 import { ApiError, api } from "@/lib/api";
 import { cardImage, dayLabel, formatEuros, parseEuros, variantLabel } from "@/lib/format";
-import { age, eurosInput, quoteLabel, reasonLabel } from "@/lib/pricing";
+import { CONFIDENCE_LABEL, age, eurosInput, quoteLabel, reasonLabel } from "@/lib/pricing";
 import type { ChannelState, ListingBlocker, Schedule, StockDetail, StockPage, StockRow, StockStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { composeMissingVisuals } from "@/lib/visuals";
@@ -332,7 +333,7 @@ function Stock() {
                     <th className="hidden px-3 font-medium sm:table-cell">État</th>
                     <th className="px-3 text-right font-medium">Qté</th>
                     <th className="hidden px-3 font-medium md:table-cell">Emplacement</th>
-                    <th className={cn("hidden px-3 text-right font-medium", selected ? "2xl:table-cell" : "lg:table-cell")}>Cote</th>
+                    <th className={cn("hidden px-3 text-right font-medium", selected ? "2xl:table-cell" : "lg:table-cell")} title="Prix estimé d'après les ventes réussies, toutes langues et tous états confondus">Ventes</th>
                     <th className="px-3 text-right font-medium">Prix</th>
                     <th className="hidden px-3 font-medium sm:table-cell">Statut</th>
                   </tr>
@@ -372,8 +373,10 @@ function Stock() {
                         <Code className="text-xs">{row.locations[0]}</Code>
                         {row.locations.length > 1 && <span className="text-xs text-muted-foreground"> +{row.locations.length - 1}</span>}
                       </td>
-                      <td className={cn("tabular hidden px-3 text-right text-muted-foreground", selected ? "2xl:table-cell" : "lg:table-cell")} title={row.reference ? `${quoteLabel(row.reference.quoteType)} Cardmarket, relevée ${age(row.reference.observedAt)}` : undefined}>
-                        {row.reference ? formatEuros(row.reference.amountCents) : "—"}
+                      <td className={cn("tabular hidden px-3 text-right text-muted-foreground", selected ? "2xl:table-cell" : "lg:table-cell")} title={row.reference ? (row.sales
+                        ? `Ventes réussies Cardmarket (${CONFIDENCE_LABEL[row.sales.confidence]}), relevées ${age(row.reference.observedAt)}`
+                        : `Aucune vente récente : ${quoteLabel(row.reference.quoteType).toLowerCase()} des annonces Cardmarket, relevée ${age(row.reference.observedAt)}`) : undefined}>
+                        {row.reference ? `${row.sales ? "" : "≈ "}${formatEuros(row.reference.amountCents)}` : "—"}
                       </td>
                       <td className="px-3 text-right" onClick={(e) => e.stopPropagation()}>
                         <PriceCell row={row} onSaved={changed} />
@@ -544,9 +547,7 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
         </form>
         <div className="flex items-end justify-between gap-3">
           <div className="grid gap-1 text-[13px] text-muted-foreground">
-            {d.reference
-              ? <p>{quoteLabel(d.reference.quoteType)} Cardmarket <span className="tabular font-medium text-foreground">{formatEuros(d.reference.amountCents)}</span>, relevée {age(d.reference.observedAt)}</p>
-              : <p>Aucune cote connue pour cette carte.</p>}
+            <SalesBasis reference={d.reference} sales={d.sales} />
             {d.suggestedPriceCents !== null && d.suggestedPriceCents !== d.targetPriceCents && (
               <p>
                 Suggéré pour cet état : <span className="tabular font-medium text-foreground">{formatEuros(d.suggestedPriceCents)}</span>{" "}
@@ -557,7 +558,7 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
             )}
             {d.priceReasons.map((r) => <p key={r} className="text-warning">{reasonLabel(r)}</p>)}
           </div>
-          {d.series.length > 1 && <Sparkline values={d.series.map((p) => p.cents)} label={`Cote sur 90 jours, de ${formatEuros(d.series[0]!.cents)} à ${formatEuros(d.series.at(-1)!.cents)}`} />}
+          {d.series.length > 1 && <Sparkline values={d.series.map((p) => p.cents)} label={`${d.sales ? "Ventes" : "Cote"} sur 90 jours, de ${formatEuros(d.series[0]!.cents)} à ${formatEuros(d.series.at(-1)!.cents)}`} />}
         </div>
       </Section>
 

@@ -12,7 +12,7 @@ import {
   searchInventory, searchSellableOffers, shipOrder, updateLocationDescription,
 } from "@dexlane/inventory";
 import {
-  getPricingSettings, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice, getAlertSettings, getDashboard, listPriceMoves, saveAlertSettings,
+  estimateVariants, getPricingSettings, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice, getAlertSettings, getDashboard, listPriceMoves, saveAlertSettings,
 } from "@dexlane/pricing";
 import {
   MAX_IMAGE_BYTES, RecognitionError, assertSupportedImage, identifyCard, type CardImage, type CardRecognizer, type ImageMediaType, addItem, createBatch, findItem, getBatch, listBatches, listItems, receiveBatch, setItemBack, updateBatch, updateItem,
@@ -427,13 +427,17 @@ export function createApp(deps: AppDeps) {
     return c.json({ sets: await listSets(sql, language) });
   });
 
-  /** Contenu importé d'une série : cartes, variantes, dernier prix tendance, exemplaires en stock. */
+  /** Contenu importé d'une série : cartes, variantes, prix estimé d'après les ventes, exemplaires en stock. */
   app.get("/api/catalog/sets/:id", async (c) => {
     const setId = parse(s.setId, c.req.param("id"));
     const { language } = parse(s.languageQuery, c.req.query());
     const detail = await getSetDetail(sql, language, setId);
     if (!detail) throw new HttpError(404, "CATALOG_SET_NOT_FOUND", "this set is not known for this language");
-    return c.json(detail);
+    const estimates = await estimateVariants(sql, detail.cards.flatMap((card) => card.variants.map((v) => v.id)));
+    return c.json({
+      ...detail,
+      cards: detail.cards.map((card) => ({ ...card, variants: card.variants.map((v) => ({ ...v, estimate: estimates.get(v.id) ?? null })) })),
+    });
   });
 
   /** Recharge la liste des séries depuis la source (métadonnées seulement). */

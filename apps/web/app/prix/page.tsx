@@ -274,13 +274,7 @@ function PriceModal({ offer, settings, onClose, onSaved }: { offer: OfferPricing
   );
 }
 
-const QUOTE_BASES: [PricingSettings["basis"], string][] = [
-  ["LISTED_TREND", "Tendance Cardmarket"], ["SOLD_AVG_30D", "Moyenne des ventes sur 30 jours"],
-  ["SOLD_AVG_7D", "Moyenne des ventes sur 7 jours"], ["LISTED_LOW", "Prix le plus bas affiché"],
-];
-
 function Rules({ settings, onSaved }: { settings: PricingSettings; onSaved: (s: PricingSettings) => void }) {
-  const [basis, setBasis] = useState(settings.basis);
   const [strategy, setStrategy] = useState(settings.strategy);
   const [numbers, setNumbers] = useState({
     maxAgeDays: String(settings.maxAgeDays), floorPercent: String(settings.floorPercent), driftPercent: String(settings.driftPercent),
@@ -310,7 +304,7 @@ function Rules({ settings, onSaved }: { settings: PricingSettings; onSaved: (s: 
     setError(null);
     try {
       const saved = await api.savePricingSettings({
-        strategy, basis, ...(parsed.numbers as Pick<PricingSettings, "maxAgeDays" | "floorPercent" | "driftPercent">),
+        strategy, ...(parsed.numbers as Pick<PricingSettings, "maxAgeDays" | "floorPercent" | "driftPercent">),
         ...(parsed.euros as Pick<PricingSettings, "bulkBelowCents" | "lotBelowCents" | "singleFromCents" | "premiumFromCents" | "minMarginCents" | "roundFromCents" | "roundStepCents">),
         conditionPercent: parsed.conditions as PricingSettings["conditionPercent"],
       });
@@ -348,17 +342,12 @@ function Rules({ settings, onSaved }: { settings: PricingSettings; onSaved: (s: 
       <Card>
         <CardContent className="grid gap-4">
           <div className="grid gap-1">
-            <CardTitle>Référence</CardTitle>
-            <CardDescription>La cotation affichée à côté du prix, et dont la date décide si les cotes sont encore fraîches.</CardDescription>
+            <CardTitle>Ventes réussies</CardTitle>
+            <CardDescription>Le prix part des ventes réalisées sur Cardmarket : celles du mois donnent la base, celles de la semaine la direction. Sans vente récente, la tendance des annonces sert de repère.</CardDescription>
           </div>
-          <Field label="Cotation de référence">
-            <Select value={basis} onChange={(e) => setBasis(e.target.value as PricingSettings["basis"])}>
-              {QUOTE_BASES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-            </Select>
-          </Field>
-          {number("maxAgeDays", "Ancienneté maximale (jours)", "Au-delà, la cotation est jugée périmée et l'offre part en revue.")}
+          {number("maxAgeDays", "Ancienneté maximale (jours)", "Au-delà, le relevé est jugé périmé et l'offre part en revue.")}
           <div className="grid gap-2">
-            <span className="text-[13px] leading-none font-medium text-foreground/80">Part de la référence selon l'état (%)</span>
+            <span className="text-[13px] leading-none font-medium text-foreground/80">Part du prix des ventes selon l'état (%)</span>
             <div className="grid grid-cols-7 gap-1.5">
               {CONDITIONS.map((c) => (
                 <label key={c.code} className="grid gap-1 text-center">

@@ -6,7 +6,7 @@ import { Button } from "./ui/button";
 const STEPS = [
   { n: "1", title: "Scannez la pile", text: "Un lot au scanner à défilement, ou au téléphone recto puis verso. Chaque carte est reconnue et prend son rang." },
   { n: "2", title: "Corrigez l'essentiel", text: "Les lectures sûres sont déjà remplies. Vous ne revoyez que les cartes signalées, dans l'ordre du scan." },
-  { n: "3", title: "Le prix se pose", text: "À partir des cotes Cardmarket, selon votre stratégie, et jamais sous votre prix d'achat." },
+  { n: "3", title: "Le prix se pose", text: "D'après les ventes réussies, selon votre stratégie, et jamais sous votre prix d'achat." },
   { n: "4", title: "Planifiez la mise en ligne", text: "Tant de cartes par jour, avec vos photos mises en scène et votre image de fin d'annonce." },
 ];
 
