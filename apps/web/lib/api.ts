@@ -1,7 +1,7 @@
 import type {
   AcquisitionLot, AlertSettings, AppSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, PriceMoves, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
   Location, Photo, PositionDetail, Received,
-  OfferPricing, OrderDetail, OrderList, OrderStage, PricingSettings, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
+  OfferPricing, OrderDetail, OrderList, OrderStage, PricingSettings, ShippingRun, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
   PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockPage, StockStatus, StoredPhoto, VariantQuote,
 } from "./types";
 
@@ -168,8 +168,10 @@ export const api = {
   sellableOffers: (q?: string) => request<{ offers: SellableOffer[] }>("GET", "/offers/sellable", { query: { q } }),
   orders: (stage?: OrderStage) => request<OrderList>("GET", "/orders", { query: { stage } }),
   order: (id: string) => request<OrderDetail>("GET", `/orders/${id}`),
+  shippingRun: () => request<ShippingRun>("GET", "/orders/preparation"),
+  markSlipsPrinted: (orderIds: string[]) => request<{ marked: number }>("POST", "/orders/preparation/printed", { json: { orderIds } }),
   createSale: (
-    input: { lines: { offerId: string; qty: number; unitPriceCents: number }[]; shippingMode: ShippingMode; shippingChargedCents?: number; buyerName?: string; note?: string },
+    input: { lines: { offerId: string; qty: number; unitPriceCents: number }[]; shippingMode: ShippingMode; shippingChargedCents?: number; buyerName?: string; addressLines?: string[]; note?: string },
     key: string,
   ) => request<OrderDetail>("POST", "/orders", { json: input, idempotencyKey: key }),
   pickAllocation: (orderId: string, allocationId: string, unitSku: string) =>

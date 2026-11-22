@@ -159,6 +159,7 @@ export const createSaleBody = z.strictObject({
   shippingMode: z.enum(SHIPPING_MODES),
   shippingChargedCents: cents.optional(),
   buyerName: z.string().trim().min(1).max(120).optional(),
+  addressLines: z.array(z.string().trim().min(1).max(120)).max(6).optional(),
   note: z.string().trim().min(1).max(500).optional(),
 });
 export const ordersQuery = z.object({
@@ -269,6 +270,9 @@ export const cancelPlanBody = z.strictObject({ plannedOn: day.optional(), channe
 export const appSettingsBody = z.strictObject({
   onboardingDone: z.boolean().optional(),
   intakeMode: z.enum(["SCANNER", "CAMERA", "FILES"]).nullable().optional(),
+  slipPaper: z.enum(["ROLL_80", "ROLL_58", "LABEL_100X150", "A4"]).optional(),
+  seller: z.strictObject({ name: z.string().trim().max(80), address: z.string().trim().max(300), legal: z.string().trim().max(300) }).optional(),
 });
+export const slipsPrintedBody = z.strictObject({ orderIds: z.array(z.uuid()).min(1).max(200) });
 
 export const offerPhotoQuery = z.object({ kind: z.enum(["SCAN_FRONT", "SCAN_BACK"]).default("SCAN_FRONT") });

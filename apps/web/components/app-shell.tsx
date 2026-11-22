@@ -117,7 +117,7 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
   return (
     <>
       {/* Barre latérale (ordinateur) */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-56 flex-col border-r bg-sidebar lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-56 flex-col border-r bg-sidebar lg:flex print:!hidden">
         <Link href="/" className="flex h-14 items-center px-4 outline-none"><Logo /></Link>
         <div className="grid gap-2 px-3">
           <AddMenu intake={intake} />
@@ -163,7 +163,7 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
       </aside>
 
       {/* En-tête (téléphone) */}
-      <header className="sticky top-0 z-30 flex h-12 items-center justify-between border-b bg-background px-4 pt-[env(safe-area-inset-top)] lg:hidden">
+      <header className="sticky top-0 z-30 flex h-12 items-center justify-between border-b bg-background px-4 pt-[env(safe-area-inset-top)] lg:hidden print:hidden">
         <Link href="/" className="outline-none"><Logo /></Link>
         <span className="flex items-center">
           <button type="button" onClick={() => setSearching(true)} aria-label="Rechercher" className="flex size-9 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent">
@@ -175,12 +175,12 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
         </span>
       </header>
 
-      <div className="lg:pl-56">
-        <main className="mx-auto w-full max-w-[92rem] px-4 pt-4 pb-nav lg:px-8 lg:pt-6 lg:pb-10">{children}</main>
+      <div className="lg:pl-56 print:!pl-0">
+        <main className="mx-auto w-full max-w-[92rem] px-4 pt-4 pb-nav lg:px-8 lg:pt-6 lg:pb-10 print:!m-0 print:!max-w-none print:!p-0">{children}</main>
       </div>
 
       {/* Onglets (téléphone) : deux destinations, l'ajout au centre, deux destinations. */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 items-center border-t bg-background pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label="Navigation principale">
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 items-center border-t bg-background pb-[env(safe-area-inset-bottom)] lg:hidden print:hidden" aria-label="Navigation principale">
         {MOBILE_NAV.map((item) =>
           item === null ? (
             <span key="add" className="flex justify-center"><AddMenu compact intake={intake} /></span>

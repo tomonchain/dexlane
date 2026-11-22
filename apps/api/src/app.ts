@@ -7,7 +7,7 @@ import {
 import type { Db } from "@dexlane/db";
 import {
   activateStock, addOfferPhoto, adjustStock, attachPhotos, cancelOrder, deletePhoto, getPhoto, saveListingPhoto, createAcquisitionLot, createDirectSale, createLocation, createLocations,
-  deleteLocation, extractCardFromBulk, getInventorySummary, getOrderDetail, getStockItemDetail, listAcquisitionLots,
+  deleteLocation, extractCardFromBulk, getInventorySummary, getOrderDetail, listPreparation, markSlipsPrinted, getStockItemDetail, listAcquisitionLots,
   listLocations, listOrders, moveStock, packOrder, pickAllocation, receiveBulk, receiveCard, recordPhoto, resolveLocation,
   searchInventory, searchSellableOffers, shipOrder, updateLocationDescription,
 } from "@dexlane/inventory";
@@ -529,6 +529,18 @@ export function createApp(deps: AppDeps) {
       return { status: 201, body: await getOrderDetail(tx, orderId) };
     });
   });
+
+  /**
+   * Préparation des envois du jour : les commandes à préparer avec leurs prélèvements, et ce qu'il faut pour imprimer
+   * bons de livraison et reçus (coordonnées du vendeur, papier de l'imprimante).
+   */
+  app.get("/api/orders/preparation", async (c) => {
+    const { seller, slipPaper } = await getAppSettings(sql);
+    return c.json({ orders: await listPreparation(sql), seller, slipPaper });
+  });
+
+  app.post("/api/orders/preparation/printed", async (c) =>
+    c.json({ marked: await markSlipsPrinted(sql, (await parseJsonBody(c, s.slipsPrintedBody)).orderIds) }));
 
   app.get("/api/orders/:id", async (c) => c.json(await getOrderDetail(sql, parse(s.orderId, c.req.param("id")))));
 

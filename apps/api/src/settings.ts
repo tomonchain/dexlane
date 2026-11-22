@@ -3,17 +3,31 @@ import type { Db } from "@dexlane/db";
 /** Comment les cartes entrent : scanner à défilement, appareil photo du téléphone, ou fichiers déjà pris. */
 export type IntakeMode = "SCANNER" | "CAMERA" | "FILES";
 
+/** Papier des bons de livraison et reçus : rouleau thermique de 80 ou 58 mm, étiquette 100 × 150 mm, ou feuille A4. */
+export type SlipPaper = "ROLL_80" | "ROLL_58" | "LABEL_100X150" | "A4";
+
+/** Ce qui s'imprime en tête des bons de livraison et des reçus. */
+export interface Seller {
+  name: string;
+  /** Adresse, une ligne par élément. */
+  address: string;
+  /** Mention légale du reçu (numéro SIRET, régime de TVA…). */
+  legal: string;
+}
+
 export interface AppSettings {
   /** L'assistant de démarrage a été terminé (ou passé) : il ne se rouvre plus tout seul. */
   onboardingDone: boolean;
   intakeMode: IntakeMode | null;
+  slipPaper: SlipPaper;
+  seller: Seller;
 }
 
-const DEFAULTS: AppSettings = { onboardingDone: false, intakeMode: null };
+const DEFAULTS: AppSettings = { onboardingDone: false, intakeMode: null, slipPaper: "ROLL_80", seller: { name: "", address: "", legal: "" } };
 
 export async function getAppSettings(sql: Db): Promise<AppSettings> {
   const [row] = await sql<{ settings: Partial<AppSettings> }[]>`select settings from app_settings`;
-  return { ...DEFAULTS, ...row?.settings };
+  return { ...DEFAULTS, ...row?.settings, seller: { ...DEFAULTS.seller, ...row?.settings.seller } };
 }
 
 export async function saveAppSettings(sql: Db, change: Partial<AppSettings>): Promise<AppSettings> {

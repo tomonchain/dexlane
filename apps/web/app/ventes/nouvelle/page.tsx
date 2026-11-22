@@ -35,6 +35,7 @@ export default function NewSalePage() {
   const [mode, setMode] = useState<ShippingMode>("LETTER_UNTRACKED");
   const [shipping, setShipping] = useState("0");
   const [buyer, setBuyer] = useState("");
+  const [address, setAddress] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +72,7 @@ export default function NewSalePage() {
       shippingMode: mode,
       shippingChargedCents: shippingCents || undefined,
       buyerName: buyer.trim() || undefined,
+      addressLines: mode === "HAND_DELIVERY" ? undefined : address.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 6),
       note: note.trim() || undefined,
     };
     try {
@@ -179,6 +181,11 @@ export default function NewSalePage() {
               <Field label="Acheteur (facultatif)">
                 <Input value={buyer} onChange={(e) => setBuyer(e.target.value)} maxLength={120} placeholder="Nom ou pseudo" />
               </Field>
+              {mode !== "HAND_DELIVERY" && (
+                <Field label="Adresse de livraison (facultatif)" hint="Imprimée sur le bon de livraison.">
+                  <Textarea value={address} onChange={(e) => setAddress(e.target.value)} maxLength={500} placeholder={"12 rue des Lilas\n69003 Lyon"} className="min-h-16" />
+                </Field>
+              )}
               <Field label="Note (facultatif)">
                 <Textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder="Salon, groupe, conditions…" className="min-h-16" />
               </Field>
