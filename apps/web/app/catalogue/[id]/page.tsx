@@ -16,6 +16,7 @@ import { Pagination, paginate } from "@/components/ui/tabs";
 import { type ApiError, api } from "@/lib/api";
 import { catalogMessage, fold, importedLabel } from "@/lib/catalog";
 import { cardImage, formatDateTime, formatEuros, variantLabel } from "@/lib/format";
+import { CONFIDENCE_LABEL } from "@/lib/pricing";
 import type { CatalogSetCard, CatalogSetDetail } from "@/lib/types";
 
 const PAGE_SIZE = 24;
@@ -42,8 +43,11 @@ function CardTile({ card }: { card: CatalogSetCard }) {
           {card.variants.map((v) => (
             <li key={v.id} className="flex items-baseline justify-between gap-2">
               <span className="min-w-0 truncate text-muted-foreground">{variantLabel(v)}{v.incomplete ? " (à confirmer)" : ""}</span>
-              <span className="tabular shrink-0 font-medium" title={v.priceAt ? `Tendance Cardmarket du ${formatDateTime(v.priceAt)}${v.priceAmbiguous ? " — partagée avec une autre variante" : ""}` : undefined}>
-                {v.trendCents === null ? "—" : `${v.priceAmbiguous ? "≈ " : ""}${formatEuros(v.trendCents)}`}
+              <span
+                className={v.estimate && !v.estimate.sales ? "tabular shrink-0 text-muted-foreground" : "tabular shrink-0 font-medium"}
+                title={v.estimate ? `${v.estimate.sales ? `Ventes réussies Cardmarket (${CONFIDENCE_LABEL[v.estimate.sales.confidence]})` : "Aucune vente récente : tendance des annonces Cardmarket"}, relevé du ${formatDateTime(v.estimate.observedAt)}${v.estimate.variantAmbiguous ? " — partagé avec une autre variante" : ""}` : undefined}
+              >
+                {v.estimate === null ? "—" : `${v.estimate.variantAmbiguous || !v.estimate.sales ? "≈ " : ""}${formatEuros(v.estimate.cents)}`}
               </span>
             </li>
           ))}
@@ -185,7 +189,7 @@ export default function CatalogSetPage() {
             <SwitchRow label="En stock seulement" checked={ownedOnly} onCheckedChange={(v) => { setOwnedOnly(v); setPage(1); }} />
           </div>
           <p className="tabular text-sm text-muted-foreground" role="status">
-            {matching.length} carte{matching.length > 1 ? "s" : ""}. Prix : tendance Cardmarket, toutes langues et tous états confondus.
+            {matching.length} carte{matching.length > 1 ? "s" : ""}. Prix estimés d'après les ventes réussies sur Cardmarket, toutes langues et tous états confondus ; « ≈ » quand rien ne s'est vendu récemment.
           </p>
 
           {view.items.length > 0 ? (

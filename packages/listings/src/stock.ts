@@ -46,6 +46,8 @@ export interface StockRow {
   priceReasons: string[];
   /** Cote retenue pour le calcul, avec son type et sa date. */
   reference: { quoteType: string; amountCents: number; observedAt: Date } | null;
+  /** Estimation d'après les ventes réussies ; null sans vente récente. */
+  sales: { cents: number; confidence: "HIGH" | "MEDIUM" | "LOW"; sales: { quoteType: string; amountCents: number }[] } | null;
   /** Photo de l'exemplaire (visuel d'annonce, sinon scan) ; null : seule l'image du catalogue existe. */
   photoUrl: string | null;
   listings: ListingState[];
@@ -90,6 +92,7 @@ export async function listStock(sql: Db, query: StockQuery = {}): Promise<StockP
              o.target_price_cents, o.floor_price_cents, o.suggested_price_cents, o.price_reasons,
              case when o.reference_price_cents is null then null else jsonb_build_object(
                'quoteType', o.reference_quote_type, 'amountCents', o.reference_price_cents, 'observedAt', o.reference_observed_at) end as reference,
+             o.sales_estimate as sales,
              (select p.url from photos p where p.offer_id = o.id and p.kind in ('LISTING', 'SCAN_FRONT')
                order by (p.kind = 'LISTING') desc, p.created_at limit 1) as photo_url,
              (select jsonb_build_object('id', sp.id, 'channel', sp.channel, 'plannedOn', to_char(sp.planned_on, 'YYYY-MM-DD'))
@@ -148,7 +151,7 @@ export interface StockDetail extends StockRow {
   missing: ListingBlocker[];
   photos: PhotoRow[];
   positions: { id: string; unitSku: string; locationCode: string; onHand: number; reserved: number; lifecycle: string; unitCostCents: number; createdAt: Date }[];
-  /** Cote tendance des 90 derniers jours, du plus ancien au plus récent. */
+  /** Moyenne des ventes sur 7 jours relevée ces 90 derniers jours (à défaut la tendance), du plus ancien au plus récent. */
   series: { at: Date; cents: number }[];
 }
 
@@ -162,9 +165,14 @@ export async function getStockDetail(sql: Db, offerId: string): Promise<StockDet
         from stock_items i join locations l on l.id = i.location_id
        where i.offer_id = ${offerId} and i.lifecycle <> 'ARCHIVED' and i.on_hand > 0
        order by i.created_at`,
+    // Une seule courbe : celle des ventes si la source en rapporte, sinon la tendance des annonces.
     sql<StockDetail["series"]>`
-      select observed_at as at, amount_cents as cents from price_snapshots
-       where variant_id = ${row.variantId} and quote_type = 'LISTED_TREND' and condition is null and observed_at >= now() - interval '90 days'
+      with history as (
+        select quote_type, observed_at, amount_cents from price_snapshots
+         where variant_id = ${row.variantId} and quote_type in ('SOLD_AVG_7D', 'LISTED_TREND') and condition is null
+           and observed_at >= now() - interval '90 days')
+      select observed_at as at, amount_cents as cents from history
+       where quote_type = case when exists (select 1 from history where quote_type = 'SOLD_AVG_7D') then 'SOLD_AVG_7D' else 'LISTED_TREND' end
        order by observed_at`,
     sql<{ serieName: string | null; officialCount: number | null }[]>`
       select serie_name, card_count_official as official_count from catalog_sets where id = ${row.setId} and language = ${row.language}`,

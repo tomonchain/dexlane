@@ -2,19 +2,22 @@ import { withTx, type Db } from "@dexlane/db";
 import type { CardCondition } from "@dexlane/inventory";
 import { DomainError } from "@dexlane/shared";
 import {
-  BLOCKING_REASONS, DEFAULT_SETTINGS, QUOTE_TYPES, computePricing, floorFor, tierOf, validateSettings,
-  type OfferCategory, type PriceReason, type PriceSource, type PricingResult, type PricingSettings, type Quote, type QuoteType,
+  BLOCKING_REASONS, DEFAULT_SETTINGS, QUOTE_TYPES, computePricing, floorFor, pickReference, salesEstimate, tierOf, validateSettings,
+  type OfferCategory, type PriceReason, type PriceSource, type PricingResult, type PricingSettings, type Quote, type ReferenceType,
+  type SalesEstimate,
 } from "./rules";
 
 // ───────────────────────── Règles ─────────────────────────
 
 export async function getPricingSettings(sql: Db): Promise<PricingSettings> {
-  const [row] = await sql<{ settings: Partial<PricingSettings> }[]>`select settings from pricing_settings`;
+  const [row] = await sql<{ settings: Partial<PricingSettings> & { basis?: unknown } }[]>`select settings from pricing_settings`;
+  // « basis » (cote de référence au choix) n'existe plus : l'estimation part toujours des ventes réussies.
+  const { basis: _retired, ...saved } = row?.settings ?? {};
   // Fusion avec les valeurs par défaut : une règle ajoutée plus tard n'invalide pas des réglages déjà enregistrés.
   return {
     ...DEFAULT_SETTINGS,
-    ...row?.settings,
-    conditionPercent: { ...DEFAULT_SETTINGS.conditionPercent, ...row?.settings.conditionPercent },
+    ...saved,
+    conditionPercent: { ...DEFAULT_SETTINGS.conditionPercent, ...saved.conditionPercent },
   };
 }
 
@@ -66,6 +69,28 @@ export async function quoteVariant(sql: Db, variantId: string, condition: CardCo
   return { ...result, quotes };
 }
 
+export interface VariantEstimate {
+  /** Prix du marché, toutes langues et tous états confondus. */
+  cents: number;
+  /** Null quand le prix vient des annonces, faute de vente récente. */
+  sales: SalesEstimate | null;
+  observedAt: Date;
+  variantAmbiguous: boolean;
+}
+
+/** Prix du marché de plusieurs variantes d'un coup (liste d'une série du catalogue). */
+export async function estimateVariants(sql: Db, variantIds: string[]): Promise<Map<string, VariantEstimate>> {
+  const estimates = new Map<string, VariantEstimate>();
+  const now = new Date();
+  for (const [variantId, quotes] of await latestQuotes(sql, variantIds)) {
+    const reference = pickReference(quotes, now);
+    if (reference) {
+      estimates.set(variantId, { cents: reference.amountCents, sales: salesEstimate(quotes), observedAt: reference.observedAt, variantAmbiguous: reference.variantAmbiguous });
+    }
+  }
+  return estimates;
+}
+
 // ───────────────────────── Tarification des offres ─────────────────────────
 
 interface OfferState {
@@ -99,6 +124,7 @@ async function applyPricing(tx: Db, initial: OfferState, quotes: Quote[], settin
   const observed = tx`
     suggested_price_cents = ${result.suggestedCents}, reference_price_cents = ${result.reference?.amountCents ?? null},
     reference_quote_type = ${result.reference?.quoteType ?? null}, reference_observed_at = ${result.reference?.observedAt ?? null},
+    sales_estimate = ${result.sales ? tx.json(result.sales as never) : null},
     price_reasons = ${tx.json(result.reasons)}, priced_at = now(), version = version + 1, updated_at = now()`;
 
   if (offer.priceSource === "MANUAL") {
@@ -210,7 +236,9 @@ export interface OfferPricing {
   suggestedPriceCents: number | null;
   priceSource: PriceSource;
   reasons: PriceReason[];
-  reference: { quoteType: QuoteType; amountCents: number; observedAt: Date } | null;
+  reference: { quoteType: ReferenceType; amountCents: number; observedAt: Date } | null;
+  /** Estimation d'après les ventes réussies ; null sans vente récente (le prix vient alors des annonces). */
+  sales: SalesEstimate | null;
   pricedAt: Date | null;
   onHand: number;
   averageCostCents: number;
@@ -268,7 +296,7 @@ export async function listOfferPricing(
              o.suggested_price_cents, o.price_source, o.price_reasons as reasons, o.priced_at,
              case when o.reference_price_cents is null then null else jsonb_build_object(
                'quoteType', o.reference_quote_type, 'amountCents', o.reference_price_cents, 'observedAt', o.reference_observed_at) end as reference,
-             st.on_hand, st.average_cost_cents,
+             o.sales_estimate as sales, st.on_hand, st.average_cost_cents,
              jsonb_build_object('variantId', v.id, 'name', c.name, 'setId', c.set_id, 'localNumber', c.local_number,
                'language', c.language, 'imageUrl', c.image_url, 'finish', v.finish, 'edition', v.edition) as card
       ${base}

@@ -349,8 +349,13 @@ test("prix : estimation à la saisie, prix posé à l'entrée, décision manuell
   await expect(estimate).toContainText("Choisissez la variante et l'état");
   await page.getByRole("radio", { name: "Good", exact: true }).click();
   await expect(estimate).toContainText("Prix estimé pour cet état");
-  await expect(estimate).toContainText("Cardmarket");
-  await expect(estimate).toContainText("relevée hier");
+  // Le Fouinar reverse se vend 0,43 € sur la semaine et 0,29 € sur le mois : l'estimation part de ces ventes réussies,
+  // sans s'écarter de plus de 20 % du mois, et signale que le prix bouge.
+  const basis = estimate.getByTestId("sales-basis");
+  await expect(basis).toContainText("Ventes réussies 0,35 €");
+  await expect(basis).toContainText("prix en mouvement");
+  await expect(basis).toContainText("7 j 0,43 € · 30 j 0,29 € · veille 0,29 €");
+  await expect(basis).toContainText("Cardmarket, relevées hier");
   await confirm(page).click();
   await expect(page.getByTestId("entry-pricing")).toContainText("Prix cible");
 

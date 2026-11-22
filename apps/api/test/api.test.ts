@@ -175,6 +175,11 @@ describe("catalog synchronisation", () => {
     expect(detail.json.cards[0]).toMatchObject({ name: "Mew-ex", localNumber: "151", owned: 3 });
     expect(detail.json.cards[0].variants[0]).toMatchObject({ id: mew.variants[0].id, finish: "holo" });
     expect(detail.json.cards[0].variants[0].trendCents).toBeGreaterThan(0);
+    // Mew-ex se vend 7,88 € sur la semaine et 7,32 € sur le mois : estimation d'après les ventes à 7,60 €, fiable.
+    expect(detail.json.cards[0].variants[0].estimate).toMatchObject({
+      cents: 760, variantAmbiguous: false,
+      sales: { cents: 760, confidence: "HIGH", sales: [{ quoteType: "SOLD_AVG_7D", amountCents: 788 }, { quoteType: "SOLD_AVG_30D", amountCents: 732 }, { quoteType: "SOLD_AVG_1D", amountCents: 720 }] },
+    });
     expect((await call("GET", "/api/catalog/sets/inconnue")).status).toBe(404);
 
     // Rejouer n'ajoute rien.
@@ -216,8 +221,12 @@ describe("pricing", () => {
     expect(preview.json.suggestedCents).toBeGreaterThan(0);
     await sql`update price_snapshots set observed_at = now() - interval '1 day'`;
     const fresh = (await call("GET", `/api/pricing/variants/${variantId}?condition=NM`)).json;
-    expect(fresh).toMatchObject({ reasons: [], category: "SINGLE", reference: { quoteType: "LISTED_TREND" } });
-    // Le prix se place dans la fourchette du marché, entre ce qui part tout de suite et le plus haut soutenu.
+    // Le prix part des ventes réussies : 7,88 € sur la semaine, 7,32 € sur le mois.
+    expect(fresh).toMatchObject({
+      reasons: [], category: "SINGLE", suggestedCents: 760,
+      reference: { quoteType: "SOLD_ESTIMATE", amountCents: 760 }, sales: { cents: 760, confidence: "HIGH" },
+    });
+    // Il se place dans la fourchette des ventes, entre ce qui part tout de suite et le plus haut soutenu.
     expect(fresh.market.liquidCents).toBeLessThanOrEqual(fresh.suggestedCents);
     expect(fresh.suggestedCents).toBeLessThanOrEqual(fresh.market.richCents);
 
@@ -244,7 +253,7 @@ describe("pricing", () => {
 
   it("reads and replaces the rules, repricing existing offers", async () => {
     const settings = (await call("GET", "/api/pricing/settings")).json;
-    expect(settings).toMatchObject({ strategy: "BALANCED", basis: "LISTED_TREND", singleFromCents: 1500, conditionPercent: { EX: 80 }, roundFromCents: 1000, roundStepCents: 100 });
+    expect(settings).toMatchObject({ strategy: "BALANCED", singleFromCents: 1500, conditionPercent: { EX: 80 }, roundFromCents: 1000, roundStepCents: 100 });
     const saved = await call("PUT", "/api/pricing/settings", { body: { ...settings, maxAgeDays: 30, strategy: "FAST" } });
     expect(saved.json).toMatchObject({ settings: { maxAgeDays: 30, strategy: "FAST" }, repriced: 0 });
     expect((await call("PUT", "/api/pricing/settings", { body: { ...settings, strategy: "YOLO" } })).status).toBe(400);

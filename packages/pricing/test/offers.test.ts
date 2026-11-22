@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { useTestDb } from "@dexlane/db/testing";
 import { createLocation, receiveCard } from "@dexlane/inventory";
 import {
-  DEFAULT_SETTINGS, getPricingSettings, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing,
+  DEFAULT_SETTINGS, estimateVariants, getPricingSettings, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing,
   savePricingSettings, setOfferPrice,
 } from "../src";
 
@@ -19,9 +19,16 @@ async function variant(trendCents: number | null, opts: { ageDays?: number; ambi
   if (trendCents !== null) await quote(v!.id, trendCents, opts.ageDays ?? 1, opts.ambiguous);
   return v!.id;
 }
-const quote = (variantId: string, cents: number, ageDays = 0, ambiguous = false) => sql`
+const quote = (variantId: string, cents: number, ageDays = 0, ambiguous = false, type = "LISTED_TREND") => sql`
   insert into price_snapshots (variant_id, source, quote_type, currency, amount_cents, observed_at, variant_ambiguous)
-  values (${variantId}, 'cardmarket', 'LISTED_TREND', 'EUR', ${cents}, now() - make_interval(secs => ${ageDays * 86400}), ${ambiguous})`;
+  values (${variantId}, 'cardmarket', ${type}, 'EUR', ${cents}, now() - make_interval(secs => ${ageDays * 86400}), ${ambiguous})`;
+/** Relevé complet d'une carte qui se vend : moyennes des ventes sur 7 et 30 jours en plus de la tendance. */
+async function soldVariant(trendCents: number, weekCents: number, monthCents: number) {
+  const v = await variant(trendCents);
+  await quote(v, weekCents, 1, false, "SOLD_AVG_7D");
+  await quote(v, monthCents, 1, false, "SOLD_AVG_30D");
+  return v;
+}
 
 async function stock(variantId: string, opts: { quantity?: number; cost?: number; condition?: "NM" | "EX" } = {}) {
   await createLocation(sql, { code: "BOX-01" });
@@ -137,6 +144,27 @@ describe("review queue and settings", () => {
     expect(await getPricingSettings(sql)).toMatchObject({ maxAgeDays: 30, strategy: "MARGIN" });
     await expect(savePricingSettings(sql, { ...DEFAULT_SETTINGS, strategy: "YOLO" as never }, ACTOR)).rejects.toMatchObject({ code: "INVALID_PRICING_SETTINGS" });
     await expect(savePricingSettings(sql, { ...DEFAULT_SETTINGS, lotBelowCents: 10 }, ACTOR)).rejects.toMatchObject({ code: "INVALID_PRICING_SETTINGS" });
+  });
+
+  it("prices from successful sales when the source reports some, and keeps the detail on the offer", async () => {
+    // Tendance des annonces 20 €, mais la carte se vend 16 € cette semaine et 18 € sur le mois.
+    const id = await stock(await soldVariant(2000, 1600, 1800));
+    expect(await offer(id)).toMatchObject({
+      targetPriceCents: 1700, suggestedPriceCents: 1700, priceSource: "AUTO", reasons: [],
+      reference: { quoteType: "SOLD_ESTIMATE", amountCents: 1700 },
+      sales: { cents: 1700, confidence: "HIGH", sales: [{ quoteType: "SOLD_AVG_7D", amountCents: 1600 }, { quoteType: "SOLD_AVG_30D", amountCents: 1800 }] },
+    });
+    // Sans vente rapportée, le prix vient de la tendance et l'offre le dit (pas d'estimation de ventes).
+    expect(await offer(await stock(await variant(2000)))).toMatchObject({ reference: { quoteType: "LISTED_TREND" }, sales: null });
+  });
+
+  it("estimates many variants at once for the catalogue", async () => {
+    const [sold, listed, unknown] = [await soldVariant(2000, 1600, 1800), await variant(900), await variant(null)];
+    const estimates = await estimateVariants(sql, [sold, listed, unknown]);
+    expect(estimates.get(sold)).toMatchObject({ cents: 1700, sales: { confidence: "HIGH" }, variantAmbiguous: false });
+    expect(estimates.get(listed)).toMatchObject({ cents: 900, sales: null });
+    expect(estimates.has(unknown)).toBe(false);
+    expect((await estimateVariants(sql, [])).size).toBe(0);
   });
 
   it("previews a quote for a variant before any stock exists", async () => {

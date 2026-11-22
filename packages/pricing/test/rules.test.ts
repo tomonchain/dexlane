@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_SETTINGS, computePricing, marketBand, marketPrice, validateSettings, type PricingInput, type Quote } from "../src/rules";
+import { DEFAULT_SETTINGS, computePricing, marketBand, marketPrice, salesEstimate, validateSettings, type PricingInput, type Quote } from "../src/rules";
 
 const now = new Date("2026-11-17T12:00:00Z");
 const daysAgo = (n: number) => new Date(now.getTime() - n * 24 * 3600 * 1000);
@@ -57,11 +57,48 @@ describe("computePricing", () => {
     expect(price({ variantIncomplete: true }).reasons).toEqual(["VARIANT_INCOMPLETE"]);
   });
 
-  it("prefers the configured basis and falls back to another quote type", () => {
-    const quotes = [quote(2000), quote(1800, { quoteType: "SOLD_AVG_30D" })];
-    expect(price({ quotes }).reference).toMatchObject({ quoteType: "LISTED_TREND", amountCents: 2000, ageDays: 1 });
-    expect(computePricing(input({ quotes }), { ...DEFAULT_SETTINGS, basis: "SOLD_AVG_30D" }).reference).toMatchObject({ quoteType: "SOLD_AVG_30D", amountCents: 1800 });
-    expect(price({ quotes: [quote(1800, { quoteType: "SOLD_AVG_7D" })] }).reference?.quoteType).toBe("SOLD_AVG_7D");
+  it("estimates from successful sales: the month gives the base, the week the direction", () => {
+    const sold = (week: number | null, month: number | null, day: number | null = null) => [
+      ...(week === null ? [] : [quote(week, { quoteType: "SOLD_AVG_7D" })]),
+      ...(month === null ? [] : [quote(month, { quoteType: "SOLD_AVG_30D" })]),
+      ...(day === null ? [] : [quote(day, { quoteType: "SOLD_AVG_1D" })]),
+    ];
+    // Semaine 9 €, mois 10 € : à mi-chemin, ventes régulières et prix stable.
+    expect(salesEstimate(sold(900, 1000))).toMatchObject({ cents: 950, confidence: "HIGH" });
+    // Une vente atypique à 30 € dans la semaine ne déplace pas l'estimation de plus de 20 % au-dessus du mois.
+    expect(salesEstimate(sold(3000, 1200))).toMatchObject({ cents: 1440, confidence: "MEDIUM" });
+    expect(salesEstimate(sold(400, 1000))).toMatchObject({ cents: 800, confidence: "MEDIUM" });
+    // La veille repose sur trop peu de ventes : montrée, mais sans effet sur le chiffre.
+    const withDay = salesEstimate(sold(900, 1000, 2500))!;
+    expect(withDay.cents).toBe(950);
+    expect(withDay.sales).toEqual([
+      { quoteType: "SOLD_AVG_7D", amountCents: 900 }, { quoteType: "SOLD_AVG_30D", amountCents: 1000 }, { quoteType: "SOLD_AVG_1D", amountCents: 2500 },
+    ]);
+    // Une seule période renseignée : peu de ventes, fiabilité faible.
+    expect(salesEstimate(sold(null, 1000))).toMatchObject({ cents: 1000, confidence: "LOW" });
+    expect(salesEstimate(sold(null, null, 700))).toMatchObject({ cents: 700, confidence: "LOW" });
+    expect(salesEstimate([quote(2000)])).toBeNull(); // la tendance des annonces n'est pas une vente
+  });
+
+  it("bases the price on successful sales, and on listings only when nothing sold recently", () => {
+    const quotes = [quote(2000), quote(1800, { quoteType: "SOLD_AVG_30D" }), quote(1600, { quoteType: "SOLD_AVG_7D" })];
+    expect(price({ quotes })).toMatchObject({
+      reference: { quoteType: "SOLD_ESTIMATE", amountCents: 1700, ageDays: 1 }, sales: { cents: 1700, confidence: "HIGH" }, suggestedCents: 1700,
+    });
+    expect(price({ quotes: [quote(2000), quote(1500, { quoteType: "LISTED_LOW" })] })).toMatchObject({
+      reference: { quoteType: "LISTED_TREND", amountCents: 2000 }, sales: null, suggestedCents: 2000,
+    });
+    expect(price({ quotes: [quote(1500, { quoteType: "LISTED_LOW" })] }).reference?.quoteType).toBe("LISTED_LOW");
+  });
+
+  it("ignores a sales average the latest reading no longer reports", () => {
+    // Il y a 20 jours la carte se vendait 30 € ; le dernier relevé ne rapporte plus aucune vente, seulement une tendance.
+    const quotes = [quote(3000, { quoteType: "SOLD_AVG_7D", observedAt: daysAgo(20) }), quote(1000)];
+    expect(price({ quotes })).toMatchObject({ reference: { quoteType: "LISTED_TREND", amountCents: 1000 }, sales: null, suggestedCents: 1000, reasons: [] });
+    // Des ventes relevées il y a trop longtemps ne fondent pas un prix sans revue.
+    const old = [quote(1800, { quoteType: "SOLD_AVG_30D", observedAt: daysAgo(15) }), quote(1600, { quoteType: "SOLD_AVG_7D", observedAt: daysAgo(15) })];
+    expect(price({ quotes: old })).toMatchObject({ category: "REVIEW", reasons: ["STALE_REFERENCE"] });
+    expect(price({ quotes: [quote(1800, { quoteType: "SOLD_AVG_30D", variantAmbiguous: true })] }).reasons).toEqual(["AMBIGUOUS_REFERENCE"]);
   });
 
   it("keeps the floor above cost plus margin, and reports a price that cannot cover it", () => {
@@ -76,24 +113,27 @@ describe("computePricing", () => {
     expect(price({ averageCostCents: 2100, current: { priceSource: "MANUAL", targetPriceCents: 1900 } }).reasons).toEqual(["BELOW_COST"]);
   });
 
-  it("places the price inside the market band according to the strategy", () => {
-    // Annonce la moins chère 8 €, ventes récentes 9 €, moyenne 30 jours 10 €, tendance 10,40 €.
+  it("places the price around the sales estimate according to the strategy", () => {
+    // Annonce la moins chère 8 €, ventes de la semaine 9 €, du mois 10 €, tendance 10,40 €.
     const quotes = [quote(1040), quote(1000, { quoteType: "SOLD_AVG_30D" }), quote(900, { quoteType: "SOLD_AVG_7D" }), quote(800, { quoteType: "LISTED_LOW" })];
-    expect(marketBand(quotes)).toEqual({ liquidCents: 900, richCents: 1040, lowCents: 800 });
+    expect(marketBand(quotes)).toEqual({ marketCents: 950, liquidCents: 900, richCents: 1000, lowCents: 800 });
     const at = (strategy: "FAST" | "BALANCED" | "MARGIN", over: Partial<PricingInput> = {}) => computePricing(input({ quotes, ...over }), { ...DEFAULT_SETTINGS, strategy }).suggestedCents;
     expect(at("FAST")).toBe(810); // s'aligne sur le moins cher, sans brader de plus de 10 % sous la valeur liquide
-    expect(at("BALANCED")).toBe(970); // à mi-chemin entre ce qui part tout de suite et le plus haut soutenu
-    expect(at("MARGIN")).toBe(1000); // 10,40 € arrondi à l'euro
-    expect(at("BALANCED", { condition: "EX" })).toBe(776); // 80 % pour un état « Excellent »
+    expect(at("BALANCED")).toBe(950); // le prix des ventes réussies
+    expect(at("MARGIN")).toBe(1000); // la plus haute des moyennes de ventes
+    expect(at("BALANCED", { condition: "EX" })).toBe(760); // 80 % pour un état « Excellent »
     // Quelle que soit la stratégie, jamais sous le prix d'achat.
     expect(at("FAST", { averageCostCents: 950 })).toBe(1000);
   });
 
-  it("ignores an isolated spike and falls back to the lowest listing when nothing else is known", () => {
-    expect(marketBand([quote(1000), quote(3000, { quoteType: "SOLD_AVG_7D" })])).toEqual({ liquidCents: 1000, richCents: 1250, lowCents: null });
-    expect(marketBand([quote(700, { quoteType: "LISTED_LOW" })])).toEqual({ liquidCents: 700, richCents: 700, lowCents: 700 });
+  it("keeps fast and margin prices within 15 % of the sales estimate, and falls back to listings without sales", () => {
+    // Semaine à 30 €, mois à 12 € : estimation 14,40 €, fourchette bornée à ±15 %.
+    expect(marketBand([quote(1000), quote(3000, { quoteType: "SOLD_AVG_7D" }), quote(1200, { quoteType: "SOLD_AVG_30D" })]))
+      .toEqual({ marketCents: 1440, liquidCents: 1224, richCents: 1656, lowCents: null });
+    expect(marketBand([quote(1000), quote(700, { quoteType: "LISTED_LOW" })])).toEqual({ marketCents: 1000, liquidCents: 1000, richCents: 1000, lowCents: 700 });
+    expect(marketBand([quote(700, { quoteType: "LISTED_LOW" })])).toEqual({ marketCents: 700, liquidCents: 700, richCents: 700, lowCents: 700 });
     expect(marketBand([])).toBeNull();
-    expect(marketPrice({ liquidCents: 1000, richCents: 1000, lowCents: 1200 }, "FAST")).toBe(1000); // pas d'annonce moins chère : inutile de baisser
+    expect(marketPrice({ marketCents: 1000, liquidCents: 1000, richCents: 1000, lowCents: 1200 }, "FAST")).toBe(1000); // pas d'annonce moins chère : inutile de baisser
   });
 
   it("does not demand a per-card margin on bulk and lot tiers, only that cost is covered", () => {

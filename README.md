@@ -85,13 +85,13 @@ Lots scannés : `GET` / `POST /api/scan-batches`, `GET` / `PATCH /api/scan-batch
 
 Mise en ligne planifiée : `GET /api/publications` (planning par jour, échecs récents), `POST /api/publications/plan` (`offerIds` facultatif, `channel`, `startOn`, `perDay`), `POST /api/publications/cancel`, `POST /api/publications/run` (publie ce qui est dû ; lancé chaque jour par la tâche planifiée). `POST /api/photos?kind=PROMO` dépose l'image de fin d'annonce, réglée par `promoPhotoId` dans les réglages d'annonce.
 
-Stock à vendre : `GET /api/stock?q=&status=ALL|TO_PRICE|READY|LISTED|DRAFT&sort=recent|value|name` (une ligne par offre, compteurs par statut, valeur totale), `GET /api/stock/{offerId}` (annonce, photos, positions, cote sur 90 jours). `POST /api/pricing/offers/{id}/price` accepte un prix sans catégorie : elle est déduite du palier de prix.
+Stock à vendre : `GET /api/stock?q=&status=ALL|TO_PRICE|READY|LISTED|DRAFT&sort=recent|value|name` (une ligne par offre, compteurs par statut, valeur totale), `GET /api/stock/{offerId}` (annonce, photos, positions, estimation d'après les ventes, moyenne des ventes sur 90 jours). `POST /api/pricing/offers/{id}/price` accepte un prix sans catégorie : elle est déduite du palier de prix.
 
 Statistiques : `GET /api/stats/dashboard`, `GET /api/stats/price-moves?alerts=true|false`, `GET` / `PUT /api/stats/alert-settings`, `POST /api/prices/refresh` (relève les cotes des cartes en stock, puis réévalue les offres).
 
 Canaux : `GET /api/channels`, `PUT /api/channels/{ebay|cardtrader}` (`OFF`, `SIMULATION`, `LIVE`), `POST /api/channels/sync`, `POST /api/listings/offers/{id}/publish`, `POST /api/listings/{id}/end`, `POST /api/listings/{id}/simulate-order`.
 
-Autres routes : `GET /api/catalog/sets/{id}` (contenu importé d'une série : cartes, variantes, dernier prix tendance, exemplaires en stock), `POST /api/locations/batch`, `PATCH` et `DELETE /api/locations/{id}` (suppression réservée à un emplacement vide et jamais utilisé), `/api/auth/*` (mot de passe du propriétaire, réservé au serveur web).
+Autres routes : `GET /api/catalog/sets/{id}` (contenu importé d'une série : cartes, variantes avec leur prix estimé d'après les ventes — `estimate` —, exemplaires en stock), `POST /api/locations/batch`, `PATCH` et `DELETE /api/locations/{id}` (suppression réservée à un emplacement vide et jamais utilisé), `/api/auth/*` (mot de passe du propriétaire, réservé au serveur web).
 
 Toutes les routes sauf `GET /api/health` exigent `Authorization: Bearer <DEXLANE_API_TOKEN>`. Les créations et corrections (`receive`, `bulk`, `extract`, `adjust`, `acquisition-lots`) exigent un en-tête `Idempotency-Key` : la clé est écrite dans la même transaction que la mutation, donc une requête rejouée (double appui, réseau mobile) renvoie la réponse d'origine avec `Idempotent-Replay: true` sans rien créer en double. Erreurs : `{ "error": { "code", "message", "details" } }` — 400 format, 404 introuvable, 409 état incompatible, 422 règle métier.
 
@@ -180,12 +180,14 @@ Les compteurs de stock sont une projection du journal `inventory_movements` (app
 
 ## Prix automatiques — l'algorithme
 
-1. **Fourchette du marché** (état « comme neuf ») à partir des dernières cotes Cardmarket : la *valeur liquide* est la plus basse des cotes de vente (tendance, moyenne des ventes sur 7 et 30 jours) — le prix auquel la carte part sans attendre ; le *plus haut soutenu* est la plus haute, plafonnée à +25 % de la valeur liquide pour ignorer un pic isolé.
-2. **Stratégie** : « Vendre vite » se place à la valeur liquide et s'aligne sur l'annonce la moins chère, sans brader de plus de 10 % ; « Équilibré » (par défaut) à mi-chemin ; « Marge maximale » au plus haut soutenu.
+1. **Estimation d'après les ventes réussies** (état « comme neuf ») : le guide des prix Cardmarket, relayé par TCGdex, donne la moyenne des ventes réalisées sur 30 jours, 7 jours et la veille. Les ventes du mois donnent la base (le plus de ventes, donc le plus stable), celles de la semaine la direction : l'estimation est à mi-chemin, sans s'écarter de plus de 20 % du mois — une vente atypique dans une semaine calme ne déplace pas le prix. La veille repose sur trop peu de ventes pour compter : elle est affichée, pas utilisée. Seul le dernier relevé compte : une moyenne que la source ne rapporte plus (plus de vente sur la période) est ignorée. **Fiabilité** : « fiable » si semaine et mois sont à moins de 20 % l'un de l'autre, « prix en mouvement » au-delà, « peu de ventes » si une seule période est renseignée. Sans aucune vente récente, la tendance des annonces puis l'annonce la moins chère servent de repère, et l'écran le dit (« ≈ », « Aucune vente récente »).
+2. **Stratégie** : « Équilibré » (par défaut) se place à l'estimation ; « Vendre vite » à la plus basse des moyennes semaine/mois (au plus 15 % sous l'estimation), aligné sur l'annonce la moins chère sans brader de plus de 10 % ; « Marge maximale » à la plus haute (au plus 15 % au-dessus).
 3. **État** : le prix est ramené à l'état de l'exemplaire par un coefficient (EX 80 %, GD 65 %…), puis arrondi à l'euro à partir de 10 €.
 4. **Jamais sous le prix d'achat** : si ce prix est inférieur au coût moyen (plus la marge minimale pour une vente à l'unité), il est tenu au coût et l'offre porte le motif `HELD_AT_COST` — elle se vendra plus lentement. Un prix posé par les règles qui passe sous le coût (nouveaux exemplaires plus chers) est recalculé ; un prix décidé à la main est seulement signalé.
 
-Ce n'est pas une optimisation statistique : faute d'historique de ventes propre, c'est une règle explicable, à affiner quand les ventes donneront des délais réels. Les cartes entre 5 et 15 € sont tarifées d'office comme les autres ; seuls un doute sur la cote (absente, périmée, partagée entre variantes) ou sur la variante laissent une carte sans prix.
+L'estimation, sa fiabilité et le détail des moyennes sont conservés sur l'offre (`offers.sales_estimate`) et affichés partout où un prix se décide : saisie d'une carte, stock (colonne « Ventes » et fiche), catalogue, page Prix.
+
+**Limites de la source** : ce sont des moyennes, sans le nombre de ventes, toutes langues et tous états confondus (l'état est corrigé par le coefficient ci-dessous, la langue ne l'est pas). Les ventes réussies eBay, propres à une langue et à un état, ne sont pas branchées : eBay ne les expose que par son API Marketplace Insights, réservée aux développeurs approuvés. Ce n'est pas une optimisation statistique : c'est une règle explicable, à affiner quand les ventes de la boutique donneront des délais réels. Les cartes entre 5 et 15 € sont tarifées d'office comme les autres ; seuls un doute sur la cote (absente, périmée, partagée entre variantes) ou sur la variante laissent une carte sans prix.
 
 ## Statistiques et alertes de prix — points d'attention
 
@@ -218,7 +220,7 @@ Ce n'est pas une optimisation statistique : faute d'historique de ventes propre,
 
 ## Prix et catégories — points d'attention
 
-- **Estimation** : dernière cotation importée pour la variante (tendance Cardmarket par défaut, repli sur les moyennes de ventes) × coefficient d'état. La source ne distingue ni la langue ni l'état : le coefficient est une approximation réglable.
+- **Estimation** : estimation d'après les ventes réussies du dernier relevé (repli sur la tendance des annonces sans vente récente) × coefficient d'état. La source ne distingue ni la langue ni l'état : le coefficient est une approximation réglable.
 - **Arrondi** : à partir de 10 €, les prix calculés (suggestion, plancher) sont arrondis à l'euro (612,37 € → 612 €) ; seuil et pas réglables. Un prix saisi à la main est gardé tel quel.
 - **Catégorie** : seuils indicatifs de la spécification (vrac < 1 €, lot < 5 €, à l'unité ≥ 15 €, premium ≥ 100 €). Entre 5 et 15 €, l'offre part en revue : la rentabilité à l'unité dépend des frais du canal, pas encore connus.
 - **Jamais de prix silencieux** : cotation absente, trop ancienne (14 jours) ou partagée avec une autre variante, variante incomplète, prix sous le coût → pas de prix posé d'office, l'offre va dans « À revoir » avec son motif.

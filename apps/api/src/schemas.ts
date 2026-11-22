@@ -124,7 +124,6 @@ export const changePasswordBody = z.strictObject({ currentPassword: password, ne
 const percent = z.number().int().min(0).max(200);
 export const pricingSettingsBody = z.strictObject({
   strategy: z.enum(["FAST", "BALANCED", "MARGIN"]).default("BALANCED"),
-  basis: z.enum(["LISTED_TREND", "SOLD_AVG_30D", "SOLD_AVG_7D", "LISTED_LOW"]),
   maxAgeDays: z.number().int().min(1).max(365),
   conditionPercent: z.strictObject({ MT: percent, NM: percent, EX: percent, GD: percent, LP: percent, PL: percent, PO: percent }),
   bulkBelowCents: cents,

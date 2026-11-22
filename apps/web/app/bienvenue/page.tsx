@@ -448,7 +448,7 @@ function PricingStep({ onDone }: { onDone: () => void }) {
   return (
     <Step
       title="Comment fixer vos prix ?"
-      description="Chaque carte reçoit un prix dès son entrée en stock, à partir des cotes Cardmarket : ventes récentes, tendance et annonce la moins chère."
+      description="Chaque carte reçoit un prix dès son entrée en stock, d'après les ventes réussies sur Cardmarket : celles du mois, ajustées par celles de la semaine."
       footer={
         <>
           <Button variant="ghost" onClick={onDone}>Passer cette étape</Button>
