@@ -120,11 +120,20 @@ export const api = {
   runPublications: () => request<{ published: number; failed: number }>("POST", "/publications/run"),
 
   scanBatches: () => request<{ batches: ScanBatch[] }>("GET", "/scan-batches"),
-  createScanBatch: (input: { name?: string; locationCode: string; unitCostCents?: number; defaultCondition?: CardCondition | null; language?: string; paired?: boolean }) =>
+  createScanBatch: (input: {
+    name?: string; locationCode: string; unitCostCents?: number; defaultCondition?: CardCondition | null; language?: string; paired?: boolean;
+    autopilot?: boolean; publishMode?: ScanBatch["publishMode"]; publishPerDay?: number | null;
+  }) =>
     request<ScanBatch>("POST", "/scan-batches", { json: input }),
   scanBatch: (id: string) => request<{ batch: ScanBatch; items: ScanItem[] }>("GET", `/scan-batches/${id}`),
-  updateScanBatch: (id: string, change: { name?: string; locationCode?: string; unitCostCents?: number; defaultCondition?: CardCondition | null }) =>
+  updateScanBatch: (id: string, change: {
+    name?: string; locationCode?: string; unitCostCents?: number; defaultCondition?: CardCondition | null;
+    autopilot?: boolean; publishMode?: ScanBatch["publishMode"]; publishPerDay?: number | null;
+  }) =>
     request<ScanBatch>("PATCH", `/scan-batches/${id}`, { json: change }),
+  /** Pilote automatique : entre en stock les cartes complètes, pose leur prix et les met en file de mise en ligne. */
+  autopilotScanBatch: (id: string) =>
+    request<{ received: number; offerIds: string[]; queued: number; batch: ScanBatch }>("POST", `/scan-batches/${id}/autopilot`),
   /** Enregistre la carte de ce rang ; si le rang existe déjà, il est renvoyé sans nouvelle lecture. */
   addScanItem: (batchId: string, position: number, fileName: string, image: Blob) =>
     request<ScanItem>("POST", `/scan-batches/${batchId}/items`, { blob: image, query: { position, fileName } }),

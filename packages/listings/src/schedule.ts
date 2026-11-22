@@ -77,6 +77,55 @@ export async function planPublications(sql: Db, input: PlanInput): Promise<PlanR
   });
 }
 
+/**
+ * Ajoute des offres à la file de mise en ligne, sans toucher à ce qui est déjà planifié : le jour même si `perDay` est null,
+ * sinon au premier jour qui a encore de la place (`perDay` publications par jour, déjà faites ou en attente).
+ * C'est ce qu'utilise le pilote automatique, carte après carte. Une offre déjà en ligne, déjà en file, sans prix ou sans
+ * stock vendable est laissée de côté.
+ */
+export async function queuePublications(
+  sql: Db,
+  input: { offerIds: string[]; channel: ChannelId; perDay: number | null; actor: string; today?: string },
+): Promise<{ queued: number; lastDay: string | null }> {
+  if (input.offerIds.length === 0) return { queued: 0, lastDay: null };
+  if (input.perDay !== null && (!Number.isInteger(input.perDay) || input.perDay < 1 || input.perDay > 500)) {
+    throw new DomainError("INVALID_SCHEDULE", "between 1 and 500 listings a day");
+  }
+  const today = input.today ?? todayInParis();
+  return withTx(sql, async (tx) => {
+    // Une seule file par canal à la fois : deux lots en parallèle ne dépassent pas le rythme du jour.
+    await tx`select pg_advisory_xact_lock(hashtext(${`publications:${input.channel}`}))`;
+    const [channel] = await tx<{ mode: string }[]>`select mode from channel_settings where channel = ${input.channel}`;
+    if (!channel || channel.mode === "OFF") throw new DomainError("CHANNEL_DISABLED", `channel ${input.channel} is switched off`);
+    const eligible = await tx<{ id: string }[]>`
+      select o.id from offers o
+       where o.id in ${tx(input.offerIds)} and o.target_price_cents is not null
+         and (select coalesce(sum(i.on_hand - i.reserved - i.inspection - i.quarantine) filter (where i.lifecycle = 'ACTIVE'), 0)
+                from stock_items i where i.offer_id = o.id and i.lifecycle <> 'ARCHIVED') > 0
+         and not exists (select 1 from listings l where l.offer_id = o.id and l.channel = ${input.channel} and l.status <> 'ENDED')
+         and not exists (select 1 from scheduled_publications sp where sp.offer_id = o.id and sp.channel = ${input.channel} and sp.status = 'PENDING')`;
+    const ordered = input.offerIds.filter((id, index) => input.offerIds.indexOf(id) === index && eligible.some((e) => e.id === id));
+    const load = new Map((await tx<{ day: string; count: number; rank: number }[]>`
+      select to_char(planned_on, 'YYYY-MM-DD') as day, count(*)::int as count, coalesce(max(rank), -1)::int as rank
+        from scheduled_publications
+       where channel = ${input.channel} and planned_on >= ${today} and status in ('PENDING', 'DONE')
+       group by planned_on`).map((d) => [d.day, d]));
+    let day = today;
+    for (const offerId of ordered) {
+      while (input.perDay !== null && (load.get(day)?.count ?? 0) >= input.perDay) day = addDays(day, 1);
+      const slot = load.get(day) ?? { day, count: 0, rank: -1 };
+      load.set(day, { day, count: slot.count + 1, rank: slot.rank + 1 });
+      await tx`insert into scheduled_publications (offer_id, channel, planned_on, rank) values (${offerId}, ${input.channel}, ${day}, ${slot.rank + 1})`;
+    }
+    if (ordered.length > 0) {
+      await tx`
+        insert into audit_events (actor, action, entity, entity_id, after)
+        values (${input.actor}, 'publications_queued', 'channel', ${input.channel}, ${tx.json({ queued: ordered.length, perDay: input.perDay, lastDay: day })})`;
+    }
+    return { queued: ordered.length, lastDay: ordered.length ? day : null };
+  });
+}
+
 export interface ScheduleDay {
   plannedOn: string;
   channel: ChannelId;

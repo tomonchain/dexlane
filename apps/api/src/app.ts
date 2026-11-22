@@ -15,13 +15,13 @@ import {
   estimateVariants, getPricingSettings, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice, getAlertSettings, getDashboard, listPriceMoves, saveAlertSettings,
 } from "@dexlane/pricing";
 import {
-  MAX_IMAGE_BYTES, RecognitionError, assertSupportedImage, identifyCard, type CardImage, type CardRecognizer, type ImageMediaType, addItem, createBatch, findItem, getBatch, listBatches, listItems, receiveBatch, setItemBack, updateBatch, updateItem,
+  MAX_IMAGE_BYTES, RecognitionError, assertSupportedImage, identifyCard, type CardImage, type CardRecognizer, type ImageMediaType, addItem, createBatch, findItem, getBatch, listBatches, listItems, receiveBatch, receiveReady, setItemBack, updateBatch, updateItem,
 } from "@dexlane/scan";
 import { DomainError } from "@dexlane/shared";
 import { changePassword, passwordStatus, setPassword, verifyPassword } from "./auth";
 import { HttpError, errorBody, idempotent, parse, parseJsonBody, secretEquals, statusOfDomainError } from "./http";
 import {
-  cancelPublications, endListing, getListingSettings, getSchedule, getStockDetail, listChannels, listStock, planPublications, runDuePublications, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
+  cancelPublications, endListing, getListingSettings, getSchedule, getStockDetail, listChannels, listStock, planPublications, queuePublications, runDuePublications, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
   syncChannels, syncQuantities, type ChannelAdapters,
 } from "@dexlane/listings";
 import { readPhoto, type PhotoStore } from "./photos";
@@ -315,6 +315,27 @@ export function createApp(deps: AppDeps) {
     const result = await receiveBatch(sql, id, c.var.actor, (tx, received) => refreshOfferPricing(tx, received.offer.id));
     await syncQuantities(sql, live).catch(deps.onError ?? console.error);
     return c.json({ ...result, batch: await getBatch(sql, id) });
+  });
+
+  /**
+   * Pilote automatique : entre en stock les cartes complètes du lot, pose leur prix et les met en file de mise en ligne
+   * sur chaque canal actif, selon le réglage du lot. Les cartes à vérifier attendent, sans bloquer les autres.
+   * Rejouable à volonté : ce qui est déjà entré n'est pas repris.
+   */
+  app.post("/api/scan-batches/:id/autopilot", async (c) => {
+    const id = parse(s.batchId, c.req.param("id"));
+    const batch = await getBatch(sql, id);
+    if (!batch.autopilot) throw new HttpError(409, "AUTOPILOT_OFF", "the autopilot is switched off for this batch");
+    const { received } = await receiveReady(sql, id, c.var.actor, (tx, position) => refreshOfferPricing(tx, position.offer.id));
+    const offerIds = [...new Set(received.map((r) => r.offer.id))];
+    let queued = 0;
+    if (batch.publishMode !== "NONE" && offerIds.length > 0) {
+      for (const channel of (await listChannels(sql, live)).filter((ch) => ch.mode !== "OFF")) {
+        queued += (await queuePublications(sql, { offerIds, channel: channel.id, perDay: batch.publishMode === "DAILY" ? batch.publishPerDay : null, actor: c.var.actor })).queued;
+      }
+    }
+    if (received.length > 0) await syncQuantities(sql, live).catch(deps.onError ?? console.error);
+    return c.json({ received: received.length, offerIds, queued, batch: await getBatch(sql, id) });
   });
 
   // ───────────────────────── Stock à vendre ─────────────────────────

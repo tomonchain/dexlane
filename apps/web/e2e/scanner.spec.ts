@@ -979,3 +979,59 @@ test("page d'accueil : vitrine publique sans session, puis « Aujourd'hui » ave
   await page.waitForURL(new RegExp(`/scanner/lot/${batch.id}$`));
   await expect(page.getByRole("heading", { name: "Lot d'accueil" })).toBeVisible();
 });
+
+test("pilote automatique : la pile scannée entre en stock, reçoit son prix et part en ligne sans revue ; la carte douteuse suit une fois corrigée", async ({ page }) => {
+  await login(page);
+  await page.request.post("/api/locations", { data: { code: "BOITE-AP" } });
+  await page.request.put("/api/channels/ebay", { data: { mode: "SIMULATION" } });
+  // Un état dans lequel le Fouinar reverse n'est pas encore en ligne : la mise en ligne observée viendra bien de ce lot.
+  type Row = { offerId: string; condition: string; finish: string; listings: { channel: string; status: string }[] };
+  const stock = async () => ((await (await page.request.get("/api/stock?q=fouinar&status=ALL")).json()) as { items: Row[] }).items;
+  const before = await stock();
+  const state = ["NM", "EX", "GD", "LP", "PL", "PO", "MT"].find((code) => !before.some((r) => r.finish === "reverse" && r.condition === code && r.listings.length > 0));
+  expect(state, "un état encore libre pour le Fouinar reverse").toBeTruthy();
+  const label = { MT: "Mint", NM: "Near Mint", EX: "Excellent", GD: "Good", LP: "Light Played", PL: "Played", PO: "Poor" }[state!]!;
+
+  await page.goto("/scanner/lot");
+  await page.getByRole("button", { name: "Boîte de destination", exact: true }).click();
+  await page.getByLabel("Filtrer les emplacements").fill("boite-ap");
+  await page.getByRole("radio", { name: "BOITE-AP", exact: true }).click();
+  await page.getByRole("switch", { name: "Recto et verso" }).click(); // recto seul : rien à attendre avant l'entrée en stock
+  await page.getByRole("switch", { name: "Pilote automatique" }).click();
+  await expect(page.getByTestId("autopilot-publish").getByRole("radio", { name: "Tout de suite" })).toBeChecked();
+  await page.getByRole("radiogroup", { name: "État des cartes du lot" }).getByRole("radio", { name: label, exact: true }).click();
+  await page.getByRole("button", { name: "Créer le lot" }).click();
+  const bar = page.getByTestId("autopilot");
+  await expect(bar).toContainText("Pilote automatique · mise en ligne immédiate");
+
+  // La pile passe : aucune autre action. Les deux cartes lues sans doute sont en stock et en ligne ; la douteuse attend.
+  const file = (name: string, width: number) => ({ name, mimeType: "image/png", buffer: png(width) });
+  await page.getByTestId("batch-input").setInputFiles([file("scan_001.png", CLEAR), file("scan_002.png", PARTIAL_NAME), file("scan_003.png", CLEAR)]);
+  const rows = page.getByTestId("batch-row");
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(0)).toHaveAttribute("data-status", "received");
+  await expect(rows.nth(2)).toHaveAttribute("data-status", "received");
+  await expect(rows.nth(1)).toHaveAttribute("data-status", "pending");
+  await expect(bar).toContainText("2 en stock · 1 en ligne · 1 à vérifier");
+  const listed = (await stock()).find((r) => r.finish === "reverse" && r.condition === state)!;
+  expect(listed.listings).toMatchObject([{ channel: "ebay", status: "ACTIVE" }]);
+  // Le visuel d'annonce a été composé avant la mise en ligne, sans rien demander.
+  const detail = (await (await page.request.get(`/api/stock/${listed.offerId}`)).json()) as { targetPriceCents: number | null; photos: { kind: string }[] };
+  expect(detail.targetPriceCents).toBeGreaterThan(0);
+  expect(detail.photos.filter((p) => p.kind === "LISTING").length).toBeGreaterThan(0);
+
+  // La carte douteuse est corrigée : elle suit toute seule, sans bouton d'entrée en stock.
+  await rows.nth(1).getByRole("button", { name: "Choisir la carte 2" }).click();
+  const dialog = page.getByRole("dialog", { name: "Carte n° 2" });
+  await dialog.getByRole("radio", { name: /Fouinar/ }).click();
+  await dialog.getByRole("radio", { name: "Normale" }).click();
+  await dialog.getByRole("button", { name: "Utiliser cette carte" }).click();
+  await expect(rows.nth(1)).toHaveAttribute("data-status", "received");
+  await expect(bar).toContainText("3 en stock");
+  await expect(bar).not.toContainText("à vérifier");
+
+  // Le lot se termine quand la pile est passée ; couper le pilote automatique reste possible avant.
+  await expect(page.getByTestId("batch-save")).toHaveText("Terminer le lot");
+  await page.getByTestId("batch-save").click();
+  await expect(page.getByTestId("batch-done")).toContainText("3 cartes en stock");
+});

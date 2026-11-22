@@ -236,12 +236,18 @@ export const createBatchBody = z.strictObject({
   defaultCondition: condition.nullable().optional(),
   language: z.string().regex(/^[a-z]{2}$/).optional(),
   paired: z.boolean().optional(),
+  autopilot: z.boolean().optional(),
+  publishMode: z.enum(["NONE", "NOW", "DAILY"]).optional(),
+  publishPerDay: z.number().int().min(1).max(500).nullable().optional(),
 });
 export const updateBatchBody = z.strictObject({
   name: z.string().min(1).max(80).optional(),
   locationCode: z.string().min(1).max(60).optional(),
   unitCostCents: cents.optional(),
   defaultCondition: condition.nullable().optional(),
+  autopilot: z.boolean().optional(),
+  publishMode: z.enum(["NONE", "NOW", "DAILY"]).optional(),
+  publishPerDay: z.number().int().min(1).max(500).nullable().optional(),
 });
 export const scanItemQuery = z.object({ position: z.coerce.number().int().min(1).max(100_000), fileName: z.string().min(1).max(200) });
 export const updateScanItemBody = z.strictObject({

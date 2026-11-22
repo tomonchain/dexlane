@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, CalendarClock, Camera, Check, FolderOpen, FolderUp, PackagePlus, Pencil, Undo2, X } from "lucide-react";
+import { ArrowLeft, CalendarClock, Camera, Check, FolderOpen, FolderUp, PackagePlus, Pencil, Undo2, X, Zap } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -15,6 +15,7 @@ import { Choice, ChoiceGroup } from "@/components/ui/toggle-group";
 import { ApiError, api } from "@/lib/api";
 import { variantLabel } from "@/lib/format";
 import { prepareImage } from "@/lib/image";
+import { AUTOPILOT_KEY, DEFAULT_AUTOPILOT, publishModeLabel, type AutopilotPrefs } from "@/lib/scan";
 import { canWatchFolder, cardsFromFiles, cardsInFolder, pickFolder, readFolder, type FolderCard } from "@/lib/scan-source";
 import { CONDITIONS, type Candidate, type CardCondition, type ChannelState, type ScanBatch, type ScanItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ const ERRORS: Record<string, string> = {
   BATCH_NOT_READY: "Des cartes attendent encore une décision.",
   BATCH_ALREADY_RECEIVED: "Ce lot est déjà en stock.",
   LOCATION_NOT_FOUND: "Cette boîte n'existe pas.",
+  AUTOPILOT_NEEDS_CONDITION: "Choisissez d'abord l'état du lot : le pilote automatique l'applique à chaque carte.",
   NETWORK: "Connexion impossible. Les cartes déjà lues sont conservées : reliez le dossier à nouveau pour reprendre.",
 };
 const message = (e: unknown) => (e instanceof ApiError ? (ERRORS[e.code] ?? e.message) : (e as Error).message);
@@ -48,6 +50,11 @@ export default function ScanBatchPage() {
   const [channels, setChannels] = useState<ChannelState[]>([]);
   const [planning, setPlanning] = useState(false);
   const [applying, setApplying] = useState(false);
+  /** Pilote automatique : une seule passe à la fois ; `autoTick` relance l'examen après une passe ou une attente. */
+  const autoBusy = useRef(false);
+  const autoWaitUntil = useRef(0);
+  const [autoTick, setAutoTick] = useState(0);
+  const [autoOnline, setAutoOnline] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const captureRef = useRef<HTMLInputElement>(null);
   /** Recto déjà photographié, en attente de son verso. */
@@ -232,7 +239,7 @@ export default function ScanBatchPage() {
     setError(null);
     try {
       const r = await api.receiveScanBatch(id);
-      toast.success(`${r.received} carte${r.received > 1 ? "s" : ""} en stock, de ${r.firstSku} à ${r.lastSku}`);
+      toast.success(r.received > 0 ? `${r.received} carte${r.received > 1 ? "s" : ""} en stock, de ${r.firstSku} à ${r.lastSku}` : "Lot terminé");
       setFolder(null);
       await refresh();
       // Les photos d'annonce se préparent toutes seules : rien à lancer à la main avant la mise en ligne.
@@ -244,6 +251,69 @@ export default function ScanBatchPage() {
     } finally {
       setReceiving(false);
     }
+  }
+
+  /**
+   * Une passe du pilote automatique : les cartes complètes entrent en stock avec leur prix, leurs photos d'annonce sont
+   * composées, puis celles qui doivent partir aujourd'hui sont mises en ligne. Si l'onglet se ferme avant la fin,
+   * la tâche quotidienne publie ce qui est resté en file.
+   */
+  const runAutopilot = useCallback(async () => {
+    if (autoBusy.current) return;
+    autoBusy.current = true;
+    try {
+      const r = await api.autopilotScanBatch(id);
+      // Rien n'est entré : une carte attend son verso. Inutile d'insister avant quelques secondes.
+      autoWaitUntil.current = r.received > 0 ? 0 : Date.now() + 15_000;
+      if (r.received === 0) return;
+      await refresh();
+      await composeMissingVisuals(r.offerIds, (done, total) => setVisuals({ done, total })).catch(() => 0);
+      setVisuals(null);
+      let online = 0;
+      if (r.batch.publishMode === "NOW" && r.queued > 0) {
+        const run = await api.runPublications();
+        online = run.published;
+        setAutoOnline((n) => n + run.published);
+        if (run.failed > 0) toast.error(`${run.failed} mise${run.failed > 1 ? "s" : ""} en ligne impossible${run.failed > 1 ? "s" : ""} : à corriger depuis le stock.`);
+      }
+      const cards = `${r.received} carte${r.received > 1 ? "s" : ""} en stock`;
+      toast.success(online > 0 ? `${cards}, ${online} en ligne` : r.queued > 0 && r.batch.publishMode === "DAILY" ? `${cards}, mise en ligne planifiée` : cards);
+    } catch (e) {
+      autoWaitUntil.current = Date.now() + 15_000;
+      setError(message(e));
+    } finally {
+      autoBusy.current = false;
+      setAutoTick((t) => t + 1);
+    }
+  }, [id, refresh]);
+
+  const autopilot = !!batch?.autopilot && !batch.receivedAt;
+  const autoReady = items.some((i) => i.ready);
+  useEffect(() => {
+    // On attend que la file d'envoi soit vide : un verso en cours d'envoi rejoint ainsi sa carte avant l'entrée en stock.
+    if (!autopilot || !autoReady || inFlight > 0 || editing) return;
+    const wait = autoWaitUntil.current - Date.now();
+    if (wait <= 0) {
+      void runAutopilot();
+      return;
+    }
+    const timer = setTimeout(() => setAutoTick((t) => t + 1), wait);
+    return () => clearTimeout(timer);
+  }, [autopilot, autoReady, inFlight, editing, autoTick, runAutopilot]);
+
+  /** Active ou coupe le pilote automatique du lot, avec le dernier réglage de mise en ligne utilisé. */
+  async function toggleAutopilot(on: boolean) {
+    let prefs = DEFAULT_AUTOPILOT;
+    try {
+      prefs = { ...DEFAULT_AUTOPILOT, ...(JSON.parse(window.localStorage.getItem(AUTOPILOT_KEY) ?? "{}") as Partial<AutopilotPrefs>) };
+    } catch {
+      prefs = DEFAULT_AUTOPILOT;
+    }
+    const perDay = Number(prefs.perDay) >= 1 && Number(prefs.perDay) <= 500 ? Math.floor(Number(prefs.perDay)) : 20;
+    autoWaitUntil.current = 0;
+    await change(() => api.updateScanBatch(id, on
+      ? { autopilot: true, publishMode: prefs.publishMode, publishPerDay: prefs.publishMode === "DAILY" ? perDay : null }
+      : { autopilot: false, publishMode: "NONE" }));
   }
 
   const isReceived = !!batch?.receivedAt;
@@ -284,6 +354,8 @@ export default function ScanBatchPage() {
 
   const done = !!batch.receivedAt;
   const kept = items.filter((i) => !i.skipped);
+  /** Cartes pas encore en stock : avec le pilote automatique, une partie du lot y est déjà. */
+  const remaining = kept.filter((i) => !i.unitSku);
   const pending = kept.filter((i) => !i.ready && !i.unitSku);
   const shown = onlyPending ? pending : items;
   const edited = items.find((i) => i.id === editing) ?? null;
@@ -322,6 +394,26 @@ export default function ScanBatchPage() {
           </div>
         )}
       </div>
+
+      {!done && (
+        <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border px-4 py-2.5 text-sm", batch.autopilot ? "border-brand/40 bg-brand-soft/50" : "bg-card")} data-testid="autopilot">
+          <Zap className={cn("size-4", batch.autopilot ? "text-brand" : "text-muted-foreground")} aria-hidden />
+          {batch.autopilot ? (
+            <span className="min-w-0 flex-1 basis-64" role="status">
+              <strong className="font-semibold">Pilote automatique</strong> · {publishModeLabel(batch.publishMode, batch.publishPerDay)}.{" "}
+              <span className="tabular text-muted-foreground">
+                {batch.counts.received} en stock{autoOnline > 0 ? ` · ${autoOnline} en ligne` : ""}{pending.length > 0 ? ` · ${pending.length} à vérifier` : ""}
+                {visuals ? ` · photos d'annonce ${visuals.done} / ${visuals.total}` : ""}
+              </span>
+            </span>
+          ) : (
+            <span className="min-w-0 flex-1 basis-64 text-muted-foreground">
+              Pilote automatique coupé : les cartes attendent votre revue avant d'entrer en stock.
+            </span>
+          )}
+          <Button variant="outline" size="sm" onClick={() => toggleAutopilot(!batch.autopilot)}>{batch.autopilot ? "Couper" : "Activer"}</Button>
+        </div>
+      )}
 
       {done ? (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-success/30 bg-success-soft px-4 py-3 text-sm" data-testid="batch-done">
@@ -529,10 +621,14 @@ export default function ScanBatchPage() {
         <div className="fixed inset-x-0 bottom-nav z-20 px-3 lg:bottom-0 lg:left-56 lg:px-8 lg:pb-4">
           <div className="mx-auto flex max-w-[92rem] items-center gap-3 rounded-lg border bg-popover px-4 py-2.5 shadow-lg">
             <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-              {inFlight > 0 ? "Lecture en cours…" : pending.length > 0 ? `Reste ${pending.length} carte${pending.length > 1 ? "s" : ""} à corriger avant l'entrée en stock.` : "Tout est prêt. Les codes suivront l'ordre du scan."}
+              {inFlight > 0 ? "Lecture en cours…"
+                : pending.length > 0 ? (batch.autopilot ? `${pending.length} carte${pending.length > 1 ? "s" : ""} à vérifier : une fois corrigée, chacune suit toute seule.` : `Reste ${pending.length} carte${pending.length > 1 ? "s" : ""} à corriger avant l'entrée en stock.`)
+                : remaining.length === 0 ? "Tout le lot est en stock. Terminez-le quand la pile est passée."
+                : "Tout est prêt. Les codes suivront l'ordre du scan."}
             </p>
-            <Button onClick={receive} disabled={receiving || inFlight > 0 || pending.length > 0 || kept.length === 0} data-testid="batch-save">
-              {receiving ? <Spinner className="text-primary-foreground" /> : <PackagePlus />} Entrer {kept.length} carte{kept.length > 1 ? "s" : ""} en stock
+            <Button onClick={receive} variant={batch.autopilot ? "outline" : "default"} disabled={receiving || inFlight > 0 || pending.length > 0 || kept.length === 0} data-testid="batch-save">
+              {receiving ? <Spinner className={batch.autopilot ? undefined : "text-primary-foreground"} /> : remaining.length === 0 ? <Check /> : <PackagePlus />}{" "}
+              {remaining.length === 0 ? "Terminer le lot" : `Entrer ${remaining.length} carte${remaining.length > 1 ? "s" : ""} en stock`}
             </Button>
           </div>
         </div>
