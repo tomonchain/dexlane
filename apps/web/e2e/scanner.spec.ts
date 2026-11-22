@@ -687,6 +687,30 @@ test("stock : une ligne par carte, prix accepté d'un clic ou saisi sur place, f
   await reverse.click();
   const panel = page.getByTestId("stock-inspector");
   await expect(panel.getByTestId("stock-listing-title")).toContainText("Fouinar 136/189");
+
+  // Évolution du prix : les ventes réussies et l'annonce la moins chère, relevé après relevé (le plus ancien, dix jours plus tôt, valait moitié moins).
+  const chart = panel.getByTestId("price-history");
+  const legend = chart.getByTestId("price-history-legend");
+  await expect(legend).toContainText("Ventes 7 j0,43 €");
+  await expect(legend).toContainText("Ventes 30 j0,29 €");
+  await expect(legend).toContainText("Annonce la moins chère0,08 €");
+  await expect(legend).not.toContainText("Tendance"); // des ventes existent : la tendance des annonces n'est pas tracée
+  await expect(chart).toContainText(/\d relevés Cardmarket/);
+  // Au clavier comme au survol : chaque relevé donne toutes les séries. Les flèches s'arrêtent aux extrémités.
+  await chart.getByRole("img").focus();
+  for (let i = 0; i < 5; i++) await page.keyboard.press("ArrowLeft");
+  const tip = chart.getByTestId("price-history-tooltip");
+  await expect(tip).toContainText("0,21 €Ventes 7 j");
+  await expect(tip).toContainText("0,04 €Annonce la moins chère");
+  for (let i = 0; i < 5; i++) await page.keyboard.press("ArrowRight");
+  await expect(tip).toContainText("0,43 €Ventes 7 j");
+  // Les mêmes valeurs en tableau, et la période se choisit.
+  await chart.getByText("Tableau des valeurs").click();
+  await expect(chart.getByRole("table")).toContainText("0,21 €");
+  await chart.getByRole("radio", { name: "30 j" }).click();
+  await expect(chart.getByRole("radio", { name: "30 j" })).toBeChecked();
+  await expect(chart).toContainText(/\d relevés Cardmarket/);
+
   await panel.getByLabel("Prix de vente (€)").fill("1,20");
   await panel.getByRole("button", { name: "Enregistrer" }).click();
   await expect(reverse).toContainText("1,20 €"); // la ligne du tableau suit, derrière la fiche

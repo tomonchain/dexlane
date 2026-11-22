@@ -8,8 +8,8 @@ import { toast } from "sonner";
 import { CardThumb } from "@/components/card-chooser";
 import { OfferPhotos } from "@/components/offer-photos";
 import { PlanModal } from "@/components/plan-modal";
+import { PriceHistory } from "@/components/price-history";
 import { SalesBasis } from "@/components/sales-basis";
-import { Sparkline } from "@/components/charts";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
 import { Code, Spinner } from "@/components/ui/misc";
@@ -558,9 +558,12 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
             )}
             {d.priceReasons.map((r) => <p key={r} className="text-warning">{reasonLabel(r)}</p>)}
           </div>
-          {d.series.length > 1 && <Sparkline values={d.series.map((p) => p.cents)} label={`${d.sales ? "Ventes" : "Cote"} sur 90 jours, de ${formatEuros(d.series[0]!.cents)} à ${formatEuros(d.series.at(-1)!.cents)}`} />}
         </div>
       </Section>
+
+      <section className="border-t px-4 py-4">
+        <PriceHistory variantId={d.variantId} />
+      </section>
 
       <Section title="Annonce" aside={<Link href="/reglages/annonces" className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">Modèle et photos</Link>}>
         <div className="flex items-start gap-2">

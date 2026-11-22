@@ -91,6 +91,37 @@ export async function estimateVariants(sql: Db, variantIds: string[]): Promise<M
   return estimates;
 }
 
+/** Séries suivies dans le temps : moyennes des ventes, tendance des annonces et annonce la moins chère. */
+export const HISTORY_QUOTES = ["SOLD_AVG_7D", "SOLD_AVG_30D", "LISTED_TREND", "LISTED_LOW"] as const;
+export type HistoryQuote = (typeof HISTORY_QUOTES)[number];
+
+export interface PriceHistory {
+  /** Une série par cote relevée sur la période, points du plus ancien au plus récent. */
+  series: { quoteType: HistoryQuote; points: { at: Date; cents: number }[] }[];
+  /** Premier relevé connu pour cette carte, toutes périodes confondues : l'historique ne remonte pas plus loin. */
+  since: Date | null;
+}
+
+/** Relevés de prix d'une variante sur les `days` derniers jours (toutes langues et tous états confondus). */
+export async function priceHistory(sql: Db, variantId: string, days: number): Promise<PriceHistory> {
+  const [variant] = await sql`select 1 from card_variants where id = ${variantId}`;
+  if (!variant) throw new DomainError("VARIANT_NOT_FOUND", `card variant ${variantId} does not exist`);
+  const rows = await sql<{ quoteType: HistoryQuote; at: Date; cents: number }[]>`
+    select quote_type, observed_at as at, amount_cents as cents from price_snapshots
+     where variant_id = ${variantId} and condition is null and quote_type in ${sql(HISTORY_QUOTES)} and amount_cents > 0
+       and observed_at >= now() - make_interval(days => ${days})
+     order by observed_at`;
+  const [first] = await sql<{ since: Date | null }[]>`
+    select min(observed_at) as since from price_snapshots where variant_id = ${variantId} and condition is null and quote_type in ${sql(HISTORY_QUOTES)}`;
+  return {
+    series: HISTORY_QUOTES.flatMap((quoteType) => {
+      const points = rows.filter((r) => r.quoteType === quoteType).map(({ at, cents }) => ({ at, cents }));
+      return points.length ? [{ quoteType, points }] : [];
+    }),
+    since: first?.since ?? null,
+  };
+}
+
 // ───────────────────────── Tarification des offres ─────────────────────────
 
 interface OfferState {

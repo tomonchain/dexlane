@@ -151,33 +151,22 @@ export interface StockDetail extends StockRow {
   missing: ListingBlocker[];
   photos: PhotoRow[];
   positions: { id: string; unitSku: string; locationCode: string; onHand: number; reserved: number; lifecycle: string; unitCostCents: number; createdAt: Date }[];
-  /** Moyenne des ventes sur 7 jours relevée ces 90 derniers jours (à défaut la tendance), du plus ancien au plus récent. */
-  series: { at: Date; cents: number }[];
 }
 
 export async function getStockDetail(sql: Db, offerId: string): Promise<StockDetail> {
   const row = (await listStock(sql, { offerId })).items[0];
   if (!row) throw new DomainError("OFFER_NOT_FOUND", "this card is not in stock");
-  const [photos, positions, series, [set], settings] = await Promise.all([
+  const [photos, positions, [set], settings] = await Promise.all([
     listPhotos(sql, { offerIds: [offerId] }),
     sql<StockDetail["positions"]>`
       select i.id, i.unit_sku, l.code as location_code, i.on_hand, i.reserved, i.lifecycle::text as lifecycle, i.unit_cost_cents, i.created_at
         from stock_items i join locations l on l.id = i.location_id
        where i.offer_id = ${offerId} and i.lifecycle <> 'ARCHIVED' and i.on_hand > 0
        order by i.created_at`,
-    // Une seule courbe : celle des ventes si la source en rapporte, sinon la tendance des annonces.
-    sql<StockDetail["series"]>`
-      with history as (
-        select quote_type, observed_at, amount_cents from price_snapshots
-         where variant_id = ${row.variantId} and quote_type in ('SOLD_AVG_7D', 'LISTED_TREND') and condition is null
-           and observed_at >= now() - interval '90 days')
-      select observed_at as at, amount_cents as cents from history
-       where quote_type = case when exists (select 1 from history where quote_type = 'SOLD_AVG_7D') then 'SOLD_AVG_7D' else 'LISTED_TREND' end
-       order by observed_at`,
     sql<{ serieName: string | null; officialCount: number | null }[]>`
       select serie_name, card_count_official as official_count from catalog_sets where id = ${row.setId} and language = ${row.language}`,
     getListingSettings(sql),
   ]);
   const text = buildListingText({ ...row, serieName: set?.serieName ?? null, officialCount: set?.officialCount ?? null }, settings);
-  return { ...row, text, photos, positions, series, missing: listingBlockers({ targetPriceCents: row.targetPriceCents, photos, variantIncomplete: row.variantIncomplete }) };
+  return { ...row, text, photos, positions, missing: listingBlockers({ targetPriceCents: row.targetPriceCents, photos, variantIncomplete: row.variantIncomplete }) };
 }

@@ -87,7 +87,7 @@ Préparation des envois : `GET /api/orders/preparation` (commandes à préparer 
 
 Mise en ligne planifiée : `GET /api/publications` (planning par jour, échecs récents), `POST /api/publications/plan` (`offerIds` facultatif, `channel`, `startOn`, `perDay`), `POST /api/publications/cancel`, `POST /api/publications/run` (publie ce qui est dû ; lancé chaque jour par la tâche planifiée). `POST /api/photos?kind=PROMO` dépose l'image de fin d'annonce, réglée par `promoPhotoId` dans les réglages d'annonce.
 
-Stock à vendre : `GET /api/stock?q=&status=ALL|TO_PRICE|READY|LISTED|DRAFT&sort=recent|value|name` (une ligne par offre, compteurs par statut, valeur totale), `GET /api/stock/{offerId}` (annonce, photos, positions, estimation d'après les ventes, moyenne des ventes sur 90 jours). `POST /api/pricing/offers/{id}/price` accepte un prix sans catégorie : elle est déduite du palier de prix.
+Stock à vendre : `GET /api/stock?q=&status=ALL|TO_PRICE|READY|LISTED|DRAFT&sort=recent|value|name` (une ligne par offre, compteurs par statut, valeur totale), `GET /api/stock/{offerId}` (annonce, photos, positions, estimation d'après les ventes). `POST /api/pricing/offers/{id}/price` accepte un prix sans catégorie : elle est déduite du palier de prix.
 
 Statistiques : `GET /api/stats/dashboard`, `GET /api/stats/price-moves?alerts=true|false`, `GET` / `PUT /api/stats/alert-settings`, `POST /api/prices/refresh` (relève les cotes des cartes en stock, puis réévalue les offres).
 
@@ -192,6 +192,8 @@ L'estimation, sa fiabilité et le détail des moyennes sont conservés sur l'off
 **Limites de la source** : ce sont des moyennes, sans le nombre de ventes, toutes langues et tous états confondus (l'état est corrigé par le coefficient ci-dessous, la langue ne l'est pas). Les ventes réussies eBay, propres à une langue et à un état, ne sont pas branchées : eBay ne les expose que par son API Marketplace Insights, réservée aux développeurs approuvés. Ce n'est pas une optimisation statistique : c'est une règle explicable, à affiner quand les ventes de la boutique donneront des délais réels. Les cartes entre 5 et 15 € sont tarifées d'office comme les autres ; seuls un doute sur la cote (absente, périmée, partagée entre variantes) ou sur la variante laissent une carte sans prix.
 
 ## Statistiques et alertes de prix — points d'attention
+
+- **Évolution du prix d'une carte** : la fiche d'une carte du stock trace ses relevés (`GET /api/pricing/variants/{id}/history?days=30|90|365`) — ventes réussies sur 7 et 30 jours, annonce la moins chère ; la tendance des annonces ne prend leur place que si rien ne s'est vendu sur la période. Un seul axe en euros, survol ou flèches du clavier pour lire un relevé, tableau des valeurs sous le graphique. L'historique commence au premier relevé de la carte : il s'étoffe d'un point par jour pour les cartes en stock, grâce à la tâche quotidienne.
 
 - **Cote suivie** : la tendance Cardmarket (`LISTED_TREND`) fournie par TCGdex, datée par la source. Un relevé n'est ajouté que si la source a publié une nouvelle date : relancer le relevé ne crée pas de doublon.
 - **Variation** : dernier relevé comparé au relevé le plus récent d'au moins N jours plus tôt (7 par défaut). Une carte sans relevé assez ancien n'apparaît pas encore : l'historique se construit au fil des relevés quotidiens.
