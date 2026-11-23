@@ -146,6 +146,11 @@ export default function PositionPage() {
         <div className="grid min-w-0 gap-2">
           <h1 className="text-2xl leading-tight font-semibold tracking-tight">{positionTitle(p)}</h1>
           <p className="text-sm text-muted-foreground">{positionSubtitle(p)}</p>
+          {p.card && (
+            <Link href={`/carte/${p.card.catalogCardId}`} className="justify-self-start text-[13px] font-medium underline underline-offset-2 hover:no-underline">
+              Fiche de la carte : tous ses exemplaires
+            </Link>
+          )}
           <div className="flex flex-wrap gap-1.5">
             <Badge variant={p.lifecycle === "ACTIVE" ? "success" : p.lifecycle === "DRAFT" ? "warning" : "outline"}>{LIFECYCLE[p.lifecycle]}</Badge>
             <Badge variant="neutral">{KIND[p.kind]}</Badge>

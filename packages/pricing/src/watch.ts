@@ -81,6 +81,12 @@ function cardmarketOf(quotes: Quote[]): PlatformPrices["cardmarket"] {
   };
 }
 
+/** Prix de chaque variante sur chaque plateforme, au dernier relevé. */
+export async function platformPrices(sql: Db, variantIds: string[]): Promise<Map<string, PlatformPrices>> {
+  const [quotes, tcgplayer] = await Promise.all([latestQuotes(sql, variantIds), tcgplayerPrices(sql, variantIds)]);
+  return new Map(variantIds.map((id) => [id, { cardmarket: cardmarketOf(quotes.get(id) ?? []), tcgplayer: tcgplayer.get(id) ?? null }]));
+}
+
 // ───────────────────────── Cartes suivies ─────────────────────────
 
 export async function listWatched(sql: Db): Promise<{ items: WatchedCard[]; alerts: number }> {

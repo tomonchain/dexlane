@@ -212,7 +212,7 @@ export function Home() {
           </Recent>
           <Recent title="Dernières mises en ligne" href="/stock?statut=LISTED" all="Tout ce qui est en ligne" empty="Aucune annonce en ligne pour l'instant.">
             {activity.listings.map((listing) => (
-              <Link key={listing.id} href="/stock?statut=LISTED" data-testid="home-listing" className="flex items-center gap-3 px-4 py-2.5 outline-none transition-colors hover:bg-accent/60 focus-visible:bg-accent">
+              <Link key={listing.id} href={`/carte/${listing.catalogCardId}`} data-testid="home-listing" className="flex items-center gap-3 px-4 py-2.5 outline-none transition-colors hover:bg-accent/60 focus-visible:bg-accent">
                 <CardThumb imageUrl={listing.imageUrl} size="sm" className="w-7 rounded-[3px]" />
                 <span className="grid min-w-0 flex-1 gap-0.5">
                   <span className="truncate text-sm font-medium">{listing.name}</span>

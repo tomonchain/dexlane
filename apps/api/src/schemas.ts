@@ -293,6 +293,7 @@ export const watchBody = z.strictObject({
 });
 export const watchUpdateBody = watchBody.omit({ variantId: true });
 export const watchedId = z.uuid();
+export const catalogCardId = z.uuid();
 export const catalogSearchQuery = z.object({ q: z.string().trim().max(80), language: z.string().regex(/^[a-z]{2}$/).optional() });
 export const topCardsQuery = z.object({ limit: z.coerce.number().int().min(1).max(20).default(5) });
 export const dealsQuery = z.object({
