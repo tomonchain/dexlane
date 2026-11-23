@@ -20,8 +20,8 @@ describe("mapTcgdexCard", () => {
     expect(variants.flatMap((v) => v.prices).some((p) => p.variantAmbiguous)).toBe(false);
   });
 
-  it("separates 1st edition and flags prices shared between indistinguishable variants (base1-4 Dracaufeu)", () => {
-    const { variants } = mapTcgdexCard(card("base1-4"), "fr");
+  it("separates 1st edition and flags prices shared between indistinguishable variants (base1-4, English print)", () => {
+    const { variants } = mapTcgdexCard(card("base1-4"), "en");
     expect(variants.map((v) => [v.finish, v.subtype, v.edition])).toEqual([
       ["holo", "illimité", ""],
       ["holo", "sans ombre", "1st"],
@@ -34,6 +34,17 @@ describe("mapTcgdexCard", () => {
     expect(shadowless1st!.prices.length).toBeGreaterThan(0);
     expect([...shadowless1st!.prices, ...shadowless!.prices].every((p) => p.variantAmbiguous)).toBe(true);
     expect(copyright!.prices).toEqual([]);
+  });
+
+  it("drops English-only prints from other languages and keeps the 1st edition with a price marked as borrowed (base1-4 Dracaufeu)", () => {
+    const { variants } = mapTcgdexCard(card("base1-4"), "fr");
+    // « Sans ombre » et « Copyright 1999-2000 » n'existent qu'en anglais ; la 1re édition existe aussi en français.
+    expect(variants.map((v) => [v.finish, v.subtype, v.edition])).toEqual([["holo", "illimité", ""], ["holo", "", "1st"]]);
+    const first = variants[1]!;
+    expect(first.attributes).toMatchObject({ pricedFromEnglishPrint: "sans ombre" });
+    expect(first.prices.length).toBeGreaterThan(0);
+    expect(first.prices.every((p) => p.variantAmbiguous && p.quoteType !== "MARKET")).toBe(true);
+    expect(variants[0]!.prices.every((p) => !p.variantAmbiguous)).toBe(true);
   });
 
   it("never stores a zero price as a quote", () => {

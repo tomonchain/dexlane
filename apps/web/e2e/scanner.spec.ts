@@ -1234,10 +1234,12 @@ test("achats : suivre une carte avec un prix cible, ses prix sur Cardmarket et T
   await expect(top.getByTestId("pick-card").first()).toContainText("Dracaufeu");
   await expect(top.getByTestId("pick-card").first()).toContainText("432,22 €");
   await expect(top.getByTestId("pick-card").first()).toContainText("+11 % cette semaine");
-  // Une seule saisie : nom et numéro ensemble ; une ligne par variante.
+  // Une seule saisie : nom et numéro ensemble ; une ligne par variante existant en français (illimitée, 1re édition) —
+  // les impressions purement anglaises (« sans ombre », « Copyright 1999-2000 ») n'y figurent pas.
   await dialog.getByLabel("Rechercher une carte").fill("dracaufeu 4/102");
   const results = dialog.getByTestId("search-results").getByTestId("pick-card");
-  await expect(results).toHaveCount(4);
+  await expect(results).toHaveCount(2);
+  await expect(dialog.getByTestId("search-results")).not.toContainText("sans ombre");
   const unlimited = results.filter({ hasText: "illimité" });
   await expect(unlimited).toContainText("432,22 €");
   await unlimited.getByRole("button", { name: "Suivre Dracaufeu 4" }).click();
