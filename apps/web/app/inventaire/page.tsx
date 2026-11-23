@@ -16,6 +16,7 @@ import { t, tn } from "@/lib/i18n";
 import type { InventoryPage, InventorySummary, Position } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ListSkeleton } from "@/components/skeletons";
+import { useCachedState } from "@/lib/cache";
 
 const PAGE = 50;
 const COLUMNS = "md:grid-cols-[minmax(0,1fr)_7.5rem_minmax(0,11rem)_7rem_5.5rem_4rem_1rem]";
@@ -47,7 +48,7 @@ export default function InventoryPage() {
   const [location, setLocation] = useState("");
   const [page, setPage] = useState<InventoryPage | null>(null);
   const [items, setItems] = useState<Position[]>([]);
-  const [summary, setSummary] = useState<InventorySummary | null>(null);
+  const [summary, setSummary] = useCachedState<InventorySummary>("inventory:summary");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const request = useRef(0);

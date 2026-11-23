@@ -17,6 +17,7 @@ import { t, tn } from "@/lib/i18n";
 import { useStored } from "@/lib/storage";
 import type { CatalogSet, SetSyncReport } from "@/lib/types";
 import { ListSkeleton } from "@/components/skeletons";
+import { useCachedState } from "@/lib/cache";
 
 const PAGE_SIZE = 12;
 const NO_BLOCK = "__none__";
@@ -25,7 +26,7 @@ type Outcome = { kind: "success" | "warning" | "destructive"; text: string };
 
 export default function CatalogPage() {
   const [language, setLanguage, ready] = useStored("dexlane.catalog.language", "fr");
-  const [sets, setSets] = useState<CatalogSet[] | null>(null);
+  const [sets, setSets] = useCachedState<CatalogSet[]>(`catalog:sets:${language}`, { keepPrevious: true });
   const [tab, setTab] = useState<Tab | null>(null);
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState("");
@@ -41,7 +42,6 @@ export default function CatalogPage() {
   );
   useEffect(() => {
     if (!ready) return;
-    setSets(null);
     setTab(null);
     setBlock("");
     setOutcomes({});

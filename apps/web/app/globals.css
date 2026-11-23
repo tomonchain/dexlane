@@ -119,6 +119,15 @@
     -webkit-text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
   }
+  /* Sur téléphone et tablette, pas de barre de défilement visible : on fait défiler au doigt, comme dans une appli. */
+  @media (width < 64rem) {
+    * {
+      scrollbar-width: none;
+    }
+    *::-webkit-scrollbar {
+      display: none;
+    }
+  }
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-feature-settings: "ss01", "cv11";

@@ -15,6 +15,7 @@ import { t, tn } from "@/lib/i18n";
 import { SHIPPING_LABEL } from "@/lib/sales";
 import type { OrderDetail, Seller, ShippingRun, SlipPaper } from "@/lib/types";
 import { PreparationSkeleton } from "@/components/skeletons";
+import { useCachedState } from "@/lib/cache";
 
 /** Papier : largeur du document à l'écran et à l'impression, et règle de page envoyée à l'imprimante. */
 const PAPERS: Record<SlipPaper, { label: string; width: string; page: string }> = {
@@ -141,7 +142,7 @@ function Document({ orders, seller, parts }: { orders: OrderDetail[]; seller: Se
 
 function Preparation() {
   const autoPrint = useSearchParams().get("imprimer") === "1";
-  const [run, setRun] = useState<ShippingRun | null>(null);
+  const [run, setRun] = useCachedState<ShippingRun>("preparation");
   const [error, setError] = useState<string | null>(null);
   const [onlyNew, setOnlyNew] = useState(true);
   const [parts, setParts] = useState({ picking: true, slips: true, receipts: true });

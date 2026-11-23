@@ -22,6 +22,7 @@ import { CATEGORY_LABEL, eurosInput, type Category } from "@/lib/pricing";
 import type { AlertSettings, Dashboard, PriceMove, PriceMoves, SalesInsights } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { DashboardSkeleton, ListSkeleton } from "@/components/skeletons";
+import { useCachedState } from "@/lib/cache";
 
 const CHANNEL_LABEL: Record<string, string> = { direct: "Vente directe", ebay: "eBay", cardtrader: "CardTrader" };
 const wholeEuros = () => new Intl.NumberFormat(intlLocale(), { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
@@ -150,10 +151,10 @@ const cardsNote = (n: number) => tn(n, "{n} carte", "{n} cartes");
 
 function SalesView() {
   const [days, setDays] = useState("90");
-  const [data, setData] = useState<SalesInsights | null>(null);
+  const [data, setData] = useCachedState<SalesInsights>(`stats:sales:${days}`);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    setData(null);
+    // Une période déjà consultée s'affiche tout de suite, puis se met à jour.
     api.salesInsights(Number(days)).then(setData).catch((e: Error) => setError(e.message));
   }, [days]);
 
@@ -285,9 +286,9 @@ function SalesReport({ data }: { data: SalesInsights }) {
 // ───────────────────────── Stock et cotes ─────────────────────────
 
 function StockView() {
-  const [dashboard, setDashboard] = useState<Dashboard | null>(null);
-  const [moves, setMoves] = useState<PriceMoves | null>(null);
+  const [dashboard, setDashboard] = useCachedState<Dashboard>("stats:dashboard");
   const [alertsOnly, setAlertsOnly] = useState(true);
+  const [moves, setMoves] = useCachedState<PriceMoves>(`stats:moves:${alertsOnly}`, { keepPrevious: true });
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 

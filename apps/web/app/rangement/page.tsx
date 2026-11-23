@@ -19,6 +19,7 @@ import { useStored } from "@/lib/storage";
 import type { AcquisitionLot, Location } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ListSkeleton } from "@/components/skeletons";
+import { useCachedState } from "@/lib/cache";
 
 const today = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Paris" }); // AAAA-MM-JJ
 const LOCATION_ERRORS: Record<string, string> = {
@@ -54,8 +55,8 @@ function buildTree(locations: Location[]): Node[] {
 type ModalState = { kind: "location"; parent?: string } | { kind: "describe"; location: Location } | { kind: "lot" } | null;
 
 export default function StoragePage() {
-  const [locations, setLocations] = useState<Location[] | null>(null);
-  const [lots, setLots] = useState<AcquisitionLot[] | null>(null);
+  const [locations, setLocations] = useCachedState<Location[]>("locations");
+  const [lots, setLots] = useCachedState<AcquisitionLot[]>("lots");
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalState>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());

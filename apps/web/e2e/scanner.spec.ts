@@ -1431,3 +1431,26 @@ test("langue : l'interface passe en anglais depuis le compte, montants et dates 
   await expect(page.getByRole("heading", { name: "Compte", level: 1 })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "fr");
 });
+
+test("cache : en revenant sur un écran, ses dernières données s'affichent tout de suite, sans squelette", async ({ page }) => {
+  await login(page);
+  await page.request.post("/api/locations", { data: { code: "BOX-CA" } });
+  const { candidates } = (await (await page.request.get("/api/catalog/cards?name=fouinar")).json()) as { candidates: { variants: { id: string }[] }[] };
+  await page.request.post("/api/inventory/receive", {
+    data: { variantId: candidates[0]!.variants[0]!.id, condition: "NM", quantity: 1, locationCode: "BOX-CA", unitCostCents: 5 },
+    headers: { "Idempotency-Key": `e2e-cache-${Date.now()}` },
+  });
+  await page.goto("/stock");
+  const rows = page.locator('tbody tr[data-testid^="stock-"]');
+  await expect(rows.first()).toBeVisible();
+  const tabs = page.getByTestId("mobile-nav");
+  await tabs.getByRole("link", { name: "Accueil" }).click();
+  await expect(page.getByRole("heading", { name: "Aujourd'hui" })).toBeVisible();
+
+  // Le serveur ne répond plus au stock : seules les données gardées en mémoire peuvent s'afficher.
+  await page.route("**/api/stock?**", () => undefined);
+  await tabs.getByRole("link", { name: "Stock" }).click();
+  await expect(page.getByRole("heading", { name: "Stock", level: 1 })).toBeVisible();
+  await expect(rows.first()).toBeVisible();
+  await expect(page.getByTestId("skeleton")).toHaveCount(0);
+});

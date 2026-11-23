@@ -22,13 +22,14 @@ import { SHIPPING_LABEL, STAGE_LABEL, STAGE_VARIANT, needsTracking, salesMessage
 import type { OrderDetail } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { OrderSkeleton } from "@/components/skeletons";
+import { useCachedState } from "@/lib/cache";
 
 type Allocation = OrderDetail["lines"][number]["allocations"][number];
 const STEPS = ["Réservée", "Prélevée", "Emballée", "Remise"];
 
 export default function SalePage() {
   const { id } = useParams<{ id: string }>();
-  const [order, setOrder] = useState<OrderDetail | null>(null);
+  const [order, setOrder] = useCachedState<OrderDetail>(`order:${id}`);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [busy, setBusy] = useState(false);
