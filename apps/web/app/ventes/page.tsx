@@ -70,7 +70,7 @@ export default function SalesPage() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Stat icon={<ShoppingBag />} label="Ventes remises (30 j)" value={String(totals.orders)} hint="déposées ou remises en main propre" />
           <Stat icon={<CircleDollarSign />} label="Encaissé (30 j)" value={formatEuros(totals.grossCents)} hint="frais de port facturés compris" />
-          <Stat icon={<TrendingUp />} label="Marge (30 j)" value={formatEuros(totals.marginCents)} hint={`après ${formatEuros(totals.costCents)} de cartes et ${formatEuros(totals.postageCents)} d'affranchissement`} />
+          <Stat icon={<TrendingUp />} label="Marge (30 j)" value={formatEuros(totals.marginCents)} hint={`après ${formatEuros(totals.costCents)} de cartes, ${formatEuros(totals.postageCents)} d'affranchissement et ${formatEuros(totals.suppliesCents)} de fournitures`} />
         </div>
       )}
 

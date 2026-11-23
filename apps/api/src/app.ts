@@ -7,7 +7,7 @@ import {
 import type { Db } from "@dexlane/db";
 import {
   activateStock, addOfferPhoto, adjustStock, attachPhotos, cancelOrder, deletePhoto, getPhoto, saveListingPhoto, createAcquisitionLot, createDirectSale, createLocation, createLocations,
-  deleteLocation, extractCardFromBulk, getInventorySummary, getOrderDetail, listPreparation, markSlipsPrinted, getStockItemDetail, listAcquisitionLots,
+  deleteLocation, extractCardFromBulk, getInventorySummary, getOrderDetail, getShippingCosts, saveShippingCosts, listPreparation, markSlipsPrinted, getStockItemDetail, listAcquisitionLots,
   listLocations, listOrders, moveStock, packOrder, pickAllocation, receiveBulk, receiveCard, recordPhoto, resolveLocation,
   searchInventory, searchSellableOffers, shipOrder, updateLocationDescription,
 } from "@dexlane/inventory";
@@ -550,6 +550,10 @@ export function createApp(deps: AppDeps) {
     const { seller, slipPaper } = await getAppSettings(sql);
     return c.json({ orders: await listPreparation(sql), seller, slipPaper });
   });
+
+  /** Frais d'envoi : affranchissement habituel par mode, sleeve, top-loader et enveloppe. */
+  app.get("/api/shipping-costs", async (c) => c.json(await getShippingCosts(sql)));
+  app.put("/api/shipping-costs", async (c) => c.json(await saveShippingCosts(sql, await parseJsonBody(c, s.shippingCostsBody), c.var.actor)));
 
   app.post("/api/orders/preparation/printed", async (c) =>
     c.json({ marked: await markSlipsPrinted(sql, (await parseJsonBody(c, s.slipsPrintedBody)).orderIds) }));

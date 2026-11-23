@@ -279,6 +279,13 @@ export const appSettingsBody = z.strictObject({
   slipPaper: z.enum(["ROLL_80", "ROLL_58", "LABEL_100X150", "A4"]).optional(),
   seller: z.strictObject({ name: z.string().trim().max(80), address: z.string().trim().max(300), legal: z.string().trim().max(300) }).optional(),
 });
+const postage = z.number().int().min(0).max(100_000).nullable();
+export const shippingCostsBody = z.strictObject({
+  postage: z.strictObject({ LETTER_UNTRACKED: postage, LETTER_TRACKED: postage, PARCEL_TRACKED: postage }),
+  supplies: z.strictObject({
+    sleeveCents: z.number().int().min(0).max(100_000), toploaderCents: z.number().int().min(0).max(100_000), envelopeCents: z.number().int().min(0).max(100_000),
+  }),
+});
 export const slipsPrintedBody = z.strictObject({ orderIds: z.array(z.uuid()).min(1).max(200) });
 
 export const offerPhotoQuery = z.object({ kind: z.enum(["SCAN_FRONT", "SCAN_BACK"]).default("SCAN_FRONT") });

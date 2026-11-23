@@ -1,4 +1,4 @@
-import { Archive, BookOpen, Boxes, ChartColumn, ChevronRight, CircleUserRound, Megaphone, Sparkles, Store, Tags, type LucideIcon } from "lucide-react";
+import { Archive, BookOpen, Mail, Boxes, ChartColumn, ChevronRight, CircleUserRound, Megaphone, Sparkles, Store, Tags, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/misc";
 
@@ -9,6 +9,7 @@ const SECTIONS: { title: string; items: { href: string; label: string; hint: str
       { href: "/prix", label: "Règles de prix", hint: "Seuils de catégorie, arrondis, coefficients d'état, file de revue", icon: Tags },
       { href: "/reglages/annonces", label: "Modèle d'annonce et photos", hint: "Titre, description, fond des photos, image de fin d'annonce", icon: Megaphone },
       { href: "/reglages/canaux", label: "Canaux de vente", hint: "eBay et CardTrader : désactivé, simulation ou réel", icon: Store },
+      { href: "/reglages/envois", label: "Frais d'envoi", hint: "Affranchissement, sleeve, top-loader, enveloppe : déduits de la marge", icon: Mail },
     ],
   },
   {

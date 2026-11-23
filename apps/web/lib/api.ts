@@ -1,7 +1,7 @@
 import type {
   AcquisitionLot, Activity, AlertSettings, AppSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, PriceMoves, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
   Location, Photo, PositionDetail, Received,
-  OfferPricing, OrderDetail, PriceHistory, OrderList, OrderStage, PricingSettings, ShippingRun, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
+  OfferPricing, OrderDetail, PriceHistory, OrderList, OrderStage, PricingSettings, ShippingCosts, ShippingRun, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
   PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockFacets, StockPage, StockStatus, StoredPhoto, VariantQuote,
 } from "./types";
 
@@ -172,6 +172,8 @@ export const api = {
   sellableOffers: (q?: string) => request<{ offers: SellableOffer[] }>("GET", "/offers/sellable", { query: { q } }),
   orders: (stage?: OrderStage) => request<OrderList>("GET", "/orders", { query: { stage } }),
   order: (id: string) => request<OrderDetail>("GET", `/orders/${id}`),
+  shippingCosts: () => request<ShippingCosts>("GET", "/shipping-costs"),
+  saveShippingCosts: (costs: ShippingCosts) => request<ShippingCosts>("PUT", "/shipping-costs", { json: costs }),
   shippingRun: () => request<ShippingRun>("GET", "/orders/preparation"),
   markSlipsPrinted: (orderIds: string[]) => request<{ marked: number }>("POST", "/orders/preparation/printed", { json: { orderIds } }),
   createSale: (

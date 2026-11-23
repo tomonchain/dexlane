@@ -412,6 +412,17 @@ test("ventes : vente directe réservée, prélevée par code, emballée, dépos�
   })).json()) as { stockItem: { unitSku: string } };
   const sku = received.stockItem.unitSku;
 
+  // Frais d'envoi réglés une fois : affranchissement habituel de la lettre suivie, sleeve, top-loader, enveloppe.
+  await page.goto("/reglages");
+  await page.getByRole("link", { name: /Frais d'envoi/ }).click();
+  await page.getByLabel("Lettre suivie (€)").fill("1,29");
+  await page.getByLabel("Sleeve (€)").fill("0,02");
+  await page.getByLabel("Top-loader (€)").fill("0,08");
+  await page.getByLabel("Enveloppe (€)").fill("0,25");
+  await expect(page.getByTestId("supplies-per-card")).toContainText("0,10 €");
+  await page.getByRole("button", { name: "Enregistrer les frais" }).click();
+  await expect(page.getByText("Frais d'envoi enregistrés")).toBeVisible();
+
   await page.goto("/ventes");
   await page.getByRole("link", { name: "Nouvelle vente" }).click();
   await page.getByLabel("Rechercher une carte en stock").fill("OF-SWSH3-136-FR-R-PL");
@@ -425,8 +436,13 @@ test("ventes : vente directe réservée, prélevée par code, emballée, dépos�
   await expect(page.getByTestId("sale-total")).toHaveText("5,00 €");
   await page.getByRole("button", { name: "Enregistrer la vente" }).click();
 
-  // Préparation : l'emplacement est indiqué, un mauvais code est refusé, le bon valide le prélèvement.
+  // Avant la remise, la marge est estimée avec ces frais : 5,00 − 2 × 0,20 de cartes − 1,29 − (2 × 0,10 + 0,25).
   await expect(page.getByTestId("order-stage")).toHaveText("À préparer");
+  await expect(page.getByTestId("order-supplies")).toHaveText("− 0,45 €");
+  await expect(page.getByTestId("order-margin")).toHaveText("2,86 €");
+  await expect(page.getByText("Marge estimée")).toBeVisible();
+
+  // Préparation : l'emplacement est indiqué, un mauvais code est refusé, le bon valide le prélèvement.
   const pick = page.getByTestId(`pick-${sku}`);
   await expect(pick).toContainText("BOX-V");
   await expect(page.getByRole("button", { name: /Prélevez toutes les cartes/ })).toBeDisabled();
@@ -441,10 +457,13 @@ test("ventes : vente directe réservée, prélevée par code, emballée, dépos�
   await expect(page.getByTestId("order-stage")).toHaveText("Emballée");
   await page.getByRole("button", { name: "Confirmer le dépôt" }).click();
   await page.getByLabel("Numéro de suivi").fill("1A23456789");
-  await page.getByLabel("Affranchissement payé (€)").fill("1,29");
+  // L'affranchissement habituel est prérempli ; celui réellement payé le remplace.
+  await expect(page.getByLabel("Affranchissement payé (€)")).toHaveValue("1,29");
+  await page.getByLabel("Affranchissement payé (€)").fill("1,49");
   await page.getByRole("button", { name: "Confirmer le dépôt" }).last().click();
   await expect(page.getByTestId("order-stage")).toHaveText("Remise");
-  await expect(page.getByTestId("order-margin")).toHaveText("3,31 €"); // 5,00 − 2 × 0,20 − 1,29
+  await expect(page.getByTestId("order-margin")).toHaveText("2,66 €"); // 5,00 − 0,40 − 1,49 − 0,45
+  await expect(page.getByText("Marge estimée")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Annuler la vente" })).toHaveCount(0);
 
   // Le stock physique a baissé, la vente figure dans les ventes remises.
