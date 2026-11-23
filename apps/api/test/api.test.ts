@@ -64,6 +64,33 @@ async function fouinarReverse(): Promise<string> {
 
 const count = async (table: string) => (await sql.unsafe<{ n: number }[]>(`select count(*)::int as n from ${table}`))[0]!.n;
 
+describe("database outages", () => {
+  /** Base factice : les `failures` premiers appels échouent comme une connexion qui n'aboutit pas. */
+  function flakySql(failures: number) {
+    let calls = 0;
+    const fake = ((strings: TemplateStringsArray, ...values: unknown[]) => {
+      calls++;
+      if (calls <= failures) return Promise.reject(Object.assign(new Error("write CONNECT_TIMEOUT"), { code: "CONNECT_TIMEOUT" }));
+      return sql(strings, ...(values as never[]));
+    }) as unknown as typeof sql;
+    return { fake, calls: () => calls };
+  }
+
+  it("retries a read when the database does not answer, then reports it as unavailable", async () => {
+    const once = flakySql(1);
+    const recovering = createApp({ sql: once.fake, token: TOKEN, recognizer: () => ({ recognize: (image) => recognize(image) }), photos: createMemoryPhotoStore(), onError: () => undefined });
+    const ok = await recovering.request("/api/health");
+    expect([ok.status, once.calls()]).toEqual([200, 2]);
+
+    const down = flakySql(Infinity);
+    const outage = createApp({ sql: down.fake, token: TOKEN, recognizer: () => ({ recognize: (image) => recognize(image) }), photos: createMemoryPhotoStore(), onError: () => undefined });
+    const failed = await outage.request("/api/health");
+    expect(failed.status).toBe(503);
+    expect(((await failed.json()) as { error: { code: string } }).error.code).toBe("DATABASE_UNAVAILABLE");
+    expect(down.calls()).toBe(3); // la lecture et deux nouvelles tentatives
+  });
+});
+
 describe("authentication", () => {
   it("leaves only the health check open", async () => {
     expect((await call("GET", "/api/health", { token: null })).json).toEqual({ status: "ok" });

@@ -1470,4 +1470,16 @@ test("cache : en revenant sur un écran, ses dernières données s'affichent tou
   await expect(page.getByRole("heading", { name: "Stock", level: 1 })).toBeVisible();
   await expect(rows.first()).toBeVisible();
   await expect(page.getByTestId("skeleton")).toHaveCount(0);
+
+  // Les données restent sur l'appareil : en rouvrant l'application, toujours sans réponse du serveur, le stock revient.
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("dexlane-cache-v1")?.length ?? 0)).toBeGreaterThan(0);
+  await page.reload();
+  await expect(rows.first()).toBeVisible();
+
+  // La déconnexion efface ce qui était gardé.
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+  await page.goto("/compte");
+  await page.getByRole("button", { name: "Se déconnecter" }).click();
+  await page.waitForURL(/\/login/);
+  expect(await page.evaluate(() => localStorage.getItem("dexlane-cache-v1"))).toBeNull();
 });
