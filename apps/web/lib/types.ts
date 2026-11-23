@@ -5,7 +5,7 @@ import type {
   ShippingMode,
 } from "@dexlane/inventory";
 import type {
-  ChannelId, ChannelMode, ChannelState as ChannelStateRow, ListingBlocker, ListingOffer as ListingOfferRow, ListingSettings,
+  Activity as ActivityRow, ChannelId, ChannelMode, ChannelState as ChannelStateRow, ListingBlocker, ListingOffer as ListingOfferRow, ListingSettings,
   ListingState as ListingStateRow, PhotoStyle, PlanResult, Schedule as ScheduleRow, StockDetail as StockDetailRow, StockPage as StockPageRow, StockRow as StockRowRaw, StockStatus,
 } from "@dexlane/listings";
 import type {
@@ -108,6 +108,7 @@ export type ScanItem = Json<ScanItemRow>;
 
 export type { PlanResult };
 export type Schedule = Json<ScheduleRow>;
+export type Activity = Json<ActivityRow>;
 
 /** Papier des bons de livraison et reçus. */
 export type SlipPaper = "ROLL_80" | "ROLL_58" | "LABEL_100X150" | "A4";

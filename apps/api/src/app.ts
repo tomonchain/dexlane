@@ -21,7 +21,7 @@ import { DomainError } from "@dexlane/shared";
 import { changePassword, passwordStatus, setPassword, verifyPassword } from "./auth";
 import { HttpError, errorBody, idempotent, parse, parseJsonBody, secretEquals, statusOfDomainError } from "./http";
 import {
-  cancelPublications, endListing, getListingSettings, getSchedule, getStockDetail, listChannels, listStock, planPublications, queuePublications, runDuePublications, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
+  cancelPublications, endListing, getActivity, getListingSettings, getSchedule, getStockDetail, listChannels, listStock, planPublications, queuePublications, runDuePublications, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
   syncChannels, syncQuantities, type ChannelAdapters,
 } from "@dexlane/listings";
 import { readPhoto, type PhotoStore } from "./photos";
@@ -373,6 +373,9 @@ export function createApp(deps: AppDeps) {
   // ───────────────────────── Statistiques et alertes de prix ─────────────────────────
 
   app.get("/api/stats/dashboard", async (c) => c.json(await getDashboard(sql)));
+
+  /** Activité récente pour l'accueil : ventes jour par jour sur 30 jours, dernières ventes, dernières mises en ligne. */
+  app.get("/api/stats/activity", async (c) => c.json(await getActivity(sql)));
 
   /** Variations de cote des cartes en stock ; `alerts=true` : seulement celles qui dépassent les seuils. */
   app.get("/api/stats/price-moves", async (c) => {

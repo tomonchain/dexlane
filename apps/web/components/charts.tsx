@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, type KeyboardEvent } from "react";
 import { cn } from "@/lib/utils";
 
 const monthName = new Intl.DateTimeFormat("fr-FR", { month: "short" });
@@ -77,6 +78,89 @@ export function MonthlyColumns({ data, format, label }: { data: ColumnDatum[]; f
         <span />
         <div className="grid pt-1.5 text-center text-[11px] text-muted-foreground" style={{ gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))` }} aria-hidden>
           {data.map((d) => <span key={d.key}>{monthName.format(monthDate(d.month)).replace(".", "")}</span>)}
+        </div>
+      </div>
+    </figure>
+  );
+}
+
+const dayShort = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", timeZone: "UTC" });
+const dayFull = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+const dayDate = (day: string) => new Date(`${day}T12:00:00Z`);
+
+export interface DayDatum {
+  /** « 2026-11-23 » */
+  day: string;
+  value: number;
+  /** Lignes de l'infobulle, sous la date : la valeur d'abord, puis son nom. */
+  details: [string, string][];
+}
+
+/**
+ * Colonnes quotidiennes d'une seule série (30 jours) : barres fines arrondies en tête, grille discrète, dates aux extrémités.
+ * Le détail d'un jour s'affiche au survol ; au clavier, le graphique est un seul arrêt et les flèches parcourent les jours.
+ */
+export function DailyColumns({ data, format, label, wholeNumbers = false }: { data: DayDatum[]; format: (value: number) => string; label: string; wholeNumbers?: boolean }) {
+  const [active, setActive] = useState<number | null>(null);
+  const top = Math.max(...data.map((d) => d.value), 0);
+  // Un compte (des ventes) garde des graduations entières : le haut de l'échelle est pair.
+  const nice = niceMax(top);
+  const max = wholeNumbers ? Math.max(nice % 2 === 0 ? nice : nice + 1, 2) : nice;
+  const ticks = [1, 0.5, 0];
+  const last = data.length - 1;
+  const dates = [0, Math.floor(last / 2), last];
+  function onKey(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.preventDefault();
+      setActive((i) => Math.min(last, Math.max(0, (i ?? last + 1) + (e.key === "ArrowLeft" ? -1 : 1))));
+    } else if (e.key === "Escape") setActive(null);
+  }
+  return (
+    <figure
+      className="grid rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30"
+      tabIndex={0}
+      role="img"
+      aria-label={`${label}. Flèches gauche et droite pour parcourir les jours.`}
+      onKeyDown={onKey}
+      onBlur={() => setActive(null)}
+    >
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2.5">
+        <div className="tabular relative h-28 w-11 text-right text-[11px] text-muted-foreground" aria-hidden>
+          {ticks.map((t) => (
+            <span key={t} className="absolute right-0 -translate-y-1/2" style={{ top: `${(1 - t) * 100}%` }}>{format(max * t)}</span>
+          ))}
+        </div>
+        <div className="relative h-28" onPointerLeave={() => setActive(null)}>
+          {ticks.map((t) => <span key={t} className="absolute inset-x-0 border-t border-border/70" style={{ top: `${(1 - t) * 100}%` }} aria-hidden />)}
+          <div className="absolute inset-0 grid" style={{ gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))` }}>
+            {data.map((d, i) => (
+              // La colonne entière est la zone de survol : inutile de viser une barre de quelques pixels.
+              <div key={d.day} data-testid="day-column" className={cn("relative flex h-full items-end justify-center px-px", active === i && "bg-accent/60")} onPointerEnter={() => setActive(i)} onPointerDown={() => setActive(i)}>
+                <span className={cn("w-full max-w-6 rounded-t bg-primary", active !== null && active !== i && "opacity-55")} style={{ height: `${(d.value / max) * 100}%`, minHeight: d.value > 0 ? 2 : 0 }} />
+              </div>
+            ))}
+          </div>
+          {active !== null && (
+            <div
+              role="tooltip"
+              data-testid="day-tooltip"
+              className="pointer-events-none absolute bottom-full z-10 mb-1 w-max min-w-36 rounded-lg border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-lg"
+              style={active / last > 0.5 ? { right: `${(1 - (active + 1) / data.length) * 100}%` } : { left: `${(active / data.length) * 100}%` }}
+            >
+              <p className="mb-1 font-semibold first-letter:uppercase">{dayFull.format(dayDate(data[active]!.day))}</p>
+              <dl className="grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5">
+                {data[active]!.details.map(([name, value]) => (
+                  <div key={name} className="contents"><dd className="tabular font-semibold">{value}</dd><dt className="text-muted-foreground">{name}</dt></div>
+                ))}
+              </dl>
+            </div>
+          )}
+        </div>
+        <span />
+        <div className="relative h-5 pt-1.5 text-[11px] text-muted-foreground" aria-hidden>
+          {dates.map((i, n) => (
+            <span key={i} className={cn("absolute whitespace-nowrap", n === 0 ? "left-0" : n === 2 ? "right-0" : "left-1/2 -translate-x-1/2")}>{dayShort.format(dayDate(data[i]!.day)).replace(".", "")}</span>
+          ))}
         </div>
       </div>
     </figure>

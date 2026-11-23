@@ -993,10 +993,47 @@ test("page d'accueil : vitrine publique sans session, puis « Aujourd'hui » ave
   await page.request.post("/api/locations", { data: { code: "BOITE-11" } });
   const batch = (await (await page.request.post("/api/scan-batches", { data: { name: "Lot d'accueil", locationCode: "BOITE-11", paired: false } })).json()) as { id: string };
   await page.request.post(`/api/scan-batches/${batch.id}/items?position=1&fileName=a.png`, { data: png(CLEAR), headers: { "Content-Type": "image/png" } });
+  // Une carte mise en ligne puis vendue : l'activité récente doit le montrer.
+  const { candidates } = (await (await page.request.get("/api/catalog/cards?name=fouinar")).json()) as { candidates: { variants: { id: string; finish: string }[] }[] };
+  const stocked = (await (await page.request.post("/api/inventory/receive", {
+    data: { variantId: candidates[0]!.variants.find((v) => v.finish === "normal")!.id, condition: "GD", quantity: 3, locationCode: "BOITE-11", unitCostCents: 5 },
+    headers: { "Idempotency-Key": `e2e-accueil-${Date.now()}` },
+  })).json()) as { offer: { id: string } };
+  await page.request.put("/api/channels/ebay", { data: { mode: "SIMULATION" } });
+  await page.request.post(`/api/stock/${stocked.offer.id}/photos`, { data: png(CLEAR), headers: { "Content-Type": "image/png" } });
+  await page.request.post(`/api/listings/offers/${stocked.offer.id}/publish`, { data: { channel: "ebay" } });
+  const sale = (await (await page.request.post("/api/orders", {
+    data: { lines: [{ offerId: stocked.offer.id, qty: 1, unitPriceCents: 250 }], shippingMode: "HAND_DELIVERY", buyerName: "Accueil Test" },
+    headers: { "Idempotency-Key": `e2e-accueil-vente-${Date.now()}` },
+  })).json()) as { externalId: string };
+
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Aujourd'hui" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Navigation principale" }).first()).toBeVisible();
   await expect(page.getByTestId("home-value")).toContainText("€");
+
+  // Activité sur 30 jours : chiffre d'affaires et nombre de ventes en bâtons, un graphique par mesure.
+  const activity = page.getByTestId("home-activity");
+  await expect(activity).toContainText("Chiffre d'affaires");
+  await expect(page.getByTestId("home-revenue")).toContainText("€");
+  await expect(page.getByTestId("home-orders")).not.toHaveText("0");
+  await expect(activity.getByTestId("day-column")).toHaveCount(60); // 30 jours × 2 graphiques
+  // Au clavier, la flèche gauche ouvre le dernier jour : la vente du jour y figure.
+  await activity.getByRole("img").first().focus();
+  await page.keyboard.press("ArrowLeft");
+  const dayTip = activity.getByTestId("day-tooltip");
+  await expect(dayTip).toContainText("chiffre d'affaires");
+  await expect(dayTip).toContainText(/\d+vente/);
+  await page.keyboard.press("Escape");
+  await expect(dayTip).toHaveCount(0);
+  // Dernières ventes et dernières mises en ligne, la plus récente d'abord, avec un lien vers le détail.
+  const lastSale = page.getByTestId("home-sale").first();
+  await expect(lastSale).toContainText(sale.externalId);
+  await expect(lastSale).toContainText("Accueil Test");
+  await expect(lastSale).toContainText("2,50 €");
+  await expect(lastSale).toHaveAttribute("href", /\/ventes\/[0-9a-f-]{36}$/);
+  await expect(page.getByTestId("home-listing").first()).toContainText("Fouinar");
+  await expect(page.getByTestId("home-listing").first()).toContainText("eBay");
   const task = page.getByTestId("home-task").filter({ hasText: "Lot d'accueil" });
   await expect(task).toContainText("carte à corriger");
   await task.click();
