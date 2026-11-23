@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { formatDateTime, formatEuros, variantLabel } from "@/lib/format";
-import type { Activity, OrderList, PriceMoves, ScanBatch, Schedule, StockPage } from "@/lib/types";
+import type { Activity, WatchedCard, OrderList, PriceMoves, ScanBatch, Schedule, StockPage } from "@/lib/types";
 import { CardThumb } from "./card-chooser";
 import { DailyColumns } from "./charts";
 import { Badge } from "./ui/badge";
@@ -20,6 +20,7 @@ interface Data {
   orders: OrderList;
   moves: PriceMoves | null;
   activity: Activity | null;
+  watched: { items: WatchedCard[]; alerts: number } | null;
 }
 
 const CHANNEL_LABEL: Record<string, string> = { direct: "Vente directe", ebay: "eBay", cardtrader: "CardTrader" };
@@ -103,8 +104,9 @@ export function Home() {
       api.orders(),
       api.priceMoves(true).catch(() => null), // les alertes sont un plus : leur absence ne bloque pas l'accueil
       api.activity().catch(() => null), // de même pour l'activité récente
+      api.watchlist().catch(() => null), // et pour les cartes suivies
     ])
-      .then(([stock, batches, schedule, orders, moves, activity]) => setData({ stock, batches: batches.batches, schedule, orders, moves, activity }))
+      .then(([stock, batches, schedule, orders, moves, activity, watched]) => setData({ stock, batches: batches.batches, schedule, orders, moves, activity, watched }))
       .catch((e: Error) => setError(e.message));
   }, []);
 
@@ -141,6 +143,7 @@ export function Home() {
     schedule.failed.length > 0 && <Task key="failed" count={schedule.failed.length} label={schedule.failed.length > 1 ? "mises en ligne en échec" : "mise en ligne en échec"} hint="Prix, photo ou stock manquant au moment de publier" href="/stock" action="Corriger" />,
     orders.counts.TO_PREPARE > 0 && <Task key="prepare" count={orders.counts.TO_PREPARE} label={orders.counts.TO_PREPARE > 1 ? "ventes à préparer" : "vente à préparer"} hint="Cartes réservées, à sortir de leur boîte" href="/ventes" action="Préparer" />,
     orders.counts.PACKED > 0 && <Task key="packed" count={orders.counts.PACKED} label={orders.counts.PACKED > 1 ? "colis à remettre" : "colis à remettre"} hint="Emballés, en attente de dépôt ou de remise" href="/ventes" action="Remettre" />,
+    data.watched && data.watched.alerts > 0 && <Task key="watched" count={data.watched.alerts} label={data.watched.alerts > 1 ? "cartes suivies à regarder" : "carte suivie à regarder"} hint="Prix cible atteint ou variation au-delà de vos seuils" href="/achats" action="Voir les achats" />,
     moves && moves.alerts > 0 && <Task key="alerts" count={moves.alerts} label={moves.alerts > 1 ? "cartes dont la cote a bougé" : "carte dont la cote a bougé"} hint={`Au-delà de ${moves.settings.percent} % sur ${moves.settings.windowDays} jours`} href="/statistiques" action="Voir les variations" />,
   ].filter(Boolean);
 

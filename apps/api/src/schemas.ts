@@ -286,6 +286,18 @@ export const shippingCostsBody = z.strictObject({
     sleeveCents: z.number().int().min(0).max(100_000), toploaderCents: z.number().int().min(0).max(100_000), envelopeCents: z.number().int().min(0).max(100_000),
   }),
 });
+export const watchBody = z.strictObject({
+  variantId: z.uuid(),
+  targetCents: z.number().int().min(1).max(10_000_000).nullable().optional(),
+  note: z.string().trim().max(200).nullable().optional(),
+});
+export const watchUpdateBody = watchBody.omit({ variantId: true });
+export const watchedId = z.uuid();
+export const dealsQuery = z.object({
+  minCents: z.coerce.number().int().min(100).max(10_000_000).default(1000),
+  minDiscount: z.coerce.number().int().min(5).max(90).default(25),
+  freshDays: z.coerce.number().int().min(1).max(14).default(3),
+});
 export const slipsPrintedBody = z.strictObject({ orderIds: z.array(z.uuid()).min(1).max(200) });
 
 export const offerPhotoQuery = z.object({ kind: z.enum(["SCAN_FRONT", "SCAN_BACK"]).default("SCAN_FRONT") });

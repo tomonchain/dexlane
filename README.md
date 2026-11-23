@@ -228,6 +228,13 @@ Ce qui reste une action de votre part, et pourquoi :
 - **La mise en ligne est simulée** tant que les connecteurs eBay et CardTrader ne sont pas branchés.
 - Si l'onglet du lot est fermé avant la fin, ce qui est en file est publié par la tâche quotidienne.
 
+## Achats — cartes suivies et bonnes affaires
+
+- **Cartes suivies** (`/achats`) : une variante précise du catalogue, avec un prix cible d'achat facultatif. Pour chacune : estimation d'après les ventes réussies et annonce la moins chère sur Cardmarket, prix du marché TCGplayer (en dollars, marché américain, jamais converti ni mélangé aux cotes en euros), variation sur la fenêtre des alertes, courbe d'évolution, liens de recherche Cardmarket et eBay. Alertes : l'annonce la moins chère passe sous le prix cible, ou le prix bouge au-delà des seuils d'alerte du tableau de bord ; elles remontent en tête de liste et sur l'accueil. `GET`, `POST /api/watchlist`, `PATCH` et `DELETE /api/watchlist/{id}`.
+- **Bonnes affaires** : parmi les cartes des séries importées relevées depuis moins de 3 jours et cotées au moins 10 € (réglable : 10, 25, 50, 100 €), celles dont l'annonce la moins chère de Cardmarket est au moins 25 % sous le prix des ventes réussies (réglable), la plus grosse économie d'abord. Seules comptent des ventes régulières (semaine et mois renseignés) et des cotes propres à la variante. `GET /api/deals?minCents=&minDiscount=&freshDays=`.
+- **Limite importante** : le guide des prix ne dit ni l'état ni la langue de l'annonce la moins chère ; une « affaire » peut être un exemplaire abîmé ou dans une autre langue. C'est une piste à vérifier sur l'annonce, pas un achat sûr. Les annonces eBay ne sont pas lues (pas d'accès à l'API).
+- **Relevé quotidien** : les cartes en stock et les cartes suivies d'abord, puis les « grosses » cartes des séries importées (cote d'au moins 10 €), les plus anciennement relevées d'abord, jusqu'à 600 cartes par passage et dans la limite du temps d'exécution ; le reste passe au relevé suivant. Les communes à quelques centimes ne sont pas relevées.
+
 ## Ventes directes — points d'attention
 
 - **Même cycle qu'une commande de marketplace** : une vente saisie à la main (canal `direct`, numéro `V-000123`) crée une commande, alloue les positions, puis suit prélèvement → emballage → remise. Le connecteur de marketplace n'aura qu'à importer des commandes dans ce même circuit.

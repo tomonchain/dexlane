@@ -40,7 +40,7 @@ export async function savePricingSettings(sql: Db, settings: PricingSettings, ac
 // ───────────────────────── Cotations ─────────────────────────
 
 /** Dernière cotation connue par variante et par type (cotations toutes conditions confondues). */
-async function latestQuotes(sql: Db, variantIds: string[]): Promise<Map<string, Quote[]>> {
+export async function latestQuotes(sql: Db, variantIds: string[]): Promise<Map<string, Quote[]>> {
   const byVariant = new Map<string, Quote[]>();
   if (variantIds.length === 0) return byVariant;
   const rows = await sql<(Quote & { variantId: string })[]>`

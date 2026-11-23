@@ -1216,3 +1216,62 @@ test("préparation des envois : liste de prélèvement, bon de livraison et reç
   // Tout reste réimprimable tant que la commande n'est pas emballée.
   await expect(doc.getByTestId("sheet-slip").filter({ hasText: order.externalId })).toBeVisible();
 });
+
+test("achats : suivre une carte avec un prix cible, ses prix sur Cardmarket et TCGplayer, alertes, et bonnes affaires sur les grosses cartes", async ({ page }) => {
+  await login(page);
+  await page.goto("/");
+  await page.getByRole("navigation", { name: "Navigation principale" }).last().getByRole("link", { name: "Achats" }).click();
+  await expect(page.getByRole("heading", { name: "Achats" })).toBeVisible();
+
+  // Suivre le Dracaufeu du Set de Base (impression illimitée) avec un prix cible de 100 €.
+  const rows = page.getByTestId("watched-card");
+  const draco = rows.filter({ hasText: "Dracaufeu" });
+  if (await draco.count()) await draco.getByRole("button", { name: "Ne plus suivre Dracaufeu" }).click(); // rejouable
+  await page.getByRole("button", { name: "Suivre une carte" }).click();
+  const dialog = page.getByRole("dialog", { name: "Suivre une carte" });
+  await dialog.getByLabel("Nom").fill("Dracaufeu");
+  await dialog.getByRole("button", { name: "Rechercher dans le catalogue" }).click();
+  await dialog.getByRole("radiogroup", { name: "Cartes proposées" }).getByRole("radio", { name: /Dracaufeu/ }).first().click();
+  await dialog.getByRole("radiogroup", { name: "Variante" }).getByRole("radio", { name: /illimité/ }).click();
+  await dialog.getByLabel("Prix cible (€, facultatif)").fill("100");
+  await dialog.getByRole("button", { name: "Suivre cette carte" }).click();
+  await expect(page.getByText("Dracaufeu suivie")).toBeVisible();
+
+  // Ses prix sur chaque plateforme : ventes réussies 432 €, annonce dès 90 €, TCGplayer 987 $.
+  await expect(draco).toContainText("432,22 €");
+  await expect(draco).toContainText("90,00 €");
+  await expect(draco).toContainText("987,13");
+  // L'annonce la moins chère (90 €) est sous le prix cible : la carte remonte en tête, signalée.
+  await expect(draco).toContainText("Sous votre prix cible");
+  await expect(page.getByText(/demande votre attention|demandent votre attention/)).toBeVisible();
+  await expect(draco.getByRole("link", { name: "Chercher Dracaufeu sur Cardmarket" })).toHaveAttribute("href", /cardmarket\.com.*Dracaufeu/);
+  await draco.getByRole("button", { name: "Évolution du prix de Dracaufeu" }).click();
+  await expect(draco.getByTestId("price-history")).toBeVisible();
+
+  // L'accueil le signale aussi.
+  await page.goto("/");
+  await expect(page.getByTestId("home-task").filter({ hasText: "carte suivie à regarder" })).toBeVisible();
+
+  // Le prix cible se modifie sur place : sous l'annonce la moins chère, l'alerte de cible disparaît.
+  await page.goto("/achats");
+  await draco.getByLabel("Prix cible pour Dracaufeu").fill("80");
+  await draco.getByLabel("Prix cible pour Dracaufeu").press("Enter");
+  await expect(page.getByText("Prix cible : 80,00 €")).toBeVisible();
+  await expect(draco).not.toContainText("Sous votre prix cible");
+
+  // Bonnes affaires : les cartes de plus de 10 € annoncées nettement sous leurs ventes, la plus grosse affaire d'abord.
+  await page.goto("/achats");
+  await page.getByRole("tab", { name: "Bonnes affaires" }).click();
+  const deal = page.getByTestId("deal").filter({ hasText: "Dracaufeu" }).first();
+  await expect(deal).toContainText("−79 %");
+  await expect(deal).toContainText("Suivie");
+  await expect(page.getByTestId("deals-scope")).toContainText("vérifiez l'annonce avant d'acheter");
+  await expect(page.getByTestId("deal").filter({ hasText: "Fouinar" })).toHaveCount(0); // une commune à quelques centimes n'est pas une affaire
+  await page.getByLabel("Valeur minimale").selectOption("10000");
+  await expect(page.getByTestId("deal").filter({ hasText: "Dracaufeu" })).toHaveCount(1); // 432 € > 100 €
+
+  // Ne plus suivre.
+  await page.getByRole("tab", { name: /Cartes suivies/ }).click();
+  await draco.getByRole("button", { name: "Ne plus suivre Dracaufeu" }).click();
+  await expect(page.getByText("Dracaufeu n'est plus suivie")).toBeVisible();
+});

@@ -274,30 +274,42 @@ export async function getSetDetail(sql: Db, language: string, setId: string): Pr
 }
 
 /**
- * Rafraîchit les cotations des cartes détenues en stock, les plus anciennement synchronisées d'abord.
- * Bien plus léger qu'une resynchronisation de séries entières : c'est ce que lance la tâche quotidienne.
+ * Rafraîchit les cotations des cartes suivies de près : celles en stock et celles de la liste d'achats d'abord, puis les
+ * « grosses » cartes des séries importées (cote d'au moins `bigFromCents`), les plus anciennement relevées d'abord.
+ * Bien plus léger qu'une resynchronisation de séries entières : c'est ce que lance la tâche quotidienne. S'arrête de
+ * lancer de nouvelles lectures à `deadlineMs` pour tenir dans le temps d'exécution ; le reste passe au relevé suivant.
  */
-export async function refreshOwnedPrices(
+export async function refreshTrackedPrices(
   sql: Db,
   client: TcgdexClient,
-  opts: { limit?: number; concurrency?: number } = {},
+  opts: { limit?: number; concurrency?: number; bigFromCents?: number | null; deadlineMs?: number } = {},
 ): Promise<{ cards: number; pricesInserted: number; errors: number; remaining: number }> {
-  const limit = opts.limit ?? 400;
-  const owned = await sql<{ language: string; tcgdexId: string; total: number }[]>`
+  const limit = opts.limit ?? 600;
+  const big = opts.bigFromCents === undefined ? 1000 : opts.bigFromCents;
+  const deadline = Date.now() + (opts.deadlineMs ?? 200_000);
+  const owned = sql`exists (
+    select 1 from card_variants v join offers o on o.variant_id = v.id join stock_items s on s.offer_id = o.id
+     where v.catalog_card_id = c.id and s.on_hand > 0 and s.lifecycle <> 'ARCHIVED')`;
+  const watched = sql`exists (select 1 from card_variants v join watched_cards w on w.variant_id = v.id where v.catalog_card_id = c.id)`;
+  const valuable = big === null ? sql`false` : sql`exists (
+    select 1 from card_variants v join price_snapshots ps on ps.variant_id = v.id
+     where v.catalog_card_id = c.id and ps.quote_type in ('SOLD_AVG_30D', 'LISTED_TREND') and ps.currency = 'EUR'
+       and ps.amount_cents >= ${big} and ps.observed_at >= now() - interval '60 days')`;
+  const tracked = await sql<{ language: string; tcgdexId: string; total: number }[]>`
     select c.language, c.external_ids->>'tcgdex' as tcgdex_id, count(*) over ()::int as total
       from catalog_cards c
-     where c.external_ids ? 'tcgdex'
-       and exists (
-         select 1 from card_variants v
-           join offers o on o.variant_id = v.id
-           join stock_items s on s.offer_id = o.id
-          where v.catalog_card_id = c.id and s.on_hand > 0 and s.lifecycle <> 'ARCHIVED')
-     order by c.synced_at nulls first, c.id
+     where c.external_ids ? 'tcgdex' and (${owned} or ${watched} or ${valuable})
+     order by case when ${owned} or ${watched} then 0 else 1 end, c.synced_at nulls first, c.id
      limit ${limit}`;
-  const stats = { cards: 0, pricesInserted: 0, errors: 0, remaining: Math.max((owned[0]?.total ?? 0) - owned.length, 0) };
-  const queue = [...owned];
+  const stats = { cards: 0, pricesInserted: 0, errors: 0, remaining: Math.max((tracked[0]?.total ?? 0) - tracked.length, 0) };
+  const queue = [...tracked];
   const worker = async () => {
     for (let card = queue.shift(); card; card = queue.shift()) {
+      if (Date.now() > deadline) {
+        stats.remaining += 1 + queue.length;
+        queue.length = 0;
+        break;
+      }
       try {
         const detail = await client.getCard(card.language, card.tcgdexId);
         if (!detail) throw new Error("card not found");
