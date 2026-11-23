@@ -1229,10 +1229,11 @@ test("achats : suivre une carte avec un prix cible, ses prix sur Cardmarket et T
   if (await draco.count()) await draco.getByRole("button", { name: "Ne plus suivre Dracaufeu" }).click(); // rejouable
   await page.getByRole("button", { name: "Suivre une carte" }).click();
   const dialog = page.getByRole("dialog", { name: "Suivre une carte" });
-  // Sans saisie : les cartes les plus chères du moment, classées par prix des ventes, prêtes à suivre d'un clic.
+  // Sans saisie : les cartes les plus demandées (vendues la veille, prix de vente en hausse), prêtes à suivre d'un clic.
   const top = dialog.getByTestId("top-cards");
   await expect(top.getByTestId("pick-card").first()).toContainText("Dracaufeu");
   await expect(top.getByTestId("pick-card").first()).toContainText("432,22 €");
+  await expect(top.getByTestId("pick-card").first()).toContainText("+11 % cette semaine");
   // Une seule saisie : nom et numéro ensemble ; une ligne par variante.
   await dialog.getByLabel("Rechercher une carte").fill("dracaufeu 4/102");
   const results = dialog.getByTestId("search-results").getByTestId("pick-card");

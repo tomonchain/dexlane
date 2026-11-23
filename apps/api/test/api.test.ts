@@ -429,9 +429,10 @@ describe("purchases", () => {
     const found = (await call("GET", "/api/catalog/search?q=mew%20151")).json.results;
     expect(found).toMatchObject([{ variantId, name: "Mew-ex", estimate: { cents: 760 }, watchedId: watched.json.id }]);
     expect((await call("GET", "/api/catalog/search?q=m")).json.results).toEqual([]);
-    const top = (await call("GET", "/api/purchases/top?limit=5")).json.cards;
-    expect(top.length).toBeGreaterThan(0);
-    expect(top.map((t: { sales: { cents: number } }) => t.sales.cents)).toEqual([...top.map((t: { sales: { cents: number } }) => t.sales.cents)].sort((x, y) => y - x));
+    // Cartes demandées : Dracaufeu (Set de Base) s'est vendu la veille, 454 € sur la semaine contre 410 € sur le mois : +11 %.
+    const trending = (await call("GET", "/api/purchases/trending?limit=5")).json.cards;
+    expect(trending[0]).toMatchObject({ card: { name: "Dracaufeu" }, trendPercent: 11 });
+    expect(trending.map((t: { card: { name: string } }) => t.card.name)).not.toContain("Mew-ex"); // moins de 10 €
 
     expect((await call("DELETE", `/api/watchlist/${watched.json.id}`, { key: null })).status).toBe(200);
     expect((await call("DELETE", `/api/watchlist/${watched.json.id}`, { key: null })).status).toBe(404);

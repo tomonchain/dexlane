@@ -15,7 +15,8 @@ import { SwitchRow } from "@/components/ui/switch";
 import { Pagination, paginate } from "@/components/ui/tabs";
 import { type ApiError, api } from "@/lib/api";
 import { catalogMessage, fold, importedLabel } from "@/lib/catalog";
-import { cardImage, formatDateTime, formatEuros, variantLabel } from "@/lib/format";
+import { useCardImage } from "@/lib/card-image";
+import { formatDateTime, formatEuros, variantLabel } from "@/lib/format";
 import { CONFIDENCE_LABEL } from "@/lib/pricing";
 import type { CatalogSetCard, CatalogSetDetail } from "@/lib/types";
 import { PageSkeleton } from "@/components/skeletons";
@@ -23,13 +24,12 @@ import { PageSkeleton } from "@/components/skeletons";
 const PAGE_SIZE = 24;
 
 function CardTile({ card }: { card: CatalogSetCard }) {
-  const [broken, setBroken] = useState(false);
-  const src = cardImage(card.imageUrl);
+  const { src, onError } = useCardImage(card.imageUrl);
   return (
     <Card className="flex flex-col overflow-hidden" data-testid={`card-${card.localNumber}`}>
       <div className="relative bg-muted">
-        {src && !broken
-          ? <img src={src} alt="" loading="lazy" onError={() => setBroken(true)} className="aspect-[63/88] w-full object-cover" />
+        {src
+          ? <img src={src} alt="" loading="lazy" onError={onError} className="aspect-[63/88] w-full object-cover" />
           : <div className="flex aspect-[63/88] w-full items-center justify-center text-muted-foreground/40" aria-hidden><BookOpen className="size-8" /></div>}
         {card.owned > 0 && (
           <Badge variant="success" className="absolute top-2 right-2 shadow-sm"><PackageCheck /> {card.owned} en stock</Badge>

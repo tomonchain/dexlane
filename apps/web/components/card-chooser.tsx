@@ -3,7 +3,7 @@
 import { ImageOff, Search } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { api } from "@/lib/api";
-import { cardImage } from "@/lib/format";
+import { useCardImage } from "@/lib/card-image";
 import type { Candidate } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Alert } from "./ui/alert";
@@ -16,17 +16,16 @@ const SIZES = { sm: "w-11 rounded-[5px]", md: "w-14 rounded-md", lg: "w-24 round
 
 /** Visuel de catalogue au format carte ; repli neutre si l'image manque ou ne charge pas. */
 export function CardThumb({ imageUrl, size = "md", className }: { imageUrl: string | null; size?: keyof typeof SIZES; className?: string }) {
-  const [broken, setBroken] = useState(false);
-  const src = cardImage(imageUrl);
+  const { src, onError } = useCardImage(imageUrl);
   const box = cn("aspect-[63/88] shrink-0 bg-muted ring-1 ring-border", SIZES[size], className);
-  if (!src || broken) {
+  if (!src) {
     return (
       <div className={cn(box, "flex items-center justify-center text-muted-foreground/50")} aria-hidden>
         <ImageOff className={size === "lg" ? "size-6" : "size-4"} />
       </div>
     );
   }
-  return <img className={cn(box, "object-cover")} src={src} alt="" loading="lazy" onError={() => setBroken(true)} />;
+  return <img className={cn(box, "object-cover")} src={src} alt="" loading="lazy" onError={onError} />;
 }
 
 function Score({ value }: { value: number }) {

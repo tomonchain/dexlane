@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { useTestDb } from "@dexlane/db/testing";
 import { createLocation, receiveCard } from "@dexlane/inventory";
-import { findDeals, listWatched, saveAlertSettings, topCards, unwatchCard, updateWatched, watchCard } from "../src";
+import { findDeals, listWatched, saveAlertSettings, trendingCards, unwatchCard, updateWatched, watchCard } from "../src";
 
 const sql = useTestDb("pricing");
 let seq = 0;
@@ -23,6 +23,11 @@ async function card(name: string, reading: { week?: number; month?: number; low?
   await add("MARKET", reading.usd, "USD");
   return v!.id;
 }
+/** Ajoute la moyenne des ventes de la veille au relevé du jour d'une carte : elle s'est vendue hier. */
+const old0 = (variantId: string, _: { day: number }) => sql`
+  insert into price_snapshots (variant_id, source, quote_type, currency, amount_cents, observed_at, variant_ambiguous)
+  select variant_id, source, 'SOLD_AVG_1D', currency, amount_cents, observed_at, variant_ambiguous
+    from price_snapshots where variant_id = ${variantId} and quote_type = 'SOLD_AVG_7D'`;
 const old = (variantId: string, type: string, cents: number, ageDays: number) => sql`
   insert into price_snapshots (variant_id, source, quote_type, currency, amount_cents, observed_at)
   values (${variantId}, 'cardmarket', ${type}, 'EUR', ${cents}, now() - make_interval(secs => ${ageDays * 86400}))`;
@@ -95,23 +100,21 @@ describe("deals", () => {
   });
 });
 
-describe("biggest cards of the moment", () => {
-  it("ranks regularly selling cards by their sales price, with the week's trend", async () => {
-    await card("Dracaufeu", { week: 46000, month: 40000, low: 30000 }); // 430 €, semaine +15 %
-    const lugia = await card("Lugia", { week: 9000, month: 10000 }); // 95 €, semaine −10 %
-    await card("Mew", { week: 2000, month: 2000 });
-    await card("Peu vendue", { month: 90000 }); // une seule période : écartée
-    await card("Partagée", { week: 80000, month: 80000, ambiguous: true }); // cote commune : écartée
-    await card("Ancienne", { week: 70000, month: 70000, ageDays: 10 }); // relevé trop vieux : écartée
-    const watched = await watchCard(sql, { variantId: lugia });
+describe("most wanted cards of the moment", () => {
+  it("ranks cards over 10 € that sold yesterday by how much their weekly sales price exceeds the monthly one", async () => {
+    const sold = { day: 1 };
+    await card("Dracaufeu", { week: 46000, month: 40000, low: 30000 }); // +15 % mais pas vendue hier : écartée
+    await old0(await card("Lugia", { week: 12000, month: 10000 }), sold); // +20 %
+    await old0(await card("Mew", { week: 2600, month: 2000 }), sold); // +30 %
+    await old0(await card("Ectoplasma", { week: 9000, month: 10000 }), sold); // en baisse : écartée
+    await old0(await card("Commune", { week: 60, month: 30 }), sold); // trop petite
+    await old0(await card("Partagée", { week: 9000, month: 5000, ambiguous: true }), sold); // cote commune : écartée
+    const watched = await watchCard(sql, { variantId: (await sql<{ id: string }[]>`select v.id from card_variants v join catalog_cards c on c.id = v.catalog_card_id where c.name = 'Lugia'`)[0]!.id });
 
-    const top = await topCards(sql, { limit: 2 });
-    expect(top.map((t) => [t.card.name, t.sales.cents, t.trendPercent])).toEqual([["Dracaufeu", 43000, 15], ["Lugia", 9500, -10]]);
-    expect(top[1]).toMatchObject({ watchedId: watched.id, sales: { confidence: "HIGH" } });
-    expect((await topCards(sql)).map((t) => t.card.name)).toEqual(["Dracaufeu", "Lugia", "Mew"]);
-    // Les « grosses » cartes seulement : 10 € au moins par défaut.
-    await card("Commune", { week: 30, month: 30 });
-    expect((await topCards(sql, { limit: 20 })).map((t) => t.card.name)).not.toContain("Commune");
-    expect((await topCards(sql, { minCents: 5000 })).map((t) => t.card.name)).toEqual(["Dracaufeu", "Lugia"]);
+    const top = await trendingCards(sql);
+    expect(top.map((t) => [t.card.name, t.trendPercent])).toEqual([["Mew", 30], ["Lugia", 20]]);
+    expect(top[1]).toMatchObject({ watchedId: watched.id, sales: { cents: 11000 } });
+    expect((await trendingCards(sql, { limit: 1 })).map((t) => t.card.name)).toEqual(["Mew"]);
+    expect((await trendingCards(sql, { minCents: 5000 })).map((t) => t.card.name)).toEqual(["Lugia"]);
   });
 });

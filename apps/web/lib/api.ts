@@ -158,7 +158,7 @@ export const api = {
   updateWatched: (id: string, change: { targetCents?: number | null; note?: string | null }) => request<{ ok: true }>("PATCH", `/watchlist/${id}`, { json: change }),
   unwatch: (id: string) => request<{ ok: true }>("DELETE", `/watchlist/${id}`),
   searchCards: (q: string) => request<{ results: CatalogHit[] }>("GET", "/catalog/search", { query: { q } }),
-  topCards: (limit = 5) => request<{ cards: TopCard[] }>("GET", "/purchases/top", { query: { limit } }),
+  trendingCards: (limit = 5) => request<{ cards: TopCard[] }>("GET", "/purchases/trending", { query: { limit } }),
   deals: (q: { minCents?: number; minDiscount?: number; freshDays?: number }) => request<DealList>("GET", "/deals", { query: q }),
   refreshPrices: () => request<{ cards: number; pricesInserted: number; errors: number; remaining: number; repriced: number }>("POST", "/prices/refresh"),
 

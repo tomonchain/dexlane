@@ -224,7 +224,7 @@ function WatchModal({ onClose, onWatched }: { onClose: () => void; onWatched: ()
   const searching = query.trim().length >= 2;
 
   useEffect(() => {
-    api.topCards(5).then((r) => setTop(r.cards)).catch(() => setTop([]));
+    api.trendingCards(5).then((r) => setTop(r.cards)).catch(() => setTop([]));
   }, []);
   useEffect(() => {
     if (!searching) {
@@ -267,14 +267,17 @@ function WatchModal({ onClose, onWatched }: { onClose: () => void; onWatched: ()
         </div>
 
         {!searching ? (
-          <section className="grid gap-2" aria-label="Les plus chères du moment" data-testid="top-cards">
+          <section className="grid gap-2" aria-label="Les plus demandées en ce moment" data-testid="top-cards">
             <div className="grid gap-0.5 px-1">
-              <h3 className="text-xs font-medium text-muted-foreground">Les plus chères du moment</h3>
-              <p className="text-[11px] text-muted-foreground">Cartes de plus de 10 € qui se vendent régulièrement dans vos séries importées, classées par prix des ventes réussies sur Cardmarket.</p>
+              <h3 className="text-xs font-medium text-muted-foreground">Les plus demandées en ce moment</h3>
+              <p className="text-[11px] text-muted-foreground">
+                Cartes de plus de 10 € de vos séries importées, vendues hier sur Cardmarket et dont le prix de vente monte le plus cette semaine : la demande dépasse l'offre.
+                Cardmarket ne publie pas le nombre de recherches ; c'est l'indice le plus proche.
+              </p>
             </div>
-            {!top ? <ListSkeleton count={5} thumb label="Chargement des cartes du moment" /> : top.length === 0 ? (
+            {!top ? <ListSkeleton count={5} thumb label="Chargement des cartes demandées" /> : top.length === 0 ? (
               <p className="rounded-lg border border-dashed px-4 py-6 text-center text-[13px] text-muted-foreground">
-                Pas encore de prix récents. Importez des séries dans le catalogue, puis actualisez les prix.
+                Aucune carte de plus de 10 € en hausse dans vos séries importées. Importez d'autres séries dans le catalogue, ou actualisez les prix.
               </p>
             ) : (
               <ul className="divide-y overflow-hidden rounded-lg border bg-card">

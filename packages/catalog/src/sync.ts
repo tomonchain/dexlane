@@ -105,6 +105,9 @@ async function upsertSet(sql: Db, set: TcgdexSet, language: string): Promise<voi
       logo_url = excluded.logo_url, symbol_url = excluded.symbol_url, synced_at = now()`;
 }
 
+/** Adresse des images anglaises de TCGdex, complétée par série, numéro de série et numéro de carte. */
+const ENGLISH_ASSETS = "https://assets.tcgdex.net/en/";
+
 /** Enregistre une carte et ses variantes dans une transaction. Exporté pour l'import manuel et les tests. */
 export function upsertCard(sql: Db, mapped: MappedCardWithVariants, withPrices = true) {
   return withTx(sql, async (tx) => {
@@ -112,7 +115,11 @@ export function upsertCard(sql: Db, mapped: MappedCardWithVariants, withPrices =
     const [card] = await tx<{ id: string }[]>`
       insert into catalog_cards (set_id, local_number, name, language, rarity, category, image_url,
                                  external_ids, source_updated_at, synced_at)
-      values (${c.setId}, ${c.localNumber}, ${c.name}, ${c.language}, ${c.rarity}, ${c.category}, ${c.imageUrl},
+      -- Sans image dans cette langue, l'image anglaise de la même carte (même série, même numéro) ; l'écran se rabat
+      -- sur un emplacement vide si elle manque aussi.
+      values (${c.setId}, ${c.localNumber}, ${c.name}, ${c.language}, ${c.rarity}, ${c.category},
+              coalesce(${c.imageUrl}, (select ${ENGLISH_ASSETS} || st.serie_id || '/' || st.id || '/' || ${c.localNumber}
+                                         from catalog_sets st where st.id = ${c.setId} and st.language = ${c.language} and st.serie_id is not null)),
               ${tx.json(c.externalIds)}, ${c.sourceUpdatedAt}, now())
       on conflict (set_id, local_number, language) do update set
         name = excluded.name, rarity = excluded.rarity, category = excluded.category,

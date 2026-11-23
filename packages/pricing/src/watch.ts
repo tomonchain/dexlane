@@ -241,7 +241,7 @@ export async function findDeals(sql: Db, query: DealQuery = {}): Promise<{ deals
   return { deals: deals.slice(0, limit), examined, freshDays, minCents, minDiscount };
 }
 
-// ───────────────────────── Grosses cartes du moment ─────────────────────────
+// ───────────────────────── Cartes demandées du moment ─────────────────────────
 
 export interface TopCard {
   variantId: string;
@@ -250,27 +250,39 @@ export interface TopCard {
   watchedId: string | null;
   /** Prix des ventes réussies et sa fiabilité. */
   sales: SalesEstimate;
-  /** Ventes de la semaine comparées à celles du mois, en pourcentage ; null sans les deux. */
-  trendPercent: number | null;
+  /** Ventes de la semaine comparées à celles du mois, en pourcentage : la hausse qui classe la carte. */
+  trendPercent: number;
 }
 
 /**
- * Les cartes les plus chères du moment parmi les séries importées : classées par prix des ventes réussies, relevées depuis
- * moins de `freshDays` jours, avec des ventes régulières et une cote propre à la variante. La source ne publie ni volume de
- * ventes ni nombre de recherches : c'est le prix qui classe, pas la popularité.
+ * Les cartes les plus demandées du moment, d'après les ventes : vendues la veille sur Cardmarket, et dont le prix de vente
+ * de la semaine dépasse le plus celui du mois — la demande va plus vite que l'offre. La source ne publie pas le nombre de
+ * recherches : c'est l'indice qui s'en approche le plus avec ce qu'elle donne. Parmi les cartes d'au moins `minCents`,
+ * relevées depuis moins de `freshDays` jours, avec une cote propre à la variante.
  */
-export async function topCards(sql: Db, opts: { limit?: number; freshDays?: number; minCents?: number } = {}): Promise<TopCard[]> {
+export async function trendingCards(sql: Db, opts: { limit?: number; freshDays?: number; minCents?: number } = {}): Promise<TopCard[]> {
   const limit = Math.min(Math.max(opts.limit ?? 5, 1), 20);
   const freshDays = opts.freshDays ?? 7;
   const minCents = opts.minCents ?? 1000;
+  // Premier tri en base : semaine au-dessus du mois, vente la veille, cote propre ; la hausse la plus forte d'abord.
   const candidates = await sql<{ variantId: string }[]>`
-    select variant_id from (
-      select distinct on (variant_id) variant_id, amount_cents from price_snapshots
-       where quote_type = 'SOLD_AVG_30D' and currency = 'EUR' and condition is null and not variant_ambiguous
-         and observed_at >= now() - make_interval(days => ${freshDays}) and amount_cents >= ${Math.floor(minCents * 0.8)}
-       order by variant_id, observed_at desc) latest
-     order by amount_cents desc
-     limit ${limit * 6}`;
+    with latest as (
+      select distinct on (variant_id, quote_type) variant_id, quote_type, amount_cents, variant_ambiguous
+        from price_snapshots
+       where quote_type in ('SOLD_AVG_7D', 'SOLD_AVG_30D', 'SOLD_AVG_1D') and currency = 'EUR' and condition is null
+         and observed_at >= now() - make_interval(days => ${freshDays})
+       order by variant_id, quote_type, observed_at desc),
+    rated as (
+      select variant_id,
+             max(amount_cents) filter (where quote_type = 'SOLD_AVG_7D') as week,
+             max(amount_cents) filter (where quote_type = 'SOLD_AVG_30D') as month,
+             bool_or(quote_type = 'SOLD_AVG_1D') as sold_yesterday,
+             bool_or(variant_ambiguous) as ambiguous
+        from latest group by variant_id)
+    select variant_id from rated
+     where month >= ${Math.floor(minCents * 0.8)} and week > month and sold_yesterday and not ambiguous
+     order by week::float / month desc, month desc
+     limit ${limit * 4}`;
   const ids = candidates.map((c) => c.variantId);
   if (ids.length === 0) return [];
   const [quotes, info] = await Promise.all([
@@ -284,14 +296,15 @@ export async function topCards(sql: Db, opts: { limit?: number; freshDays?: numb
   ]);
   return info
     .flatMap((row): TopCard[] => {
+      // Tout doit venir du même relevé : semaine, mois et vente de la veille.
       const cardmarket = cardmarketOf(quotes.get(row.variantId) ?? []);
       const sales = cardmarket.sales;
-      if (!sales || sales.confidence === "LOW" || cardmarket.ambiguous || sales.cents < minCents) return [];
-      const week = sales.sales.find((s) => s.quoteType === "SOLD_AVG_7D")?.amountCents;
-      const month = sales.sales.find((s) => s.quoteType === "SOLD_AVG_30D")?.amountCents;
-      const trendPercent = week && month ? Math.round(((week - month) / month) * 100) : null;
-      return [{ ...row, sales, trendPercent }];
+      if (!sales || cardmarket.ambiguous || sales.cents < minCents) return [];
+      const amount = (type: string) => sales.sales.find((s) => s.quoteType === type)?.amountCents;
+      const [week, month] = [amount("SOLD_AVG_7D"), amount("SOLD_AVG_30D")];
+      if (!week || !month || week <= month || amount("SOLD_AVG_1D") === undefined) return [];
+      return [{ ...row, sales, trendPercent: Math.round(((week - month) / month) * 100) }];
     })
-    .sort((a, b) => b.sales.cents - a.sales.cents)
+    .sort((a, b) => b.trendPercent - a.trendPercent || b.sales.cents - a.sales.cents)
     .slice(0, limit);
 }
