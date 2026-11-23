@@ -13,6 +13,7 @@ import { Pagination, SegmentedTabs, paginate } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { CATALOG_LANGUAGES, catalogMessage, fold, importedLabel } from "@/lib/catalog";
 import { formatDateTime } from "@/lib/format";
+import { t, tn } from "@/lib/i18n";
 import { useStored } from "@/lib/storage";
 import type { CatalogSet, SetSyncReport } from "@/lib/types";
 import { ListSkeleton } from "@/components/skeletons";
@@ -72,8 +73,8 @@ export default function CatalogPage() {
     try {
       const report: SetSyncReport = await api.syncCatalogSet(set.id, language);
       const outcome: Outcome = report.errorCount
-        ? { kind: "warning", text: `${importedLabel(report.cards)}, ${report.errorCount} en échec : relancez pour les compléter.` }
-        : { kind: "success", text: `${importedLabel(report.cards)} (variantes : ${report.variants}, cotations : ${report.pricesInserted}).` };
+        ? { kind: "warning", text: t("{imported}, {n} en échec : relancez pour les compléter.", { imported: importedLabel(report.cards), n: report.errorCount }) }
+        : { kind: "success", text: t("{imported} (variantes : {variants}, cotations : {prices}).", { imported: importedLabel(report.cards), variants: report.variants, prices: report.pricesInserted }) };
       setOutcomes((o) => ({ ...o, [set.id]: outcome }));
       // La série change d'onglet : on la suit pour que le résultat reste sous les yeux.
       if (report.cards > 0) {
@@ -123,22 +124,22 @@ export default function CatalogPage() {
   return (
     <div className="grid gap-5">
       <PageHeader
-        title="Catalogue"
-        description="Le scan et la recherche ne trouvent que les cartes des séries importées. Réimporter une série met à jour ses cartes et ajoute les cotations du jour."
+        title={t("Catalogue")}
+        description={t("Le scan et la recherche ne trouvent que les cartes des séries importées. Réimporter une série met à jour ses cartes et ajoute les cotations du jour.")}
         actions={
           <Button variant="outline" onClick={refresh} disabled={refreshing || syncing !== null}>
-            {refreshing ? <Spinner /> : <RefreshCw />} {sets?.length ? "Actualiser la liste" : "Charger la liste"}
+            {refreshing ? <Spinner /> : <RefreshCw />} {sets?.length ? t("Actualiser la liste") : t("Charger la liste")}
           </Button>
         }
       />
 
       <div className="grid gap-3 sm:grid-cols-[11rem_14rem_minmax(0,1fr)]">
-        <Field label="Langue des cartes">
+        <Field label={t("Langue des cartes")}>
           <Select value={language} onChange={(e) => setLanguage(e.target.value)}>
-            {CATALOG_LANGUAGES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+            {CATALOG_LANGUAGES.map(([code, label]) => <option key={code} value={code}>{t(label)}</option>)}
           </Select>
         </Field>
-        <Field label="Bloc">
+        <Field label={t("Bloc")}>
           <Select
             value={block}
             onChange={(e) => {
@@ -147,17 +148,17 @@ export default function CatalogPage() {
             }}
             disabled={blocks.length === 0}
           >
-            <option value="">{blocks.length === 0 ? "Actualisez la liste" : "Tous les blocs"}</option>
+            <option value="">{blocks.length === 0 ? t("Actualisez la liste") : t("Tous les blocs")}</option>
             {blocks.map((b) => <option key={b.id} value={b.id}>{b.name} ({b.count})</option>)}
-            {blocks.length > 0 && unassigned && <option value={NO_BLOCK}>Sans bloc</option>}
+            {blocks.length > 0 && unassigned && <option value={NO_BLOCK}>{t("Sans bloc")}</option>}
           </Select>
         </Field>
-        <Field label="Filtrer les séries">
+        <Field label={t("Filtrer les séries")}>
           <span className="relative block">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
             <Input
               type="search"
-              placeholder="Nom ou identifiant (151, swsh3…)"
+              placeholder={t("Nom ou identifiant (151, swsh3…)")}
               value={filter}
               onChange={(e) => {
                 setFilter(e.target.value);
@@ -171,25 +172,25 @@ export default function CatalogPage() {
       </div>
 
       {error && <Alert variant="destructive">{error}</Alert>}
-      {!sets && !error && <ListSkeleton count={6} label="Chargement des séries" />}
+      {!sets && !error && <ListSkeleton count={6} label={t("Chargement des séries")} />}
       {sets?.length === 0 && !refreshing && (
-        <EmptyState icon={<BookOpen />} title="Aucune série connue pour cette langue" action={<Button size="sm" onClick={refresh}><CloudDownload /> Charger la liste</Button>}>
-          Chargez la liste des séries, puis importez celles que vous possédez.
+        <EmptyState icon={<BookOpen />} title={t("Aucune série connue pour cette langue")} action={<Button size="sm" onClick={refresh}><CloudDownload /> {t("Charger la liste")}</Button>}>
+          {t("Chargez la liste des séries, puis importez celles que vous possédez.")}
         </EmptyState>
       )}
 
       {sets && sets.length > 0 && (
         <>
           <SegmentedTabs
-            label="Séries"
+            label={t("Séries")}
             value={currentTab}
             onChange={(next) => {
               setTab(next);
               setPage(1);
             }}
             tabs={[
-              { value: "imported", label: "Importées", count: imported.length },
-              { value: "pending", label: "Non importées", count: pending.length },
+              { value: "imported", label: t("Importées"), count: imported.length },
+              { value: "pending", label: t("Non importées"), count: pending.length },
             ]}
           />
 
@@ -206,13 +207,13 @@ export default function CatalogPage() {
                   <>
                     <span className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium">{s.name}</span>
-                      {isImported && <Badge variant="success">{s.cardsSynced} carte{s.cardsSynced > 1 ? "s" : ""}</Badge>}
+                      {isImported && <Badge variant="success">{tn(s.cardsSynced, "{n} carte", "{n} cartes")}</Badge>}
                     </span>
                     <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                       <Code>{s.id}</Code>
-                      {total ? ` · ${total} cartes` : ""}
+                      {total ? ` · ${t("{n} cartes", { n: total })}` : ""}
                       {s.releaseDate ? ` · ${s.releaseDate.slice(0, 4)}` : ""}
-                      {isImported && s.cardsSyncedAt ? ` · importée le ${formatDateTime(s.cardsSyncedAt)}` : ""}
+                      {isImported && s.cardsSyncedAt ? ` · ${t("importée le {date}", { date: formatDateTime(s.cardsSyncedAt) })}` : ""}
                     </span>
                   </>
                 );
@@ -220,13 +221,13 @@ export default function CatalogPage() {
                   <Fragment key={s.id}>
                   {newBlock && (
                     <h2 className="bg-muted/50 px-4 py-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase sm:px-5">
-                      {s.serieName ?? "Sans bloc"}
+                      {s.serieName ?? t("Sans bloc")}
                     </h2>
                   )}
                   <div className="grid gap-2.5 px-4 py-3 sm:px-5" data-testid={`set-${s.id}`}>
                     <div className="flex items-center gap-3">
                       {isImported ? (
-                        <Link href={`/catalogue/${encodeURIComponent(s.id)}?langue=${language}`} className="group flex min-w-0 flex-1 items-center gap-2 rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30" aria-label={`Voir la série ${s.name}`}>
+                        <Link href={`/catalogue/${encodeURIComponent(s.id)}?langue=${language}`} className="group flex min-w-0 flex-1 items-center gap-2 rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30" aria-label={t("Voir la série {name}", { name: s.name })}>
                           <span className="min-w-0 flex-1 group-hover:[&>span:first-child>span:first-child]:underline">{meta}</span>
                           <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                         </Link>
@@ -234,12 +235,12 @@ export default function CatalogPage() {
                         <span className="min-w-0 flex-1">{meta}</span>
                       )}
                       <Button variant={isImported ? "outline" : "default"} size="sm" onClick={() => sync(s)} disabled={syncing !== null || refreshing}>
-                        {busy ? <><Spinner className={isImported ? undefined : "text-primary-foreground"} /> Import…</> : isImported ? "Mettre à jour" : "Importer"}
+                        {busy ? <><Spinner className={isImported ? undefined : "text-primary-foreground"} /> {t("Import…")}</> : isImported ? t("Mettre à jour") : t("Importer")}
                       </Button>
                     </div>
                     {busy && (
                       <p className="text-xs text-muted-foreground" role="status">
-                        Téléchargement des cartes, jusqu'à quelques minutes pour une grande série. Gardez cette page ouverte.
+                        {t("Téléchargement des cartes, jusqu'à quelques minutes pour une grande série. Gardez cette page ouverte.")}
                       </p>
                     )}
                     {!busy && outcome && <Alert variant={outcome.kind}>{outcome.text}</Alert>}
@@ -249,8 +250,8 @@ export default function CatalogPage() {
               })}
             </Card>
           ) : (
-            <EmptyState icon={wanted ? <Search /> : <BookOpen />} title={wanted || block ? "Aucune série ne correspond à ce filtre" : currentTab === "imported" ? "Aucune série importée" : "Toutes les séries sont importées"}>
-              {!wanted && !block && currentTab === "imported" ? "Ouvrez l'onglet « Non importées » et importez les séries que vous possédez." : undefined}
+            <EmptyState icon={wanted ? <Search /> : <BookOpen />} title={wanted || block ? t("Aucune série ne correspond à ce filtre") : currentTab === "imported" ? t("Aucune série importée") : t("Toutes les séries sont importées")}>
+              {!wanted && !block && currentTab === "imported" ? t("Ouvrez l'onglet « Non importées » et importez les séries que vous possédez.") : undefined}
             </EmptyState>
           )}
 
