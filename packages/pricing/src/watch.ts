@@ -240,3 +240,58 @@ export async function findDeals(sql: Db, query: DealQuery = {}): Promise<{ deals
   deals.sort((a, b) => b.gainCents - a.gainCents || b.discountPercent - a.discountPercent);
   return { deals: deals.slice(0, limit), examined, freshDays, minCents, minDiscount };
 }
+
+// ───────────────────────── Grosses cartes du moment ─────────────────────────
+
+export interface TopCard {
+  variantId: string;
+  card: WatchCard;
+  owned: number;
+  watchedId: string | null;
+  /** Prix des ventes réussies et sa fiabilité. */
+  sales: SalesEstimate;
+  /** Ventes de la semaine comparées à celles du mois, en pourcentage ; null sans les deux. */
+  trendPercent: number | null;
+}
+
+/**
+ * Les cartes les plus chères du moment parmi les séries importées : classées par prix des ventes réussies, relevées depuis
+ * moins de `freshDays` jours, avec des ventes régulières et une cote propre à la variante. La source ne publie ni volume de
+ * ventes ni nombre de recherches : c'est le prix qui classe, pas la popularité.
+ */
+export async function topCards(sql: Db, opts: { limit?: number; freshDays?: number; minCents?: number } = {}): Promise<TopCard[]> {
+  const limit = Math.min(Math.max(opts.limit ?? 5, 1), 20);
+  const freshDays = opts.freshDays ?? 7;
+  const minCents = opts.minCents ?? 1000;
+  const candidates = await sql<{ variantId: string }[]>`
+    select variant_id from (
+      select distinct on (variant_id) variant_id, amount_cents from price_snapshots
+       where quote_type = 'SOLD_AVG_30D' and currency = 'EUR' and condition is null and not variant_ambiguous
+         and observed_at >= now() - make_interval(days => ${freshDays}) and amount_cents >= ${Math.floor(minCents * 0.8)}
+       order by variant_id, observed_at desc) latest
+     order by amount_cents desc
+     limit ${limit * 6}`;
+  const ids = candidates.map((c) => c.variantId);
+  if (ids.length === 0) return [];
+  const [quotes, info] = await Promise.all([
+    latestQuotes(sql, ids),
+    sql<{ variantId: string; card: WatchCard; owned: number; watchedId: string | null }[]>`
+      select v.id as variant_id, ${cardColumns(sql)}, (select w.id from watched_cards w where w.variant_id = v.id) as watched_id
+        from card_variants v
+        join catalog_cards c on c.id = v.catalog_card_id
+        left join catalog_sets st on st.id = c.set_id and st.language = c.language
+       where v.id in ${sql(ids)}`,
+  ]);
+  return info
+    .flatMap((row): TopCard[] => {
+      const cardmarket = cardmarketOf(quotes.get(row.variantId) ?? []);
+      const sales = cardmarket.sales;
+      if (!sales || sales.confidence === "LOW" || cardmarket.ambiguous || sales.cents < minCents) return [];
+      const week = sales.sales.find((s) => s.quoteType === "SOLD_AVG_7D")?.amountCents;
+      const month = sales.sales.find((s) => s.quoteType === "SOLD_AVG_30D")?.amountCents;
+      const trendPercent = week && month ? Math.round(((week - month) / month) * 100) : null;
+      return [{ ...row, sales, trendPercent }];
+    })
+    .sort((a, b) => b.sales.cents - a.sales.cents)
+    .slice(0, limit);
+}

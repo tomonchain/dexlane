@@ -1,5 +1,5 @@
 import type {
-  AcquisitionLot, Activity, Deal, DealList, WatchedCard, AlertSettings, AppSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, PriceMoves, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
+  AcquisitionLot, Activity, CatalogHit, Deal, DealList, TopCard, WatchedCard, AlertSettings, AppSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, PriceMoves, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
   Location, Photo, PositionDetail, Received,
   OfferPricing, OrderDetail, PriceHistory, OrderList, OrderStage, PricingSettings, ShippingCosts, ShippingRun, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
   PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockFacets, StockPage, StockStatus, StoredPhoto, VariantQuote,
@@ -157,6 +157,8 @@ export const api = {
   watch: (input: { variantId: string; targetCents?: number | null }) => request<{ id: string }>("POST", "/watchlist", { json: input }),
   updateWatched: (id: string, change: { targetCents?: number | null; note?: string | null }) => request<{ ok: true }>("PATCH", `/watchlist/${id}`, { json: change }),
   unwatch: (id: string) => request<{ ok: true }>("DELETE", `/watchlist/${id}`),
+  searchCards: (q: string) => request<{ results: CatalogHit[] }>("GET", "/catalog/search", { query: { q } }),
+  topCards: (limit = 5) => request<{ cards: TopCard[] }>("GET", "/purchases/top", { query: { limit } }),
   deals: (q: { minCents?: number; minDiscount?: number; freshDays?: number }) => request<DealList>("GET", "/deals", { query: q }),
   refreshPrices: () => request<{ cards: number; pricesInserted: number; errors: number; remaining: number; repriced: number }>("POST", "/prices/refresh"),
 
