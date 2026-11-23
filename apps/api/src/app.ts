@@ -12,7 +12,7 @@ import {
   searchInventory, searchSellableOffers, shipOrder, updateLocationDescription,
 } from "@dexlane/inventory";
 import {
-  estimateVariants, findDeals, listWatched, topCards, unwatchCard, updateWatched, watchCard, getPricingSettings, priceHistory, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice, getAlertSettings, getDashboard, listPriceMoves, saveAlertSettings,
+  estimateVariants, findDeals, listWatched, trendingCards, unwatchCard, updateWatched, watchCard, getPricingSettings, priceHistory, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice, getAlertSettings, getDashboard, listPriceMoves, saveAlertSettings,
 } from "@dexlane/pricing";
 import {
   MAX_IMAGE_BYTES, RecognitionError, assertSupportedImage, identifyCard, type CardImage, type CardRecognizer, type ImageMediaType, addItem, createBatch, findItem, getBatch, listBatches, listItems, receiveBatch, receiveReady, setItemBack, updateBatch, updateItem,
@@ -426,8 +426,8 @@ export function createApp(deps: AppDeps) {
     return c.json({ results });
   });
 
-  /** Les cartes les plus chères du moment (ventes réussies régulières), pour proposer quoi suivre. */
-  app.get("/api/purchases/top", async (c) => c.json({ cards: await topCards(sql, parse(s.topCardsQuery, c.req.query())) }));
+  /** Les cartes les plus demandées du moment (vendues la veille, prix de vente en hausse), pour proposer quoi suivre. */
+  app.get("/api/purchases/trending", async (c) => c.json({ cards: await trendingCards(sql, parse(s.topCardsQuery, c.req.query())) }));
 
   /** Bonnes affaires : cartes au-dessus d'une valeur, annoncées nettement sous leur prix de vente. */
   app.get("/api/deals", async (c) => c.json(await findDeals(sql, parse(s.dealsQuery, c.req.query()))));

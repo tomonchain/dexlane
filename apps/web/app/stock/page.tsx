@@ -16,7 +16,8 @@ import { Code, Spinner } from "@/components/ui/misc";
 import { Modal } from "@/components/ui/modal";
 import { Pagination, SegmentedTabs } from "@/components/ui/tabs";
 import { ApiError, api } from "@/lib/api";
-import { cardImage, dayLabel, formatEuros, parseEuros, variantLabel } from "@/lib/format";
+import { useCardImage } from "@/lib/card-image";
+import { dayLabel, formatEuros, parseEuros, variantLabel } from "@/lib/format";
 import { CONFIDENCE_LABEL, age, eurosInput, quoteLabel, reasonLabel } from "@/lib/pricing";
 import { CONDITIONS, type ChannelState, type ListingBlocker, type Schedule, type StockDetail, type StockFacets, type StockPage, type StockRow, type StockStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -555,6 +556,8 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
     }
   }
 
+  // Avant tout retour anticipé : un hook s'appelle à chaque rendu.
+  const catalogPicture = useCardImage(detail && !detail.photoUrl ? detail.imageUrl : null, "high");
   if (!detail) {
     return error ? <aside className="rounded-lg border bg-card p-4 text-sm text-muted-foreground lg:sticky lg:top-6">{error}</aside> : <InspectorSkeleton />;
   }
@@ -565,13 +568,13 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
     await api.setOfferPrice(d.offerId, { targetPriceCents: value });
   });
   const copy = (text: string, what: string) => void navigator.clipboard?.writeText(text).then(() => toast.success(`${what} copié${what === "Description" ? "e" : ""}`));
-  const picture = d.photoUrl ?? cardImage(d.imageUrl, "high");
+  const picture = d.photoUrl ?? catalogPicture.src;
 
   return (
     <aside className="overflow-hidden rounded-lg border bg-card lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto" aria-label={`Carte ${d.name}`} data-testid="stock-inspector">
       <div className="flex gap-3 p-4">
         {picture
-          ? <img src={picture} alt="" className={cn("w-24 shrink-0 rounded-md bg-muted object-cover ring-1 ring-border", d.photoUrl?.includes("/annonces/") ? "aspect-square" : "aspect-[63/88]")} />
+          ? <img src={picture} alt="" onError={d.photoUrl ? undefined : catalogPicture.onError} className={cn("w-24 shrink-0 rounded-md bg-muted object-cover ring-1 ring-border", d.photoUrl?.includes("/annonces/") ? "aspect-square" : "aspect-[63/88]")} />
           : <CardThumb imageUrl={null} size="lg" />}
         <div className="grid min-w-0 flex-1 content-start gap-1">
           <h2 className="text-base leading-snug font-semibold [overflow-wrap:anywhere]">{d.name}</h2>

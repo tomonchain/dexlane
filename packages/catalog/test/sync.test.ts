@@ -26,6 +26,18 @@ describe("syncSet", () => {
     expect(prices[0]!.observedAt.toISOString()).toBe(new Date(updated).toISOString());
   });
 
+  it("falls back to the English image of the same card when the source has none in this language", async () => {
+    const withImage = card("swsh3-136");
+    const { image: _image, ...withoutImage } = card("swsh3-136");
+    await syncSet(sql, fakeClient([{ ...withoutImage, id: "swsh3-136", localId: "136" }]), "fr", "swsh3");
+    const [row] = await sql<{ imageUrl: string }[]>`select image_url from catalog_cards where set_id = 'swsh3' and local_number = '136'`;
+    expect(row!.imageUrl).toBe("https://assets.tcgdex.net/en/swsh/swsh3/136");
+    // L'image dans la langue de la carte, publiée ensuite, remplace le repli.
+    await syncSet(sql, fakeClient([withImage]), "fr", "swsh3");
+    const [after] = await sql<{ imageUrl: string }[]>`select image_url from catalog_cards where set_id = 'swsh3' and local_number = '136'`;
+    expect(after!.imageUrl).toBe("https://assets.tcgdex.net/fr/swsh/swsh3/136");
+  });
+
   it("keeps what a full import learned when the set list is refreshed with a sparser summary", async () => {
     await syncSet(sql, fakeClient([card("swsh3-136")]), "fr", "swsh3");
     const listed = await syncSetList(sql, fakeClient([], { listSets: async () => [{ id: "swsh3", name: "Ténèbres Embrasées" }, { id: "sv01", name: "Écarlate et Violet", cardCount: { official: 198, total: 258 } }] }), "fr");
