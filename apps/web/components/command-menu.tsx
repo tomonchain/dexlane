@@ -1,7 +1,7 @@
 "use client";
 
 import { Command } from "cmdk";
-import { Archive, BookOpen, Boxes, ChartColumn, House, Images, Layers, Megaphone, Package, Receipt, ScanLine, Search, Settings, Tags } from "lucide-react";
+import { Archive, BookOpen, Boxes, ChartColumn, House, Images, Layers, Megaphone, Package, Receipt, ScanLine, Search, Settings, Tags, ShoppingBasket } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Dialog } from "radix-ui";
 import { useEffect, useState } from "react";
@@ -16,7 +16,9 @@ export const PAGES = [
   { href: "/ajouter", label: "Ajouter une carte", hint: "Photo ou recherche, puis entrée en stock", icon: ScanLine },
   { href: "/scanner/lot", label: "Ajouter un lot d'images", hint: "Importer les images d'un scanner à défilement", icon: Images },
   { href: "/vrac", label: "Ajouter du vrac", hint: "Enregistrer un lot agrégé", icon: Layers },
+  { href: "/achats", label: "Achats", hint: "Cartes suivies, prix cibles, bonnes affaires", icon: ShoppingBasket },
   { href: "/ventes", label: "Ventes", hint: "Vendre, préparer, remettre", icon: Receipt },
+  { href: "/reglages/envois", label: "Frais d'envoi", hint: "Affranchissement, sleeve, top-loader, enveloppe", icon: Receipt },
   { href: "/statistiques", label: "Tableau de bord", hint: "Valeur du stock, ventes, variations de prix et alertes", icon: ChartColumn },
   { href: "/inventaire", label: "Positions", hint: "Chaque position physique, par code et emplacement", icon: Boxes },
   { href: "/prix", label: "Règles de prix", hint: "File de revue et règles de calcul", icon: Tags },

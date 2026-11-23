@@ -10,7 +10,7 @@ import type {
 } from "@dexlane/listings";
 import type {
   AlertSettings, Dashboard as DashboardRow, OfferPricing as PricingRow, PriceMove as PriceMoveRow, PriceMoves as PriceMovesRow, PricingSettings,
-  PriceHistory as PriceHistoryRow, VariantQuote as Quote,
+  Deal as DealRow, PriceHistory as PriceHistoryRow, VariantQuote as Quote, WatchedCard as WatchedCardRow,
 } from "@dexlane/pricing";
 import type { CardReadingRaw, RecognitionUsage, ScanBatch as ScanBatchRow, ScanItem as ScanItemRow } from "@dexlane/scan";
 
@@ -33,6 +33,9 @@ export type AcquisitionLot = Json<AcquisitionLotRow>;
 export type OfferPricing = Json<PricingRow>;
 export type VariantQuote = Json<Quote>;
 export type PriceHistory = Json<PriceHistoryRow>;
+export type WatchedCard = Json<WatchedCardRow>;
+export type Deal = Json<DealRow>;
+export interface DealList { deals: Deal[]; examined: number; freshDays: number; minCents: number; minDiscount: number }
 /** Estimation d'après les ventes réussies, telle que l'API la sert partout (stock, prix, catalogue, saisie). */
 export interface SalesEstimate { cents: number; confidence: "HIGH" | "MEDIUM" | "LOW"; sales: { quoteType: string; amountCents: number }[] }
 export type { PricingSettings };

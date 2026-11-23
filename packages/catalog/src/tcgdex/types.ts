@@ -47,7 +47,14 @@ export interface TcgdexVariantDetailed {
   stamp?: string[];
   variantId?: string;
   thirdParty?: { cardmarket?: number; tcgplayer?: number };
-  pricing?: { cardmarket?: CardmarketPricing | null; tcgplayer?: unknown } | null;
+  pricing?: { cardmarket?: CardmarketPricing | null; tcgplayer?: TcgplayerPricing | null } | null;
+}
+
+/** Prix TCGplayer relayés par TCGdex, en dollars, par impression (normal, holofoil, reverse-holofoil, 1st-edition-…). */
+export interface TcgplayerPricing {
+  updated?: string;
+  unit?: string;
+  [printing: string]: { marketPrice?: number | null; lowPrice?: number | null } | string | undefined;
 }
 
 export interface TcgdexCard {
@@ -61,5 +68,5 @@ export interface TcgdexCard {
   set: { id: string; name: string; cardCount?: { total?: number; official?: number } };
   variants?: { normal?: boolean; reverse?: boolean; holo?: boolean; firstEdition?: boolean; wPromo?: boolean };
   variants_detailed?: TcgdexVariantDetailed[];
-  pricing?: { cardmarket?: CardmarketPricing | null; tcgplayer?: unknown } | null;
+  pricing?: { cardmarket?: CardmarketPricing | null; tcgplayer?: TcgplayerPricing | null } | null;
 }

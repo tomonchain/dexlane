@@ -1,4 +1,4 @@
-import type { CardmarketPricing, TcgdexCard, TcgdexVariantDetailed } from "./types";
+import type { CardmarketPricing, TcgdexCard, TcgdexVariantDetailed, TcgplayerPricing } from "./types";
 
 export interface MappedCard {
   setId: string;
@@ -27,7 +27,7 @@ export interface MappedVariant {
   prices: MappedPrice[];
 }
 
-export type QuoteType = "LISTED_LOW" | "LISTED_TREND" | "SOLD_AVG_1D" | "SOLD_AVG_7D" | "SOLD_AVG_30D";
+export type QuoteType = "LISTED_LOW" | "LISTED_TREND" | "SOLD_AVG_1D" | "SOLD_AVG_7D" | "SOLD_AVG_30D" | "MARKET";
 
 export interface MappedPrice {
   source: string;
@@ -46,6 +46,8 @@ export interface MappedCardWithVariants {
 }
 
 export const PRICE_SOURCE = "cardmarket_price_guide_via_tcgdex";
+/** Prix du marché TCGplayer (États-Unis), en dollars : un repère d'un autre marché, jamais mélangé aux cotes en euros. */
+export const TCGPLAYER_SOURCE = "tcgplayer_via_tcgdex";
 const PRICE_SCOPE = "all_languages;all_conditions";
 
 /** Champs du guide des prix Cardmarket → type de cotation. */
@@ -156,9 +158,30 @@ function attachPrices(variants: MappedVariant[], src: TcgdexCard): void {
       guide = src.pricing.cardmarket; // cotation niveau carte, utilisable seulement s'il n'y a qu'une variante
       ambiguous ||= v.incomplete;
     }
-    if (!guide) return;
-    v.prices = cardmarketPrices(guide, familyOf(v) === "reverse" ? "-holo" : "", ambiguous || v.incomplete);
+    if (guide) v.prices = cardmarketPrices(guide, familyOf(v) === "reverse" ? "-holo" : "", ambiguous || v.incomplete);
+    const tcgplayer = detailed[i]?.pricing?.tcgplayer ?? (variants.length === 1 ? src.pricing?.tcgplayer : null);
+    const market = tcgplayer ? tcgplayerMarket(tcgplayer, v) : null;
+    if (market) v.prices.push(market);
   });
+}
+
+/** Impression TCGplayer d'une variante : normale, holo ou reverse, en première édition s'il y a lieu. */
+function tcgplayerMarket(pricing: TcgplayerPricing, v: MappedVariant): MappedPrice | null {
+  if (!pricing.updated || (pricing.unit && pricing.unit !== "USD")) return null;
+  const base = v.finish === "reverse" ? "reverse-holofoil" : v.finish === "holo" ? "holofoil" : v.finish === "normal" ? "normal" : null;
+  if (!base) return null;
+  const keys = v.edition === "1st" ? [`1st-edition-${base}`, "1st-edition"] : [base, `unlimited-${base}`];
+  for (const key of keys) {
+    const entry = pricing[key];
+    const market = typeof entry === "object" && entry ? entry.marketPrice : null;
+    if (typeof market === "number" && market > 0) {
+      return {
+        source: TCGPLAYER_SOURCE, quoteType: "MARKET", currency: "USD", amountCents: Math.round(market * 100),
+        observedAt: new Date(pricing.updated), sourceScope: "tcgplayer_market_price;all_conditions", variantAmbiguous: v.incomplete,
+      };
+    }
+  }
+  return null;
 }
 
 function cardmarketPrices(guide: CardmarketPricing, suffix: string, ambiguous: boolean): MappedPrice[] {

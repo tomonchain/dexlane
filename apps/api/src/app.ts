@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import {
-  createTcgdexClient, findCandidates, getSetDetail, listSets, syncSet, syncSetList, type TcgdexClient, refreshOwnedPrices,
+  createTcgdexClient, findCandidates, getSetDetail, listSets, syncSet, syncSetList, type TcgdexClient, refreshTrackedPrices,
 } from "@dexlane/catalog";
 import type { Db } from "@dexlane/db";
 import {
@@ -12,7 +12,7 @@ import {
   searchInventory, searchSellableOffers, shipOrder, updateLocationDescription,
 } from "@dexlane/inventory";
 import {
-  estimateVariants, getPricingSettings, priceHistory, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice, getAlertSettings, getDashboard, listPriceMoves, saveAlertSettings,
+  estimateVariants, findDeals, listWatched, unwatchCard, updateWatched, watchCard, getPricingSettings, priceHistory, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice, getAlertSettings, getDashboard, listPriceMoves, saveAlertSettings,
 } from "@dexlane/pricing";
 import {
   MAX_IMAGE_BYTES, RecognitionError, assertSupportedImage, identifyCard, type CardImage, type CardRecognizer, type ImageMediaType, addItem, createBatch, findItem, getBatch, listBatches, listItems, receiveBatch, receiveReady, setItemBack, updateBatch, updateItem,
@@ -393,8 +393,25 @@ export function createApp(deps: AppDeps) {
    * Relève les cotations du jour pour les cartes en stock, puis réévalue les offres
    * (les prix décidés ne bougent pas, les écarts deviennent des motifs de revue). Lancé chaque jour et à la demande.
    */
+  // ───────────────────────── Achats ─────────────────────────
+
+  /** Cartes suivies : prix sur chaque plateforme, prix cible, alertes. */
+  app.get("/api/watchlist", async (c) => c.json(await listWatched(sql)));
+  app.post("/api/watchlist", async (c) => c.json(await watchCard(sql, await parseJsonBody(c, s.watchBody)), 201));
+  app.patch("/api/watchlist/:id", async (c) => {
+    await updateWatched(sql, parse(s.watchedId, c.req.param("id")), await parseJsonBody(c, s.watchUpdateBody));
+    return c.json({ ok: true });
+  });
+  app.delete("/api/watchlist/:id", async (c) => {
+    await unwatchCard(sql, parse(s.watchedId, c.req.param("id")));
+    return c.json({ ok: true });
+  });
+
+  /** Bonnes affaires : cartes au-dessus d'une valeur, annoncées nettement sous leur prix de vente. */
+  app.get("/api/deals", async (c) => c.json(await findDeals(sql, parse(s.dealsQuery, c.req.query()))));
+
   app.post("/api/prices/refresh", async (c) => {
-    const refreshed = await refreshOwnedPrices(sql, catalogSource());
+    const refreshed = await refreshTrackedPrices(sql, catalogSource());
     return c.json({ ...refreshed, repriced: refreshed.pricesInserted > 0 ? await refreshPricing(sql) : 0 });
   });
 

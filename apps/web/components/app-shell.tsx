@@ -1,6 +1,6 @@
 "use client";
 
-import { ChartColumn, CircleUserRound, House, Images, Layers, Package, Plus, Receipt, ScanLine, Search, Settings, type LucideIcon } from "lucide-react";
+import { ChartColumn, CircleUserRound, House, Images, Layers, Package, ShoppingBasket, Plus, Receipt, ScanLine, Search, Settings, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { DropdownMenu } from "radix-ui";
@@ -14,12 +14,13 @@ import { ThemeSwitch } from "./theme";
 const NAV: { href: string; label: string; icon: LucideIcon; match: string[] }[] = [
   { href: "/", label: "Accueil", icon: House, match: [] },
   { href: "/stock", label: "Stock", icon: Package, match: ["/stock", "/inventaire"] },
+  { href: "/achats", label: "Achats", icon: ShoppingBasket, match: ["/achats"] },
   { href: "/ventes", label: "Ventes", icon: Receipt, match: ["/ventes"] },
   { href: "/statistiques", label: "Tableau de bord", icon: ChartColumn, match: ["/statistiques"] },
   { href: "/reglages", label: "Réglages", icon: Settings, match: ["/reglages", "/prix", "/rangement", "/catalogue", "/compte"] },
 ];
 /** Sur téléphone, quatre onglets autour du bouton d'ajout ; Réglages est dans l'en-tête. */
-const MOBILE_NAV = [NAV[0]!, NAV[1]!, null, NAV[2]!, NAV[3]!];
+const MOBILE_NAV = [NAV[0]!, NAV[1]!, null, NAV[2]!, NAV[3]!]; // Accueil, Stock, +, Achats, Ventes
 const NO_SHELL = ["/login", "/bienvenue"];
 type IntakeMode = "SCANNER" | "CAMERA" | "FILES" | null;
 /** Le lot se présente selon le matériel choisi dans l'assistant de démarrage. */

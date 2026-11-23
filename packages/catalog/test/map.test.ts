@@ -76,4 +76,15 @@ describe("mapTcgdexCard", () => {
     expect(variants.map((v) => v.subtype)).toEqual(["", "#2"]);
     expect(variants[1]!.incomplete).toBe(true);
   });
+
+  it("adds the TCGplayer market price, in dollars, as a separate quote matched to the printing", () => {
+    const market = (id: string, finish: string) =>
+      mapTcgdexCard(card(id), "fr").variants.find((v) => v.finish === finish)!.prices.find((p) => p.quoteType === "MARKET");
+    expect(market("swsh3-136", "normal")).toMatchObject({ source: "tcgplayer_via_tcgdex", currency: "USD", amountCents: 26 });
+    expect(market("swsh3-136", "reverse")).toMatchObject({ amountCents: 40 });
+    expect(market("sv03.5-151", "holo")).toMatchObject({ amountCents: 679 });
+    // Les cotes Cardmarket restent en euros, à part.
+    const cardmarket = mapTcgdexCard(card("swsh3-136"), "fr").variants[0]!.prices.filter((p) => p.quoteType !== "MARKET");
+    expect(cardmarket.every((p) => p.currency === "EUR" && p.source === "cardmarket_price_guide_via_tcgdex")).toBe(true);
+  });
 });

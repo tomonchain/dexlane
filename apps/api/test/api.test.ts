@@ -398,6 +398,38 @@ describe("photos added after the fact", () => {
   });
 });
 
+describe("purchases", () => {
+  it("watches a card with a target price, lists it with each platform's price, and finds deals", async () => {
+    tcgdex = fakeClient(["sv03.5-151"].map(card));
+    await call("POST", "/api/catalog/sets/sv03.5/sync", { body: {}, key: null });
+    const mew = (await call("GET", "/api/catalog/cards?name=mew")).json.candidates[0];
+    const variantId = mew.variants[0].id as string;
+
+    const watched = await call("POST", "/api/watchlist", { body: { variantId, targetCents: 500 }, key: null });
+    expect(watched.status).toBe(201);
+    const list = (await call("GET", "/api/watchlist")).json;
+    // Mew-ex : ventes 7,88 € / 7,32 €, annonce la moins chère 2,98 €, TCGplayer 6,79 $.
+    expect(list.items[0]).toMatchObject({
+      targetCents: 500, card: { name: "Mew-ex" },
+      cardmarket: { sales: { cents: 760 }, lowCents: 298 }, tcgplayer: { marketCents: 679 }, alerts: ["TARGET_REACHED"],
+    });
+    expect(list.alerts).toBe(1);
+    expect((await call("PATCH", `/api/watchlist/${watched.json.id}`, { body: { targetCents: null }, key: null })).status).toBe(200);
+    expect((await call("POST", "/api/watchlist", { body: { variantId, targetCents: -1 }, key: null })).status).toBe(400);
+
+    // Relevé de la veille (synchronisé par le test) : 7,60 € vendu, annonce à 2,98 € — sous 10 € par défaut, visible à partir de 5 €.
+    await sql`update price_snapshots set observed_at = now() - interval '1 day'`;
+    const isMew = (d: { variantId: string }) => d.variantId === variantId;
+    expect((await call("GET", "/api/deals")).json.deals.some(isMew)).toBe(false);
+    const deals = (await call("GET", "/api/deals?minCents=500")).json;
+    expect(deals.deals.find(isMew)).toMatchObject({ estimateCents: 760, lowCents: 298, discountPercent: 61, watchedId: watched.json.id });
+    expect((await call("GET", "/api/deals?minDiscount=200")).status).toBe(400);
+
+    expect((await call("DELETE", `/api/watchlist/${watched.json.id}`, { key: null })).status).toBe(200);
+    expect((await call("DELETE", `/api/watchlist/${watched.json.id}`, { key: null })).status).toBe(404);
+  });
+});
+
 describe("application settings", () => {
   it("remembers the onboarding progress and the way cards come in", async () => {
     const blank = { slipPaper: "ROLL_80", seller: { name: "", address: "", legal: "" } };
@@ -449,9 +481,10 @@ describe("statistics and price alerts", () => {
     const scanned = await scan();
     await call("POST", "/api/inventory/receive", { body: { variantId: scanned.json.suggestedVariantId, condition: "NM", quantity: 2, locationCode: "BOX-01", unitCostCents: 10 } });
 
-    // Seule la carte détenue est relevée ; la cotation du jour étant déjà connue, rien n'est ajouté en double.
+    // Sont relevées la carte détenue et les « grosses » cartes du catalogue (Dracaufeu, coté plus de 10 €), pas les autres ;
+    // la cotation du jour étant déjà connue, rien n'est ajouté en double.
     const refreshed = await call("POST", "/api/prices/refresh");
-    expect(refreshed.json).toMatchObject({ cards: 1, pricesInserted: 0, errors: 0, remaining: 0, repriced: 0 });
+    expect(refreshed.json).toMatchObject({ cards: 2, pricesInserted: 0, errors: 0, remaining: 0, repriced: 0 });
 
     // Une cote plus ancienne et plus basse : la variation apparaît, et devient une alerte une fois le seuil abaissé.
     await sql`
