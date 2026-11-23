@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { composeMissingVisuals } from "@/lib/visuals";
 import { exportStockCsv } from "@/lib/export";
 import { InspectorSkeleton, StockRowsSkeleton } from "@/components/skeletons";
+import { useCachedState } from "@/lib/cache";
 
 const PAGE_SIZE = 50;
 type Filter = StockStatus | "ALL";
@@ -323,9 +324,9 @@ function Stock() {
   const [filter, setFilter] = useState<Filter>(requested && FILTERS.includes(requested) ? requested : "ALL");
   const [sort, setSort] = useState<Sort>("recent");
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
-  const [facets, setFacets] = useState<StockFacets | null>(null);
+  const [facets, setFacets] = useCachedState<StockFacets>("stock:facets");
   const [page, setPage] = useState(1);
-  const [data, setData] = useState<StockPage | null>(null);
+  const [data, setData] = useCachedState<StockPage>(`stock:${JSON.stringify([query.trim(), filter, sort, page, filters])}`, { keepPrevious: true });
   const [error, setError] = useState<string | null>(null);
   // La fiche d'une carte renvoie ici sur une offre précise (« ?offre=… ») : son panneau s'ouvre d'emblée.
   const [selected, setSelected] = useState<string | null>(params.get("offre"));
@@ -340,7 +341,11 @@ function Stock() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const desktop = useIsDesktop();
 
+  // Seule la réponse à la dernière demande compte : filtres et frappes rapides envoient plusieurs requêtes, et une
+  // réponse plus lente ne doit pas remplacer celle de la demande suivante.
+  const latest = useRef(0);
   const load = useCallback(() => {
+    const request = ++latest.current;
     const price = PRICE_RANGES.find((r) => r.value === filters.price);
     api.stock({
       q: query.trim() || undefined, status: filter, sort, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE,
@@ -348,10 +353,11 @@ function Stock() {
       minCents: price?.min, maxCents: price?.max,
     })
       .then((d) => {
+        if (request !== latest.current) return;
         setData(d);
         setError(null);
       })
-      .catch((e: Error) => setError(e.message));
+      .catch((e: Error) => request === latest.current && setError(e.message));
   }, [query, filter, sort, page, filters]);
   useEffect(() => {
     const timer = setTimeout(load, query ? 200 : 0);
@@ -717,7 +723,7 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
   onChanged: () => void;
   onClose: () => void;
 }) {
-  const [detail, setDetail] = useState<StockDetail | null>(null);
+  const [detail, setDetail] = useCachedState<StockDetail>(`stock:detail:${offerId}`);
   const [supplies, setSupplies] = useState(0);
   const [price, setPrice] = useState("");
   const [busy, setBusy] = useState(false);

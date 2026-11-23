@@ -1,7 +1,7 @@
 import { withTx, type Db } from "@dexlane/db";
 import { DomainError } from "@dexlane/shared";
 
-export type PhotoKind = "SCAN_FRONT" | "SCAN_BACK" | "LISTING" | "BACKGROUND" | "PROMO";
+export type PhotoKind = "SCAN_FRONT" | "SCAN_BACK" | "LISTING" | "BACKGROUND" | "PROMO" | "LOGO";
 
 export interface PhotoRow {
   id: string;
@@ -106,7 +106,7 @@ export function addOfferPhoto(sql: Db, offerId: string, file: StoredFile & { kin
 export function deletePhoto(sql: Db, photoId: string): Promise<string[]> {
   return withTx(sql, async (tx) => {
     const photo = await getPhoto(tx, photoId);
-    if (photo.kind === "BACKGROUND" || photo.kind === "PROMO") throw new DomainError("PHOTO_NOT_FOUND", "this photo cannot be removed here");
+    if (photo.kind === "BACKGROUND" || photo.kind === "PROMO" || photo.kind === "LOGO") throw new DomainError("PHOTO_NOT_FOUND", "this photo cannot be removed here");
     const derived = await tx<{ url: string }[]>`select url from photos where source_photo_id = ${photoId}`;
     await tx`update scan_items set front_photo_id = null where front_photo_id = ${photoId}`;
     await tx`update scan_items set back_photo_id = null where back_photo_id = ${photoId}`;

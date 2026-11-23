@@ -14,6 +14,7 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Code, Page, PageHeader } from "./ui/misc";
 import { HomeSkeleton } from "./skeletons";
+import { useCachedState } from "@/lib/cache";
 
 interface Data {
   stock: StockPage;
@@ -95,7 +96,7 @@ function Figure({ label, value, hint }: { label: string; value: ReactNode; hint?
 
 /** Accueil de l'application : ce qui attend une action aujourd'hui, dans l'ordre du parcours, puis les chiffres du moment. */
 export function Home() {
-  const [data, setData] = useState<Data | null>(null);
+  const [data, setData] = useCachedState<Data>("home");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

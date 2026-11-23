@@ -19,6 +19,7 @@ import { intlLocale, t, tn } from "@/lib/i18n";
 import { CONFIDENCE_HINT, CONFIDENCE_LABEL } from "@/lib/pricing";
 import type { CardPage } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useCachedState } from "@/lib/cache";
 
 type Variant = CardPage["variants"][number];
 type Offer = CardPage["offers"][number];
@@ -152,7 +153,7 @@ function OfferGroup({ offer, copies, variant }: { offer: Offer; copies: CardPage
 export default function CardDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const [data, setData] = useState<CardPage | null>(null);
+  const [data, setData] = useCachedState<CardPage>(`card:${id}`);
   const [error, setError] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
   const [chartVariant, setChartVariant] = useState<string | null>(null);

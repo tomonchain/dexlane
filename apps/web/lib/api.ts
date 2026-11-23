@@ -95,7 +95,7 @@ export interface BulkInput {
 
 export const api = {
   scan: (image: Blob, language: string) => request<ScanResult>("POST", "/scans", { blob: image, query: { language } }),
-  uploadPhoto: (image: Blob, kind: "SCAN_FRONT" | "SCAN_BACK" | "BACKGROUND" | "PROMO") => request<StoredPhoto>("POST", "/photos", { blob: image, query: { kind } }),
+  uploadPhoto: (image: Blob, kind: "SCAN_FRONT" | "SCAN_BACK" | "BACKGROUND" | "PROMO" | "LOGO") => request<StoredPhoto>("POST", "/photos", { blob: image, query: { kind } }),
   /** Visuel d'annonce composé à partir d'un scan ; remplace le précédent visuel de ce scan. */
   uploadListingPhoto: (image: Blob, sourcePhotoId: string) => request<Photo>("POST", "/photos", { blob: image, query: { kind: "LISTING", source: sourcePhotoId } }),
   /** Photo ajoutée après coup à une carte déjà en stock. */

@@ -8,10 +8,11 @@ import { BackLink, Loading, Page, PageHeader } from "@/components/ui/misc";
 import { api } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import type { AlertSettings } from "@/lib/types";
+import { useCachedState } from "@/lib/cache";
 
 /** Alertes de prix : quand une variation de cote mérite d'être signalée (stock et cartes suivies). */
 export default function AlertSettingsPage() {
-  const [settings, setSettings] = useState<AlertSettings | null>(null);
+  const [settings, setSettings] = useCachedState<AlertSettings>("alert-settings");
   const [error, setError] = useState<string | null>(null);
   const load = () => {
     api.priceMoves(true).then((r) => setSettings(r.settings)).catch((e: Error) => setError(e.message));

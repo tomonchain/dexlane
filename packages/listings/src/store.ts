@@ -20,6 +20,10 @@ export async function saveListingSettings(sql: Db, settings: ListingSettings, ac
       const [background] = await tx`select 1 from photos where id = ${settings.photo.background.photoId} and kind = 'BACKGROUND'`;
       if (!background) throw new DomainError("INVALID_LISTING_SETTINGS", "L'image de fond n'existe plus : choisissez-en une autre.");
     }
+    if (settings.photo.logoPhotoId) {
+      const [logo] = await tx`select 1 from photos where id = ${settings.photo.logoPhotoId} and kind = 'LOGO'`;
+      if (!logo) throw new DomainError("INVALID_LISTING_SETTINGS", "Le logo n'existe plus : choisissez-en un autre.");
+    }
     if (settings.promoPhotoId) {
       const [promo] = await tx`select 1 from photos where id = ${settings.promoPhotoId} and kind = 'PROMO'`;
       if (!promo) throw new DomainError("INVALID_LISTING_SETTINGS", "L'image de fin d'annonce n'existe plus : choisissez-en une autre.");

@@ -64,6 +64,7 @@ export function drawListingPhoto(
   card: CanvasImageSource & { width: number; height: number },
   style: PhotoStyle,
   backgroundImage: ImageBitmap | null,
+  logoImage: ImageBitmap | null = null,
 ): void {
   const size = style.size;
   canvas.width = size;
@@ -137,11 +138,99 @@ export function drawListingPhoto(
     ctx.fillText(style.caption, size / 2, size - (size * style.marginPercent) / 200 - captionSpace / 2, size * 0.9);
     ctx.shadowColor = "transparent";
   }
+
+  drawBrand(ctx, size, style, logoImage, dark, b.type === "image");
 }
 
-export async function composeListingPhoto(card: ImageBitmap, style: PhotoStyle, backgroundImage: ImageBitmap | null): Promise<Blob> {
+/** Orange du logo Dexlane. */
+const DEXLANE_ORANGE = "#f18a1f";
+
+/**
+ * Logo Dexlane complet : les deux cartes décalées, puis le nom. `height` est la hauteur des lettres ;
+ * renvoie la largeur dessinée.
+ */
+function drawDexlaneLogo(ctx: CanvasRenderingContext2D, x: number, middle: number, height: number, dark: boolean): number {
+  const cardH = height * 1.15;
+  const cardW = (cardH * 13) / 18;
+  const card = (cx: number, angle: number, fill: string) => {
+    ctx.save();
+    ctx.translate(cx, middle);
+    ctx.rotate((angle * Math.PI) / 180);
+    ctx.fillStyle = fill;
+    const path = new Path2D();
+    path.roundRect(-cardW / 2, -cardH / 2, cardW, cardH, cardW * 0.22);
+    ctx.fill(path);
+    ctx.restore();
+  };
+  card(x + cardW * 0.55, -12, dark ? "rgba(255, 255, 255, 0.28)" : "rgba(15, 23, 42, 0.16)");
+  card(x + cardW * 0.95, 6, DEXLANE_ORANGE);
+  const textX = x + cardW * 1.55 + height * 0.25;
+  ctx.font = `600 ${Math.round(height * 1.05)}px ui-sans-serif, system-ui, sans-serif`;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = dark ? "rgba(255, 255, 255, 0.92)" : "#1c1917";
+  ctx.fillText("dexlane", textX, middle + height * 0.02);
+  return textX - x + ctx.measureText("dexlane").width;
+}
+
+/**
+ * Signature du visuel, dans un coin : le logo de la boutique, puis la mention « powered by » avec le logo Dexlane
+ * complet. L'un ou l'autre peut manquer ; rien n'est dessiné si les deux sont absents.
+ */
+function drawBrand(ctx: CanvasRenderingContext2D, size: number, style: PhotoStyle, logo: ImageBitmap | null, dark: boolean, onImage: boolean) {
+  if (!logo && !style.poweredBy) return;
+  const pad = size * 0.035;
+  const h = size * 0.06; // hauteur du bloc
+  const gap = size * 0.018;
+  const logoW = logo ? Math.min((logo.width / logo.height) * h, size * 0.24) : 0;
+  const logoH = logo ? (logoW / logo.width) * logo.height : 0;
+
+  // Largeur de la mention, mesurée avant de dessiner pour pouvoir caler le bloc à droite.
+  const smallFont = `500 ${Math.round(h * 0.24)}px ui-sans-serif, system-ui, sans-serif`;
+  const logoTextH = h * 0.34;
+  ctx.font = `600 ${Math.round(logoTextH * 1.05)}px ui-sans-serif, system-ui, sans-serif`;
+  const markW = ((logoTextH * 1.15 * 13) / 18) * 1.55 + logoTextH * 0.25 + ctx.measureText("dexlane").width;
+  ctx.font = smallFont;
+  const poweredW = style.poweredBy ? Math.max(markW, ctx.measureText("powered by").width) : 0;
+  const divider = logo && style.poweredBy ? gap * 2 : 0;
+  const width = logoW + divider + poweredW;
+
+  const right = style.brandPosition.endsWith("right");
+  const bottom = style.brandPosition.startsWith("bottom");
+  let x = right ? size - pad - width : pad;
+  const top = bottom ? size - pad - h : pad;
+  const middle = top + h / 2;
+
+  ctx.save();
+  if (onImage) {
+    ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
+    ctx.shadowBlur = size * 0.006;
+  }
+  if (logo) {
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(logo, x, middle - logoH / 2, logoW, logoH);
+    x += logoW;
+  }
+  if (logo && style.poweredBy) {
+    ctx.fillStyle = dark || onImage ? "rgba(255, 255, 255, 0.35)" : "rgba(15, 23, 42, 0.2)";
+    ctx.fillRect(x + gap - size * 0.0006, middle - h * 0.38, size * 0.0012, h * 0.76);
+    x += divider;
+  }
+  if (style.poweredBy) {
+    const light = dark || onImage;
+    ctx.font = smallFont;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = light ? "rgba(255, 255, 255, 0.7)" : "rgba(15, 23, 42, 0.55)";
+    ctx.fillText("powered by", x, middle - h * 0.12);
+    drawDexlaneLogo(ctx, x, middle + h * 0.2, logoTextH, light);
+  }
+  ctx.restore();
+}
+
+export async function composeListingPhoto(card: ImageBitmap, style: PhotoStyle, backgroundImage: ImageBitmap | null, logoImage: ImageBitmap | null = null): Promise<Blob> {
   const canvas = document.createElement("canvas");
-  drawListingPhoto(canvas, card, style, backgroundImage);
+  drawListingPhoto(canvas, card, style, backgroundImage, logoImage);
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
   if (!blob) throw new Error(t("Impossible de composer la photo."));
   return blob;

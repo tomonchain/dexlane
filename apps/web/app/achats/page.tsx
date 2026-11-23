@@ -20,6 +20,7 @@ import { intlLocale, t, tn } from "@/lib/i18n";
 import { CONFIDENCE_HINT, CONFIDENCE_LABEL, age, eurosInput } from "@/lib/pricing";
 import type { CatalogHit, Deal, DealList, TopCard, WatchedCard } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useCachedState } from "@/lib/cache";
 
 type Tab = "WATCH" | "DEALS";
 type Card = WatchedCard["card"];
@@ -224,7 +225,7 @@ function PickRow({ card, price, trend, watchedId, onWatch }: {
 function WatchModal({ onClose, onWatched }: { onClose: () => void; onWatched: () => void }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<CatalogHit[] | null>(null);
-  const [top, setTop] = useState<TopCard[] | null>(null);
+  const [top, setTop] = useCachedState<TopCard[]>("purchases:trending");
   const [followed, setFollowed] = useState<Record<string, string>>({});
   const request = useRef(0);
   const searching = query.trim().length >= 2;
@@ -392,7 +393,7 @@ function DealRow({ deal, onWatched }: { deal: Deal; onWatched: () => void }) {
 function Deals({ onWatched }: { onWatched: () => void }) {
   const [minCents, setMinCents] = useState(1000);
   const [minDiscount, setMinDiscount] = useState(25);
-  const [data, setData] = useState<DealList | null>(null);
+  const [data, setData] = useCachedState<DealList>("purchases:deals");
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(() => {
     api.deals({ minCents, minDiscount }).then((d) => { setData(d); setError(null); }).catch((e: Error) => setError(e.message));
@@ -435,7 +436,7 @@ function Deals({ onWatched }: { onWatched: () => void }) {
 
 export default function PurchasesPage() {
   const [tab, setTab] = useState<Tab>("WATCH");
-  const [watched, setWatched] = useState<{ items: WatchedCard[]; alerts: number } | null>(null);
+  const [watched, setWatched] = useCachedState<{ items: WatchedCard[]; alerts: number }>("purchases:watched");
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [version, setVersion] = useState(0);

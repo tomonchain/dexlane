@@ -20,6 +20,7 @@ import { CATEGORY_LABEL, CATEGORY_VARIANT, DECIDABLE_CATEGORIES, age, eurosInput
 import { CONDITIONS, type OfferPricing, type PricingSettings } from "@/lib/types";
 import { ListSkeleton } from "@/components/skeletons";
 import { SaveBar } from "@/components/ui/action-bar";
+import { useCachedState } from "@/lib/cache";
 
 const PAGE_SIZE = 25;
 type Tab = "REVIEW" | "ALL" | "RULES";
@@ -33,7 +34,7 @@ export default function PricingPage() {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<{ items: OfferPricing[]; total: number; reviewCount: number; allCount: number } | null>(null);
-  const [settings, setSettings] = useState<PricingSettings | null>(null);
+  const [settings, setSettings] = useCachedState<PricingSettings>("pricing:settings");
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<OfferPricing | null>(null);
   const [busy, setBusy] = useState<string | null>(null);

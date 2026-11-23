@@ -919,6 +919,17 @@ test("mise en ligne planifiée : image de fin d'annonce, sélection de cartes, r
   await expect(page.getByText("Image de fin d'annonce enregistrée")).toBeVisible();
   await expect(page.getByTestId("promo").getByRole("img", { name: "Image de fin d'annonce" })).toBeVisible();
 
+  // Logo de la boutique sur les visuels, avec la mention « powered by Dexlane » (active par défaut), en haut à droite.
+  const brand = page.getByTestId("brand");
+  await brand.getByTestId("logo-input").setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: png(60, 20) });
+  await expect(brand.getByRole("img", { name: "Logo de la boutique" })).toBeVisible();
+  await brand.getByLabel("Emplacement sur le visuel").selectOption("top-right");
+  await page.getByRole("button", { name: "Enregistrer le style" }).click();
+  await expect(page.getByText("Style des photos enregistré")).toBeVisible();
+  const style = ((await (await page.request.get("/api/listings/settings")).json()) as { photo: { logoPhotoId: string | null; brandPosition: string; poweredBy: boolean } }).photo;
+  expect(style).toMatchObject({ brandPosition: "top-right", poweredBy: true });
+  expect(style.logoPhotoId).toMatch(/^[0-9a-f-]{36}$/);
+
   // Stock : deux cartes sélectionnées, une par jour à partir d'aujourd'hui.
   await page.goto("/stock");
   await page.getByLabel("Rechercher dans le stock").fill("OF-SWSH3-136-FR-N-");
@@ -1419,4 +1430,27 @@ test("langue : l'interface passe en anglais depuis le compte, montants et dates 
   await page.getByTestId("locale-switch").getByRole("radio", { name: "Français" }).click();
   await expect(page.getByRole("heading", { name: "Compte", level: 1 })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "fr");
+});
+
+test("cache : en revenant sur un écran, ses dernières données s'affichent tout de suite, sans squelette", async ({ page }) => {
+  await login(page);
+  await page.request.post("/api/locations", { data: { code: "BOX-CA" } });
+  const { candidates } = (await (await page.request.get("/api/catalog/cards?name=fouinar")).json()) as { candidates: { variants: { id: string }[] }[] };
+  await page.request.post("/api/inventory/receive", {
+    data: { variantId: candidates[0]!.variants[0]!.id, condition: "NM", quantity: 1, locationCode: "BOX-CA", unitCostCents: 5 },
+    headers: { "Idempotency-Key": `e2e-cache-${Date.now()}` },
+  });
+  await page.goto("/stock");
+  const rows = page.locator('tbody tr[data-testid^="stock-"]');
+  await expect(rows.first()).toBeVisible();
+  const tabs = page.getByTestId("mobile-nav");
+  await tabs.getByRole("link", { name: "Accueil" }).click();
+  await expect(page.getByRole("heading", { name: "Aujourd'hui" })).toBeVisible();
+
+  // Le serveur ne répond plus au stock : seules les données gardées en mémoire peuvent s'afficher.
+  await page.route("**/api/stock?**", () => undefined);
+  await tabs.getByRole("link", { name: "Stock" }).click();
+  await expect(page.getByRole("heading", { name: "Stock", level: 1 })).toBeVisible();
+  await expect(rows.first()).toBeVisible();
+  await expect(page.getByTestId("skeleton")).toHaveCount(0);
 });

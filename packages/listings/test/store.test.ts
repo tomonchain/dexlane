@@ -35,6 +35,17 @@ describe("listing settings", () => {
     await saveListingSettings(sql, withImage(background.id), ACTOR);
     expect((await getListingSettings(sql)).photo.background).toEqual({ type: "image", photoId: background.id });
   });
+
+  it("keeps a shop logo uploaded as one, placed in a corner next to the powered-by mention", async () => {
+    // Réglages enregistrés avant l'arrivée du logo : la mention « powered by » est là par défaut, sans logo.
+    expect((await getListingSettings(sql)).photo).toMatchObject({ logoPhotoId: null, brandPosition: "bottom-left", poweredBy: true });
+    const background = await recordPhoto(sql, { ...file("fond"), kind: "BACKGROUND" });
+    const logo = await recordPhoto(sql, { ...file("logo"), kind: "LOGO" });
+    const withLogo = (logoPhotoId: string) => ({ ...DEFAULT_LISTING_SETTINGS, photo: { ...DEFAULT_LISTING_SETTINGS.photo, logoPhotoId, brandPosition: "top-right" as const, poweredBy: false } });
+    await expect(saveListingSettings(sql, withLogo(background.id), ACTOR)).rejects.toMatchObject({ code: "INVALID_LISTING_SETTINGS" });
+    await saveListingSettings(sql, withLogo(logo.id), ACTOR);
+    expect((await getListingSettings(sql)).photo).toMatchObject({ logoPhotoId: logo.id, brandPosition: "top-right", poweredBy: false });
+  });
 });
 
 describe("offers to list", () => {

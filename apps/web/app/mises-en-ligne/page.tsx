@@ -13,15 +13,16 @@ import { api } from "@/lib/api";
 import { formatNumber } from "@/lib/format";
 import { t, tn } from "@/lib/i18n";
 import type { ChannelState, Schedule, StockPage } from "@/lib/types";
+import { useCachedState } from "@/lib/cache";
 
 /**
  * Mises en ligne : le planning jour par jour, les publications en échec, et ce qui attend encore d'être planifié.
  * Le stock ne garde que les cartes ; c'est ici qu'on décide quand elles partent sur les marketplaces.
  */
 export default function PublicationsPage() {
-  const [schedule, setSchedule] = useState<Schedule | null>(null);
-  const [stock, setStock] = useState<StockPage | null>(null);
-  const [channels, setChannels] = useState<ChannelState[] | null>(null);
+  const [schedule, setSchedule] = useCachedState<Schedule>("schedule");
+  const [stock, setStock] = useCachedState<StockPage>("schedule:stock");
+  const [channels, setChannels] = useCachedState<ChannelState[]>("schedule:channels");
   const [error, setError] = useState<string | null>(null);
   const [planning, setPlanning] = useState(false);
 

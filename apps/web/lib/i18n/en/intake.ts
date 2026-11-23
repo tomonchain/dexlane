@@ -299,4 +299,5 @@ export const INTAKE: Record<string, string> = {
     "Connection lost. The import may have continued on the server: reload the list, then restart if needed.",
   "{n} carte importée": "{n} card imported",
   "{n} cartes importées": "{n} cards imported",
+  "Format d'image non pris en charge. Choisissez un PNG, un WebP ou un JPEG.": "Unsupported image format. Choose a PNG, WebP or JPEG.",
 };

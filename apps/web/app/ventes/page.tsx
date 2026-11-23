@@ -15,6 +15,7 @@ import { t, tn } from "@/lib/i18n";
 import { SHIPPING_LABEL } from "@/lib/sales";
 import type { OrderList, OrderStage } from "@/lib/types";
 import { SalesSkeleton, SalesTotalsSkeleton } from "@/components/skeletons";
+import { useCachedState } from "@/lib/cache";
 
 const EMPTY: Record<OrderStage, [string, string]> = {
   TO_PREPARE: ["Rien à préparer", "Les ventes enregistrées apparaissent ici tant que les cartes ne sont pas emballées."],
@@ -40,7 +41,7 @@ const CHANNEL_LABEL: Record<string, string> = { ebay: "eBay", cardtrader: "CardT
 
 export default function SalesPage() {
   const [stage, setStage] = useState<OrderStage>("TO_PREPARE");
-  const [data, setData] = useState<OrderList | null>(null);
+  const [data, setData] = useCachedState<OrderList>(`orders:${stage}`, { keepPrevious: true });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

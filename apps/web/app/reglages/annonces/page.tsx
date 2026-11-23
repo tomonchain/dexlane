@@ -7,11 +7,12 @@ import { SegmentedTabs } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import type { ListingSettings } from "@/lib/types";
+import { useCachedState } from "@/lib/cache";
 
 /** Réglages des annonces : le modèle de texte et la mise en scène des photos. */
 export default function ListingSettingsPage() {
   const [tab, setTab] = useState<"TEMPLATE" | "PHOTOS">("TEMPLATE");
-  const [settings, setSettings] = useState<ListingSettings | null>(null);
+  const [settings, setSettings] = useCachedState<ListingSettings>("listing-settings");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

@@ -26,6 +26,7 @@ import { CATEGORY_LABEL, CATEGORY_VARIANT, reasonLabel, type Category } from "@/
 import type { Movement, PositionDetail } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { PageSkeleton } from "@/components/skeletons";
+import { useCachedState } from "@/lib/cache";
 
 const KIND: Record<string, string> = { UNIQUE: "Exemplaire unique", FUNGIBLE: "Interchangeable", BULK: "Vrac" };
 const PHOTO_KIND: Record<string, string> = { SCAN_FRONT: "Recto", SCAN_BACK: "Verso", LISTING: "Annonce" };
@@ -84,7 +85,7 @@ function MovementRow({ m }: { m: Movement }) {
 
 export default function PositionPage() {
   const { ref } = useParams<{ ref: string }>();
-  const [position, setPosition] = useState<PositionDetail | null>(null);
+  const [position, setPosition] = useCachedState<PositionDetail>(`position:${ref}`);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [modal, setModal] = useState<"move" | "adjust" | null>(null);
