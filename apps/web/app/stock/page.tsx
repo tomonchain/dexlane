@@ -497,10 +497,10 @@ function Section({ title, aside, children }: { title: string; aside?: ReactNode;
   );
 }
 
-function Figure({ label, children }: { label: string; children: ReactNode }) {
+function Figure({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
-    <div className="grid gap-0.5">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
+    <div className="grid gap-0.5" title={hint}>
+      <dt className="text-xs text-muted-foreground">{label}{hint && <span className="sr-only"> : {hint}</span>}</dt>
       <dd className="tabular text-sm font-medium">{children}</dd>
     </div>
   );
@@ -515,10 +515,15 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
   onClose: () => void;
 }) {
   const [detail, setDetail] = useState<StockDetail | null>(null);
+  const [supplies, setSupplies] = useState(0);
   const [price, setPrice] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const loadedFor = useRef<string | null>(null);
+  // Sleeve et top-loader : ce que coûte chaque carte vendue, en plus de son prix d'achat.
+  useEffect(() => {
+    api.shippingCosts().then((c) => setSupplies(c.supplies.sleeveCents + c.supplies.toploaderCents)).catch(() => setSupplies(0));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -582,7 +587,9 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
         <Figure label="En stock">{d.onHand}</Figure>
         <Figure label="Vendable">{d.available}</Figure>
         <Figure label="Coût">{formatEuros(d.averageCostCents)}</Figure>
-        <Figure label="Marge">{d.targetPriceCents === null ? "—" : formatEuros(d.targetPriceCents - d.averageCostCents)}</Figure>
+        <Figure label="Marge" hint={`Prix − coût d'achat${supplies > 0 ? ` − sleeve et top-loader (${formatEuros(supplies)})` : ""}. L'affranchissement et l'enveloppe se comptent sur la vente, en face du port facturé.`}>
+          <span data-testid="stock-margin">{d.targetPriceCents === null ? "—" : formatEuros(d.targetPriceCents - d.averageCostCents - supplies)}</span>
+        </Figure>
       </dl>
 
       <Section title="Prix">

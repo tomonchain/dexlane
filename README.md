@@ -83,6 +83,8 @@ Annonces : `GET` / `PUT /api/listings/settings` (modèle de titre et de descript
 
 Lots scannés : `GET` / `POST /api/scan-batches`, `GET` / `PATCH /api/scan-batches/{id}`, `POST /api/scan-batches/{id}/items?position=&fileName=` (image d'une carte à son rang ; un rang déjà enregistré est renvoyé sans relecture), `POST /api/scan-items/{id}/back` (verso), `PATCH /api/scan-items/{id}` (carte, variante, état, mise à l'écart), `POST /api/scan-batches/{id}/receive` (entrée en stock dans l'ordre, tout ou rien), `POST /api/scan-batches/{id}/autopilot` (pilote automatique : entre en stock les cartes complètes, pose leur prix, les met en file de mise en ligne ; rejouable).
 
+Frais d'envoi : `GET` / `PUT /api/shipping-costs` (affranchissement habituel par mode, sleeve, top-loader, enveloppe).
+
 Préparation des envois : `GET /api/orders/preparation` (commandes à préparer avec prélèvements, en-tête du vendeur, papier), `POST /api/orders/preparation/printed` (`orderIds` : bons imprimés).
 
 Mise en ligne planifiée : `GET /api/publications` (planning par jour, échecs récents), `POST /api/publications/plan` (`offerIds` facultatif, `channel`, `startOn`, `perDay`), `POST /api/publications/cancel`, `POST /api/publications/run` (publie ce qui est dû ; lancé chaque jour par la tâche planifiée). `POST /api/photos?kind=PROMO` dépose l'image de fin d'annonce, réglée par `promoPhotoId` dans les réglages d'annonce.
@@ -233,7 +235,7 @@ Ce qui reste une action de votre part, et pourquoi :
 - **Prélèvement vérifié** : on saisit le code lu sur la pochette (`SI-000123` ou simplement `123`). Le code d'une autre carte est refusé ; une autre position de la même offre est acceptée et réaffectée.
 - **Remise** : lettre non suivie et remise en main propre se confirment sans numéro ; lettre et colis suivis l'exigent. C'est la confirmation de remise qui sort les cartes du stock physique.
 - **Annulation** : possible jusqu'à la remise, avec motif ; les cartes redeviennent disponibles. Après la remise, c'est un retour (pas encore géré).
-- **Marge** : encaissé − coût d'acquisition des cartes − affranchissement payé. Les frais de canal n'existent pas en vente directe ; ni TVA ni temps passé ne sont comptés.
+- **Marge** : encaissé (port facturé compris) − coût d'acquisition des cartes − affranchissement − fournitures. Réglages → Frais d'envoi fixe l'affranchissement habituel par mode (prérempli à la remise) et le prix d'un sleeve, d'un top-loader (par carte) et d'une enveloppe (par envoi postal, pas pour une remise en main propre). Avant la remise, la marge est une estimation avec ces tarifs ; à la remise, affranchissement et fournitures sont figés sur l'envoi (`shipments.supplies_cost_cents`) : changer ses tarifs ne réécrit pas les ventes passées. Les ventes remises avant cette règle comptent 0 € de fournitures. Dans la fiche d'une carte du stock, la marge est celle de la carte : prix − coût − sleeve − top-loader ; l'envoi se compte sur la vente. Ni frais de canal, ni TVA, ni temps passé ne sont comptés.
 
 ## Prix et catégories — points d'attention
 

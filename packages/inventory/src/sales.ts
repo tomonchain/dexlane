@@ -3,6 +3,7 @@ import { DomainError } from "@dexlane/shared";
 import type { AllocationStatus, CardCondition } from "./internal";
 import { likePrefix } from "./locations";
 import { allocateOrder, importOrder, releaseAllocation } from "./orders";
+import { getShippingCosts, postageFor, suppliesFor } from "./costs";
 import { confirmHandover, createShipment, needsTracking, type ShippingMode } from "./shipping";
 
 /** Canal des ventes saisies à la main (salon, particulier, groupe) : même cycle qu'une commande de marketplace. */
@@ -142,7 +143,9 @@ export interface SalesTotals {
   /** Coût d'acquisition des cartes vendues. */
   costCents: number;
   postageCents: number;
-  /** Encaissé − coût des cartes − affranchissement. Les frais de canal n'existent pas encore. */
+  /** Sleeves, top-loaders et enveloppes, au tarif du jour de la remise. */
+  suppliesCents: number;
+  /** Encaissé − coût des cartes − affranchissement − fournitures. Les frais de canal ne sont pas encore comptés. */
   marginCents: number;
 }
 
@@ -173,9 +176,10 @@ export async function listOrders(
   const counts: Record<OrderStage, number> = { TO_PREPARE: 0, PACKED: 0, SHIPPED: 0, CANCELLED: 0 };
   for (const c of statusCounts) counts[stageOf(c.fulfillmentStatus)] += c.n;
 
-  const [totals] = await sql<{ orders: number; grossCents: string; costCents: string; postageCents: string }[]>`
+  const [totals] = await sql<{ orders: number; grossCents: string; costCents: string; postageCents: string; suppliesCents: string }[]>`
     select count(*)::int as orders, coalesce(sum(o.gross_cents), 0)::text as gross_cents,
-           coalesce(sum(t.cost_cents), 0)::text as cost_cents, coalesce(sum(t.postage_cents), 0)::text as postage_cents
+           coalesce(sum(t.cost_cents), 0)::text as cost_cents, coalesce(sum(t.postage_cents), 0)::text as postage_cents,
+           coalesce(sum(t.supplies_cents), 0)::text as supplies_cents
       from orders o
       join lateral (
         select (select coalesce(sum(a.qty::bigint * s.unit_cost_cents), 0)
@@ -184,14 +188,15 @@ export async function listOrders(
                   join stock_items s on s.id = a.stock_item_id
                  where ol.order_id = o.id) as cost_cents,
                (select coalesce(sum(sh.postage_cost_cents), 0) from shipments sh where sh.order_id = o.id) as postage_cents,
+               (select coalesce(sum(sh.supplies_cost_cents), 0) from shipments sh where sh.order_id = o.id) as supplies_cents,
                (select max(sh.handover_confirmed_at) from shipments sh where sh.order_id = o.id) as shipped_at) t on true
      where o.fulfillment_status = 'SHIPPED' and t.shipped_at >= now() - interval '30 days'`;
-  const gross = Number(totals!.grossCents), cost = Number(totals!.costCents), postage = Number(totals!.postageCents);
+  const gross = Number(totals!.grossCents), cost = Number(totals!.costCents), postage = Number(totals!.postageCents), supplies = Number(totals!.suppliesCents);
 
   return {
     items: rows.map(({ fulfillmentStatus, ...o }) => ({ ...o, stage: stageOf(fulfillmentStatus) })),
     counts,
-    last30Days: { orders: totals!.orders, grossCents: gross, costCents: cost, postageCents: postage, marginCents: gross - cost - postage },
+    last30Days: { orders: totals!.orders, grossCents: gross, costCents: cost, postageCents: postage, suppliesCents: supplies, marginCents: gross - cost - postage - supplies },
   };
 }
 
@@ -227,9 +232,14 @@ export interface OrderDetail extends OrderSummary {
     status: string;
     tracking: string | null;
     postageCostCents: number | null;
+    suppliesCostCents: number | null;
     handoverConfirmedAt: Date | null;
   } | null;
-  totals: { grossCents: number; itemsCents: number; shippingChargedCents: number; costCents: number; postageCents: number; marginCents: number };
+  totals: {
+    grossCents: number; itemsCents: number; shippingChargedCents: number; costCents: number; postageCents: number; suppliesCents: number; marginCents: number;
+    /** Vente pas encore remise : affranchissement et fournitures sont ceux des réglages, pas encore ceux de l'envoi. */
+    estimated: boolean;
+  };
 }
 
 export async function getOrderDetail(sql: Db, orderId: string): Promise<OrderDetail> {
@@ -264,12 +274,17 @@ export async function getOrderDetail(sql: Db, orderId: string): Promise<OrderDet
      where ol.order_id = ${orderId}
      order by ol.external_line_id`;
   const [shipment] = await sql<NonNullable<OrderDetail["shipment"]>[]>`
-    select id, mode, status, tracking, postage_cost_cents, handover_confirmed_at
+    select id, mode, status, tracking, postage_cost_cents, supplies_cost_cents, handover_confirmed_at
       from shipments where order_id = ${orderId} order by created_at desc limit 1`;
 
   const itemsCents = lines.reduce((sum, l) => sum + l.qty * l.unitPriceCents, 0);
   const costCents = lines.reduce((sum, l) => sum + l.allocations.reduce((n, a) => n + a.qty * a.unitCostCents, 0), 0);
-  const postageCents = shipment?.postageCostCents ?? 0;
+  // Remise faite : les montants figés de l'envoi. Sinon, une estimation avec les frais d'envoi réglés.
+  const shipped = summary.stage === "SHIPPED";
+  const costs = shipped ? null : await getShippingCosts(sql);
+  const cards = lines.reduce((sum, l) => sum + l.qty, 0);
+  const postageCents = shipment?.postageCostCents ?? (costs && shipment ? postageFor(costs, shipment.mode) : 0);
+  const suppliesCents = shipment?.suppliesCostCents ?? (costs && shipment ? suppliesFor(costs, shipment.mode, cards) : 0);
   return {
     ...summary,
     note: extra?.note ?? null,
@@ -279,7 +294,8 @@ export async function getOrderDetail(sql: Db, orderId: string): Promise<OrderDet
     shipment: shipment ?? null,
     totals: {
       grossCents: summary.grossCents, itemsCents, shippingChargedCents: summary.grossCents - itemsCents,
-      costCents, postageCents, marginCents: summary.grossCents - costCents - postageCents,
+      costCents, postageCents, suppliesCents, marginCents: summary.grossCents - costCents - postageCents - suppliesCents,
+      estimated: !shipped && summary.stage !== "CANCELLED",
     },
   };
 }
@@ -337,9 +353,15 @@ export function shipOrder(sql: Db, input: ShipOrderInput) {
     if (needsTracking(shipment.mode) && !tracking) {
       throw new DomainError("TRACKING_REQUIRED", "a tracked shipment needs a tracking number before handover");
     }
+    // Affranchissement saisi, sinon celui déjà noté, sinon l'habituel du mode ; fournitures au tarif du jour.
+    const costs = await getShippingCosts(tx);
+    const [count] = await tx<{ cards: number }[]>`select coalesce(sum(qty), 0)::int as cards from order_lines where order_id = ${input.orderId}`;
+    const cards = count?.cards ?? 0;
     await tx`
       update shipments set tracking = coalesce(${tracking}, tracking),
-                           postage_cost_cents = coalesce(${input.postageCostCents ?? null}, postage_cost_cents), updated_at = now()
+                           postage_cost_cents = coalesce(${input.postageCostCents ?? null}, postage_cost_cents, ${postageFor(costs, shipment.mode)}),
+                           supplies_cost_cents = ${suppliesFor(costs, shipment.mode, cards)},
+                           updated_at = now()
        where id = ${shipment.id}`;
     return confirmHandover(tx, shipment.id, input.actor);
   });

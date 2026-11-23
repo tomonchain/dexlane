@@ -230,7 +230,7 @@ export function Home() {
         <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-3">
           <Figure label="Valeur du stock" value={<span data-testid="home-value">{formatEuros(stock.totals.valueCents)}</span>} hint={plural(stock.totals.cards, "carte", "cartes")} />
           <Figure label="En ligne" value={stock.counts.LISTED} hint={`${plural(schedule.pending, "planifiée", "planifiées")}`} />
-          <Figure label="Marge sur 30 jours" value={formatEuros(orders.last30Days.marginCents)} hint={`${plural(orders.last30Days.orders, "vente remise", "ventes remises")}, après coût des cartes et port`} />
+          <Figure label="Marge sur 30 jours" value={formatEuros(orders.last30Days.marginCents)} hint={`${plural(orders.last30Days.orders, "vente remise", "ventes remises")}, après cartes, port et fournitures`} />
         </dl>
         <Link href="/statistiques" className="justify-self-start px-1 text-[13px] text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline">
           Tableau de bord complet

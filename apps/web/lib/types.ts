@@ -2,7 +2,7 @@ import type { Candidate, CandidateVariant, CatalogSetCard as SetCard, CatalogSet
 import type {
   AcquisitionLotRow, CardCondition, InventoryRow, InventorySummary, LocationSummary, MovementRow, OrderDetail as OrderDetailRow, PhotoKind, PhotoRow,
   OrderStage, OrderSummary as OrderSummaryRow, ReceivedBulk, ReceivedPosition, SalesTotals, SellableOffer as SellableOfferRow,
-  ShippingMode,
+  ShippingMode, ShippingCosts,
 } from "@dexlane/inventory";
 import type {
   Activity as ActivityRow, ChannelId, ChannelMode, ChannelState as ChannelStateRow, ListingBlocker, ListingOffer as ListingOfferRow, ListingSettings,
@@ -122,3 +122,5 @@ export interface AppSettings {
 }
 /** Préparation des envois : les commandes à préparer et ce qu'il faut pour imprimer leurs bons. */
 export interface ShippingRun { orders: OrderDetail[]; seller: Seller; slipPaper: SlipPaper }
+
+export type { ShippingCosts };

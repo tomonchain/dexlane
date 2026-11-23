@@ -15,6 +15,7 @@ import { Modal } from "@/components/ui/modal";
 import type { ApiError } from "@/lib/api";
 import { api } from "@/lib/api";
 import { formatDateTime, formatEuros, parseEuros, variantLabel } from "@/lib/format";
+import { eurosInput } from "@/lib/pricing";
 import { SHIPPING_LABEL, STAGE_LABEL, STAGE_VARIANT, needsTracking, salesMessage } from "@/lib/sales";
 import type { OrderDetail } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -147,8 +148,14 @@ export default function SalePage() {
               <div className="flex justify-between font-medium"><dt>Encaissé</dt><dd>{formatEuros(order.totals.grossCents)}</dd></div>
               <div className="flex justify-between"><dt className="text-muted-foreground">Coût des cartes</dt><dd>− {formatEuros(order.totals.costCents)}</dd></div>
               <div className="flex justify-between"><dt className="text-muted-foreground">Affranchissement</dt><dd>− {formatEuros(order.totals.postageCents)}</dd></div>
-              <div className="flex justify-between border-t pt-2 text-base font-semibold"><dt>Marge</dt><dd data-testid="order-margin" className={order.totals.marginCents < 0 ? "text-destructive" : undefined}>{formatEuros(order.totals.marginCents)}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted-foreground">Fournitures <span className="text-xs">(sleeve, top-loader{inPerson ? "" : ", enveloppe"})</span></dt><dd data-testid="order-supplies">− {formatEuros(order.totals.suppliesCents)}</dd></div>
+              <div className="flex justify-between border-t pt-2 text-base font-semibold"><dt>{order.totals.estimated ? "Marge estimée" : "Marge"}</dt><dd data-testid="order-margin" className={order.totals.marginCents < 0 ? "text-destructive" : undefined}>{formatEuros(order.totals.marginCents)}</dd></div>
             </dl>
+            {order.totals.estimated && (
+              <p className="text-xs text-muted-foreground">
+                Affranchissement et fournitures d'après vos <Link href="/reglages/envois" className="underline underline-offset-2 hover:text-foreground">frais d'envoi</Link> ; figés à la remise.
+              </p>
+            )}
             {order.shipment?.tracking && <p className="text-xs text-muted-foreground">Suivi : <Code>{order.shipment.tracking}</Code></p>}
             {order.shipment?.handoverConfirmedAt && <p className="text-xs text-muted-foreground">Remise le {formatDateTime(order.shipment.handoverConfirmedAt)}</p>}
           </CardContent>
@@ -221,7 +228,8 @@ function HandoverModal({ order, busy, onClose, onSubmit }: {
   const mode = order.shipment!.mode;
   const inPerson = mode === "HAND_DELIVERY";
   const [tracking, setTracking] = useState("");
-  const [postage, setPostage] = useState("0");
+  // Préremplie avec l'affranchissement habituel de ce mode (Réglages → Frais d'envoi), à corriger au besoin.
+  const [postage, setPostage] = useState(eurosInput(order.totals.postageCents));
   const postageCents = parseEuros(postage);
 
   return (
@@ -243,7 +251,7 @@ function HandoverModal({ order, busy, onClose, onSubmit }: {
           </Field>
         )}
         {!inPerson && (
-          <Field label="Affranchissement payé (€)" hint="Déduit de la marge.">
+          <Field label="Affranchissement payé (€)" hint="Déduit de la marge, avec les fournitures.">
             <Input inputMode="decimal" value={postage} onChange={(e) => setPostage(e.target.value)} onFocus={(e) => e.target.select()} aria-invalid={postageCents === null} className="tabular" />
           </Field>
         )}

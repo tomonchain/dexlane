@@ -192,14 +192,15 @@ export function getDashboard(sql: Db): Promise<Dashboard> {
                 join order_allocations a on a.order_line_id = ol.id and a.status = 'SHIPPED'
                 join stock_items s on s.id = a.stock_item_id
                where ol.order_id = o.id) as cost_cents,
-             (select coalesce(sum(sh.postage_cost_cents), 0) from shipments sh where sh.order_id = o.id) as postage_cents
+             (select coalesce(sum(sh.postage_cost_cents), 0) from shipments sh where sh.order_id = o.id) as postage_cents,
+             (select coalesce(sum(sh.supplies_cost_cents), 0) from shipments sh where sh.order_id = o.id) as supplies_cents
         from orders o
         join lateral (select max(sh.handover_confirmed_at) as shipped_at from shipments sh where sh.order_id = o.id) t on true
        where o.fulfillment_status = 'SHIPPED' and t.shipped_at is not null`;
     const months = await tx<{ month: string; orders: number; cards: number; revenueCents: string; marginCents: string }[]>`
       select to_char(m.start, 'YYYY-MM') as month, count(s.id)::int as orders, coalesce(sum(s.cards), 0)::int as cards,
              coalesce(sum(s.gross_cents), 0)::text as revenue_cents,
-             coalesce(sum(s.gross_cents - s.cost_cents - s.postage_cents), 0)::text as margin_cents
+             coalesce(sum(s.gross_cents - s.cost_cents - s.postage_cents - s.supplies_cents), 0)::text as margin_cents
         from generate_series(date_trunc('month', now()) - interval '5 months', date_trunc('month', now()), interval '1 month') as m(start)
         left join (${shipped}) s on s.shipped_at >= m.start and s.shipped_at < m.start + interval '1 month'
        group by m.start order by m.start`;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  cancelOrder, createDirectSale, createLocation, getOfferAvailability, getOrderDetail, listOrders, listPreparation, markSlipsPrinted, packOrder, pickAllocation,
+  cancelOrder, createDirectSale, getShippingCosts, saveShippingCosts, createLocation, getOfferAvailability, getOrderDetail, listOrders, listPreparation, markSlipsPrinted, packOrder, pickAllocation,
   receiveCard, searchSellableOffers, shipOrder,
 } from "../src";
 import { ACTOR, journalDrift, makeVariant, stockRow, useTestDb } from "./helpers";
@@ -74,6 +74,36 @@ describe("direct sale", () => {
     expect(after[1]!.slipPrintedAt).toBeNull();
   });
 
+  it("counts postage and supplies in the margin: estimated before handover, frozen at handover", async () => {
+    expect(await getShippingCosts(sql)).toEqual({
+      postage: { LETTER_UNTRACKED: null, LETTER_TRACKED: null, PARCEL_TRACKED: null },
+      supplies: { sleeveCents: 0, toploaderCents: 0, envelopeCents: 0 },
+    });
+    await saveShippingCosts(sql, { postage: { LETTER_UNTRACKED: 152, LETTER_TRACKED: null, PARCEL_TRACKED: 650 }, supplies: { sleeveCents: 2, toploaderCents: 8, envelopeCents: 25 } }, ACTOR);
+    await expect(saveShippingCosts(sql, { postage: { LETTER_UNTRACKED: -1, LETTER_TRACKED: null, PARCEL_TRACKED: null }, supplies: { sleeveCents: 0, toploaderCents: 0, envelopeCents: 0 } }, ACTOR))
+      .rejects.toMatchObject({ code: "INVALID_COSTS" });
+
+    const pika = await stocked("Pikachu", 5, 100);
+    // Lettre non suivie, 2 cartes à 5 €, 1,50 € de port facturé.
+    const letter = await sale([{ offerId: pika.offer.id, qty: 2, unitPriceCents: 500 }], { shippingChargedCents: 150 });
+    // Avant la remise : estimation avec l'affranchissement habituel et les fournitures (2 × (sleeve + top-loader) + enveloppe).
+    expect((await getOrderDetail(sql, letter.orderId)).totals).toEqual({
+      grossCents: 1150, itemsCents: 1000, shippingChargedCents: 150, costCents: 200, postageCents: 152, suppliesCents: 45, marginCents: 753, estimated: true,
+    });
+    // À la remise sans affranchissement saisi : l'habituel est retenu. Les tarifs changés ensuite ne réécrivent pas la vente.
+    await prepare(letter.orderId);
+    await shipOrder(sql, { orderId: letter.orderId, actor: ACTOR });
+    await saveShippingCosts(sql, { postage: { LETTER_UNTRACKED: 999, LETTER_TRACKED: null, PARCEL_TRACKED: null }, supplies: { sleeveCents: 50, toploaderCents: 50, envelopeCents: 50 } }, ACTOR);
+    expect((await getOrderDetail(sql, letter.orderId)).totals).toMatchObject({ postageCents: 152, suppliesCents: 45, marginCents: 753, estimated: false });
+    expect((await listOrders(sql)).last30Days).toMatchObject({ orders: 1, postageCents: 152, suppliesCents: 45, marginCents: 753 });
+
+    // Remise en main propre : ni affranchissement ni enveloppe, mais sleeve et top-loader.
+    const hand = await sale([{ offerId: pika.offer.id, qty: 1, unitPriceCents: 500 }], { shippingMode: "HAND_DELIVERY" });
+    await prepare(hand.orderId);
+    await shipOrder(sql, { orderId: hand.orderId, actor: ACTOR });
+    expect((await getOrderDetail(sql, hand.orderId)).totals).toMatchObject({ postageCents: 0, suppliesCents: 100, marginCents: 500 - 100 - 100 });
+  });
+
   it("refuses a sale the stock cannot cover and leaves no trace", async () => {
     const pika = await stocked("Pikachu", 1);
     await expect(sale([{ offerId: pika.offer.id, qty: 2, unitPriceCents: 500 }])).rejects.toMatchObject({
@@ -105,7 +135,7 @@ describe("direct sale", () => {
 
     const list = await listOrders(sql, { stage: "SHIPPED" });
     expect(list.items).toHaveLength(1);
-    expect(list.last30Days).toEqual({ orders: 1, grossCents: 1000, costCents: 200, postageCents: 143, marginCents: 657 });
+    expect(list.last30Days).toEqual({ orders: 1, grossCents: 1000, costCents: 200, postageCents: 143, suppliesCents: 0, marginCents: 657 });
     expect(await shipOrder(sql, { orderId, actor: ACTOR })).toMatchObject({ status: "ALREADY_HANDED_OVER" });
     expect(await journalDrift(sql)).toHaveLength(0);
   });
