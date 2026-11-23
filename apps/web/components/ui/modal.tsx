@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { Dialog } from "radix-ui";
 import { useEffect, useState, type ReactNode } from "react";
 import { Drawer } from "vaul";
+import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 function useIsDesktop() {
@@ -50,7 +51,7 @@ export function Modal({ title, description, onClose, children, className }: {
                 <Dialog.Title className="text-base font-semibold tracking-tight">{title}</Dialog.Title>
                 {description && <Dialog.Description className="text-sm text-muted-foreground">{description}</Dialog.Description>}
               </div>
-              <Dialog.Close aria-label="Fermer" className="-mt-1 -mr-2 flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
+              <Dialog.Close aria-label={t("Fermer")} className="-mt-1 -mr-2 flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
                 <X className="size-4" />
               </Dialog.Close>
             </div>

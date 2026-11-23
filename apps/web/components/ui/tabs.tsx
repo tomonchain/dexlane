@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
 
@@ -43,13 +44,13 @@ export function SegmentedTabs<T extends string>({ value, onChange, tabs, label }
 export function Pagination({ page, pageCount, onChange, className }: { page: number; pageCount: number; onChange: (page: number) => void; className?: string }) {
   if (pageCount <= 1) return null;
   return (
-    <nav aria-label="Pagination" className={cn("flex items-center justify-between gap-3", className)}>
+    <nav aria-label={t("Pagination")} className={cn("flex items-center justify-between gap-3", className)}>
       <Button variant="outline" size="sm" onClick={() => onChange(page - 1)} disabled={page <= 1}>
-        <ChevronLeft /> Précédent
+        <ChevronLeft /> {t("Précédent")}
       </Button>
-      <span className="tabular text-sm text-muted-foreground" aria-live="polite">Page {page} sur {pageCount}</span>
+      <span className="tabular text-sm text-muted-foreground" aria-live="polite">{t("Page {page} sur {count}", { page, count: pageCount })}</span>
       <Button variant="outline" size="sm" onClick={() => onChange(page + 1)} disabled={page >= pageCount}>
-        Suivant <ChevronRight />
+        {t("Suivant")} <ChevronRight />
       </Button>
     </nav>
   );

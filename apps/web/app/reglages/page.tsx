@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { ExportStockRow } from "@/components/export-stock";
 import Link from "next/link";
 import { Page, PageHeader } from "@/components/ui/misc";
+import { t } from "@/lib/i18n";
 
 const SECTIONS: { title: string; items: { href: string; label: string; hint: string; icon: LucideIcon }[]; extra?: ReactNode }[] = [
   {
@@ -45,17 +46,17 @@ const SECTIONS: { title: string; items: { href: string; label: string; hint: str
 export default function SettingsPage() {
   return (
     <Page width="narrow" className="mx-auto w-full gap-6">
-      <PageHeader title="Réglages" />
+      <PageHeader title={t("Réglages")} />
       {SECTIONS.map((section) => (
         <section key={section.title} className="grid gap-2">
-          <h2 className="px-1 text-xs font-medium text-muted-foreground">{section.title}</h2>
+          <h2 className="px-1 text-xs font-medium text-muted-foreground">{t(section.title)}</h2>
           <div className="divide-y overflow-hidden rounded-lg border bg-card">
             {section.items.map((item) => (
               <Link key={item.href} href={item.href} className="flex items-center gap-3 px-4 py-3 outline-none transition-colors hover:bg-accent/60 focus-visible:bg-accent">
                 <item.icon className="size-4 text-muted-foreground" aria-hidden />
                 <span className="grid flex-1">
-                  <span className="text-sm font-medium">{item.label}</span>
-                  <span className="text-[13px] text-muted-foreground">{item.hint}</span>
+                  <span className="text-sm font-medium">{t(item.label)}</span>
+                  <span className="text-[13px] text-muted-foreground">{t(item.hint)}</span>
                 </span>
                 <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
               </Link>

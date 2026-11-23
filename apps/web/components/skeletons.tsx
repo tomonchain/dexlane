@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 /**
@@ -10,10 +11,11 @@ export function Bone({ className }: { className?: string }) {
 }
 
 /** Zone en chargement : annoncée une fois aux lecteurs d'écran, la forme seule est visible. */
-function Loading({ label = "Chargement", className, children }: { label?: string; className?: string; children: ReactNode }) {
+function Loading({ label, className, children }: { label?: string; className?: string; children: ReactNode }) {
+  const text = label ?? t("Chargement");
   return (
-    <div role="status" aria-label={label} aria-busy="true" className={className} data-testid="skeleton">
-      <span className="sr-only">{label}…</span>
+    <div role="status" aria-label={text} aria-busy="true" className={className} data-testid="skeleton">
+      <span className="sr-only">{text}…</span>
       <div aria-hidden className="contents">{children}</div>
     </div>
   );
@@ -71,7 +73,7 @@ function Columns({ count = 30, className }: { count?: number; className?: string
 
 export function HomeSkeleton() {
   return (
-    <Loading label="Chargement de l'accueil" className="grid gap-6">
+    <Loading label={t("Chargement de l'accueil")} className="grid gap-6">
       <div className="grid gap-2">
         <Bone className="h-6 w-36" />
         <Bone className="h-4 w-44" />
@@ -102,7 +104,7 @@ export function HomeSkeleton() {
 /** Lignes du tableau du stock, dans les colonnes du vrai tableau (mêmes cellules, mêmes points de rupture). */
 export function StockRowsSkeleton({ count = 8, wideSales = true }: { count?: number; wideSales?: boolean }) {
   return (
-    <tbody role="status" aria-busy="true" aria-label="Chargement du stock" data-testid="skeleton">
+    <tbody role="status" aria-busy="true" aria-label={t("Chargement du stock")} data-testid="skeleton">
       {Array.from({ length: count }, (_, i) => (
         <tr key={i} className="h-[49px] border-b last:border-b-0" aria-hidden>
           <td className="w-9 pl-3"><Bone className="size-4 rounded-[4px]" /></td>
@@ -130,7 +132,7 @@ export function StockRowsSkeleton({ count = 8, wideSales = true }: { count?: num
 /** Fiche d'une carte du stock : en-tête, chiffres, prix, graphique. */
 export function InspectorSkeleton() {
   return (
-    <Loading label="Chargement de la carte" className="grid overflow-hidden rounded-lg border bg-card lg:sticky lg:top-6">
+    <Loading label={t("Chargement de la carte")} className="grid overflow-hidden rounded-lg border bg-card lg:sticky lg:top-6">
       <div className="flex gap-4 p-4">
         <Bone className="aspect-[63/88] w-24 shrink-0" />
         <span className="grid flex-1 content-start gap-2 pt-1">
@@ -158,7 +160,7 @@ export function InspectorSkeleton() {
 /** Graphique d'évolution du prix, à sa hauteur. */
 export function ChartSkeleton({ height }: { height: number }) {
   return (
-    <Loading label="Chargement de l'historique" className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-2" >
+    <Loading label={t("Chargement de l'historique")} className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-2" >
       <span className="grid content-between py-1" style={{ height }}>
         {[0, 1, 2, 3].map((i) => <Bone key={i} className="h-2.5 w-8" />)}
       </span>
@@ -173,7 +175,7 @@ export function ChartSkeleton({ height }: { height: number }) {
 /** Liste des ventes : chiffres sur 30 jours, onglets, lignes. */
 export function SalesSkeleton() {
   return (
-    <Loading label="Chargement des ventes" className="grid gap-3">
+    <Loading label={t("Chargement des ventes")} className="grid gap-3">
       <Rows count={6} />
     </Loading>
   );
@@ -181,7 +183,7 @@ export function SalesSkeleton() {
 
 export function SalesTotalsSkeleton() {
   return (
-    <Loading label="Chargement des chiffres" className="contents">
+    <Loading label={t("Chargement des chiffres")} className="contents">
       <Figures count={3} className="grid-cols-3" />
     </Loading>
   );
@@ -190,7 +192,7 @@ export function SalesTotalsSkeleton() {
 /** Détail d'une vente : retour, titre, étapes, lignes à prélever. */
 export function OrderSkeleton() {
   return (
-    <Loading label="Chargement de la vente" className="grid gap-5">
+    <Loading label={t("Chargement de la vente")} className="grid gap-5">
       <Bone className="h-4 w-16" />
       <div className="grid gap-2"><Bone className="h-7 w-52" /><Bone className="h-4 w-72" /></div>
       <Bone className="h-10 w-full" />
@@ -205,7 +207,7 @@ export function OrderSkeleton() {
 /** Tableau de bord : quatre chiffres, puis deux cartes. */
 export function DashboardSkeleton() {
   return (
-    <Loading label="Chargement du tableau de bord" className="grid gap-5">
+    <Loading label={t("Chargement du tableau de bord")} className="grid gap-5">
       <div className="grid gap-2"><Bone className="h-7 w-40" /><Bone className="h-4 w-80 max-w-full" /></div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[0, 1, 2, 3].map((i) => (
@@ -241,7 +243,7 @@ export function PageSkeleton({ label }: { label?: string }) {
 /** Lot scanné : en-tête, bandeau, puis les lignes du lot. */
 export function BatchSkeleton() {
   return (
-    <Loading label="Chargement du lot" className="grid gap-4">
+    <Loading label={t("Chargement du lot")} className="grid gap-4">
       <Bone className="h-3.5 w-24" />
       <div className="flex items-center gap-4"><Bone className="h-6 w-56" /><Bone className="h-4 w-40" /></div>
       <Bone className="h-12 w-full" />
@@ -253,7 +255,7 @@ export function BatchSkeleton() {
 /** Préparation des envois : réglages à gauche, aperçu du rouleau à droite. */
 export function PreparationSkeleton() {
   return (
-    <Loading label="Chargement des envois" className="grid items-start gap-6 lg:grid-cols-[minmax(0,22rem)_1fr]">
+    <Loading label={t("Chargement des envois")} className="grid items-start gap-6 lg:grid-cols-[minmax(0,22rem)_1fr]">
       <div className="grid gap-4">
         <div className="grid gap-3 rounded-lg border bg-card p-4"><Bone className="h-4 w-44" /><Bone className="h-9 w-full" /></div>
         <div className="grid gap-3 rounded-lg border bg-card p-4">{[0, 1, 2, 3].map((i) => <Bone key={i} className="h-5 w-full" />)}</div>

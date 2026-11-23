@@ -1,6 +1,7 @@
 import { ArrowLeft, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
+import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 export function Skeleton({ className, ...props }: ComponentProps<"div">) {
@@ -11,10 +12,10 @@ export function Spinner({ className }: { className?: string }) {
   return <LoaderCircle className={cn("size-4 animate-spin text-muted-foreground", className)} aria-hidden />;
 }
 
-export function Loading({ children = "Chargement…", className }: { children?: ReactNode; className?: string }) {
+export function Loading({ children, className }: { children?: ReactNode; className?: string }) {
   return (
     <p role="status" className={cn("flex items-center gap-2 text-sm text-muted-foreground", className)}>
-      <Spinner /> {children}
+      <Spinner /> {children ?? t("Chargement…")}
     </p>
   );
 }

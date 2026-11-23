@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Alert } from "@/components/ui/alert";
 import { BackLink, Loading, Page, PageHeader } from "@/components/ui/misc";
 import { api } from "@/lib/api";
+import { t } from "@/lib/i18n";
 import { INTAKE, type IntakeMode } from "@/lib/intake";
 import { cn } from "@/lib/utils";
 
@@ -21,7 +22,7 @@ export default function IntakeSettingsPage() {
     setMode(next);
     try {
       await api.saveAppSettings({ intakeMode: next });
-      toast.success(`Saisie : ${INTAKE.find((o) => o.value === next)!.label.toLowerCase()}`);
+      toast.success(t("Saisie : {mode}", { mode: t(INTAKE.find((o) => o.value === next)!.label).toLowerCase() }));
     } catch (e) {
       setMode(before);
       setError((e as Error).message);
@@ -31,13 +32,13 @@ export default function IntakeSettingsPage() {
   return (
     <Page width="narrow" className="mx-auto w-full">
       <PageHeader
-        back={<BackLink href="/reglages">Réglages</BackLink>}
-        title="Saisie des cartes"
-        description="Votre façon habituelle de faire entrer les cartes. Le menu « Ajouter des cartes » la propose en premier ; les autres restent disponibles."
+        back={<BackLink href="/reglages">{t("Réglages")}</BackLink>}
+        title={t("Saisie des cartes")}
+        description={t("Votre façon habituelle de faire entrer les cartes. Le menu « Ajouter des cartes » la propose en premier ; les autres restent disponibles.")}
       />
       {error && <Alert variant="destructive">{error}</Alert>}
       {mode === undefined ? !error && <Loading /> : (
-        <div role="radiogroup" aria-label="Mode de saisie" className="grid gap-2">
+        <div role="radiogroup" aria-label={t("Mode de saisie")} className="grid gap-2">
           {INTAKE.map((option) => (
             <button
               key={option.value}
@@ -52,8 +53,8 @@ export default function IntakeSettingsPage() {
             >
               <option.icon className="size-5 shrink-0 text-muted-foreground" aria-hidden />
               <span className="grid gap-0.5">
-                <span className="text-sm font-semibold">{option.label}</span>
-                <span className="text-[13px] text-muted-foreground">{option.hint}</span>
+                <span className="text-sm font-semibold">{t(option.label)}</span>
+                <span className="text-[13px] text-muted-foreground">{t(option.hint)}</span>
               </span>
             </button>
           ))}
