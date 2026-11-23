@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import {
-  createTcgdexClient, findCandidates, getSetDetail, listSets, syncSet, syncSetList, type TcgdexClient, refreshTrackedPrices,
+  createTcgdexClient, findCandidates, getSetDetail, listSets, syncSet, syncSetList, type TcgdexClient, refreshTrackedPrices, searchCatalog,
 } from "@dexlane/catalog";
 import type { Db } from "@dexlane/db";
 import {
@@ -12,7 +12,7 @@ import {
   searchInventory, searchSellableOffers, shipOrder, updateLocationDescription,
 } from "@dexlane/inventory";
 import {
-  estimateVariants, findDeals, listWatched, unwatchCard, updateWatched, watchCard, getPricingSettings, priceHistory, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice, getAlertSettings, getDashboard, listPriceMoves, saveAlertSettings,
+  estimateVariants, findDeals, listWatched, topCards, unwatchCard, updateWatched, watchCard, getPricingSettings, priceHistory, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice, getAlertSettings, getDashboard, listPriceMoves, saveAlertSettings,
 } from "@dexlane/pricing";
 import {
   MAX_IMAGE_BYTES, RecognitionError, assertSupportedImage, identifyCard, type CardImage, type CardRecognizer, type ImageMediaType, addItem, createBatch, findItem, getBatch, listBatches, listItems, receiveBatch, receiveReady, setItemBack, updateBatch, updateItem,
@@ -406,6 +406,28 @@ export function createApp(deps: AppDeps) {
     await unwatchCard(sql, parse(s.watchedId, c.req.param("id")));
     return c.json({ ok: true });
   });
+
+  /**
+   * Recherche libre pour suivre une carte : nom, numéro, série en une saisie. Une ligne par variante, avec son prix
+   * (ventes réussies, sinon annonces) ; les noms qui commencent par le mot cherché d'abord, puis les plus chères.
+   */
+  app.get("/api/catalog/search", async (c) => {
+    const q = parse(s.catalogSearchQuery, c.req.query());
+    const hits = await searchCatalog(sql, q.q, { language: q.language, limit: 60 });
+    const ids = hits.map((h) => h.variantId);
+    const [estimates, watched] = await Promise.all([
+      estimateVariants(sql, ids),
+      ids.length ? sql<{ variantId: string; id: string }[]>`select variant_id, id from watched_cards where variant_id in ${sql(ids)}` : [],
+    ]);
+    const results = hits
+      .map((h) => ({ ...h, estimate: estimates.get(h.variantId) ?? null, watchedId: watched.find((w) => w.variantId === h.variantId)?.id ?? null }))
+      .sort((a, b) => Number(b.prefix) - Number(a.prefix) || (b.estimate?.cents ?? -1) - (a.estimate?.cents ?? -1))
+      .slice(0, 20);
+    return c.json({ results });
+  });
+
+  /** Les cartes les plus chères du moment (ventes réussies régulières), pour proposer quoi suivre. */
+  app.get("/api/purchases/top", async (c) => c.json({ cards: await topCards(sql, parse(s.topCardsQuery, c.req.query())) }));
 
   /** Bonnes affaires : cartes au-dessus d'une valeur, annoncées nettement sous leur prix de vente. */
   app.get("/api/deals", async (c) => c.json(await findDeals(sql, parse(s.dealsQuery, c.req.query()))));

@@ -1229,13 +1229,23 @@ test("achats : suivre une carte avec un prix cible, ses prix sur Cardmarket et T
   if (await draco.count()) await draco.getByRole("button", { name: "Ne plus suivre Dracaufeu" }).click(); // rejouable
   await page.getByRole("button", { name: "Suivre une carte" }).click();
   const dialog = page.getByRole("dialog", { name: "Suivre une carte" });
-  await dialog.getByLabel("Nom").fill("Dracaufeu");
-  await dialog.getByRole("button", { name: "Rechercher dans le catalogue" }).click();
-  await dialog.getByRole("radiogroup", { name: "Cartes proposées" }).getByRole("radio", { name: /Dracaufeu/ }).first().click();
-  await dialog.getByRole("radiogroup", { name: "Variante" }).getByRole("radio", { name: /illimité/ }).click();
-  await dialog.getByLabel("Prix cible (€, facultatif)").fill("100");
-  await dialog.getByRole("button", { name: "Suivre cette carte" }).click();
+  // Sans saisie : les cartes les plus chères du moment, classées par prix des ventes, prêtes à suivre d'un clic.
+  const top = dialog.getByTestId("top-cards");
+  await expect(top.getByTestId("pick-card").first()).toContainText("Dracaufeu");
+  await expect(top.getByTestId("pick-card").first()).toContainText("432,22 €");
+  // Une seule saisie : nom et numéro ensemble ; une ligne par variante.
+  await dialog.getByLabel("Rechercher une carte").fill("dracaufeu 4/102");
+  const results = dialog.getByTestId("search-results").getByTestId("pick-card");
+  await expect(results).toHaveCount(4);
+  const unlimited = results.filter({ hasText: "illimité" });
+  await expect(unlimited).toContainText("432,22 €");
+  await unlimited.getByRole("button", { name: "Suivre Dracaufeu 4" }).click();
+  await expect(unlimited).toContainText("Suivie");
+  await dialog.getByRole("button", { name: "Terminé" }).click();
   await expect(page.getByText("Dracaufeu suivie")).toBeVisible();
+  await draco.getByLabel("Prix cible pour Dracaufeu").fill("100");
+  await draco.getByLabel("Prix cible pour Dracaufeu").press("Enter");
+  await expect(page.getByText("Prix cible : 100,00 €")).toBeVisible();
 
   // Ses prix sur chaque plateforme : ventes réussies 432 €, annonce dès 90 €, TCGplayer 987 $.
   await expect(draco).toContainText("432,22 €");

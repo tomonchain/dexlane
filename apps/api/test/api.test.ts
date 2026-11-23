@@ -425,6 +425,14 @@ describe("purchases", () => {
     expect(deals.deals.find(isMew)).toMatchObject({ estimateCents: 760, lowCents: 298, discountPercent: 61, watchedId: watched.json.id });
     expect((await call("GET", "/api/deals?minDiscount=200")).status).toBe(400);
 
+    // Recherche libre : une ligne par variante, avec son prix et son suivi ; les plus grosses cartes du moment.
+    const found = (await call("GET", "/api/catalog/search?q=mew%20151")).json.results;
+    expect(found).toMatchObject([{ variantId, name: "Mew-ex", estimate: { cents: 760 }, watchedId: watched.json.id }]);
+    expect((await call("GET", "/api/catalog/search?q=m")).json.results).toEqual([]);
+    const top = (await call("GET", "/api/purchases/top?limit=5")).json.cards;
+    expect(top.length).toBeGreaterThan(0);
+    expect(top.map((t: { sales: { cents: number } }) => t.sales.cents)).toEqual([...top.map((t: { sales: { cents: number } }) => t.sales.cents)].sort((x, y) => y - x));
+
     expect((await call("DELETE", `/api/watchlist/${watched.json.id}`, { key: null })).status).toBe(200);
     expect((await call("DELETE", `/api/watchlist/${watched.json.id}`, { key: null })).status).toBe(404);
   });

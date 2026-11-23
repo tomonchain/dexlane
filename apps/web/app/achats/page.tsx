@@ -1,23 +1,22 @@
 "use client";
 
-import { BellRing, ChartLine, ExternalLink, Plus, RefreshCw, Search, Star, TrendingDown, TrendingUp, X } from "lucide-react";
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { BellRing, ChartLine, Check, ExternalLink, Plus, RefreshCw, Search, Star, TrendingDown, TrendingUp, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
-import { CandidateList, CardThumb, ManualSearch } from "@/components/card-chooser";
+import { CardThumb } from "@/components/card-chooser";
 import { PriceHistory } from "@/components/price-history";
 import { ListSkeleton } from "@/components/skeletons";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Field, Input, Select } from "@/components/ui/input";
+import { Select } from "@/components/ui/input";
 import { EmptyState, PageHeader, Spinner } from "@/components/ui/misc";
 import { Modal } from "@/components/ui/modal";
 import { SegmentedTabs } from "@/components/ui/tabs";
-import { Choice, ChoiceGroup } from "@/components/ui/toggle-group";
 import { ApiError, api } from "@/lib/api";
 import { formatEuros, parseEuros, variantLabel } from "@/lib/format";
 import { CONFIDENCE_HINT, CONFIDENCE_LABEL, age, eurosInput } from "@/lib/pricing";
-import type { Candidate, Deal, DealList, WatchedCard } from "@/lib/types";
+import type { CatalogHit, Deal, DealList, TopCard, WatchedCard } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type Tab = "WATCH" | "DEALS";
@@ -184,58 +183,130 @@ function WatchedRow({ item, onChanged }: { item: WatchedCard; onChanged: () => v
   );
 }
 
-/** Choisir une carte du catalogue (et sa variante) à suivre, avec un prix cible facultatif. */
-function WatchModal({ onClose, onWatched }: { onClose: () => void; onWatched: () => void }) {
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [chosen, setChosen] = useState<Candidate | null>(null);
-  const [variantId, setVariantId] = useState<string | null>(null);
-  const [target, setTarget] = useState("");
+/** Une carte proposée dans la fenêtre de suivi : de quoi la reconnaître, son prix, et le bouton pour la suivre. */
+function PickRow({ card, price, trend, watchedId, onWatch }: {
+  card: Card; price: ReactNode; trend?: number | null; watchedId: string | null; onWatch: () => Promise<void>;
+}) {
   const [busy, setBusy] = useState(false);
-  const cents = target.trim() === "" ? null : parseEuros(target);
+  return (
+    <li className="flex items-center gap-3 px-3 py-2.5" data-testid="pick-card">
+      <span className="min-w-0 flex-1"><CardLabel card={card} owned={0} /></span>
+      <span className="grid justify-items-end gap-0.5 text-right">
+        <span className="tabular text-sm font-medium">{price}</span>
+        {trend !== undefined && trend !== null && (
+          <span className={cn("tabular text-[11px]", trend > 0 ? "text-success" : trend < 0 ? "text-destructive" : "text-muted-foreground")} title="Ventes de la semaine comparées à celles du mois">
+            {trend > 0 ? "+" : ""}{trend} % cette semaine
+          </span>
+        )}
+      </span>
+      {watchedId ? (
+        <Badge variant="outline" className="w-[5.5rem] justify-center"><Check /> Suivie</Badge>
+      ) : (
+        <Button variant="outline" size="sm" className="w-[5.5rem]" disabled={busy} aria-label={`Suivre ${card.name} ${card.localNumber}`}
+          onClick={async () => { setBusy(true); await onWatch().finally(() => setBusy(false)); }}>
+          {busy ? <Spinner /> : <Star />} Suivre
+        </Button>
+      )}
+    </li>
+  );
+}
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    if (!variantId || (target.trim() !== "" && !cents)) return;
-    setBusy(true);
-    try {
-      await api.watch({ variantId, targetCents: cents });
-      toast.success(`${chosen!.name} suivie`);
-      onWatched();
-    } catch (err) {
-      toast.error((err as Error).message);
-      setBusy(false);
+/**
+ * Suivre une carte : une seule saisie (nom, numéro, série), des résultats pendant la frappe. Sans saisie, les cartes les
+ * plus chères du moment. Le prix cible se règle ensuite dans la liste.
+ */
+function WatchModal({ onClose, onWatched }: { onClose: () => void; onWatched: () => void }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<CatalogHit[] | null>(null);
+  const [top, setTop] = useState<TopCard[] | null>(null);
+  const [followed, setFollowed] = useState<Record<string, string>>({});
+  const request = useRef(0);
+  const searching = query.trim().length >= 2;
+
+  useEffect(() => {
+    api.topCards(5).then((r) => setTop(r.cards)).catch(() => setTop([]));
+  }, []);
+  useEffect(() => {
+    if (!searching) {
+      setResults(null);
+      return;
     }
-  }
+    const id = ++request.current;
+    const timer = setTimeout(() => {
+      api.searchCards(query.trim()).then((r) => id === request.current && setResults(r.results)).catch(() => id === request.current && setResults([]));
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [query, searching]);
+
+  const watch = (variantId: string, name: string) => async () => {
+    try {
+      const { id } = await api.watch({ variantId });
+      setFollowed((f) => ({ ...f, [variantId]: id }));
+      toast.success(`${name} suivie`);
+      onWatched();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
 
   return (
-    <Modal title="Suivre une carte" description="Ses prix sont relevés chaque jour ; une alerte apparaît quand l'annonce la moins chère passe sous votre prix cible." onClose={onClose}>
-      <div className="grid gap-4">
-        <ManualSearch language="fr" onResults={(c) => { setCandidates(c); setChosen(null); setVariantId(null); }} />
-        {candidates.length > 0 && (
-          <CandidateList
-            candidates={candidates}
-            selectedId={chosen?.catalogCardId ?? null}
-            onSelect={(c) => { setChosen(c); setVariantId(c.variants.length === 1 ? c.variants[0]!.id : null); }}
+    <Modal title="Suivre une carte" description="Cherchez par nom, numéro ou série. Le prix cible se règle ensuite dans la liste." onClose={onClose}>
+      <div className="grid gap-3">
+        <div className="relative">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Dracaufeu, mew 151, fouinar ténèbres…"
+            aria-label="Rechercher une carte"
+            autoCorrect="off"
+            enterKeyHint="search"
+            className="h-11 w-full rounded-md border border-input bg-card pr-3 pl-9 text-base outline-none placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15"
           />
-        )}
-        {chosen && (
-          <form className="grid gap-4" onSubmit={submit}>
-            {chosen.variants.length > 1 && (
-              <div className="grid gap-1.5">
-                <span className="text-[13px] leading-none font-medium text-foreground/80">Variante</span>
-                <ChoiceGroup value={variantId} onValueChange={setVariantId} aria-label="Variante" className="flex flex-wrap gap-1.5">
-                  {chosen.variants.map((v) => <Choice key={v.id} value={v.id} className="px-3 text-[13px]">{variantLabel(v)}</Choice>)}
-                </ChoiceGroup>
-              </div>
+        </div>
+
+        {!searching ? (
+          <section className="grid gap-2" aria-label="Les plus chères du moment" data-testid="top-cards">
+            <div className="grid gap-0.5 px-1">
+              <h3 className="text-xs font-medium text-muted-foreground">Les plus chères du moment</h3>
+              <p className="text-[11px] text-muted-foreground">Cartes de plus de 10 € qui se vendent régulièrement dans vos séries importées, classées par prix des ventes réussies sur Cardmarket.</p>
+            </div>
+            {!top ? <ListSkeleton count={5} thumb label="Chargement des cartes du moment" /> : top.length === 0 ? (
+              <p className="rounded-lg border border-dashed px-4 py-6 text-center text-[13px] text-muted-foreground">
+                Pas encore de prix récents. Importez des séries dans le catalogue, puis actualisez les prix.
+              </p>
+            ) : (
+              <ul className="divide-y overflow-hidden rounded-lg border bg-card">
+                {top.map((t) => (
+                  <PickRow key={t.variantId} card={t.card} price={formatEuros(t.sales.cents)} trend={t.trendPercent}
+                    watchedId={followed[t.variantId] ?? t.watchedId} onWatch={watch(t.variantId, t.card.name)} />
+                ))}
+              </ul>
             )}
-            <Field label="Prix cible (€, facultatif)" hint="Alerte quand une annonce Cardmarket passe dessous.">
-              <Input inputMode="decimal" value={target} onChange={(e) => setTarget(e.target.value)} aria-invalid={target.trim() !== "" && !cents} className="tabular" />
-            </Field>
-            <Button type="submit" disabled={busy || !variantId || (target.trim() !== "" && !cents)}>
-              {busy ? <Spinner className="text-primary-foreground" /> : <Star />} Suivre cette carte
-            </Button>
-          </form>
+          </section>
+        ) : !results ? <ListSkeleton count={4} thumb label="Recherche" /> : results.length === 0 ? (
+          <p className="rounded-lg border border-dashed px-4 py-6 text-center text-[13px] text-muted-foreground" role="status">
+            Aucune carte ne correspond. Seules les séries importées dans le catalogue sont cherchées.
+          </p>
+        ) : (
+          <ul className="max-h-[50dvh] divide-y overflow-y-auto rounded-lg border bg-card" aria-label="Résultats" data-testid="search-results">
+            {results.map((h) => (
+              <PickRow
+                key={h.variantId}
+                card={{ ...h, catalogCardId: h.catalogCardId }}
+                price={h.estimate
+                  ? <span title={h.estimate.variantAmbiguous ? "Cote partagée avec une autre variante" : h.estimate.sales ? "Ventes réussies Cardmarket" : "Aucune vente récente : tendance des annonces"}>
+                      {h.estimate.sales && !h.estimate.variantAmbiguous ? "" : "≈ "}{formatEuros(h.estimate.cents)}
+                    </span>
+                  : <span className="text-muted-foreground">—</span>}
+                watchedId={followed[h.variantId] ?? h.watchedId}
+                onWatch={watch(h.variantId, h.name)}
+              />
+            ))}
+          </ul>
         )}
+        <Button variant="outline" onClick={onClose} className="justify-self-end">Terminé</Button>
       </div>
     </Modal>
   );
@@ -272,7 +343,7 @@ function Watchlist({ data, onChanged }: { data: { items: WatchedCard[]; alerts: 
           </ul>
         </>
       )}
-      {adding && <WatchModal onClose={() => setAdding(false)} onWatched={() => { setAdding(false); onChanged(); }} />}
+      {adding && <WatchModal onClose={() => setAdding(false)} onWatched={onChanged} />}
     </div>
   );
 }

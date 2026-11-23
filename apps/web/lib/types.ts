@@ -1,4 +1,4 @@
-import type { Candidate, CandidateVariant, CatalogSetCard as SetCard, CatalogSetDetail as SetDetail, CatalogSetSummary, SyncStats } from "@dexlane/catalog";
+import type { Candidate, CandidateVariant, CatalogHit as CatalogHitRow, CatalogSetCard as SetCard, CatalogSetDetail as SetDetail, CatalogSetSummary, SyncStats } from "@dexlane/catalog";
 import type {
   AcquisitionLotRow, CardCondition, InventoryRow, InventorySummary, LocationSummary, MovementRow, OrderDetail as OrderDetailRow, PhotoKind, PhotoRow,
   OrderStage, OrderSummary as OrderSummaryRow, ReceivedBulk, ReceivedPosition, SalesTotals, SellableOffer as SellableOfferRow,
@@ -10,7 +10,7 @@ import type {
 } from "@dexlane/listings";
 import type {
   AlertSettings, Dashboard as DashboardRow, OfferPricing as PricingRow, PriceMove as PriceMoveRow, PriceMoves as PriceMovesRow, PricingSettings,
-  Deal as DealRow, PriceHistory as PriceHistoryRow, VariantQuote as Quote, WatchedCard as WatchedCardRow,
+  Deal as DealRow, PriceHistory as PriceHistoryRow, TopCard as TopCardRow, VariantQuote as Quote, WatchedCard as WatchedCardRow,
 } from "@dexlane/pricing";
 import type { CardReadingRaw, RecognitionUsage, ScanBatch as ScanBatchRow, ScanItem as ScanItemRow } from "@dexlane/scan";
 
@@ -35,6 +35,9 @@ export type VariantQuote = Json<Quote>;
 export type PriceHistory = Json<PriceHistoryRow>;
 export type WatchedCard = Json<WatchedCardRow>;
 export type Deal = Json<DealRow>;
+export type TopCard = Json<TopCardRow>;
+/** Une variante trouvée par la recherche libre, avec son prix et son suivi éventuel. */
+export type CatalogHit = Json<CatalogHitRow> & { estimate: VariantEstimate | null; watchedId: string | null };
 export interface DealList { deals: Deal[]; examined: number; freshDays: number; minCents: number; minDiscount: number }
 /** Estimation d'après les ventes réussies, telle que l'API la sert partout (stock, prix, catalogue, saisie). */
 export interface SalesEstimate { cents: number; confidence: "HIGH" | "MEDIUM" | "LOW"; sales: { quoteType: string; amountCents: number }[] }
