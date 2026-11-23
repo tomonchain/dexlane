@@ -341,7 +341,11 @@ function Stock() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const desktop = useIsDesktop();
 
+  // Seule la réponse à la dernière demande compte : filtres et frappes rapides envoient plusieurs requêtes, et une
+  // réponse plus lente ne doit pas remplacer celle de la demande suivante.
+  const latest = useRef(0);
   const load = useCallback(() => {
+    const request = ++latest.current;
     const price = PRICE_RANGES.find((r) => r.value === filters.price);
     api.stock({
       q: query.trim() || undefined, status: filter, sort, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE,
@@ -349,10 +353,11 @@ function Stock() {
       minCents: price?.min, maxCents: price?.max,
     })
       .then((d) => {
+        if (request !== latest.current) return;
         setData(d);
         setError(null);
       })
-      .catch((e: Error) => setError(e.message));
+      .catch((e: Error) => request === latest.current && setError(e.message));
   }, [query, filter, sort, page, filters]);
   useEffect(() => {
     const timer = setTimeout(load, query ? 200 : 0);
