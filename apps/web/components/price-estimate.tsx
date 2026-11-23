@@ -4,6 +4,7 @@ import { TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { formatEuros } from "@/lib/format";
+import { t } from "@/lib/i18n";
 import { CATEGORY_LABEL, CATEGORY_VARIANT, reasonLabel } from "@/lib/pricing";
 import type { CardCondition, VariantQuote } from "@/lib/types";
 import { Alert } from "./ui/alert";
@@ -38,19 +39,19 @@ export function PriceEstimate({ variantId, condition, unique }: { variantId: str
       <CardContent className="grid gap-3">
         <div className="flex items-center gap-2.5">
           <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-soft text-primary" aria-hidden><TrendingUp className="size-3.5" /></span>
-          <h2 className="flex-1 text-[15px] font-semibold tracking-tight">Estimation</h2>
-          {quote && <Badge variant={CATEGORY_VARIANT[quote.category]}>{CATEGORY_LABEL[quote.category]}</Badge>}
+          <h2 className="flex-1 text-[15px] font-semibold tracking-tight">{t("Estimation")}</h2>
+          {quote && <Badge variant={CATEGORY_VARIANT[quote.category]}>{t(CATEGORY_LABEL[quote.category])}</Badge>}
         </div>
         {!variantId || !condition ? (
-          <p className="text-sm text-muted-foreground">Choisissez la variante et l'état pour voir le prix de référence.</p>
+          <p className="text-sm text-muted-foreground">{t("Choisissez la variante et l'état pour voir le prix de référence.")}</p>
         ) : failed ? (
-          <p className="text-sm text-muted-foreground">Estimation indisponible pour le moment.</p>
+          <p className="text-sm text-muted-foreground">{t("Estimation indisponible pour le moment.")}</p>
         ) : !quote ? (
           <Skeleton className="h-12" />
         ) : (
           <>
             <div className="grid gap-0.5">
-              <span className="text-xs text-muted-foreground">Prix estimé pour cet état</span>
+              <span className="text-xs text-muted-foreground">{t("Prix estimé pour cet état")}</span>
               <span className="tabular text-2xl leading-none font-semibold tracking-tight">{quote.suggestedCents === null ? "—" : formatEuros(quote.suggestedCents)}</span>
             </div>
             {quote.reference && <SalesBasis reference={quote.reference} sales={quote.sales} className="text-[13px] text-muted-foreground" />}
@@ -61,7 +62,7 @@ export function PriceEstimate({ variantId, condition, unique }: { variantId: str
                 )}
               </Alert>
             )}
-            <p className="text-xs text-muted-foreground">Ventes toutes langues et tous états confondus, corrigées par un coefficient d'état. Le prix se décide ensuite dans le stock.</p>
+            <p className="text-xs text-muted-foreground">{t("Ventes toutes langues et tous états confondus, corrigées par un coefficient d'état. Le prix se décide ensuite dans le stock.")}</p>
           </>
         )}
       </CardContent>

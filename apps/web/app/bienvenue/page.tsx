@@ -12,6 +12,7 @@ import { Spinner } from "@/components/ui/misc";
 import { api } from "@/lib/api";
 import { INTAKE, type IntakeMode } from "@/lib/intake";
 import { authMessage } from "@/lib/auth-messages";
+import { t, tn } from "@/lib/i18n";
 import { LANGUAGES } from "@/lib/scan";
 import type { AppSettings, CatalogSet, ChannelState, PricingSettings } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -61,16 +62,16 @@ export default function WelcomePage() {
           <Logo />
           {step !== null && step >= 1 && step < STEPS.length && (
             <button type="button" onClick={() => finish("/")} className="text-[13px] text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline">
-              Passer l'assistant
+              {t("Passer l'assistant")}
             </button>
           )}
         </div>
         {step !== null && step < STEPS.length && (
-          <ol className="flex gap-1.5" aria-label="Étapes de démarrage">
+          <ol className="flex gap-1.5" aria-label={t("Étapes de démarrage")}>
             {STEPS.map((label, index) => (
               <li key={label} className="grid flex-1 gap-1.5" aria-current={index === step ? "step" : undefined}>
                 <span className={cn("h-1 rounded-full", index < step ? "bg-foreground" : index === step ? "bg-brand" : "bg-border")} />
-                <span className={cn("hidden text-xs sm:block", index === step ? "font-medium text-foreground" : "text-muted-foreground")}>{label}</span>
+                <span className={cn("hidden text-xs sm:block", index === step ? "font-medium text-foreground" : "text-muted-foreground")}>{t(label)}</span>
               </li>
             ))}
           </ol>
@@ -78,7 +79,7 @@ export default function WelcomePage() {
       </header>
 
       {error && <p role="alert" data-slot="alert" data-variant="destructive" className="rounded-md border border-destructive/30 bg-destructive-soft px-3 py-2 text-sm text-destructive">{error}</p>}
-      {step === null && !error && <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status"><Spinner /> Chargement…</p>}
+      {step === null && !error && <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status"><Spinner /> {t("Chargement…")}</p>}
       {step === 0 && <AccountStep onDone={async () => { setSettings(await api.appSettings()); next(); }} />}
       {step === 1 && <IntakeStep initial={settings?.intakeMode ?? null} onDone={(s) => { setSettings(s); next(); }} />}
       {step === 2 && <SeriesStep onDone={next} />}
@@ -88,14 +89,14 @@ export default function WelcomePage() {
       {step === STEPS.length && (
         <section className="grid gap-5">
           <div className="grid gap-1.5">
-            <h1 className="text-2xl font-semibold tracking-tight">Tout est prêt</h1>
-            <p className="text-sm text-muted-foreground">Chaque réglage reste modifiable dans Réglages. Il ne manque plus que vos cartes.</p>
+            <h1 className="text-2xl font-semibold tracking-tight">{t("Tout est prêt")}</h1>
+            <p className="text-sm text-muted-foreground">{t("Chaque réglage reste modifiable dans Réglages. Il ne manque plus que vos cartes.")}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button size="lg" onClick={() => finish("/scanner/lot")}>
-              {settings?.intakeMode === "CAMERA" ? "Créer mon premier lot à photographier" : settings?.intakeMode === "FILES" ? "Créer mon premier lot d'images" : "Créer mon premier lot scanné"} <ArrowRight />
+              {settings?.intakeMode === "CAMERA" ? t("Créer mon premier lot à photographier") : settings?.intakeMode === "FILES" ? t("Créer mon premier lot d'images") : t("Créer mon premier lot scanné")} <ArrowRight />
             </Button>
-            <Button size="lg" variant="outline" onClick={() => finish("/stock")}>Aller au stock</Button>
+            <Button size="lg" variant="outline" onClick={() => finish("/stock")}>{t("Aller au stock")}</Button>
           </div>
         </section>
       )}
@@ -114,7 +115,7 @@ function AccountStep({ onDone }: { onDone: () => void }) {
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (password !== confirm) return setError("Les deux mots de passe ne sont pas identiques.");
+    if (password !== confirm) return setError(t("Les deux mots de passe ne sont pas identiques."));
     setBusy(true);
     setError(null);
     try {
@@ -129,19 +130,19 @@ function AccountStep({ onDone }: { onDone: () => void }) {
   return (
     <form onSubmit={submit}>
       <Step
-        title="Créez votre compte"
-        description="Choisissez le mot de passe qui protégera votre stock. Le jeton d'installation prouve que ce serveur est le vôtre ; il n'est demandé que cette fois."
-        footer={<Button type="submit" size="lg" disabled={busy}>{busy ? <Spinner className="text-primary-foreground" /> : null} Créer mon compte <ArrowRight /></Button>}
+        title={t("Créez votre compte")}
+        description={t("Choisissez le mot de passe qui protégera votre stock. Le jeton d'installation prouve que ce serveur est le vôtre ; il n'est demandé que cette fois.")}
+        footer={<Button type="submit" size="lg" disabled={busy}>{busy ? <Spinner className="text-primary-foreground" /> : null} {t("Créer mon compte")} <ArrowRight /></Button>}
       >
         <div className="grid gap-4">
-          <Field label="Jeton d'installation" hint="La valeur de DEXLANE_API_TOKEN, définie à l'installation.">
+          <Field label={t("Jeton d'installation")} hint={t("La valeur de DEXLANE_API_TOKEN, définie à l'installation.")}>
             <PasswordInput value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" className="font-mono" required autoFocus />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Mot de passe" hint="10 caractères au moins.">
+            <Field label={t("Mot de passe")} hint={t("10 caractères au moins.")}>
               <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" minLength={10} required />
             </Field>
-            <Field label="Confirmer le mot de passe">
+            <Field label={t("Confirmer le mot de passe")}>
               <PasswordInput value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" required />
             </Field>
           </div>
@@ -159,15 +160,15 @@ function IntakeStep({ initial, onDone }: { initial: IntakeMode | null; onDone: (
   const [busy, setBusy] = useState(false);
   return (
     <Step
-      title="Comment scannez-vous vos cartes ?"
-      description="L'écran d'ajout s'adapte à votre matériel. Vous pourrez toujours utiliser les autres façons."
+      title={t("Comment scannez-vous vos cartes ?")}
+      description={t("L'écran d'ajout s'adapte à votre matériel. Vous pourrez toujours utiliser les autres façons.")}
       footer={
         <Button size="lg" disabled={!mode || busy} onClick={async () => { setBusy(true); onDone(await api.saveAppSettings({ intakeMode: mode })); }}>
-          Continuer <ArrowRight />
+          {t("Continuer")} <ArrowRight />
         </Button>
       }
     >
-      <div role="radiogroup" aria-label="Mode de scan" className="grid gap-2">
+      <div role="radiogroup" aria-label={t("Mode de scan")} className="grid gap-2">
         {INTAKE.map((option) => (
           <button
             key={option.value}
@@ -182,8 +183,8 @@ function IntakeStep({ initial, onDone }: { initial: IntakeMode | null; onDone: (
           >
             <option.icon className="size-5 shrink-0 text-muted-foreground" aria-hidden />
             <span className="grid gap-0.5">
-              <span className="text-sm font-semibold">{option.label}</span>
-              <span className="text-[13px] text-muted-foreground">{option.hint}</span>
+              <span className="text-sm font-semibold">{t(option.label)}</span>
+              <span className="text-[13px] text-muted-foreground">{t(option.hint)}</span>
             </span>
           </button>
         ))}
@@ -226,7 +227,7 @@ function SeriesStep({ onDone }: { onDone: () => void }) {
         list = (await api.catalogSets(language)).sets;
       }
       if (!cancelled) setSets(list);
-    })().catch(() => !cancelled && setError("La liste des séries n'a pas pu être chargée (catalogue en ligne injoignable). Vous pourrez importer vos séries plus tard, depuis Réglages → Catalogue."));
+    })().catch(() => !cancelled && setError(t("La liste des séries n'a pas pu être chargée (catalogue en ligne injoignable). Vous pourrez importer vos séries plus tard, depuis Réglages → Catalogue.")));
     return () => {
       cancelled = true;
     };
@@ -236,7 +237,8 @@ function SeriesStep({ onDone }: { onDone: () => void }) {
     const q = query.trim().toLowerCase();
     const shown = (sets ?? []).filter((s) => !q || `${s.name} ${s.id} ${s.serieName ?? ""}`.toLowerCase().includes(q));
     const byBlock = new Map<string, CatalogSet[]>();
-    for (const set of shown) byBlock.set(set.serieName ?? "Autres séries", [...(byBlock.get(set.serieName ?? "Autres séries") ?? []), set]);
+    const others = t("Autres séries");
+    for (const set of shown) byBlock.set(set.serieName ?? others, [...(byBlock.get(set.serieName ?? others) ?? []), set]);
     return [...byBlock.entries()].sort((a, b) => (b[1][0]!.seriePosition ?? -1) - (a[1][0]!.seriePosition ?? -1));
   }, [sets, query]);
 
@@ -270,23 +272,23 @@ function SeriesStep({ onDone }: { onDone: () => void }) {
     const percent = progress.total ? Math.round((progress.done / progress.total) * 100) : 100;
     return (
       <Step
-        title="Import des séries"
-        description="Les cartes, leurs variantes et leurs cotes sont téléchargées série par série."
+        title={t("Import des séries")}
+        description={t("Les cartes, leurs variantes et leurs cotes sont téléchargées série par série.")}
         footer={progress.finished
-          ? <Button size="lg" onClick={onDone}>Continuer <ArrowRight /></Button>
-          : <Button variant="outline" onClick={() => (stop.current = true)}>Arrêter après cette série</Button>}
+          ? <Button size="lg" onClick={onDone}>{t("Continuer")} <ArrowRight /></Button>
+          : <Button variant="outline" onClick={() => (stop.current = true)}>{t("Arrêter après cette série")}</Button>}
       >
         <div className="grid gap-3 rounded-lg border bg-card p-4" data-testid="import-progress">
           <div className="flex items-baseline justify-between gap-3 text-sm">
-            <span className="font-medium">{progress.finished ? "Import terminé" : progress.current}</span>
+            <span className="font-medium">{progress.finished ? t("Import terminé") : progress.current}</span>
             <span className="tabular text-muted-foreground">{progress.done} / {progress.total}</span>
           </div>
-          <div role="progressbar" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.done} aria-label="Avancement de l'import" className="h-2 overflow-hidden rounded-full bg-muted">
+          <div role="progressbar" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.done} aria-label={t("Avancement de l'import")} className="h-2 overflow-hidden rounded-full bg-muted">
             <div className="h-full rounded-full bg-foreground transition-[width] duration-300" style={{ width: `${percent}%` }} />
           </div>
           <p className="tabular text-[13px] text-muted-foreground">
-            {progress.cards.toLocaleString("fr-FR")} carte{progress.cards > 1 ? "s" : ""} importée{progress.cards > 1 ? "s" : ""}
-            {progress.failed.length > 0 && ` · ${progress.failed.length} série${progress.failed.length > 1 ? "s" : ""} en échec : ${progress.failed.join(", ")}`}
+            {tn(progress.cards, "{n} carte importée", "{n} cartes importées")}
+            {progress.failed.length > 0 && ` · ${tn(progress.failed.length, "{n} série en échec : {sets}", "{n} séries en échec : {sets}", { sets: progress.failed.join(", ") })}`}
           </p>
         </div>
       </Step>
@@ -295,12 +297,12 @@ function SeriesStep({ onDone }: { onDone: () => void }) {
 
   return (
     <Step
-      title="Quelles séries avez-vous ?"
-      description="Une carte ne peut être reconnue que si sa série est importée. Choisissez celles que vous possédez ; d'autres pourront suivre plus tard."
+      title={t("Quelles séries avez-vous ?")}
+      description={t("Une carte ne peut être reconnue que si sa série est importée. Choisissez celles que vous possédez ; d'autres pourront suivre plus tard.")}
       footer={
         <>
-          <Button variant="ghost" onClick={onDone}>Passer cette étape</Button>
-          <Button size="lg" disabled={selected.size === 0} onClick={run}>Importer {selected.size || ""} série{selected.size > 1 ? "s" : ""} <ArrowRight /></Button>
+          <Button variant="ghost" onClick={onDone}>{t("Passer cette étape")}</Button>
+          <Button size="lg" disabled={selected.size === 0} onClick={run}>{tn(selected.size, "Importer {n} série", "Importer {n} séries")} <ArrowRight /></Button>
         </>
       }
     >
@@ -308,15 +310,15 @@ function SeriesStep({ onDone }: { onDone: () => void }) {
         <div className="flex flex-wrap gap-2">
           <div className="relative min-w-0 flex-1 basis-56">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nom de série ou de bloc" aria-label="Rechercher une série" className="pl-9" />
+            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("Nom de série ou de bloc")} aria-label={t("Rechercher une série")} className="pl-9" />
           </div>
-          <Select value={language} onChange={(e) => { setLanguage(e.target.value); setSelected(new Set()); }} aria-label="Langue des cartes" className="w-auto">
-            {LANGUAGES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+          <Select value={language} onChange={(e) => { setLanguage(e.target.value); setSelected(new Set()); }} aria-label={t("Langue des cartes")} className="w-auto">
+            {LANGUAGES.map(([code, label]) => <option key={code} value={code}>{t(label)}</option>)}
           </Select>
-          <Button variant="outline" disabled={!sets && !error} onClick={() => setReload((n) => n + 1)}>Actualiser la liste</Button>
+          <Button variant="outline" disabled={!sets && !error} onClick={() => setReload((n) => n + 1)}>{t("Actualiser la liste")}</Button>
         </div>
         {error && <p role="alert" className="rounded-md border bg-muted/50 px-3 py-2 text-sm">{error}</p>}
-        {!sets && !error && <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status"><Spinner /> Chargement de la liste des séries…</p>}
+        {!sets && !error && <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status"><Spinner /> {t("Chargement de la liste des séries…")}</p>}
         {sets && (
           <div className="max-h-[26rem] overflow-y-auto rounded-lg border bg-card">
             {blocks.map(([block, list]) => {
@@ -328,21 +330,21 @@ function SeriesStep({ onDone }: { onDone: () => void }) {
                   <label className="sticky top-0 flex cursor-pointer items-center gap-3 border-b bg-muted px-3 py-2 text-xs font-medium text-muted-foreground">
                     <input type="checkbox" checked={all} disabled={importable.length === 0} onChange={(e) => toggle(importable, e.target.checked)} className="size-4 accent-foreground" />
                     <span className="flex-1">{block}</span>
-                    <span className="tabular font-normal">{list.length} série{list.length > 1 ? "s" : ""}</span>
+                    <span className="tabular font-normal">{tn(list.length, "{n} série", "{n} séries")}</span>
                   </label>
                   {list.map((set) => (
                     <label key={set.id} className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-accent/50">
                       <input type="checkbox" checked={set.cardsSynced > 0 || selected.has(set.id)} disabled={set.cardsSynced > 0} onChange={(e) => toggle([set.id], e.target.checked)} className="size-4 accent-foreground" />
                       <span className="min-w-0 flex-1 truncate">{set.name}</span>
                       <span className="tabular text-xs text-muted-foreground">
-                        {set.cardsSynced > 0 ? "déjà importée" : set.cardCountTotal ? `${set.cardCountTotal} cartes` : set.id.toUpperCase()}
+                        {set.cardsSynced > 0 ? t("déjà importée") : set.cardCountTotal ? tn(set.cardCountTotal, "{n} carte", "{n} cartes") : set.id.toUpperCase()}
                       </span>
                     </label>
                   ))}
                 </fieldset>
               );
             })}
-            {blocks.length === 0 && <p className="px-3 py-6 text-center text-sm text-muted-foreground">Aucune série ne correspond.</p>}
+            {blocks.length === 0 && <p className="px-3 py-6 text-center text-sm text-muted-foreground">{t("Aucune série ne correspond.")}</p>}
           </div>
         )}
       </div>
@@ -384,27 +386,29 @@ function LocationsStep({ onDone }: { onDone: () => void }) {
 
   return (
     <Step
-      title="Où rangez-vous vos cartes ?"
-      description="Chaque carte en stock a un emplacement, pour la retrouver le jour de la vente. Un lot scanné va dans une boîte, dans l'ordre du scan."
+      title={t("Où rangez-vous vos cartes ?")}
+      description={t("Chaque carte en stock a un emplacement, pour la retrouver le jour de la vente. Un lot scanné va dans une boîte, dans l'ordre du scan.")}
       footer={
         <>
-          <Button variant="ghost" onClick={onDone}>Passer cette étape</Button>
+          <Button variant="ghost" onClick={onDone}>{t("Passer cette étape")}</Button>
           <Button size="lg" disabled={busy || !planned} onClick={create}>
-            {planned && planned.length > 0 ? `Créer ${planned.length} emplacement${planned.length > 1 ? "s" : ""}` : "Continuer"} <ArrowRight />
+            {planned && planned.length > 0 ? tn(planned.length, "Créer {n} emplacement", "Créer {n} emplacements") : t("Continuer")} <ArrowRight />
           </Button>
         </>
       }
     >
       <div className="grid gap-4">
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Nombre de boîtes"><Input inputMode="numeric" value={boxes} onChange={(e) => setBoxes(e.target.value)} aria-invalid={nBoxes === null} className="tabular" /></Field>
-          <Field label="Nombre de classeurs"><Input inputMode="numeric" value={binders} onChange={(e) => setBinders(e.target.value)} aria-invalid={nBinders === null} className="tabular" /></Field>
+          <Field label={t("Nombre de boîtes")}><Input inputMode="numeric" value={boxes} onChange={(e) => setBoxes(e.target.value)} aria-invalid={nBoxes === null} className="tabular" /></Field>
+          <Field label={t("Nombre de classeurs")}><Input inputMode="numeric" value={binders} onChange={(e) => setBinders(e.target.value)} aria-invalid={nBinders === null} className="tabular" /></Field>
         </div>
         {planned && planned.length > 0 && (
           <p className="rounded-md bg-muted/50 px-3 py-2 font-mono text-xs leading-relaxed" data-testid="location-preview">{planned.join("  ")}</p>
         )}
         <p className="text-[13px] text-muted-foreground">
-          Écrivez ces codes sur vos boîtes et classeurs.{existing ? ` Vous avez déjà ${existing} emplacement${existing > 1 ? "s" : ""} : ceux qui existent sont conservés.` : ""} D'autres s'ajoutent à tout moment depuis Réglages → Emplacements.
+          {t("Écrivez ces codes sur vos boîtes et classeurs.")}
+          {existing ? ` ${tn(existing, "Vous avez déjà {n} emplacement : ceux qui existent sont conservés.", "Vous avez déjà {n} emplacements : ceux qui existent sont conservés.")}` : ""}
+          {" "}{t("D'autres s'ajoutent à tout moment depuis Réglages → Emplacements.")}
         </p>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       </div>
@@ -442,21 +446,21 @@ function PricingStep({ onDone }: { onDone: () => void }) {
 
   return (
     <Step
-      title="Comment fixer vos prix ?"
-      description="Chaque carte reçoit un prix dès son entrée en stock, d'après les ventes réussies sur Cardmarket : celles du mois, ajustées par celles de la semaine."
+      title={t("Comment fixer vos prix ?")}
+      description={t("Chaque carte reçoit un prix dès son entrée en stock, d'après les ventes réussies sur Cardmarket : celles du mois, ajustées par celles de la semaine.")}
       footer={
         <>
-          <Button variant="ghost" onClick={onDone}>Passer cette étape</Button>
-          <Button size="lg" disabled={busy || !settings} onClick={save}>Continuer <ArrowRight /></Button>
+          <Button variant="ghost" onClick={onDone}>{t("Passer cette étape")}</Button>
+          <Button size="lg" disabled={busy || !settings} onClick={save}>{t("Continuer")} <ArrowRight /></Button>
         </>
       }
     >
       <div className="grid gap-4">
         <StrategyPicker value={strategy} onChange={setStrategy} />
         <ul className="grid gap-1.5 text-[13px] text-muted-foreground">
-          <li className="flex gap-2"><Check className="mt-0.5 size-3.5 shrink-0 text-success" aria-hidden /> Jamais sous votre prix d'achat : si le marché est en dessous, le prix est tenu au coût et la carte est signalée.</li>
-          <li className="flex gap-2"><Check className="mt-0.5 size-3.5 shrink-0 text-success" aria-hidden /> Un pic isolé des ventes ne fait pas grimper le prix de plus de 25 %.</li>
-          <li className="flex gap-2"><Check className="mt-0.5 size-3.5 shrink-0 text-success" aria-hidden /> Un prix que vous fixez à la main n'est plus jamais modifié tout seul.</li>
+          <li className="flex gap-2"><Check className="mt-0.5 size-3.5 shrink-0 text-success" aria-hidden /> {t("Jamais sous votre prix d'achat : si le marché est en dessous, le prix est tenu au coût et la carte est signalée.")}</li>
+          <li className="flex gap-2"><Check className="mt-0.5 size-3.5 shrink-0 text-success" aria-hidden /> {t("Un pic isolé des ventes ne fait pas grimper le prix de plus de 25 %.")}</li>
+          <li className="flex gap-2"><Check className="mt-0.5 size-3.5 shrink-0 text-success" aria-hidden /> {t("Un prix que vous fixez à la main n'est plus jamais modifié tout seul.")}</li>
         </ul>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       </div>
@@ -473,12 +477,12 @@ function ChannelsStep({ onDone }: { onDone: () => void }) {
   }, []);
   return (
     <Step
-      title="Où vendez-vous ?"
-      description="Activez un canal en simulation pour essayer la mise en ligne sans rien publier. Le mode réel s'ouvre quand l'accès à la marketplace est configuré."
+      title={t("Où vendez-vous ?")}
+      description={t("Activez un canal en simulation pour essayer la mise en ligne sans rien publier. Le mode réel s'ouvre quand l'accès à la marketplace est configuré.")}
       footer={
         <>
-          <Button variant="ghost" onClick={onDone}>Passer cette étape</Button>
-          <Button size="lg" onClick={onDone}>Terminer <ArrowRight /></Button>
+          <Button variant="ghost" onClick={onDone}>{t("Passer cette étape")}</Button>
+          <Button size="lg" onClick={onDone}>{t("Terminer")} <ArrowRight /></Button>
         </>
       }
     >

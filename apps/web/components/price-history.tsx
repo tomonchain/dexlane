@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { api } from "@/lib/api";
-import { formatEuros } from "@/lib/format";
+import { dateFormat, formatEuros, formatNumber } from "@/lib/format";
+import { intlLocale, t } from "@/lib/i18n";
 import type { PriceHistory as History } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ChartSkeleton } from "./skeletons";
@@ -22,9 +23,9 @@ const HEIGHT = 176;
 const MARGIN = { top: 10, right: 12, bottom: 22, left: 46 };
 /** Largeur de l'infobulle : fixe, pour la garder entière dans un panneau étroit. */
 const TOOLTIP_WIDTH = 216;
-const wholeEuros = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
-const shortDay = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", timeZone: "Europe/Paris" });
-const longDay = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Paris" });
+const wholeEuros = () => new Intl.NumberFormat(intlLocale(), { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+const shortDay = () => dateFormat({ day: "numeric", month: "short", timeZone: "Europe/Paris" });
+const longDay = () => dateFormat({ day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Paris" });
 
 /** Graduations rondes (1, 2 ou 5 × 10ⁿ centimes) couvrant l'étendue des prix, sans forcer l'origine à zéro. */
 function scaleOf(min: number, max: number): { low: number; high: number; ticks: number[] } {
@@ -44,7 +45,7 @@ function scaleOf(min: number, max: number): { low: number; high: number; ticks: 
  * relevé. Sans vente sur la période, la tendance des annonces prend leur place. Un seul axe, en euros.
  */
 /** `title` : l'intitulé au-dessus de la courbe ; null quand la section qui l'entoure le porte déjà. */
-export function PriceHistory({ variantId, className, title = "Évolution du prix" }: { variantId: string; className?: string; title?: ReactNode }) {
+export function PriceHistory({ variantId, className, title = t("Évolution du prix") }: { variantId: string; className?: string; title?: ReactNode }) {
   const [days, setDays] = useState(90);
   const [history, setHistory] = useState<History | null>(null);
   const [loading, setLoading] = useState(true);
@@ -93,9 +94,9 @@ export function PriceHistory({ variantId, className, title = "Évolution du prix
 
   const plotWidth = Math.max(width - MARGIN.left - MARGIN.right, 1);
   const plotHeight = HEIGHT - MARGIN.top - MARGIN.bottom;
-  const x = (t: number) => {
+  const x = (time: number) => {
     if (!model || model.times.length < 2) return MARGIN.left + plotWidth / 2;
-    return MARGIN.left + ((t - model.times[0]!) / (model.times.at(-1)! - model.times[0]!)) * plotWidth;
+    return MARGIN.left + ((time - model.times[0]!) / (model.times.at(-1)! - model.times[0]!)) * plotWidth;
   };
   const y = (cents: number) => MARGIN.top + (1 - (cents - model!.scale.low) / (model!.scale.high - model!.scale.low)) * plotHeight;
 
@@ -104,7 +105,7 @@ export function PriceHistory({ variantId, className, title = "Évolution du prix
     const bounds = e.currentTarget.ownerSVGElement!.getBoundingClientRect();
     const px = e.clientX - bounds.left;
     let nearest = 0;
-    for (const [i, t] of model.times.entries()) if (Math.abs(x(t) - px) < Math.abs(x(model.times[nearest]!) - px)) nearest = i;
+    for (const [i, time] of model.times.entries()) if (Math.abs(x(time) - px) < Math.abs(x(model.times[nearest]!) - px)) nearest = i;
     setActive(nearest);
   }
   function onKey(e: KeyboardEvent<HTMLDivElement>) {
@@ -118,7 +119,7 @@ export function PriceHistory({ variantId, className, title = "Évolution du prix
 
   const activeTime = model && active !== null ? model.times[active]! : null;
   // Axe : des euros ronds sans centimes quand toutes les graduations tombent juste.
-  const axisLabel = model && model.scale.ticks.every((t) => t % 100 === 0) ? (cents: number) => wholeEuros.format(cents / 100) : formatEuros;
+  const axisLabel = model && model.scale.ticks.every((tick) => tick % 100 === 0) ? (cents: number) => wholeEuros().format(cents / 100) : formatEuros;
   const since = history?.since ? new Date(history.since) : null;
   const shortHistory = since !== null && Date.now() - since.getTime() < (days - 1) * 86_400_000;
   // Graduations de dates : les extrémités, plus le milieu quand la place le permet.
@@ -127,10 +128,10 @@ export function PriceHistory({ variantId, className, title = "Évolution du prix
     : model ? [model.times[0]!] : [];
 
   return (
-    <section className={cn("grid gap-3", className)} data-testid="price-history" aria-label="Évolution du prix">
+    <section className={cn("grid gap-3", className)} data-testid="price-history" aria-label={t("Évolution du prix")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         {title ? <h3 className="text-xs font-medium text-muted-foreground">{title}</h3> : <span aria-hidden />}
-        <div role="radiogroup" aria-label="Période" className="flex gap-0.5 rounded-md bg-muted p-0.5">
+        <div role="radiogroup" aria-label={t("Période")} className="flex gap-0.5 rounded-md bg-muted p-0.5">
           {RANGES.map((r) => (
             <button
               key={r.days}
@@ -140,7 +141,7 @@ export function PriceHistory({ variantId, className, title = "Évolution du prix
               onClick={() => setDays(r.days)}
               className={cn("h-6 rounded px-2 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/40", days === r.days ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
             >
-              {r.label}
+              {t(r.label)}
             </button>
           ))}
         </div>
@@ -151,7 +152,7 @@ export function PriceHistory({ variantId, className, title = "Évolution du prix
           {model.series.map((s) => (
             <li key={s.type} className="flex items-center gap-1.5">
               <span className="h-0.5 w-3 rounded-full" style={{ background: SERIES[s.type].color }} aria-hidden />
-              <span className="text-muted-foreground">{SERIES[s.type].label}</span>
+              <span className="text-muted-foreground">{t(SERIES[s.type].label)}</span>
               <span className="tabular font-medium text-foreground">{formatEuros(s.points.at(-1)!.cents)}</span>
             </li>
           ))}
@@ -161,28 +162,32 @@ export function PriceHistory({ variantId, className, title = "Évolution du prix
       <div ref={frame} className="relative">
         {!model && loading && !failed ? <ChartSkeleton height={HEIGHT} /> : !model ? (
           <p className="flex items-center text-[13px] text-muted-foreground" style={{ height: HEIGHT }} role="status">
-            {failed ? "Historique indisponible pour le moment." : "Aucun relevé de prix sur cette période."}
+            {failed ? t("Historique indisponible pour le moment.") : t("Aucun relevé de prix sur cette période.")}
           </p>
         ) : (
           <div
             tabIndex={0}
             role="img"
-            aria-label={`Évolution du prix sur ${RANGES.find((r) => r.days === days)!.label}, du ${shortDay.format(model.times[0])} au ${shortDay.format(model.times.at(-1))}. ${model.series.map((s) => `${SERIES[s.type].label} : ${formatEuros(s.points.at(-1)!.cents)}`).join(", ")}. Flèches gauche et droite pour parcourir les relevés.`}
+            aria-label={[
+              t("Évolution du prix sur {range}, du {from} au {to}.", { range: t(RANGES.find((r) => r.days === days)!.label), from: shortDay().format(model.times[0]), to: shortDay().format(model.times.at(-1)) }),
+              `${model.series.map((s) => t("{label} : {value}", { label: t(SERIES[s.type].label), value: formatEuros(s.points.at(-1)!.cents) })).join(", ")}.`,
+              t("Flèches gauche et droite pour parcourir les relevés."),
+            ].join(" ")}
             onKeyDown={onKey}
             onBlur={() => setActive(null)}
             className={cn("rounded-md outline-none transition-opacity focus-visible:ring-[3px] focus-visible:ring-ring/30", loading && "opacity-50")}
           >
             {width > 0 && (
               <svg width={width} height={HEIGHT} className="block overflow-visible" aria-hidden>
-                {model.scale.ticks.map((t) => (
-                  <g key={t}>
-                    <line x1={MARGIN.left} x2={width - MARGIN.right} y1={y(t)} y2={y(t)} stroke="var(--border)" strokeWidth="1" />
-                    <text x={MARGIN.left - 8} y={y(t)} dy="0.32em" textAnchor="end" className="tabular fill-muted-foreground text-[11px]">{axisLabel(t)}</text>
+                {model.scale.ticks.map((tick) => (
+                  <g key={tick}>
+                    <line x1={MARGIN.left} x2={width - MARGIN.right} y1={y(tick)} y2={y(tick)} stroke="var(--border)" strokeWidth="1" />
+                    <text x={MARGIN.left - 8} y={y(tick)} dy="0.32em" textAnchor="end" className="tabular fill-muted-foreground text-[11px]">{axisLabel(tick)}</text>
                   </g>
                 ))}
-                {dateTicks.map((t, i) => (
-                  <text key={t} x={x(t)} y={HEIGHT - 6} textAnchor={dateTicks.length === 1 ? "middle" : i === 0 ? "start" : i === dateTicks.length - 1 ? "end" : "middle"} className="fill-muted-foreground text-[11px]">
-                    {shortDay.format(t)}
+                {dateTicks.map((time, i) => (
+                  <text key={time} x={x(time)} y={HEIGHT - 6} textAnchor={dateTicks.length === 1 ? "middle" : i === 0 ? "start" : i === dateTicks.length - 1 ? "end" : "middle"} className="fill-muted-foreground text-[11px]">
+                    {shortDay().format(time)}
                   </text>
                 ))}
                 {activeTime !== null && <line x1={x(activeTime)} x2={x(activeTime)} y1={MARGIN.top} y2={MARGIN.top + plotHeight} stroke="var(--muted-foreground)" strokeWidth="1" />}
@@ -212,7 +217,7 @@ export function PriceHistory({ variantId, className, title = "Évolution du prix
                 // Au-dessus du tracé, pour ne masquer aucune courbe, et toujours entière dans la largeur disponible.
                 style={{ width: TOOLTIP_WIDTH, bottom: HEIGHT - MARGIN.top + 6, left: Math.min(Math.max(x(activeTime) - TOOLTIP_WIDTH / 2, 0), Math.max(width - TOOLTIP_WIDTH, 0)) }}
               >
-                <p className="mb-1 font-semibold">{longDay.format(activeTime)}</p>
+                <p className="mb-1 font-semibold">{longDay().format(activeTime)}</p>
                 <dl className="grid grid-cols-[auto_auto_1fr] items-center gap-x-2 gap-y-0.5">
                   {model.series.map((s) => {
                     const point = s.points.find((p) => p.t === activeTime);
@@ -220,7 +225,7 @@ export function PriceHistory({ variantId, className, title = "Évolution du prix
                       <div key={s.type} className="contents">
                         <span className="h-0.5 w-3 rounded-full" style={{ background: SERIES[s.type].color }} aria-hidden />
                         <dd className="tabular font-semibold">{point ? formatEuros(point.cents) : "—"}</dd>
-                        <dt className="text-muted-foreground">{SERIES[s.type].label}</dt>
+                        <dt className="text-muted-foreground">{t(SERIES[s.type].label)}</dt>
                       </div>
                     );
                   })}
@@ -235,25 +240,25 @@ export function PriceHistory({ variantId, className, title = "Évolution du prix
         <>
           <p className="text-xs text-muted-foreground">
             {model.times.length === 1
-              ? `Un seul relevé pour l'instant, le ${longDay.format(model.times[0])} : la courbe se dessine au fil des relevés quotidiens.`
-              : `${model.times.length} relevés Cardmarket, toutes langues et tous états confondus.${shortHistory && since ? ` Suivi depuis le ${longDay.format(since)}.` : ""}`}
+              ? t("Un seul relevé pour l'instant, le {date} : la courbe se dessine au fil des relevés quotidiens.", { date: longDay().format(model.times[0]) })
+              : t("{n} relevés Cardmarket, toutes langues et tous états confondus.", { n: formatNumber(model.times.length) }) + (shortHistory && since ? ` ${t("Suivi depuis le {date}.", { date: longDay().format(since) })}` : "")}
           </p>
           <details className="text-xs">
-            <summary className="cursor-pointer text-muted-foreground outline-none hover:text-foreground focus-visible:underline">Tableau des valeurs</summary>
+            <summary className="cursor-pointer text-muted-foreground outline-none hover:text-foreground focus-visible:underline">{t("Tableau des valeurs")}</summary>
             <div className="mt-2 max-h-48 overflow-auto rounded-md border">
               <table className="tabular w-full text-left">
                 <thead className="sticky top-0 bg-muted text-muted-foreground">
                   <tr>
-                    <th className="px-2 py-1 font-medium">Relevé</th>
-                    {model.series.map((s) => <th key={s.type} className="px-2 py-1 text-right font-medium">{SERIES[s.type].label}</th>)}
+                    <th className="px-2 py-1 font-medium">{t("Relevé")}</th>
+                    {model.series.map((s) => <th key={s.type} className="px-2 py-1 text-right font-medium">{t(SERIES[s.type].label)}</th>)}
                   </tr>
                 </thead>
                 <tbody>
-                  {[...model.times].reverse().map((t) => (
-                    <tr key={t} className="border-t">
-                      <td className="px-2 py-1 whitespace-nowrap">{shortDay.format(t)}</td>
+                  {[...model.times].reverse().map((time) => (
+                    <tr key={time} className="border-t">
+                      <td className="px-2 py-1 whitespace-nowrap">{shortDay().format(time)}</td>
                       {model.series.map((s) => {
-                        const point = s.points.find((p) => p.t === t);
+                        const point = s.points.find((p) => p.t === time);
                         return <td key={s.type} className="px-2 py-1 text-right">{point ? formatEuros(point.cents) : "—"}</td>;
                       })}
                     </tr>

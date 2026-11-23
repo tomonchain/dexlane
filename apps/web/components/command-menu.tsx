@@ -7,6 +7,7 @@ import { Dialog } from "radix-ui";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { positionSubtitle, positionTitle } from "@/lib/format";
+import { t } from "@/lib/i18n";
 import type { Position } from "@/lib/types";
 import { Code, Spinner } from "./ui/misc";
 
@@ -19,7 +20,8 @@ export const PAGES = [
   { href: "/achats", label: "Achats", hint: "Cartes suivies, prix cibles, bonnes affaires", icon: ShoppingBasket },
   { href: "/ventes", label: "Ventes", hint: "Vendre, préparer, remettre", icon: Receipt },
   { href: "/reglages/envois", label: "Frais d'envoi", hint: "Affranchissement, sleeve, top-loader, enveloppe", icon: Receipt },
-  { href: "/statistiques", label: "Tableau de bord", hint: "Valeur du stock, ventes, variations de prix et alertes", icon: ChartColumn },
+  { href: "/statistiques", label: "Statistiques", hint: "Ce qui se vend, valeur du stock, variations de cote", icon: ChartColumn },
+  { href: "/mises-en-ligne", label: "Mises en ligne", hint: "Planning de publication sur eBay et CardTrader", icon: Megaphone },
   { href: "/inventaire", label: "Positions", hint: "Chaque position physique, par code et emplacement", icon: Boxes },
   { href: "/prix", label: "Règles de prix", hint: "File de revue et règles de calcul", icon: Tags },
   { href: "/reglages/annonces", label: "Modèle d'annonce et photos", hint: "Titre, description, fond des photos, image de fin", icon: Megaphone },
@@ -79,7 +81,7 @@ export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChang
     onOpenChange(false);
     router.push(href);
   };
-  const pages = PAGES.filter((p) => !q || `${p.label} ${p.hint}`.toLowerCase().includes(q.toLowerCase()));
+  const pages = PAGES.filter((p) => !q || `${p.label} ${p.hint} ${t(p.label)} ${t(p.hint)}`.toLowerCase().includes(q.toLowerCase()));
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -89,24 +91,24 @@ export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChang
           aria-describedby={undefined}
           className="fixed top-[12dvh] left-1/2 z-50 w-[min(36rem,calc(100vw-1.5rem))] -translate-x-1/2 overflow-hidden rounded-2xl border bg-popover text-popover-foreground shadow-2xl outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
         >
-          <Dialog.Title className="sr-only">Recherche</Dialog.Title>
-          <Command shouldFilter={false} label="Recherche">
+          <Dialog.Title className="sr-only">{t("Recherche")}</Dialog.Title>
+          <Command shouldFilter={false} label={t("Recherche")}>
             <div className="flex items-center gap-2.5 border-b px-4">
               {searching ? <Spinner /> : <Search className="size-4 text-muted-foreground" aria-hidden />}
               <Command.Input
                 value={query}
                 onValueChange={setQuery}
-                placeholder="Nom de carte, SKU, page…"
+                placeholder={t("Nom de carte, SKU, page…")}
                 className="h-13 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground/70 md:text-sm"
               />
-              <kbd className="hidden rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:block">Échap</kbd>
+              <kbd className="hidden rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:block">{t("Échap")}</kbd>
             </div>
             <Command.List className="max-h-[55dvh] overflow-y-auto p-2">
               <Command.Empty className="px-3 py-8 text-center text-sm text-muted-foreground">
-                {searching ? "Recherche…" : "Aucun résultat."}
+                {searching ? t("Recherche…") : t("Aucun résultat.")}
               </Command.Empty>
               {results.length > 0 && (
-                <Command.Group heading="Inventaire" className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:uppercase">
+                <Command.Group heading={t("Inventaire")} className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:uppercase">
                   {results.map((p) => (
                     <Command.Item key={p.id} value={p.id} onSelect={() => go(`/inventaire/${p.unitSku}`)} className={item}>
                       <Package className="size-4 shrink-0 text-muted-foreground" aria-hidden />
@@ -123,12 +125,12 @@ export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChang
                 </Command.Group>
               )}
               {pages.length > 0 && (
-                <Command.Group heading="Aller à" className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:uppercase">
+                <Command.Group heading={t("Aller à")} className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:uppercase">
                   {pages.map((p) => (
                     <Command.Item key={p.href} value={p.href} onSelect={() => go(p.href)} className={item}>
                       <p.icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                      <span className="font-medium">{p.label}</span>
-                      <span className="truncate text-xs text-muted-foreground">{p.hint}</span>
+                      <span className="font-medium">{t(p.label)}</span>
+                      <span className="truncate text-xs text-muted-foreground">{t(p.hint)}</span>
                     </Command.Item>
                   ))}
                 </Command.Group>

@@ -169,7 +169,7 @@ export default function NewSalePage() {
         <div className="grid gap-5 lg:sticky lg:top-6">
           <Card>
             <CardContent className="grid gap-4">
-              <h2 className="text-[15px] font-semibold tracking-tight">{t("Remise")}</h2>
+              <h2 className="text-[15px] font-semibold tracking-tight">{t("Mode de remise")}</h2>
               <ChoiceGroup value={mode} onValueChange={setMode} aria-label={t("Mode de remise")} className="grid grid-cols-2 gap-2">
                 {SHIPPING_MODES.map((m) => <Choice key={m} value={m} className="h-auto min-h-11 px-2 py-2 text-center text-[13px] leading-tight">{t(SHIPPING_LABEL[m])}</Choice>)}
               </ChoiceGroup>

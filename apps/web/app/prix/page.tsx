@@ -14,7 +14,8 @@ import { Modal } from "@/components/ui/modal";
 import { StrategyPicker } from "@/components/strategy-picker";
 import { Pagination, SegmentedTabs } from "@/components/ui/tabs";
 import { ApiError, api } from "@/lib/api";
-import { formatEuros, parseEuros, variantLabel } from "@/lib/format";
+import { formatEuros, formatNumber, parseEuros, variantLabel } from "@/lib/format";
+import { t, tn } from "@/lib/i18n";
 import { CATEGORY_LABEL, CATEGORY_VARIANT, DECIDABLE_CATEGORIES, age, eurosInput, quoteLabel, reasonLabel, roundPrice, tierOf, type Category } from "@/lib/pricing";
 import { CONDITIONS, type OfferPricing, type PricingSettings } from "@/lib/types";
 import { ListSkeleton } from "@/components/skeletons";
@@ -23,8 +24,8 @@ import { SaveBar } from "@/components/ui/action-bar";
 const PAGE_SIZE = 25;
 type Tab = "REVIEW" | "ALL" | "RULES";
 const message = (e: unknown) =>
-  e instanceof ApiError && e.code === "FLOOR_ABOVE_TARGET" ? "Le plancher ne peut pas dépasser le prix cible."
-  : e instanceof ApiError && e.code === "INVALID_PRICING_SETTINGS" ? "Règles incohérentes : les seuils doivent être croissants (vrac ≤ lot ≤ unité ≤ premium) et le pas d'arrondi d'au moins 0,01 €."
+  e instanceof ApiError && e.code === "FLOOR_ABOVE_TARGET" ? t("Le plancher ne peut pas dépasser le prix cible.")
+  : e instanceof ApiError && e.code === "INVALID_PRICING_SETTINGS" ? t("Règles incohérentes : les seuils doivent être croissants (vrac ≤ lot ≤ unité ≤ premium) et le pas d'arrondi d'au moins 0,01 €.")
   : (e as Error).message;
 
 export default function PricingPage() {
@@ -67,7 +68,7 @@ export default function PricingPage() {
     setBusy("recompute");
     try {
       const { repriced } = await api.recomputePricing();
-      toast.success(`${repriced} offre${repriced > 1 ? "s recalculées" : " recalculée"}`);
+      toast.success(tn(repriced, "{n} offre recalculée", "{n} offres recalculées"));
       load();
     } catch (e) {
       toast.error(message(e));
@@ -81,7 +82,7 @@ export default function PricingPage() {
     setBusy(o.offerId);
     try {
       await api.setOfferPrice(o.offerId, { targetPriceCents: o.suggestedPriceCents, category: tierOf(o.suggestedPriceCents, settings) });
-      toast.success(`${o.card.name} : ${formatEuros(o.suggestedPriceCents)}`);
+      toast.success(t("{label} : {value}", { label: o.card.name, value: formatEuros(o.suggestedPriceCents) }));
       load();
     } catch (e) {
       toast.error(message(e));
@@ -95,33 +96,33 @@ export default function PricingPage() {
   return (
     <div className="grid gap-5">
       <PageHeader
-        title="Prix"
-        description="Chaque offre reçoit une estimation à partir des cotations importées. Vous décidez du prix ; il ne change jamais tout seul."
+        title={t("Prix")}
+        description={t("Chaque offre reçoit une estimation à partir des cotations importées. Vous décidez du prix ; il ne change jamais tout seul.")}
         actions={
           <Button variant="outline" onClick={recompute} disabled={busy !== null}>
-            {busy === "recompute" ? <Spinner /> : <RefreshCw />} Recalculer
+            {busy === "recompute" ? <Spinner /> : <RefreshCw />} {t("Recalculer")}
           </Button>
         }
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SegmentedTabs
-          label="Prix"
+          label={t("Prix")}
           value={tab}
           onChange={(next) => {
             setTab(next);
             setPage(1);
           }}
           tabs={[
-            { value: "REVIEW", label: "À revoir", count: data?.reviewCount },
-            { value: "ALL", label: "Toutes", count: data?.allCount },
-            { value: "RULES", label: "Règles" },
+            { value: "REVIEW", label: t("À revoir"), count: data?.reviewCount },
+            { value: "ALL", label: t("Toutes"), count: data?.allCount },
+            { value: "RULES", label: t("Règles") },
           ]}
         />
         {tab !== "RULES" && (
           <span className="relative block min-w-56 flex-1 sm:max-w-xs">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-            <Input type="search" placeholder="Nom de carte ou SKU d'offre" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} aria-label="Rechercher une offre" autoCorrect="off" className="pl-9" />
+            <Input type="search" placeholder={t("Nom de carte ou SKU d'offre")} value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} aria-label={t("Rechercher une offre")} autoCorrect="off" className="pl-9" />
           </span>
         )}
       </div>
@@ -131,10 +132,10 @@ export default function PricingPage() {
       {tab === "RULES" ? (
         settings ? <Rules settings={settings} onSaved={(s) => { setSettings(s); load(); }} /> : <Loading />
       ) : !data ? (
-        !error && <ListSkeleton count={5} thumb label="Chargement des prix" />
+        !error && <ListSkeleton count={5} thumb label={t("Chargement des prix")} />
       ) : data.items.length === 0 ? (
-        <EmptyState icon={tab === "REVIEW" ? <CircleCheckBig /> : <Tags />} title={q.trim() ? "Aucune offre ne correspond" : tab === "REVIEW" ? "Rien à revoir" : "Aucune offre en stock"}>
-          {q.trim() ? undefined : tab === "REVIEW" ? "Toutes les offres en stock ont un prix décidé et cohérent avec le marché." : "Les cartes entrées en stock apparaîtront ici avec leur estimation."}
+        <EmptyState icon={tab === "REVIEW" ? <CircleCheckBig /> : <Tags />} title={q.trim() ? t("Aucune offre ne correspond") : tab === "REVIEW" ? t("Rien à revoir") : t("Aucune offre en stock")}>
+          {q.trim() ? undefined : tab === "REVIEW" ? t("Toutes les offres en stock ont un prix décidé et cohérent avec le marché.") : t("Les cartes entrées en stock apparaîtront ici avec leur estimation.")}
         </EmptyState>
       ) : (
         <>
@@ -148,11 +149,11 @@ export default function PricingPage() {
                     <div className="grid min-w-0 gap-1">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <span className="truncate text-sm font-semibold">{o.card.name}</span>
-                        <Badge variant={CATEGORY_VARIANT[o.category]}>{CATEGORY_LABEL[o.category]}</Badge>
+                        <Badge variant={CATEGORY_VARIANT[o.category]}>{t(CATEGORY_LABEL[o.category])}</Badge>
                         <span className="tabular text-xs text-muted-foreground">× {o.onHand}</span>
                       </div>
                       <p className="truncate text-xs text-muted-foreground">
-                        {o.card.setId} {o.card.localNumber} · {o.card.language.toUpperCase()} · {variantLabel({ ...o.card, stamp: "", subtype: "" })} · {o.condition}{o.isUnique ? " · unique" : ""}
+                        {o.card.setId} {o.card.localNumber} · {o.card.language.toUpperCase()} · {variantLabel({ ...o.card, stamp: "", subtype: "" })} · {o.condition}{o.isUnique ? ` · ${t("unique")}` : ""}
                       </p>
                       {o.reasons.length > 0 && (
                         <ul className="grid gap-0.5 text-xs text-warning">
@@ -164,28 +165,28 @@ export default function PricingPage() {
                   <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 lg:justify-end">
                     <dl className="tabular flex gap-5 text-sm">
                       <div className="grid gap-0.5">
-                        <dt className="text-[11px] text-muted-foreground">Prix cible</dt>
+                        <dt className="text-[11px] text-muted-foreground">{t("Prix cible")}</dt>
                         <dd className="font-semibold">{o.targetPriceCents === null ? "—" : formatEuros(o.targetPriceCents)}</dd>
                       </div>
                       <div className="grid gap-0.5">
-                        <dt className="text-[11px] text-muted-foreground">Suggéré</dt>
+                        <dt className="text-[11px] text-muted-foreground">{t("Suggéré")}</dt>
                         <dd className={o.suggestedPriceCents !== null && o.suggestedPriceCents !== o.targetPriceCents ? "font-semibold text-primary" : "text-muted-foreground"}>
                           {o.suggestedPriceCents === null ? "—" : formatEuros(o.suggestedPriceCents)}
                         </dd>
                       </div>
                       <div className="grid gap-0.5">
-                        <dt className="text-[11px] text-muted-foreground">{o.reference ? `${quoteLabel(o.reference.quoteType)} · ${age(o.reference.observedAt)}` : "Référence"}</dt>
+                        <dt className="text-[11px] text-muted-foreground">{o.reference ? `${quoteLabel(o.reference.quoteType)} · ${age(o.reference.observedAt)}` : t("Référence")}</dt>
                         <dd className="text-muted-foreground">{o.reference ? formatEuros(o.reference.amountCents) : "—"}</dd>
                       </div>
                     </dl>
                     <div className="flex gap-2">
                       {canAccept && (
-                        <Button size="sm" onClick={() => accept(o)} disabled={busy !== null || !settings} aria-label={`Accepter ${formatEuros(o.suggestedPriceCents!)} pour ${o.card.name}`}>
-                          {busy === o.offerId ? <Spinner className="text-primary-foreground" /> : <Check strokeWidth={2.5} />} Accepter
+                        <Button size="sm" onClick={() => accept(o)} disabled={busy !== null || !settings} aria-label={t("Accepter {price} pour {name}", { price: formatEuros(o.suggestedPriceCents!), name: o.card.name })}>
+                          {busy === o.offerId ? <Spinner className="text-primary-foreground" /> : <Check strokeWidth={2.5} />} {t("Accepter")}
                         </Button>
                       )}
-                      <Button variant="outline" size="sm" onClick={() => setEditing(o)} disabled={busy !== null} aria-label={`Fixer le prix de ${o.card.name}`}>
-                        <Pencil /> Fixer le prix
+                      <Button variant="outline" size="sm" onClick={() => setEditing(o)} disabled={busy !== null} aria-label={t("Fixer le prix de {name}", { name: o.card.name })}>
+                        <Pencil /> {t("Fixer le prix")}
                       </Button>
                     </div>
                   </div>
@@ -229,7 +230,7 @@ function PriceModal({ offer, settings, onClose, onSaved }: { offer: OfferPricing
     setError(null);
     try {
       await api.setOfferPrice(offer.offerId, { targetPriceCents: targetCents, floorPriceCents: floorCents, category });
-      toast.success(`${offer.card.name} : ${formatEuros(targetCents)}`);
+      toast.success(t("{label} : {value}", { label: offer.card.name, value: formatEuros(targetCents) }));
       onSaved();
     } catch (err) {
       setError(message(err));
@@ -238,13 +239,13 @@ function PriceModal({ offer, settings, onClose, onSaved }: { offer: OfferPricing
   }
 
   return (
-    <Modal title={`Prix de ${offer.card.name}`} description={`${CONDITIONS.find((c) => c.code === offer.condition)?.label ?? offer.condition} · ${offer.onHand} en stock`} onClose={onClose}>
+    <Modal title={t("Prix de {name}", { name: offer.card.name })} description={`${CONDITIONS.find((c) => c.code === offer.condition)?.label ?? offer.condition} · ${t("{n} en stock", { n: formatNumber(offer.onHand) })}`} onClose={onClose}>
       <form className="grid gap-4" onSubmit={submit}>
         <dl className="tabular grid grid-cols-3 gap-px overflow-hidden rounded-lg border bg-border text-sm">
           {[
-            ["Suggéré", offer.suggestedPriceCents === null ? "—" : formatEuros(offer.suggestedPriceCents)],
-            [offer.reference ? quoteLabel(offer.reference.quoteType) : "Référence", offer.reference ? formatEuros(offer.reference.amountCents) : "—"],
-            ["Coût moyen", formatEuros(offer.averageCostCents)],
+            [t("Suggéré"), offer.suggestedPriceCents === null ? "—" : formatEuros(offer.suggestedPriceCents)],
+            [offer.reference ? quoteLabel(offer.reference.quoteType) : t("Référence"), offer.reference ? formatEuros(offer.reference.amountCents) : "—"],
+            [t("Coût moyen"), formatEuros(offer.averageCostCents)],
           ].map(([label, value]) => (
             <div key={label} className="grid gap-0.5 bg-card px-3 py-2">
               <dt className="text-[11px] text-muted-foreground">{label}</dt>
@@ -256,21 +257,21 @@ function PriceModal({ offer, settings, onClose, onSaved }: { offer: OfferPricing
           <Alert variant="warning"><ul className="grid gap-0.5">{offer.reasons.map((r) => <li key={r}>{reasonLabel(r)}</li>)}</ul></Alert>
         )}
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Prix cible (€)">
+          <Field label={t("Prix cible (€)")}>
             <Input inputMode="decimal" value={target} onChange={(e) => setTarget(e.target.value)} onFocus={(e) => e.target.select()} aria-invalid={target !== "" && targetCents === null} required autoFocus className="tabular" />
           </Field>
-          <Field label="Prix plancher (€)" hint={autoFloor !== null && floor.trim() === "" ? `Automatique : ${formatEuros(autoFloor)}` : undefined}>
-            <Input inputMode="decimal" value={floor} onChange={(e) => setFloor(e.target.value)} placeholder="Automatique" aria-invalid={floorCents === null} className="tabular" />
+          <Field label={t("Prix plancher (€)")} hint={autoFloor !== null && floor.trim() === "" ? t("Automatique : {price}", { price: formatEuros(autoFloor) }) : undefined}>
+            <Input inputMode="decimal" value={floor} onChange={(e) => setFloor(e.target.value)} placeholder={t("Automatique")} aria-invalid={floorCents === null} className="tabular" />
           </Field>
         </div>
-        <Field label="Catégorie de vente">
+        <Field label={t("Catégorie de vente")}>
           <Select value={category} onChange={(e) => setCategory(e.target.value as Exclude<Category, "REVIEW">)}>
-            {DECIDABLE_CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
+            {DECIDABLE_CATEGORIES.map((c) => <option key={c} value={c}>{t(CATEGORY_LABEL[c])}</option>)}
           </Select>
         </Field>
         {error && <Alert variant="destructive">{error}</Alert>}
-        <Button type="submit" size="lg" disabled={busy || targetCents === null || floorCents === null}>Enregistrer le prix</Button>
-        <p className="text-xs text-muted-foreground">Un prix fixé à la main n'est plus modifié par les règles ; un écart notable avec le marché le ramènera seulement dans « À revoir ».</p>
+        <Button type="submit" size="lg" disabled={busy || targetCents === null || floorCents === null}>{t("Enregistrer le prix")}</Button>
+        <p className="text-xs text-muted-foreground">{t("Un prix fixé à la main n'est plus modifié par les règles ; un écart notable avec le marché le ramènera seulement dans « À revoir ».")}</p>
       </form>
     </Modal>
   );
@@ -324,7 +325,7 @@ function Rules({ settings, onSaved }: { settings: PricingSettings; onSaved: (s: 
         ...(parsed.euros as Pick<PricingSettings, "bulkBelowCents" | "lotBelowCents" | "singleFromCents" | "premiumFromCents" | "minMarginCents" | "roundFromCents" | "roundStepCents">),
         conditionPercent: parsed.conditions as PricingSettings["conditionPercent"],
       });
-      toast.success(`Règles enregistrées, ${saved.repriced} offre${saved.repriced > 1 ? "s recalculées" : " recalculée"}`);
+      toast.success(tn(saved.repriced, "Règles enregistrées, {n} offre recalculée", "Règles enregistrées, {n} offres recalculées"));
       onSaved(saved.settings);
     } catch (err) {
       setError(message(err));
@@ -349,8 +350,8 @@ function Rules({ settings, onSaved }: { settings: PricingSettings; onSaved: (s: 
       <Card className="lg:col-span-2">
         <CardContent className="grid gap-4">
           <div className="grid gap-1">
-            <CardTitle>Stratégie</CardTitle>
-            <CardDescription>Où placer le prix dans la fourchette du marché : plus bas pour vendre vite, plus haut pour la marge.</CardDescription>
+            <CardTitle>{t("Stratégie")}</CardTitle>
+            <CardDescription>{t("Où placer le prix dans la fourchette du marché : plus bas pour vendre vite, plus haut pour la marge.")}</CardDescription>
           </div>
           <StrategyPicker value={strategy} onChange={setStrategy} />
         </CardContent>
@@ -358,21 +359,21 @@ function Rules({ settings, onSaved }: { settings: PricingSettings; onSaved: (s: 
       <Card>
         <CardContent className="grid gap-4">
           <div className="grid gap-1">
-            <CardTitle>Ventes réussies</CardTitle>
-            <CardDescription>Le prix part des ventes réalisées sur Cardmarket : celles du mois donnent la base, celles de la semaine la direction. Sans vente récente, la tendance des annonces sert de repère.</CardDescription>
+            <CardTitle>{t("Ventes réussies")}</CardTitle>
+            <CardDescription>{t("Le prix part des ventes réalisées sur Cardmarket : celles du mois donnent la base, celles de la semaine la direction. Sans vente récente, la tendance des annonces sert de repère.")}</CardDescription>
           </div>
-          {number("maxAgeDays", "Ancienneté maximale (jours)", "Au-delà, le relevé est jugé périmé et l'offre part en revue.")}
+          {number("maxAgeDays", t("Ancienneté maximale (jours)"), t("Au-delà, le relevé est jugé périmé et l'offre part en revue."))}
           <div className="grid gap-2">
-            <span className="text-[13px] leading-none font-medium text-foreground/80">Part du prix des ventes selon l'état (%)</span>
+            <span className="text-[13px] leading-none font-medium text-foreground/80">{t("Part du prix des ventes selon l'état (%)")}</span>
             <div className="grid grid-cols-7 gap-1.5">
               {CONDITIONS.map((c) => (
                 <label key={c.code} className="grid gap-1 text-center">
                   <span className="font-mono text-xs text-muted-foreground" title={c.label}>{c.code}</span>
-                  <Input inputMode="numeric" value={conditions[c.code]} onChange={(e) => setConditions({ ...conditions, [c.code]: e.target.value })} aria-label={`Part pour ${c.label}`} aria-invalid={parsed.conditions[c.code] === null} className="tabular px-1 text-center" />
+                  <Input inputMode="numeric" value={conditions[c.code]} onChange={(e) => setConditions({ ...conditions, [c.code]: e.target.value })} aria-label={t("Part pour {condition}", { condition: c.label })} aria-invalid={parsed.conditions[c.code] === null} className="tabular px-1 text-center" />
                 </label>
               ))}
             </div>
-            <span className="text-xs text-muted-foreground">La source ne distingue pas les états : ce coefficient corrige la référence.</span>
+            <span className="text-xs text-muted-foreground">{t("La source ne distingue pas les états : ce coefficient corrige la référence.")}</span>
           </div>
         </CardContent>
       </Card>
@@ -380,31 +381,31 @@ function Rules({ settings, onSaved }: { settings: PricingSettings; onSaved: (s: 
       <Card>
         <CardContent className="grid gap-4">
           <div className="grid gap-1">
-            <CardTitle>Catégories et garde-fous</CardTitle>
-            <CardDescription>Seuils sur le prix estimé. Entre « lot » et « à l'unité », l'offre part en revue : à vous de trancher.</CardDescription>
+            <CardTitle>{t("Catégories et garde-fous")}</CardTitle>
+            <CardDescription>{t("Seuils sur le prix estimé. Entre « lot » et « à l'unité », l'offre part en revue : à vous de trancher.")}</CardDescription>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            {euro("bulkBelowCents", "Vrac en dessous de (€)")}
-            {euro("lotBelowCents", "Lot en dessous de (€)")}
-            {euro("singleFromCents", "À l'unité à partir de (€)")}
-            {euro("premiumFromCents", "Premium à partir de (€)")}
+            {euro("bulkBelowCents", t("Vrac en dessous de (€)"))}
+            {euro("lotBelowCents", t("Lot en dessous de (€)"))}
+            {euro("singleFromCents", t("À l'unité à partir de (€)"))}
+            {euro("premiumFromCents", t("Premium à partir de (€)"))}
           </div>
           <div className="grid grid-cols-2 gap-3">
-            {number("floorPercent", "Plancher (% du prix cible)")}
-            {euro("minMarginCents", "Marge minimale à l'unité (€)", "Au-dessus du coût, pour les ventes à l'unité et premium.")}
+            {number("floorPercent", t("Plancher (% du prix cible)"))}
+            {euro("minMarginCents", t("Marge minimale à l'unité (€)"), t("Au-dessus du coût, pour les ventes à l'unité et premium."))}
           </div>
-          {number("driftPercent", "Écart qui renvoie en revue (%)", "Entre un prix décidé et la suggestion du moment.")}
+          {number("driftPercent", t("Écart qui renvoie en revue (%)"), t("Entre un prix décidé et la suggestion du moment."))}
           <div className="grid grid-cols-2 gap-3">
-            {euro("roundFromCents", "Arrondir à partir de (€)", "En dessous, les prix restent au centime.")}
-            {euro("roundStepCents", "Pas d'arrondi (€)", "1,00 = à l'euro ; 5,00 = aux 5 euros.")}
+            {euro("roundFromCents", t("Arrondir à partir de (€)"), t("En dessous, les prix restent au centime."))}
+            {euro("roundStepCents", t("Pas d'arrondi (€)"), t("1,00 = à l'euro ; 5,00 = aux 5 euros."))}
           </div>
         </CardContent>
       </Card>
 
       <div className="grid gap-3 lg:col-span-2">
         {error && <Alert variant="destructive">{error}</Alert>}
-        <p className="text-xs text-muted-foreground">À l'enregistrement, toutes les offres sont recalculées ; les prix déjà décidés ne changent pas.</p>
-        {dirty && <SaveBar submit message="Règles de prix modifiées : toutes les offres seront recalculées" saveLabel="Enregistrer les règles" saving={busy} disabled={!valid} onDiscard={discard} />}
+        <p className="text-xs text-muted-foreground">{t("À l'enregistrement, toutes les offres sont recalculées ; les prix déjà décidés ne changent pas.")}</p>
+        {dirty && <SaveBar submit message={t("Règles de prix modifiées : toutes les offres seront recalculées")} saveLabel={t("Enregistrer les règles")} saving={busy} disabled={!valid} onDiscard={discard} />}
       </div>
     </form>
   );

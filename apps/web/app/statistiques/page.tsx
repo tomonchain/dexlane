@@ -16,18 +16,23 @@ import { Field, Input } from "@/components/ui/input";
 import { EmptyState, Page, PageHeader, Spinner } from "@/components/ui/misc";
 import { SegmentedTabs } from "@/components/ui/tabs";
 import { ApiError, api } from "@/lib/api";
-import { formatDateTime, formatEuros, parseEuros, variantLabel } from "@/lib/format";
+import { dateFormat, formatDateTime, formatEuros, formatNumber, parseEuros, variantLabel } from "@/lib/format";
+import { intlLocale, t, tn } from "@/lib/i18n";
 import { CATEGORY_LABEL, eurosInput, type Category } from "@/lib/pricing";
 import type { AlertSettings, Dashboard, PriceMove, PriceMoves, SalesInsights } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { DashboardSkeleton, ListSkeleton } from "@/components/skeletons";
 
 const CHANNEL_LABEL: Record<string, string> = { direct: "Vente directe", ebay: "eBay", cardtrader: "CardTrader" };
-const wholeEuros = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
-const compactEuros = (cents: number) => wholeEuros.format(cents / 100);
+const wholeEuros = () => new Intl.NumberFormat(intlLocale(), { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+const compactEuros = (cents: number) => wholeEuros().format(cents / 100);
 const signed = (cents: number) => `${cents > 0 ? "+" : "−"}${formatEuros(Math.abs(cents))}`;
-const percent = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1, signDisplay: "always" });
-const day = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
+const percent = () => new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 1, signDisplay: "always" });
+const day = () => dateFormat({ day: "numeric", month: "short" });
+/** « 12 % » en français, « 12% » en anglais. */
+const pct = (n: number | string) => t("{n} %", { n });
+/** Nom du jour dans la langue de l'interface : 1 = lundi … 7 = dimanche (le 1er janvier 2024 est un lundi). */
+const weekdayName = (weekday: number) => dateFormat({ weekday: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, weekday)));
 
 function Tile({ label, value, children, href }: { label: string; value: ReactNode; children?: ReactNode; href?: string }) {
   const body = (
@@ -63,9 +68,9 @@ function Statistics() {
   const [view, setView] = useState<View>(params.get("vue") === "cotes" ? "COTES" : "VENTES");
   return (
     <Page>
-      <PageHeader title="Statistiques" description="Ce qui se vend, à quel prix et à quelle vitesse ; puis la valeur de votre stock et les cotes qui bougent." />
+      <PageHeader title={t("Statistiques")} description={t("Ce qui se vend, à quel prix et à quelle vitesse ; puis la valeur de votre stock et les cotes qui bougent.")} />
       <div>
-        <SegmentedTabs label="Vue" value={view} onChange={setView} tabs={[{ value: "VENTES", label: "Ventes" }, { value: "COTES", label: "Stock et cotes" }]} />
+        <SegmentedTabs label={t("Vue")} value={view} onChange={setView} tabs={[{ value: "VENTES", label: t("Ventes") }, { value: "COTES", label: t("Stock et cotes") }]} />
       </div>
       {view === "VENTES" ? <SalesView /> : <StockView />}
     </Page>
@@ -80,20 +85,26 @@ const evolution = (now: number, before: number) => (before === 0 ? null : Math.r
 /** Les enseignements les plus utiles de la période, en phrases : ce qu'on retient sans lire chaque graphique. */
 function takeaways(d: SalesInsights): string[] {
   const out: string[] = [];
-  const t = d.totals;
+  const totals = d.totals;
   const band = [...d.byPriceBand].sort((a, b) => b.cards - a.cards)[0];
-  if (band && band.cards > 0) out.push(`La tranche qui se vend le plus : ${band.label.toLowerCase()}, ${share(band.cards, t.cards)} % des cartes vendues.`);
+  if (band && band.cards > 0) out.push(t("La tranche qui se vend le plus : {band}, {percent} % des cartes vendues.", { band: t(band.label).toLowerCase(), percent: share(band.cards, totals.cards) }));
   const flowing = d.bySet.filter((x) => x.cards >= 3).sort((a, b) => b.sellThroughPercent - a.sellThroughPercent)[0];
-  if (flowing) out.push(`${flowing.label} s'écoule le mieux : ${Math.round(flowing.sellThroughPercent)} % de ce que vous en aviez est vendu.`);
-  if (t.medianDaysToSell !== null) {
-    out.push(t.medianDaysToSell === 0
-      ? "La moitié des cartes vendues partent le jour même de leur entrée en stock."
-      : `La moitié des cartes vendues partent en moins de ${t.medianDaysToSell} jour${t.medianDaysToSell > 1 ? "s" : ""} après leur entrée en stock.`);
+  if (flowing) out.push(t("{set} s'écoule le mieux : {percent} % de ce que vous en aviez est vendu.", { set: flowing.label, percent: Math.round(flowing.sellThroughPercent) }));
+  if (totals.medianDaysToSell !== null) {
+    out.push(totals.medianDaysToSell === 0
+      ? t("La moitié des cartes vendues partent le jour même de leur entrée en stock.")
+      : tn(totals.medianDaysToSell, "La moitié des cartes vendues partent en moins de {n} jour après leur entrée en stock.", "La moitié des cartes vendues partent en moins de {n} jours après leur entrée en stock."));
   }
   const peak = [...d.byWeekday].sort((a, b) => b.orders - a.orders)[0];
-  if (peak && t.orders >= 5 && peak.orders > t.orders / 7) out.push(`Le ${peak.label} est le jour où vous vendez le plus (${peak.orders} vente${peak.orders > 1 ? "s" : ""}).`);
-  const trend = evolution(t.revenueCents, d.previous.revenueCents);
-  if (trend !== null && Math.abs(trend) >= 5) out.push(`Chiffre d'affaires ${trend > 0 ? "en hausse" : "en baisse"} de ${Math.abs(trend)} % par rapport à la période précédente.`);
+  if (peak && totals.orders >= 5 && peak.orders > totals.orders / 7) {
+    out.push(tn(peak.orders, "Le {day} est le jour où vous vendez le plus ({n} vente).", "Le {day} est le jour où vous vendez le plus ({n} ventes).", { day: weekdayName(peak.weekday) }));
+  }
+  const trend = evolution(totals.revenueCents, d.previous.revenueCents);
+  if (trend !== null && Math.abs(trend) >= 5) {
+    out.push(trend > 0
+      ? t("Chiffre d'affaires en hausse de {percent} % par rapport à la période précédente.", { percent: Math.abs(trend) })
+      : t("Chiffre d'affaires en baisse de {percent} % par rapport à la période précédente.", { percent: Math.abs(trend) }));
+  }
   return out.slice(0, 4);
 }
 
@@ -103,7 +114,7 @@ function Delta({ now, before }: { now: number; before: number }) {
   const Arrow = change >= 0 ? ArrowUpRight : ArrowDownRight;
   return (
     <span className={cn("tabular inline-flex items-center gap-0.5 text-xs font-medium", change > 0 ? "text-success" : change < 0 ? "text-destructive" : "text-muted-foreground")}>
-      <Arrow className="size-3.5" aria-hidden /> {change > 0 ? "+" : ""}{change} %
+      <Arrow className="size-3.5" aria-hidden /> {pct(`${change > 0 ? "+" : ""}${change}`)}
     </span>
   );
 }
@@ -135,7 +146,7 @@ function Panel({ title, description, children, className }: { title: string; des
   );
 }
 
-const cardsNote = (n: number) => `${n.toLocaleString("fr-FR")} carte${n > 1 ? "s" : ""}`;
+const cardsNote = (n: number) => tn(n, "{n} carte", "{n} cartes");
 
 function SalesView() {
   const [days, setDays] = useState("90");
@@ -150,15 +161,15 @@ function SalesView() {
   return (
     <div className="grid gap-5" data-testid="sales-insights">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <SegmentedTabs label="Période" value={days} onChange={setDays} tabs={PERIODS} />
-        <p className="text-xs text-muted-foreground">Ventes enregistrées sur les {period} écoulés, hors ventes annulées.</p>
+        <SegmentedTabs label={t("Période")} value={days} onChange={setDays} tabs={PERIODS.map((p) => ({ ...p, label: t(p.label) }))} />
+        <p className="text-xs text-muted-foreground">{t("Ventes enregistrées sur les {period} écoulés, hors ventes annulées.", { period: t(period) })}</p>
       </div>
       {error && <Alert variant="destructive">{error}</Alert>}
       {!data && !error && <DashboardSkeleton />}
       {data && data.totals.cards === 0 && (
-        <EmptyState icon={<TrendingUp />} title={`Aucune vente sur les ${period} écoulés`}>
-          Les statistiques se remplissent avec vos ventes : séries qui partent, prix qui se vendent, délai de vente.
-          {days !== "365" && " Élargissez la période pour voir plus loin."}
+        <EmptyState icon={<TrendingUp />} title={t("Aucune vente sur les {period} écoulés", { period: t(period) })}>
+          {t("Les statistiques se remplissent avec vos ventes : séries qui partent, prix qui se vendent, délai de vente.")}
+          {days !== "365" && ` ${t("Élargissez la période pour voir plus loin.")}`}
         </EmptyState>
       )}
       {data && data.totals.cards > 0 && <SalesReport data={data} />}
@@ -167,25 +178,25 @@ function SalesView() {
 }
 
 function SalesReport({ data }: { data: SalesInsights }) {
-  const t = data.totals;
+  const totals = data.totals;
   const notes = takeaways(data);
-  const channelLabel = (c: string) => CHANNEL_LABEL[c] ?? c;
+  const channelLabel = (c: string) => (CHANNEL_LABEL[c] ? t(CHANNEL_LABEL[c]!) : c);
   return (
     <>
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border shadow-xs lg:grid-cols-4">
-        <Kpi label="Chiffre d'affaires" testId="sales-revenue" value={compactEuros(t.revenueCents)} delta={<Delta now={t.revenueCents} before={data.previous.revenueCents} />}
-          hint={`Cartes seules · marge ${compactEuros(t.marginCents)} après coût d'achat`} />
-        <Kpi label="Cartes vendues" testId="sales-cards" value={t.cards.toLocaleString("fr-FR")} delta={<Delta now={t.cards} before={data.previous.cards} />}
-          hint={`${t.orders} vente${t.orders > 1 ? "s" : ""} · panier moyen ${formatEuros(t.averageOrderCents)}`} />
-        <Kpi label="Prix moyen d'une carte" value={formatEuros(t.averageCardCents)} hint="Prix de vente, hors port" />
-        <Kpi label="Délai de vente" value={t.medianDaysToSell === null ? "—" : `${t.medianDaysToSell} j`}
-          hint={t.sellThroughPercent === null ? "Délai médian depuis l'entrée en stock" : `Délai médian · ${Math.round(t.sellThroughPercent)} % du stock écoulé`} />
+        <Kpi label={t("Chiffre d'affaires")} testId="sales-revenue" value={compactEuros(totals.revenueCents)} delta={<Delta now={totals.revenueCents} before={data.previous.revenueCents} />}
+          hint={t("Cartes seules · marge {margin} après coût d'achat", { margin: compactEuros(totals.marginCents) })} />
+        <Kpi label={t("Cartes vendues")} testId="sales-cards" value={formatNumber(totals.cards)} delta={<Delta now={totals.cards} before={data.previous.cards} />}
+          hint={tn(totals.orders, "{n} vente · panier moyen {price}", "{n} ventes · panier moyen {price}", { price: formatEuros(totals.averageOrderCents) })} />
+        <Kpi label={t("Prix moyen d'une carte")} value={formatEuros(totals.averageCardCents)} hint={t("Prix de vente, hors port")} />
+        <Kpi label={t("Délai de vente")} value={totals.medianDaysToSell === null ? "—" : t("{n} j", { n: totals.medianDaysToSell })}
+          hint={totals.sellThroughPercent === null ? t("Délai médian depuis l'entrée en stock") : t("Délai médian · {percent} % du stock écoulé", { percent: Math.round(totals.sellThroughPercent) })} />
       </div>
 
       {notes.length > 0 && (
         <Card className="border-brand/30 bg-brand-soft/40">
           <CardContent className="grid gap-2">
-            <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-tight"><Lightbulb className="size-4 text-brand" aria-hidden /> À retenir</h2>
+            <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-tight"><Lightbulb className="size-4 text-brand" aria-hidden /> {t("À retenir")}</h2>
             <ul className="grid gap-1.5 text-sm" data-testid="sales-takeaways">
               {notes.map((n) => <li key={n} className="flex gap-2"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-brand" aria-hidden />{n}</li>)}
             </ul>
@@ -194,30 +205,30 @@ function SalesReport({ data }: { data: SalesInsights }) {
       )}
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <Panel title="Chiffre d'affaires par mois" description="Prix des cartes vendues, sur douze mois.">
+        <Panel title={t("Chiffre d'affaires par mois")} description={t("Prix des cartes vendues, sur douze mois.")}>
           <MonthlyColumns
-            label="Chiffre d'affaires par mois"
+            label={t("Chiffre d'affaires par mois")}
             format={compactEuros}
-            data={data.months.map((m) => ({ key: m.month, month: m.month, value: m.revenueCents, details: [["Chiffre d'affaires", formatEuros(m.revenueCents)], ["Cartes", String(m.cards)]] }))}
+            data={data.months.map((m) => ({ key: m.month, month: m.month, value: m.revenueCents, details: [[t("Chiffre d'affaires"), formatEuros(m.revenueCents)], [t("Cartes"), formatNumber(m.cards)]] }))}
           />
         </Panel>
-        <Panel title="À quel prix ça part" description="Cartes vendues par tranche de prix de vente.">
-          <HorizontalBars format={(n) => n.toLocaleString("fr-FR")}
-            data={data.byPriceBand.map((b) => ({ key: b.key, label: b.label, value: b.cards, note: b.cards > 0 ? formatEuros(b.revenueCents) : undefined }))} />
+        <Panel title={t("À quel prix ça part")} description={t("Cartes vendues par tranche de prix de vente.")}>
+          <HorizontalBars format={(n) => formatNumber(n)}
+            data={data.byPriceBand.map((b) => ({ key: b.key, label: t(b.label), value: b.cards, note: b.cards > 0 ? formatEuros(b.revenueCents) : undefined }))} />
         </Panel>
       </div>
 
-      <Panel title="Séries qui se vendent" description="Cartes vendues sur la période, ce qu'il en reste, et la part écoulée.">
+      <Panel title={t("Séries qui se vendent")} description={t("Cartes vendues sur la période, ce qu'il en reste, et la part écoulée.")}>
         {/* Une grille plutôt qu'un tableau : sur téléphone, chaque série tient sur deux lignes, sans défilement de côté. */}
         <div className="grid text-sm" data-testid="sales-by-set">
           <div className="hidden grid-cols-[minmax(0,1fr)_5rem_6rem_5rem_minmax(8rem,30%)] gap-3 border-b pb-2 text-xs font-medium text-muted-foreground sm:grid">
-            <span>Série</span><span className="text-right">Vendues</span><span className="text-right">CA</span><span className="text-right">En stock</span><span>Écoulement</span>
+            <span>{t("Série")}</span><span className="text-right">{t("Vendues")}</span><span className="text-right">{t("CA")}</span><span className="text-right">{t("En stock")}</span><span>{t("Écoulement")}</span>
           </div>
           <ul className="divide-y">
             {data.bySet.map((x) => (
               <li key={x.key} className="tabular grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 py-2.5 sm:grid-cols-[minmax(0,1fr)_5rem_6rem_5rem_minmax(8rem,30%)] sm:py-2">
                 <span className="truncate font-medium">{x.label}</span>
-                <span className="text-right text-xs text-muted-foreground sm:hidden">{x.cards} vendue{x.cards > 1 ? "s" : ""} · {formatEuros(x.revenueCents)} · {x.inStock} en stock</span>
+                <span className="text-right text-xs text-muted-foreground sm:hidden">{tn(x.cards, "{n} vendue", "{n} vendues")} · {formatEuros(x.revenueCents)} · {t("{n} en stock", { n: formatNumber(x.inStock) })}</span>
                 <span className="hidden text-right sm:block">{x.cards}</span>
                 <span className="hidden text-right sm:block">{formatEuros(x.revenueCents)}</span>
                 <span className="hidden text-right text-muted-foreground sm:block">{x.inStock}</span>
@@ -225,7 +236,7 @@ function SalesReport({ data }: { data: SalesInsights }) {
                   <span className="h-2 flex-1 overflow-hidden rounded-full bg-muted" aria-hidden>
                     <span className="block h-full rounded-full bg-chart-1" style={{ width: `${Math.min(x.sellThroughPercent, 100)}%` }} />
                   </span>
-                  <span className="w-16 text-right text-xs font-medium sm:w-10">{Math.round(x.sellThroughPercent)} %<span className="sm:hidden"> écoulé</span></span>
+                  <span className="w-16 text-right text-xs font-medium sm:w-10">{pct(Math.round(x.sellThroughPercent))}<span className="sm:hidden"> {t("écoulé")}</span></span>
                 </span>
               </li>
             ))}
@@ -234,29 +245,32 @@ function SalesReport({ data }: { data: SalesInsights }) {
       </Panel>
 
       <div className="grid items-start gap-5 md:grid-cols-2 xl:grid-cols-3">
-        <Panel title="Par état" description="Cartes vendues selon leur état.">
-          <HorizontalBars format={(n) => n.toLocaleString("fr-FR")} data={data.byCondition.map((c) => ({ key: c.key, label: `${c.key} · ${c.label}`, value: c.cards, note: formatEuros(c.revenueCents) }))} />
+        <Panel title={t("Par état")} description={t("Cartes vendues selon leur état.")}>
+          <HorizontalBars format={(n) => formatNumber(n)} data={data.byCondition.map((c) => ({ key: c.key, label: `${c.key} · ${c.label}`, value: c.cards, note: formatEuros(c.revenueCents) }))} />
         </Panel>
-        <Panel title="Par rareté" description="Les raretés qui partent le plus.">
-          <HorizontalBars format={(n) => n.toLocaleString("fr-FR")} data={data.byRarity.map((r) => ({ key: r.key || "none", label: r.label, value: r.cards, note: formatEuros(r.revenueCents) }))} />
+        <Panel title={t("Par rareté")} description={t("Les raretés qui partent le plus.")}>
+          <HorizontalBars format={(n) => formatNumber(n)} data={data.byRarity.map((r) => ({ key: r.key || "none", label: r.key ? r.label : t("Sans rareté"), value: r.cards, note: formatEuros(r.revenueCents) }))} />
         </Panel>
-        <Panel title="Délai de vente" description="Temps entre l'entrée en stock et la vente.">
-          <HorizontalBars format={(n) => n.toLocaleString("fr-FR")} data={data.daysToSell.map((d) => ({ key: d.key, label: d.label, value: d.cards, note: d.cards > 0 ? `${share(d.cards, t.cards)} %` : undefined }))} />
+        <Panel title={t("Délai de vente")} description={t("Temps entre l'entrée en stock et la vente.")}>
+          <HorizontalBars format={(n) => formatNumber(n)} data={data.daysToSell.map((d) => ({ key: d.key, label: t(d.label), value: d.cards, note: d.cards > 0 ? pct(share(d.cards, totals.cards)) : undefined }))} />
         </Panel>
-        <Panel title="Jour de la semaine" description="Nombre de ventes enregistrées.">
-          <HorizontalBars format={(n) => n.toLocaleString("fr-FR")} data={data.byWeekday.map((w) => ({ key: String(w.weekday), label: w.label.charAt(0).toUpperCase() + w.label.slice(1), value: w.orders }))} />
+        <Panel title={t("Jour de la semaine")} description={t("Nombre de ventes enregistrées.")}>
+          <HorizontalBars format={(n) => formatNumber(n)} data={data.byWeekday.map((w) => {
+            const name = weekdayName(w.weekday);
+            return { key: String(w.weekday), label: name.charAt(0).toUpperCase() + name.slice(1), value: w.orders };
+          })} />
         </Panel>
-        <Panel title="Par canal" description="Où se font les ventes.">
-          <HorizontalBars format={formatEuros} data={data.byChannel.map((c) => ({ key: c.key, label: channelLabel(c.key), value: c.revenueCents, note: `${c.orders} vente${c.orders > 1 ? "s" : ""}` }))} />
+        <Panel title={t("Par canal")} description={t("Où se font les ventes.")}>
+          <HorizontalBars format={formatEuros} data={data.byChannel.map((c) => ({ key: c.key, label: channelLabel(c.key), value: c.revenueCents, note: tn(c.orders, "{n} vente", "{n} ventes") }))} />
         </Panel>
-        <Panel title="Cartes les plus vendues" className="md:col-span-2 xl:col-span-1">
+        <Panel title={t("Cartes les plus vendues")} className="md:col-span-2 xl:col-span-1">
           <ol className="grid gap-2 text-sm" data-testid="sales-top-cards">
             {data.topCards.map((c, i) => (
               <li key={c.catalogCardId} className="flex items-baseline gap-3">
                 <span className="tabular w-4 shrink-0 text-xs text-muted-foreground">{i + 1}</span>
                 <span className="grid min-w-0 flex-1">
                   <Link href={`/carte/${c.catalogCardId}`} className="truncate font-medium underline-offset-2 hover:underline">{c.name}</Link>
-                  <span className="truncate text-xs text-muted-foreground">{c.setName} · {c.cards > 1 ? `${cardsNote(c.cards)}, ${formatEuros(c.averageCents)} pièce en moyenne` : cardsNote(c.cards)}</span>
+                  <span className="truncate text-xs text-muted-foreground">{c.setName} · {c.cards > 1 ? t("{cards}, {price} pièce en moyenne", { cards: cardsNote(c.cards), price: formatEuros(c.averageCents) }) : cardsNote(c.cards)}</span>
                 </span>
                 <span className="tabular font-medium">{formatEuros(c.revenueCents)}</span>
               </li>
@@ -292,14 +306,14 @@ function StockView() {
       const r = await api.refreshPrices();
       toast.success(
         r.pricesInserted > 0
-          ? `${r.pricesInserted} nouvelle${r.pricesInserted > 1 ? "s" : ""} cote${r.pricesInserted > 1 ? "s" : ""} sur ${r.cards} carte${r.cards > 1 ? "s" : ""}`
-          : `Cotes déjà à jour (${r.cards} carte${r.cards > 1 ? "s" : ""} vérifiée${r.cards > 1 ? "s" : ""})`,
+          ? tn(r.pricesInserted, "{n} nouvelle cote sur {cards}", "{n} nouvelles cotes sur {cards}", { cards: cardsNote(r.cards) })
+          : tn(r.cards, "Cotes déjà à jour ({n} carte vérifiée)", "Cotes déjà à jour ({n} cartes vérifiées)"),
       );
-      if (r.errors > 0) setError(`${r.errors} carte${r.errors > 1 ? "s n'ont" : " n'a"} pas pu être relevée${r.errors > 1 ? "s" : ""} : la source des cotes n'a pas répondu.`);
+      if (r.errors > 0) setError(tn(r.errors, "{n} carte n'a pas pu être relevée : la source des cotes n'a pas répondu.", "{n} cartes n'ont pas pu être relevées : la source des cotes n'a pas répondu."));
       loadMoves();
       api.dashboard().then(setDashboard).catch(() => undefined);
     } catch (e) {
-      setError(e instanceof ApiError && e.code === "CATALOG_UNAVAILABLE" ? "La source des cotes ne répond pas. Réessayez plus tard." : (e as Error).message);
+      setError(e instanceof ApiError && e.code === "CATALOG_UNAVAILABLE" ? t("La source des cotes ne répond pas. Réessayez plus tard.") : (e as Error).message);
     } finally {
       setRefreshing(false);
     }
@@ -314,28 +328,28 @@ function StockView() {
       {error && <Alert variant="destructive">{error}</Alert>}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-        <Tile label="Valeur du stock" value={<span data-testid="stat-value">{compactEuros(stock.marketValueCents)}</span>}>
-          Au prix cible · coût {compactEuros(stock.costCents)}
+        <Tile label={t("Valeur du stock")} value={<span data-testid="stat-value">{compactEuros(stock.marketValueCents)}</span>}>
+          {t("Au prix cible · coût {cost}", { cost: compactEuros(stock.costCents) })}
         </Tile>
-        <Tile label="Marge latente" value={compactEuros(latent)}>
-          Ce que rapporterait le stock vendu à son prix, coût d'achat déduit
+        <Tile label={t("Marge latente")} value={compactEuros(latent)}>
+          {t("Ce que rapporterait le stock vendu à son prix, coût d'achat déduit")}
         </Tile>
-        <Tile label="Cartes en stock" value={stock.cards.toLocaleString("fr-FR")}>
-          {stock.sellable.toLocaleString("fr-FR")} vendables · {stock.reserved} réservée{stock.reserved > 1 ? "s" : ""}{stock.unpricedCards > 0 ? ` · ${stock.unpricedCards} sans prix` : ""}
+        <Tile label={t("Cartes en stock")} value={formatNumber(stock.cards)}>
+          {t("{n} vendables", { n: formatNumber(stock.sellable) })} · {tn(stock.reserved, "{n} réservée", "{n} réservées")}{stock.unpricedCards > 0 ? ` · ${t("{n} sans prix", { n: formatNumber(stock.unpricedCards) })}` : ""}
         </Tile>
       </div>
 
-      <Panel title="Valeur du stock par catégorie" description="Au prix cible, à défaut au prix suggéré.">
+      <Panel title={t("Valeur du stock par catégorie")} description={t("Au prix cible, à défaut au prix suggéré.")}>
         <div className="grid gap-6 lg:grid-cols-2">
           {dashboard.byCategory.length > 0 ? (
             <HorizontalBars
               format={compactEuros}
-              data={dashboard.byCategory.map((c) => ({ key: c.category, label: CATEGORY_LABEL[c.category as Category] ?? c.category, value: c.valueCents, note: `${c.cards} carte${c.cards > 1 ? "s" : ""}` }))}
+              data={dashboard.byCategory.map((c) => ({ key: c.category, label: CATEGORY_LABEL[c.category as Category] ? t(CATEGORY_LABEL[c.category as Category]) : c.category, value: c.valueCents, note: cardsNote(c.cards) }))}
             />
-          ) : <p className="text-sm text-muted-foreground">Aucune carte identifiée en stock.</p>}
+          ) : <p className="text-sm text-muted-foreground">{t("Aucune carte identifiée en stock.")}</p>}
           {dashboard.topOffers.length > 0 && (
             <div className="grid content-start gap-2">
-              <Eyebrow>Cartes les plus chères</Eyebrow>
+              <Eyebrow>{t("Cartes les plus chères")}</Eyebrow>
               <ul className="grid gap-1.5 text-sm">
                 {dashboard.topOffers.map((o) => (
                   <li key={o.offerSku} className="flex items-baseline justify-between gap-3">
@@ -349,32 +363,34 @@ function StockView() {
         </div>
       </Panel>
 
-      <section className="grid gap-3" aria-label="Variations de prix">
+      <section className="grid gap-3" aria-label={t("Variations de prix")}>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="grid gap-1">
-            <h2 className="text-lg font-semibold tracking-tight">Variations de prix</h2>
+            <h2 className="text-lg font-semibold tracking-tight">{t("Variations de prix")}</h2>
             <p className="text-sm text-muted-foreground">
-              Cote tendance Cardmarket des cartes en stock{moves?.latestQuoteAt ? `, dernier relevé le ${formatDateTime(moves.latestQuoteAt)}` : ""}.
+              {t("Cote tendance Cardmarket des cartes en stock")}{moves?.latestQuoteAt ? t(", dernier relevé le {date}", { date: formatDateTime(moves.latestQuoteAt) }) : ""}.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <SegmentedTabs
-              label="Variations de prix"
+              label={t("Variations de prix")}
               value={alertsOnly ? "ALERTS" : "ALL"}
               onChange={(v) => setAlertsOnly(v === "ALERTS")}
-              tabs={[{ value: "ALERTS", label: "Alertes", count: moves?.alerts }, { value: "ALL", label: "Toutes" }]}
+              tabs={[{ value: "ALERTS", label: t("Alertes"), count: moves?.alerts }, { value: "ALL", label: t("Toutes") }]}
             />
-            <Button variant="outline" onClick={refreshPrices} disabled={refreshing}>{refreshing ? <Spinner /> : <RefreshCw />} Relever les cotes</Button>
+            <Button variant="outline" onClick={refreshPrices} disabled={refreshing}>{refreshing ? <Spinner /> : <RefreshCw />} {t("Relever les cotes")}</Button>
           </div>
         </div>
         {moves && <AlertRules settings={moves.settings} onSaved={loadMoves} />}
-        {!moves ? <ListSkeleton count={4} label="Chargement des variations" />
+        {!moves ? <ListSkeleton count={4} label={t("Chargement des variations")} />
           : moves.moves.length === 0 ? (
-            <EmptyState icon={alertsOnly ? <BellRing /> : <TrendingUp />} title={alertsOnly && moves.trackedVariants > 0 ? "Aucune alerte" : "Pas encore de variation à montrer"}>
+            <EmptyState icon={alertsOnly ? <BellRing /> : <TrendingUp />} title={alertsOnly && moves.trackedVariants > 0 ? t("Aucune alerte") : t("Pas encore de variation à montrer")}>
               {moves.trackedVariants === 0
-                ? `Une variation se mesure entre deux relevés espacés d'au moins ${moves.settings.windowDays} jour${moves.settings.windowDays > 1 ? "s" : ""}. Les cotes des cartes en stock sont relevées chaque jour : l'historique se construit tout seul.`
-                : alertsOnly ? "Aucune carte en stock n'a bougé au-delà des seuils. L'onglet Toutes montre les variations plus faibles."
-                : "Les cotes des cartes en stock n'ont pas bougé sur la période."}
+                ? tn(moves.settings.windowDays,
+                  "Une variation se mesure entre deux relevés espacés d'au moins {n} jour. Les cotes des cartes en stock sont relevées chaque jour : l'historique se construit tout seul.",
+                  "Une variation se mesure entre deux relevés espacés d'au moins {n} jours. Les cotes des cartes en stock sont relevées chaque jour : l'historique se construit tout seul.")
+                : alertsOnly ? t("Aucune carte en stock n'a bougé au-delà des seuils. L'onglet Toutes montre les variations plus faibles.")
+                : t("Les cotes des cartes en stock n'ont pas bougé sur la période.")}
             </EmptyState>
           ) : (
             <Card className="divide-y overflow-hidden">
@@ -395,15 +411,15 @@ function MoveRow({ move }: { move: PriceMove }) {
       <div className="min-w-0 flex-1 basis-40">
         <p className="flex items-center gap-2 truncate text-sm font-medium">
           {move.cardName}
-          {move.alert && <Badge variant="warning"><BellRing /> Alerte</Badge>}
+          {move.alert && <Badge variant="warning"><BellRing /> {t("Alerte")}</Badge>}
         </p>
         <p className="truncate text-xs text-muted-foreground">
-          {move.setName ?? move.setId} · n° {move.localNumber} · {variantLabel(move)} · {move.quantity} en stock
+          {move.setName ?? move.setId} · {t("n° {number}", { number: move.localNumber })} · {variantLabel(move)} · {t("{n} en stock", { n: formatNumber(move.quantity) })}
         </p>
       </div>
       <Sparkline
         values={move.series.map((p) => p.cents)}
-        label={`Cote de ${move.cardName} sur 90 jours : de ${formatEuros(move.series[0]?.cents ?? move.previousCents)} à ${formatEuros(move.latestCents)}`}
+        label={t("Cote de {name} sur 90 jours : de {from} à {to}", { name: move.cardName, from: formatEuros(move.series[0]?.cents ?? move.previousCents), to: formatEuros(move.latestCents) })}
         className="hidden sm:block"
       />
       <div className="tabular grid justify-items-end gap-0.5 text-sm sm:w-44">
@@ -412,17 +428,17 @@ function MoveRow({ move }: { move: PriceMove }) {
           <ArrowRight className="size-3.5 text-muted-foreground" aria-hidden />
           <span className="font-semibold">{formatEuros(move.latestCents)}</span>
         </span>
-        <span className="text-xs text-muted-foreground">du {day.format(new Date(move.previousAt))} au {day.format(new Date(move.latestAt))}</span>
+        <span className="text-xs text-muted-foreground">{t("du {from} au {to}", { from: day().format(new Date(move.previousAt)), to: day().format(new Date(move.latestAt)) })}</span>
       </div>
       <div className="grid w-24 justify-items-end gap-0.5">
         <Badge variant={up ? "success" : "destructive"} className="tabular">
-          <Arrow /> {percent.format(move.deltaPercent)} %
+          <Arrow /> {pct(percent().format(move.deltaPercent))}
         </Badge>
         <span className="tabular text-xs text-muted-foreground">{signed(move.deltaCents)}{move.quantity > 1 ? ` × ${move.quantity}` : ""}</span>
       </div>
       {move.targetPriceCents !== null && (
         <p className={cn("basis-full text-xs sm:w-48 sm:basis-auto sm:text-right", move.targetPriceCents < move.latestCents * 0.9 || move.targetPriceCents > move.latestCents * 1.25 ? "text-warning" : "text-muted-foreground")}>
-          Votre prix : {formatEuros(move.targetPriceCents)} — <Link href="/prix" className="font-medium text-primary underline-offset-2 hover:underline">revoir</Link>
+          {t("Votre prix : {price}", { price: formatEuros(move.targetPriceCents) })} — <Link href="/prix" className="font-medium text-primary underline-offset-2 hover:underline">{t("revoir")}</Link>
         </p>
       )}
     </div>

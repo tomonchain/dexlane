@@ -294,7 +294,7 @@ function WatchModal({ onClose, onWatched }: { onClose: () => void; onWatched: ()
               </ul>
             )}
           </section>
-        ) : !results ? <ListSkeleton count={4} thumb label={t("Recherche")} /> : results.length === 0 ? (
+        ) : !results ? <ListSkeleton count={4} thumb label={t("Recherche…")} /> : results.length === 0 ? (
           <p className="rounded-lg border border-dashed px-4 py-6 text-center text-[13px] text-muted-foreground" role="status">
             {t("Aucune carte ne correspond. Seules les séries importées dans le catalogue sont cherchées.")}
           </p>

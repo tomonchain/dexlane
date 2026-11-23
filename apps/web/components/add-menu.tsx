@@ -5,6 +5,7 @@ import Link from "next/link";
 import { DropdownMenu } from "radix-ui";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 type IntakeMode = "SCANNER" | "CAMERA" | "FILES";
@@ -36,7 +37,7 @@ export function AddMenu({ className }: { className?: string }) {
         )}
         data-testid="add-cards"
       >
-        <Plus className="size-4" aria-hidden /> Ajouter des cartes
+        <Plus className="size-4" aria-hidden /> {t("Ajouter des cartes")}
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
@@ -49,8 +50,8 @@ export function AddMenu({ className }: { className?: string }) {
               <Link href={item.href} className="flex items-center gap-3 rounded-md px-2.5 py-2 outline-none data-[highlighted]:bg-accent">
                 <item.icon className="size-4 text-muted-foreground" aria-hidden />
                 <span className="grid">
-                  <span className="text-sm font-medium">{item.label}</span>
-                  <span className="text-xs text-muted-foreground">{item.hint}</span>
+                  <span className="text-sm font-medium">{t(item.label)}</span>
+                  <span className="text-xs text-muted-foreground">{t(item.hint)}</span>
                 </span>
               </Link>
             </DropdownMenu.Item>

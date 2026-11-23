@@ -89,7 +89,7 @@ export const COMMON: Record<string, string> = {
   "Déplacement": "Move",
   "Réservation": "Reservation",
   "Libération": "Release",
-  "Prélèvement": "Pick",
+  "Prélèvement": "Picking",
   "Expédition": "Shipment",
   "Retour client": "Return",
   "Contrôle OK": "Inspection OK",
@@ -109,6 +109,8 @@ export const COMMON: Record<string, string> = {
   "numéro illisible": "number unreadable",
   "langue non déterminée": "language not determined",
   "remarque du modèle : ": "model note: ",
+
+  "Erreur {status}": "Error {status}",
 
   // Langue de l'interface
   "Langue de l'interface": "Interface language",

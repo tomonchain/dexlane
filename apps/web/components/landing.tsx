@@ -2,7 +2,11 @@
 
 import { ArrowRight, CalendarClock, Camera, ScanLine, ShieldCheck, Tags } from "lucide-react";
 import Link from "next/link";
+import { formatEuros } from "@/lib/format";
+import { LOCALES, getLocale, t, tn } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import { Logo } from "./app-shell";
+import { switchLocale } from "./i18n-provider";
 import { Button } from "./ui/button";
 
 const STEPS = [
@@ -20,37 +24,63 @@ const FEATURES = [
   { icon: ShieldCheck, title: "Pas de double vente", text: "Une carte vendue quelque part est retirée partout. Le stock réservé ne peut pas être revendu." },
 ];
 
+/** Choix de la langue avant connexion : le même réglage que dans Compte, enregistré sur cet appareil. */
+export function LocaleSwitch({ className }: { className?: string }) {
+  return (
+    <div role="radiogroup" aria-label={t("Langue de l'interface")} className={cn("inline-flex items-center gap-1 text-[13px]", className)} data-testid="locale-switch">
+      {LOCALES.map((l, i) => (
+        <span key={l.value} className="inline-flex items-center gap-1">
+          {i > 0 && <span aria-hidden className="text-muted-foreground/60">·</span>}
+          <button
+            type="button"
+            role="radio"
+            aria-checked={getLocale() === l.value}
+            lang={l.value}
+            onClick={() => getLocale() !== l.value && switchLocale(l.value)}
+            className={cn(
+              "rounded px-1 text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/30",
+              getLocale() === l.value && "font-medium text-foreground",
+            )}
+          >
+            {l.label}
+          </button>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 /** Aperçu stylisé de l'écran Stock : une illustration, pas des données réelles. */
 function StockPreview() {
   const rows = [
-    ["Dracaufeu", "Set de Base · 4 · Holo", "EX", "250,00 €", "En ligne", "bg-success"],
-    ["Mew-ex", "151 · 151 · Holo", "NM", "38,00 €", "Planifiée mer. 19", "bg-foreground/35"],
-    ["Pikachu", "Ténèbres Embrasées · 65 · Reverse", "NM", "4,20 €", "Prête", "bg-foreground/35"],
-    ["Fouinar", "Ténèbres Embrasées · 136 · Normale", "GD", "0,45 €", "À tarifer", "bg-brand"],
+    ["Dracaufeu", "Set de Base · 4", "Holo", "EX", 25000, "En ligne", "bg-success"],
+    ["Mew-ex", "151 · 151", "Holo", "NM", 3800, "Planifiée mer. 19", "bg-foreground/35"],
+    ["Pikachu", "Ténèbres Embrasées · 65", "Reverse", "NM", 420, "Prête", "bg-foreground/35"],
+    ["Fouinar", "Ténèbres Embrasées · 136", "Normale", "GD", 45, "À tarifer", "bg-brand"],
   ] as const;
   return (
     <div className="overflow-hidden rounded-xl border bg-card shadow-xl shadow-black/5" aria-hidden>
       <div className="flex items-center gap-2 border-b bg-muted/50 px-4 py-2.5">
         <span className="size-2.5 rounded-full bg-border" /><span className="size-2.5 rounded-full bg-border" /><span className="size-2.5 rounded-full bg-border" />
-        <span className="ml-3 text-xs font-medium text-muted-foreground">Stock · 1 248 cartes · 6 430,00 €</span>
+        <span className="ml-3 text-xs font-medium text-muted-foreground">{t("Stock")} · {tn(1248, "{n} carte", "{n} cartes")} · {formatEuros(643000)}</span>
       </div>
       <table className="w-full text-left text-sm">
         <tbody>
-          {rows.map(([name, detail, condition, price, status, dot]) => (
+          {rows.map(([name, detail, finish, condition, price, status, dot]) => (
             <tr key={name} className="border-b last:border-b-0">
               <td className="px-4 py-2.5">
                 <span className="flex items-center gap-3">
                   <span className="aspect-[63/88] w-7 rounded-[3px] bg-muted ring-1 ring-border" />
                   <span className="grid">
                     <span className="font-medium">{name}</span>
-                    <span className="text-xs text-muted-foreground">{detail}</span>
+                    <span className="text-xs text-muted-foreground">{detail} · {t(finish)}</span>
                   </span>
                 </span>
               </td>
               <td className="hidden px-3 font-mono text-xs sm:table-cell">{condition}</td>
-              <td className="tabular px-3 text-right font-medium whitespace-nowrap">{price}</td>
+              <td className="tabular px-3 text-right font-medium whitespace-nowrap">{formatEuros(price)}</td>
               <td className="hidden px-4 text-[13px] whitespace-nowrap sm:table-cell">
-                <span className="inline-flex items-center gap-1.5"><span className={`size-2 rounded-full ${dot}`} />{status}</span>
+                <span className="inline-flex items-center gap-1.5"><span className={`size-2 rounded-full ${dot}`} />{t(status)}</span>
               </td>
             </tr>
           ))}
@@ -66,18 +96,18 @@ export function Landing() {
     <div className="mx-auto grid max-w-5xl gap-20 px-5 pt-6 pb-16 sm:gap-24 sm:px-8">
       <header className="flex items-center justify-between">
         <Logo />
-        <Button asChild variant="outline" size="sm"><Link href="/login">Se connecter</Link></Button>
+        <Button asChild variant="outline" size="sm"><Link href="/login">{t("Se connecter")}</Link></Button>
       </header>
 
       <section className="grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         <div className="grid gap-5">
-          <h1 className="text-4xl leading-[1.08] font-semibold tracking-tight text-balance sm:text-5xl">Du carton de cartes à l'annonce en ligne.</h1>
+          <h1 className="text-4xl leading-[1.08] font-semibold tracking-tight text-balance sm:text-5xl">{t("Du carton de cartes à l'annonce en ligne.")}</h1>
           <p className="max-w-md text-base leading-relaxed text-muted-foreground">
-            Dexlane transforme une pile de cartes Pokémon en stock rangé, tarifé et prêt à vendre. Vous scannez, vous corrigez l'essentiel, la mise en ligne s'étale toute seule.
+            {t("Dexlane transforme une pile de cartes Pokémon en stock rangé, tarifé et prêt à vendre. Vous scannez, vous corrigez l'essentiel, la mise en ligne s'étale toute seule.")}
           </p>
           <div className="flex flex-wrap gap-2">
-            <Button asChild size="lg"><Link href="/login">Ouvrir Dexlane <ArrowRight /></Link></Button>
-            <Button asChild size="lg" variant="ghost"><a href="#parcours">Voir le parcours</a></Button>
+            <Button asChild size="lg"><Link href="/login">{t("Ouvrir Dexlane")} <ArrowRight /></Link></Button>
+            <Button asChild size="lg" variant="ghost"><a href="#parcours">{t("Voir le parcours")}</a></Button>
           </div>
         </div>
         <StockPreview />
@@ -85,15 +115,15 @@ export function Landing() {
 
       <section id="parcours" className="grid scroll-mt-8 gap-8">
         <div className="grid gap-2">
-          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Le parcours</p>
-          <h2 className="text-2xl font-semibold tracking-tight">Quatre gestes, dans l'ordre.</h2>
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{t("Le parcours")}</p>
+          <h2 className="text-2xl font-semibold tracking-tight">{t("Quatre gestes, dans l'ordre.")}</h2>
         </div>
         <ol className="grid gap-px overflow-hidden rounded-xl border bg-border sm:grid-cols-2 lg:grid-cols-4">
           {STEPS.map((step) => (
             <li key={step.n} className="grid content-start gap-2 bg-card p-5">
               <span className="tabular flex size-7 items-center justify-center rounded-full bg-brand-soft text-sm font-semibold">{step.n}</span>
-              <h3 className="text-[15px] font-semibold">{step.title}</h3>
-              <p className="text-sm leading-relaxed text-muted-foreground">{step.text}</p>
+              <h3 className="text-[15px] font-semibold">{t(step.title)}</h3>
+              <p className="text-sm leading-relaxed text-muted-foreground">{t(step.text)}</p>
             </li>
           ))}
         </ol>
@@ -101,26 +131,29 @@ export function Landing() {
 
       <section className="grid gap-8">
         <div className="grid gap-2">
-          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Ce qui compte</p>
-          <h2 className="text-2xl font-semibold tracking-tight">Pensé pour vendre, pas pour collectionner.</h2>
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{t("Ce qui compte")}</p>
+          <h2 className="text-2xl font-semibold tracking-tight">{t("Pensé pour vendre, pas pour collectionner.")}</h2>
         </div>
         <ul className="grid gap-x-10 gap-y-7 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((feature) => (
             <li key={feature.title} className="grid content-start gap-1.5">
               <feature.icon className="size-5 text-muted-foreground" aria-hidden />
-              <h3 className="mt-1 text-[15px] font-semibold">{feature.title}</h3>
-              <p className="text-sm leading-relaxed text-muted-foreground">{feature.text}</p>
+              <h3 className="mt-1 text-[15px] font-semibold">{t(feature.title)}</h3>
+              <p className="text-sm leading-relaxed text-muted-foreground">{t(feature.text)}</p>
             </li>
           ))}
         </ul>
         <p className="max-w-2xl text-[13px] leading-relaxed text-muted-foreground">
-          Canaux de vente : eBay et CardTrader sont prévus. Aujourd'hui, la mise en ligne tourne en simulation ; la publication réelle arrive avec le raccordement aux marketplaces.
+          {t("Canaux de vente : eBay et CardTrader sont prévus. Aujourd'hui, la mise en ligne tourne en simulation ; la publication réelle arrive avec le raccordement aux marketplaces.")}
         </p>
       </section>
 
       <footer className="flex flex-wrap items-center justify-between gap-3 border-t pt-6 text-[13px] text-muted-foreground">
-        <span>Dexlane — stock et vente de cartes Pokémon.</span>
-        <Link href="/login" className="font-medium text-foreground underline-offset-2 outline-none hover:underline focus-visible:underline">Se connecter</Link>
+        <span>{t("Dexlane — stock et vente de cartes Pokémon.")}</span>
+        <span className="flex flex-wrap items-center gap-4">
+          <LocaleSwitch />
+          <Link href="/login" className="font-medium text-foreground underline-offset-2 outline-none hover:underline focus-visible:underline">{t("Se connecter")}</Link>
+        </span>
       </footer>
     </div>
   );
