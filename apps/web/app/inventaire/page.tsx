@@ -9,11 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Select } from "@/components/ui/input";
-import { Code, EmptyState, Loading, PageHeader, Skeleton } from "@/components/ui/misc";
+import { Code, EmptyState, PageHeader, Skeleton } from "@/components/ui/misc";
 import { api } from "@/lib/api";
 import { LIFECYCLE, formatEuros, positionSubtitle, positionTitle } from "@/lib/format";
 import type { InventoryPage, InventorySummary, Position } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { ListSkeleton } from "@/components/skeletons";
 
 const PAGE = 50;
 const COLUMNS = "md:grid-cols-[minmax(0,1fr)_7.5rem_minmax(0,11rem)_7rem_5.5rem_4rem_1rem]";
@@ -192,7 +193,7 @@ export default function InventoryPage() {
         </Card>
       )}
 
-      {loading && <Loading />}
+      {loading && <ListSkeleton count={6} thumb label="Chargement de l'inventaire" />}
       {page && items.length < page.total && !loading && (
         <Button variant="outline" onClick={more} className="justify-self-center">Afficher la suite ({page.total - items.length} restantes)</Button>
       )}

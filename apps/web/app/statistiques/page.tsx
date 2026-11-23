@@ -11,13 +11,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, Eyebrow } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/input";
-import { EmptyState, Loading, PageHeader, Spinner } from "@/components/ui/misc";
+import { EmptyState, PageHeader, Spinner } from "@/components/ui/misc";
 import { SegmentedTabs } from "@/components/ui/tabs";
 import { ApiError, api } from "@/lib/api";
 import { formatDateTime, formatEuros, parseEuros, variantLabel } from "@/lib/format";
 import { CATEGORY_LABEL, eurosInput, type Category } from "@/lib/pricing";
 import type { AlertSettings, Dashboard, PriceMove, PriceMoves } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { DashboardSkeleton, ListSkeleton } from "@/components/skeletons";
 
 const CHANNEL_LABEL: Record<string, string> = { direct: "Vente directe", ebay: "eBay", cardtrader: "CardTrader" };
 const wholeEuros = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
@@ -74,7 +75,7 @@ export default function StatisticsPage() {
     }
   }
 
-  if (!dashboard) return error ? <Alert variant="destructive">{error}</Alert> : <Loading />;
+  if (!dashboard) return error ? <Alert variant="destructive">{error}</Alert> : <DashboardSkeleton />;
   const { stock } = dashboard;
   const current = dashboard.months.at(-1)!;
   const latent = stock.marketValueCents - stock.costCents;
@@ -193,7 +194,7 @@ export default function StatisticsPage() {
           />
         </div>
         {moves && <AlertRules settings={moves.settings} onSaved={loadMoves} />}
-        {!moves ? <Loading />
+        {!moves ? <ListSkeleton count={4} label="Chargement des variations" />
           : moves.moves.length === 0 ? (
             <EmptyState icon={alertsOnly ? <BellRing /> : <TrendingUp />} title={alertsOnly && moves.trackedVariants > 0 ? "Aucune alerte" : "Pas encore de variation à montrer"}>
               {moves.trackedVariants === 0

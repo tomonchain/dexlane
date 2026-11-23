@@ -62,249 +62,35 @@ function useBackgroundImage(style: PhotoStyle): { image: ImageBitmap | null; rea
   return photoId ? { image: state.id === photoId ? state.image : null, ready: state.id === photoId } : { image: null, ready: true };
 }
 
-export function Offers({ settings, channels }: { settings: ListingSettings; channels: ChannelState[] }) {
-  const [query, setQuery] = useState("");
-  const [page, setPage] = useState(1);
-  const [data, setData] = useState<{ items: ListingOffer[]; total: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [composing, setComposing] = useState<string | null>(null);
-  const background = useBackgroundImage(settings.photo);
-
-  const load = useCallback(() => {
-    api.listingOffers({ q: query.trim() || undefined, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE })
-      .then((d) => {
-        setData(d);
-        setError(null);
-      })
-      .catch((e: Error) => setError(e.message));
-  }, [query, page]);
-  useEffect(() => {
-    const timer = setTimeout(load, query ? 250 : 0);
-    return () => clearTimeout(timer);
-  }, [load, query]);
-
-  /** Compose (ou recompose) le visuel d'annonce de chaque scan de l'offre. */
-  async function compose(offers: ListingOffer[]) {
-    setError(null);
-    let done = 0;
+/** Applique le style enregistré aux photos d'annonce déjà composées de tout le stock. */
+function RecomposeAll({ disabled }: { disabled: boolean }) {
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  async function run() {
+    setProgress({ done: 0, total: 0 });
     try {
-      for (const offer of offers) {
-        setComposing(offer.offerId);
-        for (const scan of offer.photos.filter(isScan)) {
-          const card = await loadBitmap(api.photoContentUrl(scan.id));
-          await api.uploadListingPhoto(await composeListingPhoto(card, settings.photo, background.image), scan.id);
-          card.close();
-          done++;
-        }
+      const ids: string[] = [];
+      for (let offset = 0; ; offset += 200) {
+        const page = await api.stock({ status: "ALL", limit: 200, offset });
+        ids.push(...page.items.map((r) => r.offerId));
+        if (page.items.length < 200) break;
       }
-      toast.success(`${done} photo${done > 1 ? "s" : ""} d'annonce composée${done > 1 ? "s" : ""}`);
+      const composed = await composeMissingVisuals(ids, (done, total) => setProgress({ done, total }), { force: true, all: true });
+      toast.success(composed > 0 ? `${composed} photo${composed > 1 ? "s" : ""} d'annonce recomposée${composed > 1 ? "s" : ""}` : "Aucune photo à recomposer");
     } catch (e) {
-      setError(message(e));
+      toast.error((e as Error).message);
     } finally {
-      setComposing(null);
-      load();
+      setProgress(null);
     }
   }
-
-  const missing = (data?.items ?? []).filter((o) => o.photos.some(isScan) && !o.photos.some((p) => p.kind === "LISTING"));
-
-  /** Action sur un canal (publier, retirer, simuler un achat) : le message de succès, puis la liste à jour. */
-  async function act(action: () => Promise<string>) {
-    setError(null);
-    try {
-      toast.success(await action());
-    } catch (e) {
-      setError(message(e));
-    } finally {
-      load();
-    }
-  }
-
   return (
-    <div className="grid gap-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative min-w-0 flex-1 basis-64">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <Input
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setPage(1);
-            }}
-            placeholder="Nom de carte ou référence d'offre"
-            aria-label="Rechercher une offre"
-            className="pl-9"
-          />
-        </div>
-        {missing.length > 0 && (
-          <Button variant="outline" onClick={() => compose(missing)} disabled={!!composing || !background.ready}>
-            {composing ? <Spinner /> : <Wand2 />} Composer les photos manquantes ({missing.length})
-          </Button>
-        )}
-      </div>
-      {error && <Alert variant="destructive">{error}</Alert>}
-      {channels.length === 0 && data && data.items.length > 0 && (
-        <Alert variant="info">Aucun canal de vente n'est activé. Réglages → Canaux de vente permet d'essayer tout le circuit en simulation, sans rien publier.</Alert>
-      )}
-      {!data ? <Loading />
-        : data.items.length === 0 ? (
-          <EmptyState icon={<Megaphone />} title={query ? "Aucune offre ne correspond" : "Aucune offre vendable"}>
-            Une annonce est préparée pour chaque offre qui a du stock vendable. Entrez des cartes en stock et validez leurs brouillons.
-          </EmptyState>
-        ) : (
-          <>
-            <div className="grid gap-3">
-              {data.items.map((offer) => (
-                <OfferCard
-                  key={offer.offerId}
-                  offer={offer}
-                  channels={channels}
-                  busy={composing === offer.offerId}
-                  disabled={!!composing || !background.ready}
-                  onCompose={() => compose([offer])}
-                  onAct={act}
-                />
-              ))}
-            </div>
-            <Pagination page={page} pageCount={Math.ceil(data.total / PAGE_SIZE)} onChange={setPage} />
-          </>
-        )}
-    </div>
+    <span className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+      Les photos déjà composées gardent l'ancien style.
+      <Button variant="outline" size="sm" onClick={run} disabled={disabled || progress !== null}>
+        {progress ? <><Spinner /> {progress.total ? `${progress.done} / ${progress.total}` : "…"}</> : <><Wand2 /> Tout recomposer</>}
+      </Button>
+    </span>
   );
 }
-
-function copy(text: string, what: string) {
-  void navigator.clipboard?.writeText(text).then(() => toast.success(`${what} copié${what === "Description" ? "e" : ""}`));
-}
-
-const LISTING_STATUS: Record<ListingState["status"], { label: string; variant: "success" | "warning" | "destructive" | "neutral" }> = {
-  ACTIVE: { label: "En ligne", variant: "success" },
-  PAUSED: { label: "En pause, stock épuisé", variant: "warning" },
-  ERROR: { label: "Erreur de synchronisation", variant: "destructive" },
-  PENDING: { label: "En attente", variant: "neutral" },
-  ENDED: { label: "Terminée", variant: "neutral" },
-};
-
-/** État d'une offre sur un canal activé, et les actions possibles. */
-function ChannelRow({ offer, channel, onAct }: { offer: ListingOffer; channel: ChannelState; onAct: (action: () => Promise<string>) => void }) {
-  const listing = offer.listings.find((l) => l.channel === channel.id);
-  const simulated = listing ? listing.simulated : channel.mode === "SIMULATION";
-  const publish = () => onAct(async () => {
-    await composeMissingVisuals([offer.offerId]).catch(() => 0);
-    await api.publishListing(offer.offerId, channel.id);
-    return listing ? `Annonce ${channel.label} mise à jour` : `Publiée sur ${channel.label}${simulated ? " (simulation)" : ""}`;
-  });
-  const outdated = listing && offer.targetPriceCents !== null && listing.priceCents !== offer.targetPriceCents;
-  return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card px-3 py-2" data-testid={`channel-${channel.id}`}>
-      <span className="text-sm font-semibold">{channel.label}</span>
-      {simulated && <Badge variant="outline">Simulation</Badge>}
-      {listing ? (
-        <>
-          <Badge variant={LISTING_STATUS[listing.status].variant}>{LISTING_STATUS[listing.status].label}</Badge>
-          <span className="tabular text-xs text-muted-foreground">{listing.quantitySent} annoncée{listing.quantitySent > 1 ? "s" : ""} · {formatEuros(listing.priceCents)}</span>
-          {outdated && <Badge variant="warning">Prix modifié depuis</Badge>}
-          {listing.url && <a href={listing.url} target="_blank" rel="noreferrer" className="text-xs font-medium text-primary underline-offset-2 hover:underline">Voir l'annonce</a>}
-          <span className="ml-auto flex flex-wrap gap-1.5">
-            {listing.simulated && listing.status === "ACTIVE" && (
-              <Button variant="outline" size="sm" onClick={() => onAct(async () => `Commande ${(await api.simulateOrder(listing.id)).externalId} reçue : à préparer dans Ventes`)}>
-                <ShoppingCart /> Simuler un achat
-              </Button>
-            )}
-            {offer.available > 0 && <Button variant="outline" size="sm" onClick={publish}><RefreshCw /> Mettre à jour</Button>}
-            <Button variant="ghost" size="sm" onClick={() => onAct(async () => { await api.endListing(listing.id); return `Annonce ${channel.label} retirée`; })}>
-              <X /> Retirer
-            </Button>
-          </span>
-        </>
-      ) : (
-        <>
-          {offer.missing.map((m) => <Badge key={m} variant="warning">{BLOCKERS[m]}</Badge>)}
-          <Button size="sm" onClick={publish} disabled={offer.missing.length > 0} className="ml-auto">
-            <Megaphone /> Publier sur {channel.label}
-          </Button>
-        </>
-      )}
-    </div>
-  );
-}
-
-function OfferCard({ offer, channels, busy, disabled, onCompose, onAct }: {
-  offer: ListingOffer;
-  channels: ChannelState[];
-  busy: boolean;
-  disabled: boolean;
-  onCompose: () => void;
-  onAct: (action: () => Promise<string>) => void;
-}) {
-  const listingPhotos = offer.photos.filter((p) => p.kind === "LISTING");
-  const scans = offer.photos.filter(isScan);
-  const shown = listingPhotos.length ? listingPhotos : scans;
-  return (
-    <Card data-testid={`listing-${offer.offerSku}`}>
-      <CardContent className="grid gap-3">
-        <div className="flex items-start gap-3">
-          <div className="flex shrink-0 gap-1.5">
-            {shown.length === 0 && <CardThumb imageUrl={offer.imageUrl} size="md" />}
-            {shown.map((p) => (
-              <a key={p.id} href={p.url} target="_blank" rel="noreferrer" className="rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30">
-                <img
-                  src={p.url}
-                  alt={p.kind === "LISTING" ? "Photo d'annonce" : "Scan"}
-                  loading="lazy"
-                  className={cn("w-16 rounded-md bg-muted object-cover ring-1 ring-border sm:w-20", p.kind === "LISTING" ? "aspect-square" : "aspect-[63/88]")}
-                />
-              </a>
-            ))}
-          </div>
-          <div className="grid min-w-0 flex-1 gap-1.5">
-            <p className="text-[15px] leading-snug font-semibold [overflow-wrap:anywhere]" data-testid="listing-title">{offer.text.title}</p>
-            <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-              <span className={cn("tabular", offer.text.warnings.includes("TITLE_TOO_LONG") && "font-medium text-warning")}>{offer.text.title.length}/{TITLE_MAX}</span>
-              <span>·</span>
-              <span className="tabular font-medium text-foreground">{offer.targetPriceCents === null ? "Prix à décider" : formatEuros(offer.targetPriceCents)}</span>
-              <span>·</span>
-              <span>{offer.available} en stock</span>
-              <Code className="text-muted-foreground">{offer.offerSku}</Code>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {offer.text.warnings.includes("TITLE_TOO_LONG") && <Badge variant="warning">Titre raccourci</Badge>}
-              {offer.text.warnings.includes("UNKNOWN_VARIABLE") && <Badge variant="warning">Variable inconnue dans le modèle</Badge>}
-              {offer.variantIncomplete && <Badge variant="warning">Variante à confirmer</Badge>}
-              {scans.length === 0 ? <Badge variant="outline">Sans photo de l'exemplaire</Badge>
-                : listingPhotos.length === 0 ? <Badge variant="outline">Photos à composer</Badge>
-                : <Badge variant="success"><Check /> {listingPhotos.length} photo{listingPhotos.length > 1 ? "s" : ""} d'annonce</Badge>}
-            </div>
-          </div>
-        </div>
-        {channels.length > 0 && (
-          <div className="grid gap-2">
-            {channels.map((channel) => <ChannelRow key={channel.id} offer={offer} channel={channel} onAct={onAct} />)}
-          </div>
-        )}
-        <div className="grid gap-1.5">
-          <OfferPhotos offerId={offer.offerId} photos={offer.photos} run={onAct} disabled={disabled} />
-          {scans.length === 0 && <p className="text-[13px] text-muted-foreground">Une annonce a besoin d'au moins une photo de la carte : prenez-la ou choisissez un fichier.</p>}
-        </div>
-        <details className="group rounded-lg bg-muted/40 px-3 py-2 text-sm">
-          <summary className="cursor-pointer font-medium text-muted-foreground outline-none select-none group-open:mb-2 focus-visible:underline">Description</summary>
-          <p className="whitespace-pre-wrap" data-testid="listing-description">{offer.text.description}</p>
-        </details>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={() => copy(offer.text.title, "Titre")}><Copy /> Titre</Button>
-          <Button variant="outline" size="sm" onClick={() => copy(offer.text.description, "Description")}><Copy /> Description</Button>
-          {scans.length > 0 && (
-            <Button variant="outline" size="sm" onClick={onCompose} disabled={disabled} aria-label={`${listingPhotos.length ? "Recomposer" : "Composer"} les photos de ${offer.offerSku}`}>
-              {busy ? <Spinner /> : <Wand2 />} {listingPhotos.length ? "Recomposer les photos" : "Composer les photos"}
-            </Button>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ───────────────────────── Modèle ─────────────────────────
 
 export function TemplateEditor({ settings, onSaved }: { settings: ListingSettings; onSaved: (s: ListingSettings) => void }) {
   const [title, setTitle] = useState(settings.titleTemplate);
@@ -619,7 +405,7 @@ export function PhotoStyleEditor({ settings, onSaved }: { settings: ListingSetti
             <Button onClick={save} disabled={saving || !dirty}>
               {saving ? <Spinner className="text-primary-foreground" /> : <Check />} Enregistrer le style
             </Button>
-            <p className="text-xs text-muted-foreground">Les photos déjà composées gardent l'ancien style : recomposez-les depuis Annonces.</p>
+            <RecomposeAll disabled={dirty || saving} />
           </div>
         </CardContent>
       </Card>

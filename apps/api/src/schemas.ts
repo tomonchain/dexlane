@@ -223,6 +223,11 @@ export const stockQuery = z.object({
   q: z.string().max(100).optional(),
   status: z.enum(["ALL", "TO_PRICE", "READY", "LISTED", "DRAFT"]).default("ALL"),
   sort: z.enum(["value", "recent", "name"]).default("recent"),
+  setId: z.string().min(1).max(40).optional(),
+  location: z.string().min(1).max(60).optional(),
+  condition: z.enum(["MT", "NM", "EX", "GD", "LP", "PL", "PO"]).optional(),
+  minCents: z.coerce.number().int().min(0).optional(),
+  maxCents: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });

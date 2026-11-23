@@ -21,7 +21,7 @@ import { DomainError } from "@dexlane/shared";
 import { changePassword, passwordStatus, setPassword, verifyPassword } from "./auth";
 import { HttpError, errorBody, idempotent, parse, parseJsonBody, secretEquals, statusOfDomainError } from "./http";
 import {
-  cancelPublications, endListing, getActivity, getListingSettings, getSchedule, getStockDetail, listChannels, listStock, planPublications, queuePublications, runDuePublications, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
+  cancelPublications, endListing, getActivity, getListingSettings, getSchedule, getStockDetail, listChannels, listStock, stockFacets, planPublications, queuePublications, runDuePublications, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
   syncChannels, syncQuantities, type ChannelAdapters,
 } from "@dexlane/listings";
 import { readPhoto, type PhotoStore } from "./photos";
@@ -342,6 +342,9 @@ export function createApp(deps: AppDeps) {
 
   /** Le stock, une ligne par carte à vendre, avec son statut sur le chemin de la vente. */
   app.get("/api/stock", async (c) => c.json(await listStock(sql, parse(s.stockQuery, c.req.query()))));
+
+  /** Valeurs proposées par les filtres du stock : séries, boîtes et états présents. */
+  app.get("/api/stock/facets", async (c) => c.json(await stockFacets(sql)));
 
   /** Photo ajoutée après coup à une carte déjà en stock (entrée sans scan, ou scan à refaire). */
   app.post("/api/stock/:offerId/photos", scanBody(), async (c) => {

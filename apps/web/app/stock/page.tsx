@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Check, Copy, Images, Megaphone, RefreshCw, ScanLine, Search, ShoppingCart, X } from "lucide-react";
+import { CalendarClock, Check, Copy, Images, Megaphone, RefreshCw, ScanLine, Search, ShoppingCart, Wand2, X } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
@@ -18,9 +18,10 @@ import { Pagination, SegmentedTabs } from "@/components/ui/tabs";
 import { ApiError, api } from "@/lib/api";
 import { cardImage, dayLabel, formatEuros, parseEuros, variantLabel } from "@/lib/format";
 import { CONFIDENCE_LABEL, age, eurosInput, quoteLabel, reasonLabel } from "@/lib/pricing";
-import type { ChannelState, ListingBlocker, Schedule, StockDetail, StockPage, StockRow, StockStatus } from "@/lib/types";
+import { CONDITIONS, type ChannelState, type ListingBlocker, type Schedule, type StockDetail, type StockFacets, type StockPage, type StockRow, type StockStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { composeMissingVisuals } from "@/lib/visuals";
+import { InspectorSkeleton, StockRowsSkeleton } from "@/components/skeletons";
 
 const PAGE_SIZE = 50;
 type Filter = StockStatus | "ALL";
@@ -131,6 +132,34 @@ function PriceCell({ row, onSaved }: { row: StockRow; onSaved: () => void }) {
 
 const FILTERS: Filter[] = ["ALL", "TO_PRICE", "READY", "LISTED", "DRAFT"];
 
+interface Filters { setId: string; location: string; condition: string; price: string }
+const NO_FILTERS: Filters = { setId: "", location: "", condition: "", price: "" };
+/** Fourchettes de prix : prix fixé, sinon prix suggéré. */
+const PRICE_RANGES: { value: string; label: string; min?: number; max?: number }[] = [
+  { value: "lt1", label: "Moins de 1 €", max: 100 },
+  { value: "1-10", label: "1 à 10 €", min: 100, max: 1000 },
+  { value: "10-50", label: "10 à 50 €", min: 1000, max: 5000 },
+  { value: "50-200", label: "50 à 200 €", min: 5000, max: 20000 },
+  { value: "gte200", label: "200 € et plus", min: 20000 },
+];
+
+/** Un filtre : liste déroulante compacte, mise en avant quand une valeur est choisie. */
+function FilterSelect({ label, value, all, options, onChange }: {
+  label: string; value: string; all: string; options: { value: string; label: string; count?: number }[]; onChange: (value: string) => void;
+}) {
+  return (
+    <Select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label={label}
+      className={cn("h-8 w-auto max-w-52 text-[13px] md:h-8", value && "border-primary/50 bg-accent font-medium")}
+    >
+      <option value="">{all}</option>
+      {options.map((o) => <option key={o.value} value={o.value}>{o.label}{o.count !== undefined ? ` (${o.count.toLocaleString("fr-FR")})` : ""}</option>)}
+    </Select>
+  );
+}
+
 export default function StockPage() {
   return (
     <Suspense>
@@ -145,6 +174,8 @@ function Stock() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>(requested && FILTERS.includes(requested) ? requested : "ALL");
   const [sort, setSort] = useState<Sort>("recent");
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
+  const [facets, setFacets] = useState<StockFacets | null>(null);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<StockPage | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -158,13 +189,18 @@ function Stock() {
   const desktop = useIsDesktop();
 
   const load = useCallback(() => {
-    api.stock({ q: query.trim() || undefined, status: filter, sort, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE })
+    const price = PRICE_RANGES.find((r) => r.value === filters.price);
+    api.stock({
+      q: query.trim() || undefined, status: filter, sort, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE,
+      setId: filters.setId || undefined, location: filters.location || undefined, condition: filters.condition || undefined,
+      minCents: price?.min, maxCents: price?.max,
+    })
       .then((d) => {
         setData(d);
         setError(null);
       })
       .catch((e: Error) => setError(e.message));
-  }, [query, filter, sort, page]);
+  }, [query, filter, sort, page, filters]);
   useEffect(() => {
     const timer = setTimeout(load, query ? 200 : 0);
     return () => clearTimeout(timer);
@@ -172,6 +208,11 @@ function Stock() {
   useEffect(() => {
     api.channels().then((r) => setChannels(r.channels.filter((c) => c.mode !== "OFF"))).catch(() => setChannels([]));
   }, []);
+
+  // Les valeurs des filtres suivent le stock : rechargées à chaque changement (entrée, vente, correction).
+  useEffect(() => {
+    api.stockFacets().then(setFacets).catch(() => setFacets(null));
+  }, [version]);
 
   const loadSchedule = useCallback(() => {
     api.schedule().then(setSchedule).catch(() => setSchedule(null));
@@ -224,7 +265,12 @@ function Stock() {
     if (selected) setSelected(data.items[next].offerId);
   }
 
-  const empty = data && data.counts.ALL === 0 && !query;
+  const filtered = Object.values(filters).some(Boolean);
+  const empty = data && data.counts.ALL === 0 && !query && !filtered;
+  const setFilterValue = (key: keyof Filters, value: string) => {
+    setFilters((current) => ({ ...current, [key]: value }));
+    setPage(1);
+  };
   const inspector = selected && (
     <Inspector key={selected} offerId={selected} version={version} channels={channels} onChanged={changed} onClose={() => setSelected(null)} />
   );
@@ -259,6 +305,22 @@ function Stock() {
           </Select>
         </div>
       </div>
+
+      {!empty && facets && (facets.sets.length > 1 || facets.locations.length > 1 || facets.conditions.length > 1 || filtered) && (
+        <div className="flex flex-wrap items-center gap-2" data-testid="stock-filters" role="group" aria-label="Filtres">
+          <FilterSelect label="Série" value={filters.setId} onChange={(v) => setFilterValue("setId", v)} all="Toutes les séries"
+            options={facets.sets.map((s) => ({ value: s.id, label: s.name, count: s.cards }))} />
+          <FilterSelect label="Boîte" value={filters.location} onChange={(v) => setFilterValue("location", v)} all="Toutes les boîtes"
+            options={facets.locations.map((l) => ({ value: l.code, label: l.code, count: l.cards }))} />
+          <FilterSelect label="État" value={filters.condition} onChange={(v) => setFilterValue("condition", v)} all="Tous les états"
+            options={facets.conditions.map((c) => ({ value: c.code, label: `${c.code} · ${CONDITIONS.find((k) => k.code === c.code)?.label ?? c.code}`, count: c.cards }))} />
+          <FilterSelect label="Prix" value={filters.price} onChange={(v) => setFilterValue("price", v)} all="Tous les prix"
+            options={PRICE_RANGES.map((r) => ({ value: r.value, label: r.label }))} />
+          {filtered && (
+            <Button variant="ghost" size="sm" onClick={() => { setFilters(NO_FILTERS); setPage(1); }}><X /> Effacer les filtres</Button>
+          )}
+        </div>
+      )}
 
       {error && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive-soft px-3 py-2 text-sm text-destructive">{error}</p>}
 
@@ -385,8 +447,8 @@ function Stock() {
                     </tr>
                   ))}
                 </tbody>
+                {!data && <StockRowsSkeleton wideSales={!selected} />}
               </table>
-              {!data && <p className="flex items-center gap-2 px-4 py-6 text-sm text-muted-foreground" role="status"><Spinner /> Chargement…</p>}
               {data && data.items.length === 0 && <p className="px-4 py-10 text-center text-sm text-muted-foreground">Aucune carte ne correspond.</p>}
             </div>
             {desktop ? inspector : selected && <Modal title="Carte" onClose={() => setSelected(null)}>{inspector}</Modal>}
@@ -489,7 +551,7 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
   }
 
   if (!detail) {
-    return <aside className="rounded-lg border bg-card p-4 text-sm text-muted-foreground lg:sticky lg:top-6">{error ?? <span className="flex items-center gap-2"><Spinner /> Chargement…</span>}</aside>;
+    return error ? <aside className="rounded-lg border bg-card p-4 text-sm text-muted-foreground lg:sticky lg:top-6">{error}</aside> : <InspectorSkeleton />;
   }
   const d = detail;
   const cents = parseEuros(price);
@@ -578,6 +640,17 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
           </div>
         </details>
         <OfferPhotos offerId={d.offerId} photos={d.photos} disabled={busy} run={(action) => void run(action)} />
+        {d.photos.some((p) => p.kind === "SCAN_FRONT" || p.kind === "SCAN_BACK") && (
+          <Button
+            variant="outline" size="sm" className="justify-self-start" disabled={busy}
+            onClick={() => run(async () => {
+              const n = await composeMissingVisuals([d.offerId], undefined, { force: true, all: true });
+              return `${n} photo${n > 1 ? "s" : ""} d'annonce composée${n > 1 ? "s" : ""}`;
+            })}
+          >
+            <Wand2 /> {d.photos.some((p) => p.kind === "LISTING") ? "Recomposer les photos d'annonce" : "Composer les photos d'annonce"}
+          </Button>
+        )}
         {d.missing.length > 0 && <p className="text-[13px] text-muted-foreground">Pour publier, il manque {d.missing.map((m) => BLOCKERS[m]).join(" et ")}.</p>}
         {d.planned && (
           <p className="flex items-center gap-2 text-[13px]">

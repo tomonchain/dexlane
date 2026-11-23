@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Code, EmptyState, Loading, Spinner } from "@/components/ui/misc";
+import { Code, EmptyState, Spinner } from "@/components/ui/misc";
 import { SwitchRow } from "@/components/ui/switch";
 import { Pagination, paginate } from "@/components/ui/tabs";
 import { type ApiError, api } from "@/lib/api";
@@ -18,6 +18,7 @@ import { catalogMessage, fold, importedLabel } from "@/lib/catalog";
 import { cardImage, formatDateTime, formatEuros, variantLabel } from "@/lib/format";
 import { CONFIDENCE_LABEL } from "@/lib/pricing";
 import type { CatalogSetCard, CatalogSetDetail } from "@/lib/types";
+import { PageSkeleton } from "@/components/skeletons";
 
 const PAGE_SIZE = 24;
 
@@ -122,7 +123,7 @@ export default function CatalogSetPage() {
       </div>
     );
   }
-  if (!detail) return error ? <Alert variant="destructive">{error}</Alert> : <Loading />;
+  if (!detail) return error ? <Alert variant="destructive">{error}</Alert> : <PageSkeleton label="Chargement de la série" />;
 
   const { set, cards } = detail;
   const total = set.cardCountTotal ?? set.cardCountOfficial;

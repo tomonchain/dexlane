@@ -9,7 +9,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/input";
-import { Code, EmptyState, Loading, PageHeader } from "@/components/ui/misc";
+import { Code, EmptyState, PageHeader } from "@/components/ui/misc";
 import { Modal } from "@/components/ui/modal";
 import { SegmentedTabs } from "@/components/ui/tabs";
 import { ApiError, api, createKeyring } from "@/lib/api";
@@ -17,6 +17,7 @@ import { formatEuros, parseEuros } from "@/lib/format";
 import { useStored } from "@/lib/storage";
 import type { AcquisitionLot, Location } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { ListSkeleton } from "@/components/skeletons";
 
 const today = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Paris" }); // AAAA-MM-JJ
 const LOCATION_ERRORS: Record<string, string> = {
@@ -141,7 +142,7 @@ export default function StoragePage() {
             </div>
             <Button size="sm" onClick={() => setModal({ kind: "location" })}><Plus /> Nouvel emplacement</Button>
           </CardHeader>
-          {!locations && !error && <Loading className="px-5 pb-5" />}
+          {!locations && !error && <div className="px-5 pb-5"><ListSkeleton count={3} label="Chargement des emplacements" /></div>}
           {locations?.length === 0 && (
             <div className="px-4 pb-4 sm:px-5 sm:pb-5">
               <EmptyState icon={<MapPin />} title="Aucun emplacement" action={<Button size="sm" onClick={() => setModal({ kind: "location" })}>Créer le premier</Button>}>
@@ -213,7 +214,7 @@ export default function StoragePage() {
             </div>
             <Button variant="outline" size="sm" onClick={() => setModal({ kind: "lot" })}><Plus /> Nouveau lot</Button>
           </CardHeader>
-          {!lots && !error && <Loading className="px-5 pb-5" />}
+          {!lots && !error && <div className="px-5 pb-5"><ListSkeleton count={2} label="Chargement des lots" /></div>}
           {lots?.length === 0 && (
             <div className="px-4 pb-4 sm:px-5 sm:pb-5">
               <EmptyState icon={<ReceiptText />} title="Aucun lot">Un lot relie des cartes à leur provenance et à leur coût d'achat.</EmptyState>

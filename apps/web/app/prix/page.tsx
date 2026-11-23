@@ -17,6 +17,7 @@ import { ApiError, api } from "@/lib/api";
 import { formatEuros, parseEuros, variantLabel } from "@/lib/format";
 import { CATEGORY_LABEL, CATEGORY_VARIANT, DECIDABLE_CATEGORIES, age, eurosInput, quoteLabel, reasonLabel, roundPrice, tierOf, type Category } from "@/lib/pricing";
 import { CONDITIONS, type OfferPricing, type PricingSettings } from "@/lib/types";
+import { ListSkeleton } from "@/components/skeletons";
 
 const PAGE_SIZE = 25;
 type Tab = "REVIEW" | "ALL" | "RULES";
@@ -129,7 +130,7 @@ export default function PricingPage() {
       {tab === "RULES" ? (
         settings ? <Rules settings={settings} onSaved={(s) => { setSettings(s); load(); }} /> : <Loading />
       ) : !data ? (
-        !error && <Loading />
+        !error && <ListSkeleton count={5} thumb label="Chargement des prix" />
       ) : data.items.length === 0 ? (
         <EmptyState icon={tab === "REVIEW" ? <CircleCheckBig /> : <Tags />} title={q.trim() ? "Aucune offre ne correspond" : tab === "REVIEW" ? "Rien à revoir" : "Aucune offre en stock"}>
           {q.trim() ? undefined : tab === "REVIEW" ? "Toutes les offres en stock ont un prix décidé et cohérent avec le marché." : "Les cartes entrées en stock apparaîtront ici avec leur estimation."}

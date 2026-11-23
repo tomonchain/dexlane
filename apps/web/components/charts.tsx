@@ -53,7 +53,7 @@ export function MonthlyColumns({ data, format, label }: { data: ColumnDatum[]; f
                 >
                   {labelled && <span className="tabular mb-1 text-[11px] font-medium text-foreground">{format(d.value)}</span>}
                   <span
-                    className="w-full max-w-6 rounded-t bg-primary transition-opacity group-hover:opacity-85"
+                    className="w-full max-w-6 rounded-t bg-chart-1 transition-opacity group-hover:opacity-85"
                     style={{ height: `${(d.value / max) * 100}%`, minHeight: d.value > 0 ? 2 : 0 }}
                   />
                   <div
@@ -108,6 +108,8 @@ export function DailyColumns({ data, format, label, wholeNumbers = false }: { da
   const max = wholeNumbers ? Math.max(nice % 2 === 0 ? nice : nice + 1, 2) : nice;
   const ticks = [1, 0.5, 0];
   const last = data.length - 1;
+  // Le jour le plus haut (le plus récent à égalité), s'il y en a un.
+  const peak = top > 0 ? data.reduce((best, d, i) => (d.value >= data[best]!.value ? i : best), 0) : -1;
   const dates = [0, Math.floor(last / 2), last];
   function onKey(e: KeyboardEvent<HTMLDivElement>) {
     if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
@@ -135,8 +137,10 @@ export function DailyColumns({ data, format, label, wholeNumbers = false }: { da
           <div className="absolute inset-0 grid" style={{ gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))` }}>
             {data.map((d, i) => (
               // La colonne entière est la zone de survol : inutile de viser une barre de quelques pixels.
-              <div key={d.day} data-testid="day-column" className={cn("relative flex h-full items-end justify-center px-px", active === i && "bg-accent/60")} onPointerEnter={() => setActive(i)} onPointerDown={() => setActive(i)}>
-                <span className={cn("w-full max-w-6 rounded-t bg-primary", active !== null && active !== i && "opacity-55")} style={{ height: `${(d.value / max) * 100}%`, minHeight: d.value > 0 ? 2 : 0 }} />
+              <div key={d.day} data-testid="day-column" className={cn("relative flex h-full flex-col items-center justify-end px-px", active === i && "bg-accent/60")} onPointerEnter={() => setActive(i)} onPointerDown={() => setActive(i)}>
+                {/* Seul le meilleur jour porte sa valeur : le reste se lit sur l'axe et au survol. */}
+                {i === peak && <span className="tabular mb-0.5 text-[10px] leading-none font-medium whitespace-nowrap text-foreground" data-testid="day-peak">{format(d.value)}</span>}
+                <span className={cn("w-full max-w-6 rounded-t bg-chart-1", active !== null && active !== i && "opacity-55")} style={{ height: `${(d.value / max) * 100}%`, minHeight: d.value > 0 ? 2 : 0 }} />
               </div>
             ))}
           </div>
@@ -176,7 +180,7 @@ export function HorizontalBars({ data, format }: { data: { key: string; label: s
         <div key={d.key} className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-3 text-sm">
           <dt className="truncate text-muted-foreground">{d.label}</dt>
           <dd className="flex items-center gap-2">
-            <span className="h-3 rounded-r bg-primary" style={{ width: `${(d.value / max) * 55}%`, minWidth: d.value > 0 ? 2 : 0 }} aria-hidden />
+            <span className="h-3 rounded-r bg-chart-1" style={{ width: `${(d.value / max) * 55}%`, minWidth: d.value > 0 ? 2 : 0 }} aria-hidden />
             <span className="tabular font-medium whitespace-nowrap">{format(d.value)}</span>
             {d.note && <span className="text-xs whitespace-nowrap text-muted-foreground">{d.note}</span>}
           </dd>
@@ -195,7 +199,7 @@ export function Sparkline({ values, className, label }: { values: number[]; clas
   const y = (v: number) => (max === min ? height / 2 : height - pad - ((v - min) / (max - min)) * (height - 2 * pad));
   const points = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} role="img" aria-label={label} className={cn("shrink-0 text-primary", className)}>
+    <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} role="img" aria-label={label} className={cn("shrink-0 text-chart-1", className)}>
       <polyline points={points} fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
       <circle cx={x(values.length - 1)} cy={y(values.at(-1)!)} r="4" fill="currentColor" stroke="var(--card)" strokeWidth="2" />
     </svg>

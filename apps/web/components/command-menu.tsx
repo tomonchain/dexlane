@@ -20,7 +20,6 @@ export const PAGES = [
   { href: "/statistiques", label: "Tableau de bord", hint: "Valeur du stock, ventes, variations de prix et alertes", icon: ChartColumn },
   { href: "/inventaire", label: "Positions", hint: "Chaque position physique, par code et emplacement", icon: Boxes },
   { href: "/prix", label: "Règles de prix", hint: "File de revue et règles de calcul", icon: Tags },
-  { href: "/annonces", label: "Annonces", hint: "Texte et photos de chaque carte à vendre", icon: Megaphone },
   { href: "/reglages/annonces", label: "Modèle d'annonce et photos", hint: "Titre, description, fond des photos, image de fin", icon: Megaphone },
   { href: "/reglages/canaux", label: "Canaux de vente", hint: "eBay, CardTrader : simulation ou réel", icon: Megaphone },
   { href: "/rangement", label: "Emplacements", hint: "Boîtes, classeurs et lots d'acquisition", icon: Archive },

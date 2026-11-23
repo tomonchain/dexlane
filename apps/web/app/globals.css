@@ -28,6 +28,7 @@
   --color-warning: var(--warning);
   --color-warning-soft: var(--warning-soft);
   --color-brand: var(--brand);
+  --color-chart-1: var(--chart-1);
   --color-brand-soft: var(--brand-soft);
   --color-border: var(--border);
   --color-input: var(--input);
@@ -48,10 +49,10 @@
   --foreground: oklch(0.21 0.008 60);
   --card: oklch(1 0 0);
   /* Séries des graphiques, dans un ordre fixe : une couleur suit toujours la même série. */
-  --chart-1: #2a78d6;
-  --chart-2: #eb6834;
+  --chart-1: #f18a1f; /* l'orange du logo */
+  --chart-2: #2a78d6;
   --chart-3: #1baf7a;
-  --chart-4: #eda100;
+  --chart-4: #6250d6;
   --card-foreground: oklch(0.21 0.008 60);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.21 0.008 60);
@@ -81,10 +82,10 @@
   --background: oklch(0.155 0.004 60);
   --foreground: oklch(0.955 0.004 85);
   --card: oklch(0.19 0.005 60);
-  --chart-1: #3987e5;
-  --chart-2: #d95926;
+  --chart-1: #d9731c; /* l'orange du logo, un ton plus profond pour la surface sombre */
+  --chart-2: #3987e5;
   --chart-3: #199e70;
-  --chart-4: #c98500;
+  --chart-4: #9085e9;
   --card-foreground: oklch(0.955 0.004 85);
   --popover: oklch(0.21 0.006 60);
   --popover-foreground: oklch(0.955 0.004 85);

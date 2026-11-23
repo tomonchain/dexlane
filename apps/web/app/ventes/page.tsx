@@ -7,12 +7,13 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Code, EmptyState, Loading, PageHeader } from "@/components/ui/misc";
+import { Code, EmptyState, PageHeader } from "@/components/ui/misc";
 import { SegmentedTabs } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { formatDateTime, formatEuros } from "@/lib/format";
 import { SHIPPING_LABEL } from "@/lib/sales";
 import type { OrderList, OrderStage } from "@/lib/types";
+import { SalesSkeleton, SalesTotalsSkeleton } from "@/components/skeletons";
 
 const EMPTY: Record<OrderStage, [string, string]> = {
   TO_PREPARE: ["Rien à préparer", "Les ventes enregistrées apparaissent ici tant que les cartes ne sont pas emballées."],
@@ -64,6 +65,7 @@ export default function SalesPage() {
         </>}
       />
 
+      {!data && !error && <SalesTotalsSkeleton />}
       {totals && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Stat icon={<ShoppingBag />} label="Ventes remises (30 j)" value={String(totals.orders)} hint="déposées ou remises en main propre" />
@@ -87,7 +89,7 @@ export default function SalesPage() {
       </div>
 
       {error && <Alert variant="destructive">{error}</Alert>}
-      {!data && !error && <Loading />}
+      {!data && !error && <SalesSkeleton />}
       {data && data.items.length === 0 && data.counts[stage] === 0 && (
         <EmptyState icon={<Receipt />} title={EMPTY[stage][0]} action={stage === "TO_PREPARE" && <Button asChild size="sm"><Link href="/ventes/nouvelle">Enregistrer une vente</Link></Button>}>
           {EMPTY[stage][1] || undefined}

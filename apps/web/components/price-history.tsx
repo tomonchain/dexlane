@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { formatEuros } from "@/lib/format";
 import type { PriceHistory as History } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { ChartSkeleton } from "./skeletons";
 
 type QuoteType = History["series"][number]["quoteType"];
 
@@ -157,9 +158,9 @@ export function PriceHistory({ variantId, className }: { variantId: string; clas
       )}
 
       <div ref={frame} className="relative">
-        {!model ? (
+        {!model && loading && !failed ? <ChartSkeleton height={HEIGHT} /> : !model ? (
           <p className="flex items-center text-[13px] text-muted-foreground" style={{ height: HEIGHT }} role="status">
-            {failed ? "Historique indisponible pour le moment." : loading ? "Chargement…" : "Aucun relevé de prix sur cette période."}
+            {failed ? "Historique indisponible pour le moment." : "Aucun relevé de prix sur cette période."}
           </p>
         ) : (
           <div

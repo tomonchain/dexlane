@@ -20,6 +20,7 @@ import { canWatchFolder, cardsFromFiles, cardsInFolder, pickFolder, readFolder, 
 import { CONDITIONS, type Candidate, type CardCondition, type ChannelState, type ScanBatch, type ScanItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { composeMissingVisuals } from "@/lib/visuals";
+import { BatchSkeleton } from "@/components/skeletons";
 
 const CONCURRENCY = 3;
 const POLL_MS = 2000;
@@ -350,7 +351,7 @@ export default function ScanBatchPage() {
     setEditing(next ? (open.find((i) => i.position > item.position) ?? open[0])?.id ?? null : null);
   }
 
-  if (!batch) return error ? <p role="alert" className="text-sm text-destructive">{error}</p> : <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status"><Spinner /> Chargement…</p>;
+  if (!batch) return error ? <p role="alert" className="text-sm text-destructive">{error}</p> : <BatchSkeleton />;
 
   const done = !!batch.receivedAt;
   const kept = items.filter((i) => !i.skipped);
