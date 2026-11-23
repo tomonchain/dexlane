@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, ChartColumn, CircleUserRound, House, Package, Receipt, Search, Settings, ShoppingBasket, type LucideIcon } from "lucide-react";
+import { CalendarClock, ChartColumn, CircleUserRound, House, LayoutGrid, Package, Receipt, Search, Settings, ShoppingBasket, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { CommandMenu } from "./command-menu";
+import { MORE_PATHS, MoreSheet } from "./more-menu";
 import { ThemeSwitch } from "./theme";
 
 /** Les quatre destinations. Tout le reste se trouve dans le parcours (ajout, fiche d'une carte) ou dans Réglages. */
@@ -21,10 +22,10 @@ const NAV: { href: string; label: string; short?: string; icon: LucideIcon; matc
   { href: "/reglages", label: "Réglages", icon: Settings, match: ["/reglages", "/prix", "/rangement", "/catalogue", "/compte"] },
 ];
 /**
- * Sur téléphone, cinq onglets ; Réglages et la recherche sont dans l'en-tête, les mises en ligne depuis le stock.
- * L'ajout de cartes se fait depuis l'accueil et le stock.
+ * Sur téléphone, quatre onglets et « Plus » (achats, statistiques, réglages et le reste) ; la recherche est en haut
+ * à droite. L'ajout de cartes se fait depuis l'accueil et le stock.
  */
-const MOBILE_NAV = ["/", "/stock", "/achats", "/ventes", "/statistiques"].map((href) => NAV.find((n) => n.href === href)!);
+const MOBILE_NAV = ["/", "/stock", "/mises-en-ligne", "/ventes"].map((href) => NAV.find((n) => n.href === href)!);
 const NO_SHELL = ["/login", "/bienvenue"];
 const isCurrent = (pathname: string, item: (typeof NAV)[number]) =>
   item.href === "/" ? pathname === "/" : item.match.some((m) => pathname.startsWith(m));
@@ -84,6 +85,7 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
   // Sans session, la racine est la page de présentation publique : pas de navigation d'application autour.
   const bare = NO_SHELL.includes(pathname) || (pathname === "/" && !signedIn);
   const navCompact = useCompactOnScroll(pathname);
+  const [more, setMore] = useState(false);
 
   // Première utilisation : tant que l'assistant de démarrage n'a pas été terminé ou passé, il s'ouvre de lui-même.
   useEffect(() => {
@@ -158,9 +160,6 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
           <button type="button" onClick={() => setSearching(true)} aria-label={t("Rechercher")} className="flex size-10 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/30">
             <Search className="size-5" aria-hidden />
           </button>
-          <Link href="/reglages" aria-label={t("Réglages")} className="flex size-10 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/30">
-            <Settings className="size-5" aria-hidden />
-          </Link>
         </div>
         <main className="mx-auto w-full max-w-[92rem] px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-nav lg:px-8 lg:pt-6 lg:pb-10 print:!m-0 print:!max-w-none print:!p-0">{children}</main>
       </div>
@@ -197,7 +196,28 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
               <span className={cn("overflow-hidden leading-none transition-all duration-300 motion-reduce:transition-none", navCompact ? "max-h-0 opacity-0" : "max-h-4 opacity-100")}>{t(item.short ?? item.label)}</span>
             </Link>
         ))}
+        <button
+          type="button"
+          onClick={() => setMore(true)}
+          aria-haspopup="dialog"
+          aria-expanded={more}
+          aria-current={!more && MORE_PATHS.some((p) => pathname.startsWith(p)) ? "page" : undefined}
+          className={cn(
+            "group flex h-full flex-col items-center justify-center text-[10px] font-medium text-muted-foreground outline-none aria-[current=page]:text-foreground aria-expanded:text-foreground",
+            !navCompact && "gap-0.5",
+          )}
+          data-testid="more-button"
+        >
+          <span className={cn(
+            "flex items-center justify-center rounded-full transition-all duration-300 motion-reduce:transition-none group-hover:bg-accent/70 group-focus-visible:ring-[3px] group-focus-visible:ring-ring/30 group-aria-[current=page]:bg-accent group-aria-expanded:bg-accent",
+            navCompact ? "h-8 w-10" : "h-7 w-12",
+          )}>
+            <LayoutGrid className={cn("transition-all duration-300 motion-reduce:transition-none group-aria-[current=page]:stroke-[2.25]", navCompact ? "size-[18px]" : "size-5")} aria-hidden />
+          </span>
+          <span className={cn("overflow-hidden leading-none transition-all duration-300 motion-reduce:transition-none", navCompact ? "max-h-0 opacity-0" : "max-h-4 opacity-100")}>{t("Plus")}</span>
+        </button>
       </nav>
+      <MoreSheet open={more} onClose={() => setMore(false)} />
 
       <CommandMenu open={searching} onOpenChange={setSearching} />
     </>
