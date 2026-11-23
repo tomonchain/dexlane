@@ -4,10 +4,13 @@ import { ArrowRight, Plus } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
-import { formatEuros } from "@/lib/format";
-import type { OrderList, PriceMoves, ScanBatch, Schedule, StockPage } from "@/lib/types";
+import { formatDateTime, formatEuros, variantLabel } from "@/lib/format";
+import type { Activity, OrderList, PriceMoves, ScanBatch, Schedule, StockPage } from "@/lib/types";
+import { CardThumb } from "./card-chooser";
+import { DailyColumns } from "./charts";
+import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { Spinner } from "./ui/misc";
+import { Code, Spinner } from "./ui/misc";
 
 interface Data {
   stock: StockPage;
@@ -15,6 +18,42 @@ interface Data {
   schedule: Schedule;
   orders: OrderList;
   moves: PriceMoves | null;
+  activity: Activity | null;
+}
+
+const CHANNEL_LABEL: Record<string, string> = { direct: "Vente directe", ebay: "eBay", cardtrader: "CardTrader" };
+const SALE_STATUS: Record<string, string> = { PENDING: "À préparer", PACKED: "Emballée", SHIPPED: "Remise" };
+const shortDay = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", timeZone: "Europe/Paris" });
+const wholeEuros = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+/** Graduation en euros : sans centimes quand le montant est rond. */
+const axisEuros = (cents: number) => (cents % 100 === 0 ? wholeEuros.format(cents / 100) : formatEuros(cents));
+
+/** Un graphique de l'activité : ce qu'il mesure, son total sur la période, puis les colonnes jour par jour. */
+function ChartCard({ label, value, hint, children }: { label: string; value: ReactNode; hint: string; children: ReactNode }) {
+  return (
+    <div className="grid gap-3 bg-card px-4 py-4 sm:px-5">
+      <div className="grid gap-1">
+        <h3 className="text-xs text-muted-foreground">{label}</h3>
+        <p className="text-xl leading-none font-semibold tracking-tight">{value}</p>
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Recent({ title, href, all, empty, children }: { title: string; href: string; all: string; empty: string; children: ReactNode[] }) {
+  return (
+    <section className="grid content-start gap-2" aria-label={title}>
+      <div className="flex items-baseline justify-between gap-3 px-1">
+        <h2 className="text-xs font-medium text-muted-foreground">{title}</h2>
+        <Link href={href} className="text-xs text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline">{all}</Link>
+      </div>
+      {children.length > 0
+        ? <div className="divide-y overflow-hidden rounded-lg border bg-card">{children}</div>
+        : <p className="rounded-lg border border-dashed px-4 py-6 text-center text-[13px] text-muted-foreground">{empty}</p>}
+    </section>
+  );
 }
 
 const today = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" });
@@ -62,8 +101,9 @@ export function Home() {
       api.schedule(),
       api.orders(),
       api.priceMoves(true).catch(() => null), // les alertes sont un plus : leur absence ne bloque pas l'accueil
+      api.activity().catch(() => null), // de même pour l'activité récente
     ])
-      .then(([stock, batches, schedule, orders, moves]) => setData({ stock, batches: batches.batches, schedule, orders, moves }))
+      .then(([stock, batches, schedule, orders, moves, activity]) => setData({ stock, batches: batches.batches, schedule, orders, moves, activity }))
       .catch((e: Error) => setError(e.message));
   }, []);
 
@@ -73,7 +113,9 @@ export function Home() {
       : <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status"><Spinner /> Chargement…</p>;
   }
 
-  const { stock, schedule, orders, moves } = data;
+  const { stock, schedule, orders, moves, activity } = data;
+  // L'activité n'apparaît qu'une fois qu'il s'est passé quelque chose : une première vente ou une première annonce.
+  const active = activity !== null && (activity.sales.length > 0 || activity.listings.length > 0);
   const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date());
   const openBatches = data.batches.filter((b) => !b.receivedAt && b.counts.items > 0);
   const dueToday = schedule.days.filter((d) => d.plannedOn <= day).reduce((sum, d) => sum + d.count, 0);
@@ -123,13 +165,71 @@ export function Home() {
         )}
       </section>
 
+      {active && activity.sales.length > 0 && (
+        <section className="grid gap-2" aria-label="Activité sur 30 jours" data-testid="home-activity">
+          <h2 className="px-1 text-xs font-medium text-muted-foreground">Activité sur 30 jours</h2>
+          <div className="grid gap-px overflow-hidden rounded-lg border bg-border lg:grid-cols-2">
+            <ChartCard label="Chiffre d'affaires" value={<span data-testid="home-revenue">{formatEuros(activity.totals.grossCents)}</span>} hint="Ventes enregistrées, port facturé compris">
+              <DailyColumns
+                label={`Chiffre d'affaires par jour sur 30 jours, ${formatEuros(activity.totals.grossCents)} au total`}
+                format={axisEuros}
+                data={activity.days.map((d) => ({ day: d.day, value: d.grossCents, details: [["chiffre d'affaires", formatEuros(d.grossCents)], [d.orders > 1 ? "ventes" : "vente", String(d.orders)]] }))}
+              />
+            </ChartCard>
+            <ChartCard label="Ventes" value={<span data-testid="home-orders">{activity.totals.orders.toLocaleString("fr-FR")}</span>} hint="Hors ventes annulées">
+              <DailyColumns
+                wholeNumbers
+                label={`Nombre de ventes par jour sur 30 jours, ${activity.totals.orders} au total`}
+                format={(n) => n.toLocaleString("fr-FR")}
+                data={activity.days.map((d) => ({ day: d.day, value: d.orders, details: [[d.orders > 1 ? "ventes" : "vente", String(d.orders)], ["chiffre d'affaires", formatEuros(d.grossCents)]] }))}
+              />
+            </ChartCard>
+          </div>
+        </section>
+      )}
+
+      {active && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Recent title="Dernières ventes" href="/ventes" all="Toutes les ventes" empty="Aucune vente pour l'instant.">
+            {activity.sales.map((sale) => (
+              <Link key={sale.id} href={`/ventes/${sale.id}`} data-testid="home-sale" className="flex items-center gap-3 px-4 py-2.5 outline-none transition-colors hover:bg-accent/60 focus-visible:bg-accent">
+                <span className="grid min-w-0 flex-1 gap-0.5">
+                  <span className="flex flex-wrap items-center gap-x-2">
+                    <Code className="text-[13px] font-semibold">{sale.externalId}</Code>
+                    <span className="truncate text-sm">{sale.cardNames.join(", ")}{sale.cards > sale.cardNames.length ? "…" : ""}</span>
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {CHANNEL_LABEL[sale.channel] ?? sale.channel}{sale.buyerName ? ` · ${sale.buyerName}` : ""} · {formatDateTime(sale.orderedAt)} · {SALE_STATUS[sale.fulfillmentStatus] ?? sale.fulfillmentStatus}
+                  </span>
+                </span>
+                <span className="tabular text-sm font-semibold">{formatEuros(sale.grossCents)}</span>
+              </Link>
+            ))}
+          </Recent>
+          <Recent title="Dernières mises en ligne" href="/stock?statut=LISTED" all="Tout ce qui est en ligne" empty="Aucune annonce en ligne pour l'instant.">
+            {activity.listings.map((listing) => (
+              <Link key={listing.id} href="/stock?statut=LISTED" data-testid="home-listing" className="flex items-center gap-3 px-4 py-2.5 outline-none transition-colors hover:bg-accent/60 focus-visible:bg-accent">
+                <CardThumb imageUrl={listing.imageUrl} size="sm" className="w-7 rounded-[3px]" />
+                <span className="grid min-w-0 flex-1 gap-0.5">
+                  <span className="truncate text-sm font-medium">{listing.name}</span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {shortDay.format(new Date(listing.listedAt))} · {listing.setName ?? listing.setId} · {listing.localNumber} · {variantLabel({ finish: listing.finish, edition: listing.edition, stamp: "", subtype: "" })} · {listing.condition}
+                  </span>
+                </span>
+                <Badge variant="outline">{CHANNEL_LABEL[listing.channel] ?? listing.channel}{listing.simulated ? " · simulé" : ""}</Badge>
+                <span className="tabular text-sm font-semibold">{formatEuros(listing.priceCents)}</span>
+              </Link>
+            ))}
+          </Recent>
+        </div>
+      )}
+
       <section className="grid gap-2" aria-label="En bref">
         <h2 className="px-1 text-xs font-medium text-muted-foreground">En bref</h2>
-        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border lg:grid-cols-4">
+        <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-3">
           <Figure label="Valeur du stock" value={<span data-testid="home-value">{formatEuros(stock.totals.valueCents)}</span>} hint={plural(stock.totals.cards, "carte", "cartes")} />
           <Figure label="En ligne" value={stock.counts.LISTED} hint={`${plural(schedule.pending, "planifiée", "planifiées")}`} />
-          <Figure label="Ventes sur 30 jours" value={formatEuros(orders.last30Days.grossCents)} hint={plural(orders.last30Days.orders, "vente remise", "ventes remises")} />
-          <Figure label="Marge sur 30 jours" value={formatEuros(orders.last30Days.marginCents)} hint="Après coût des cartes et port" />
+          <Figure label="Marge sur 30 jours" value={formatEuros(orders.last30Days.marginCents)} hint={`${plural(orders.last30Days.orders, "vente remise", "ventes remises")}, après coût des cartes et port`} />
         </dl>
         <Link href="/statistiques" className="justify-self-start px-1 text-[13px] text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline">
           Tableau de bord complet
