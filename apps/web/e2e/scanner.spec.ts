@@ -174,9 +174,18 @@ test("photo lisible : la carte entre en stock et se retrouve dans l'inventaire",
   await page.getByRole("radio", { name: "Near Mint" }).click();
   await page.getByRole("button", { name: "Quantité : plus" }).click();
   await page.getByLabel("Coût unitaire (€)").fill("1,50");
+  // Enregistrement en arrière-plan : même lent, il ne bloque pas la carte suivante.
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/inventory/receive", async (route) => { await held; await route.continue(); });
   await confirm(page).dblclick(); // un double appui ne doit créer qu'une position
+  await expect(page.getByTestId("entry-saving")).toContainText("Fouinar");
+  await expect(page.getByRole("button", { name: "Photographier la suivante" })).toBeEnabled();
+  await expect(page.getByTestId("session-entry-pending")).toHaveCount(1);
+  release();
 
   await expect(page.getByText("Entrée en stock enregistrée.")).toBeVisible();
+  await expect(page.getByTestId("session-entry-pending")).toHaveCount(0);
   const sku = await page.getByTestId("unit-sku").innerText();
   expect(sku).toMatch(/^SI-\d{6}$/);
   await expect(page.getByText("OF-SWSH3-136-FR-R-NM")).toBeVisible();

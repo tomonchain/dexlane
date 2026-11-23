@@ -32,6 +32,18 @@ interface Entry {
   name: string;
 }
 
+/** Une entrée en stock envoyée en arrière-plan : la saisie de la carte suivante n'attend pas sa réponse. */
+interface Job {
+  id: string;
+  name: string;
+  detail: string;
+  status: "saving" | "saved" | "failed";
+  error?: string;
+  received?: Received;
+  /** L'envoi, avec sa clé d'idempotence : le rejouer ne crée jamais de doublon. */
+  send: () => Promise<Received>;
+}
+
 export default function ScannerPage() {
   return (
     <Suspense>
@@ -87,8 +99,19 @@ function Scanner() {
   const [draft, setDraft] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [last, setLast] = useState<Entry | null>(null);
-  const [history, setHistory] = useState<Entry[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  // Les envois partent l'un après l'autre : les codes de position suivent l'ordre de saisie, comme les cartes rangées.
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const history: Entry[] = jobs.filter((j) => j.status === "saved").map((j) => ({ received: j.received!, name: j.name }));
+  const latest = jobs[0] ?? null;
+  const pendingJobs = jobs.filter((j) => j.status === "saving").length;
+  // Quitter la page avec des envois en cours les perdrait : le navigateur demande confirmation.
+  useEffect(() => {
+    if (pendingJobs === 0) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [pendingJobs]);
   const [bulk, setBulk] = useState<PositionDetail | null>(null);
   const [lots, setLots] = useState<AcquisitionLot[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -192,10 +215,29 @@ function Scanner() {
     setPhase("form");
   }
 
-  async function submit() {
-    if (!card || !variant || !condition || missing.length) return;
+  const updateJob = (id: string, change: Partial<Job>) => setJobs((all) => all.map((j) => (j.id === id ? { ...j, ...change } : j)));
+
+  /** Met l'envoi en file ; il part dès que les précédents sont terminés. */
+  function run(job: Job) {
+    queue.current = queue.current.then(async () => {
+      try {
+        const received = await job.send();
+        updateJob(job.id, { status: "saved", received, error: undefined });
+        if (bulkId) api.position(bulkId).then(setBulk).catch(() => undefined);
+      } catch (e) {
+        updateJob(job.id, { status: "failed", error: submitErrorMessage(e) });
+      }
+    });
+  }
+  function retry(job: Job) {
+    updateJob(job.id, { status: "saving", error: undefined });
+    run(job);
+  }
+
+  /** Valider : l'entrée part en arrière-plan et l'écran revient aussitôt à la carte suivante. */
+  function submit() {
+    if (!card || !variant || !condition || missing.length || submitting) return;
     setSubmitting(true);
-    setError(null);
     const base = {
       variantId: variant.id,
       condition,
@@ -205,23 +247,24 @@ function Scanner() {
       draft: draft || undefined,
       photoIds: scan?.photo ? [scan.photo.id] : undefined,
     };
-    try {
-      const received = bulkId
-        ? await api.extract(bulkId, base, keyring.current.keyFor({ bulkId, base }))
-        : await (async () => {
-            const payload = { ...base, unitCostCents: costCents!, acquisitionLotId: session.lotId || undefined };
-            return api.receive(payload, keyring.current.keyFor(payload));
-          })();
-      const entry = { received, name: card.name };
-      setLast(entry);
-      setHistory((h) => [entry, ...h]);
-      setPhase("done");
-      if (bulkId) api.position(bulkId).then(setBulk).catch(() => undefined);
-    } catch (e) {
-      setError(submitErrorMessage(e));
-    } finally {
-      setSubmitting(false);
-    }
+    // La clé d'idempotence est figée maintenant : un nouvel essai renvoie la même entrée, jamais une deuxième.
+    const send = bulkId
+      ? (() => { const key = keyring.current.keyFor({ bulkId, base }); return () => api.extract(bulkId, base, key); })()
+      : (() => {
+          const payload = { ...base, unitCostCents: costCents!, acquisitionLotId: session.lotId || undefined };
+          const key = keyring.current.keyFor(payload);
+          return () => api.receive(payload, key);
+        })();
+    const job: Job = {
+      id: crypto.randomUUID(), name: card.name, status: "saving", send,
+      detail: `${variantLabel(variant)} · ${condition}${base.quantity > 1 ? ` · × ${base.quantity}` : ""}`,
+    };
+    setJobs((all) => [job, ...all]);
+    run(job);
+    resetCard();
+    setPhotoUrl(null);
+    setPhase("done");
+    setSubmitting(false);
   }
 
   const fileInput = (
@@ -279,6 +322,7 @@ function Scanner() {
 
   if (phase === "idle" || phase === "done") {
     const sessionCards = history.reduce((n, e) => n + e.received.stockItem.onHand, 0);
+    const latestSaved = latest?.status === "saved" ? { received: latest.received!, name: latest.name } : null;
     return (
       <div className="mx-auto grid max-w-2xl gap-5">
         {fileInput}
@@ -289,7 +333,23 @@ function Scanner() {
         {bulkBanner}
         {error && phase === "idle" && <Alert variant="destructive">{error}</Alert>}
 
-        {phase === "done" && last && (
+        {phase === "done" && latest?.status === "saving" && (
+          <Card className="overflow-hidden" aria-live="polite" data-testid="entry-saving">
+            <CardContent className="flex items-center gap-3 py-4">
+              <Spinner />
+              <span className="min-w-0 flex-1 text-sm"><strong className="font-semibold">{latest.name}</strong> · {latest.detail} — enregistrement en cours. Vous pouvez photographier la suivante.</span>
+            </CardContent>
+          </Card>
+        )}
+        {phase === "done" && latest?.status === "failed" && (
+          <Alert variant="destructive">
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="flex-1"><strong>{latest.name}</strong> n'a pas pu être enregistrée : {latest.error}</span>
+              <Button size="sm" variant="outline" onClick={() => retry(latest)}>Réessayer</Button>
+            </span>
+          </Alert>
+        )}
+        {phase === "done" && latestSaved && (
           <Card className="overflow-hidden border-success/25" aria-live="polite">
             <div className="flex items-center gap-2 border-b border-success/15 bg-success-soft px-4 py-2.5 text-sm font-medium text-success sm:px-5">
               <Check className="size-4" strokeWidth={2.5} aria-hidden /> Entrée en stock enregistrée.
@@ -298,43 +358,43 @@ function Scanner() {
               <div className="flex items-end justify-between gap-3">
                 <div className="grid gap-1">
                   <Eyebrow>Code de la position</Eyebrow>
-                  <p className="font-mono text-3xl font-semibold tracking-tight sm:text-4xl" data-testid="unit-sku">{last.received.stockItem.unitSku}</p>
+                  <p className="font-mono text-3xl font-semibold tracking-tight sm:text-4xl" data-testid="unit-sku">{latestSaved.received.stockItem.unitSku}</p>
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => void navigator.clipboard?.writeText(last.received.stockItem.unitSku).then(() => toast.success("Code copié"))}
+                  onClick={() => void navigator.clipboard?.writeText(latestSaved.received.stockItem.unitSku).then(() => toast.success("Code copié"))}
                 >
                   <Copy /> Copier
                 </Button>
               </div>
               <p className="text-sm">
-                <strong className="font-semibold">{last.name}</strong> × {last.received.stockItem.onHand}, rangé en{" "}
-                <Code>{last.received.locationCode}</Code>
+                <strong className="font-semibold">{latestSaved.name}</strong> × {latestSaved.received.stockItem.onHand}, rangé en{" "}
+                <Code>{latestSaved.received.locationCode}</Code>
               </p>
               <p className="text-sm text-muted-foreground">
-                Notez ce code sur la pochette. Offre <Code>{last.received.offer.offerSku}</Code>{" "}
-                ({last.received.offer.created ? "nouvelle" : "existante, position ajoutée"}).
+                Notez ce code sur la pochette. Offre <Code>{latestSaved.received.offer.offerSku}</Code>{" "}
+                ({latestSaved.received.offer.created ? "nouvelle" : "existante, position ajoutée"}).
               </p>
-              {last.received.pricing && (
+              {latestSaved.received.pricing && (
                 <p className="flex flex-wrap items-center gap-2 text-sm" data-testid="entry-pricing">
-                  <Badge variant={CATEGORY_VARIANT[last.received.pricing.category]}>{CATEGORY_LABEL[last.received.pricing.category]}</Badge>
-                  {last.received.pricing.targetPriceCents !== null
-                    ? <span>Prix cible <strong className="tabular font-semibold">{formatEuros(last.received.pricing.targetPriceCents)}</strong></span>
+                  <Badge variant={CATEGORY_VARIANT[latestSaved.received.pricing.category]}>{CATEGORY_LABEL[latestSaved.received.pricing.category]}</Badge>
+                  {latestSaved.received.pricing.targetPriceCents !== null
+                    ? <span>Prix cible <strong className="tabular font-semibold">{formatEuros(latestSaved.received.pricing.targetPriceCents)}</strong></span>
                     : <span className="text-muted-foreground">
-                        {last.received.pricing.reasons[0] ? reasonLabel(last.received.pricing.reasons[0]) : "Prix à décider"} —{" "}
+                        {latestSaved.received.pricing.reasons[0] ? reasonLabel(latestSaved.received.pricing.reasons[0]) : "Prix à décider"} —{" "}
                         <Link href="/prix" className="font-medium text-primary underline-offset-2 hover:underline">décider dans Prix</Link>
                       </span>}
                 </p>
               )}
-              {last.received.stockItem.lifecycle === "DRAFT" && (
+              {latestSaved.received.stockItem.lifecycle === "DRAFT" && (
                 <Alert variant="warning">Brouillon : non vendable tant qu'il n'est pas validé depuis sa fiche.</Alert>
               )}
-              {last.received.variantIncomplete && (
+              {latestSaved.received.variantIncomplete && (
                 <Alert variant="warning">Variante incomplète dans le catalogue : à confirmer avant toute publication.</Alert>
               )}
               <Button variant="link" size="sm" asChild className="justify-self-start">
-                <Link href={`/inventaire/${last.received.stockItem.unitSku}`}>Voir la fiche <ArrowRight /></Link>
+                <Link href={`/inventaire/${latestSaved.received.stockItem.unitSku}`}>Voir la fiche <ArrowRight /></Link>
               </Button>
             </CardContent>
           </Card>
@@ -387,22 +447,38 @@ function Scanner() {
           </CardContent>
         </Card>
 
-        {history.length > 0 && (
-          <section className="grid gap-2">
+        {jobs.length > 0 && (
+          <section className="grid gap-2" data-testid="session-entries">
             <div className="flex items-center justify-between px-1">
               <Eyebrow>Cette session</Eyebrow>
-              <span className="tabular text-xs text-muted-foreground">{sessionCards} carte{sessionCards > 1 ? "s" : ""}</span>
+              <span className="tabular text-xs text-muted-foreground">
+                {sessionCards} carte{sessionCards > 1 ? "s" : ""}{pendingJobs > 0 ? ` · ${pendingJobs} en cours` : ""}
+              </span>
             </div>
             <Card className="divide-y overflow-hidden">
-              {history.map((e) => (
-                <Link key={e.received.stockItem.id} href={`/inventaire/${e.received.stockItem.unitSku}`} className="flex items-center gap-3 px-4 py-3 text-sm outline-none hover:bg-accent focus-visible:bg-accent">
+              {jobs.map((j) => j.status === "saved" ? (
+                <Link key={j.id} href={`/inventaire/${j.received!.stockItem.unitSku}`} className="flex items-center gap-3 px-4 py-3 text-sm outline-none hover:bg-accent focus-visible:bg-accent">
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{e.name}</span>
-                    <span className="flex gap-2 text-xs text-muted-foreground"><Code>{e.received.stockItem.unitSku}</Code><Code>{e.received.locationCode}</Code></span>
+                    <span className="block truncate font-medium">{j.name}</span>
+                    <span className="flex gap-2 text-xs text-muted-foreground"><Code>{j.received!.stockItem.unitSku}</Code><Code>{j.received!.locationCode}</Code></span>
                   </span>
-                  <span className="tabular font-semibold">× {e.received.stockItem.onHand}</span>
+                  <span className="tabular font-semibold">× {j.received!.stockItem.onHand}</span>
                   <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
                 </Link>
+              ) : (
+                <div key={j.id} className="flex items-center gap-3 px-4 py-3 text-sm" data-testid="session-entry-pending">
+                  {j.status === "saving" ? <Spinner /> : <span className="size-2 rounded-full bg-destructive" aria-hidden />}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{j.name}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{j.status === "saving" ? `${j.detail} · enregistrement…` : j.error}</span>
+                  </span>
+                  {j.status === "failed" && (
+                    <span className="flex gap-1">
+                      <Button size="sm" variant="outline" onClick={() => retry(j)}>Réessayer</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setJobs((all) => all.filter((x) => x.id !== j.id))}>Retirer</Button>
+                    </span>
+                  )}
+                </div>
               ))}
             </Card>
           </section>
