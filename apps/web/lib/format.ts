@@ -1,7 +1,10 @@
+import { intlLocale, t } from "./i18n";
 import type { CandidateVariant, Movement, Position } from "./types";
 
-const eur = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
-export const formatEuros = (cents: number) => eur.format(cents / 100);
+/** Montant en euros, dans le format de la langue de l'interface (« 12,50 € » ou « €12.50 »). */
+export const formatEuros = (cents: number) => new Intl.NumberFormat(intlLocale(), { style: "currency", currency: "EUR" }).format(cents / 100);
+/** Nombre entier ou décimal, dans le format de la langue de l'interface. */
+export const formatNumber = (n: number, options?: Intl.NumberFormatOptions) => n.toLocaleString(intlLocale(), options);
 
 /** « 12,34 » | « 12.3 » | « 12 » → 1234 ; null si la saisie n'est pas un montant positif valide. */
 export function parseEuros(input: string): number | null {
@@ -14,10 +17,10 @@ const FINISH: Record<string, string> = { normal: "Normale", holo: "Holo", revers
 
 export function variantLabel(v: Pick<CandidateVariant, "finish" | "edition" | "stamp" | "subtype">): string {
   return [
-    FINISH[v.finish] ?? v.finish,
-    v.edition === "1st" ? "1re édition" : v.edition,
+    FINISH[v.finish] ? t(FINISH[v.finish]!) : v.finish,
+    v.edition === "1st" ? t("1re édition") : v.edition,
     v.subtype,
-    v.stamp && `tampon ${v.stamp}`,
+    v.stamp && t("tampon {stamp}", { stamp: v.stamp }),
   ].filter(Boolean).join(" · ");
 }
 
@@ -34,22 +37,22 @@ const REASONS: [RegExp, string][] = [
   [/^language not determined$/, "langue non déterminée"],
 ];
 export function reviewReason(reason: string): string {
-  for (const [pattern, label] of REASONS) if (pattern.test(reason)) return label;
-  return reason.replace(/^model note: /, "remarque du modèle : ");
+  for (const [pattern, label] of REASONS) if (pattern.test(reason)) return t(label);
+  return reason.replace(/^model note: /, t("remarque du modèle : "));
 }
 
 const MOVEMENTS: Record<string, string> = {
   RECEIVE: "Entrée", MOVE: "Déplacement", ALLOCATE: "Réservation", RELEASE: "Libération", PICK: "Prélèvement",
-  SHIP_OUT: "Expédition", RETURN_IN: "Retour", INSPECT_OK: "Contrôle OK", INSPECT_KO: "Contrôle KO",
+  SHIP_OUT: "Expédition", RETURN_IN: "Retour client", INSPECT_OK: "Contrôle OK", INSPECT_KO: "Contrôle KO",
   QUARANTINE: "Quarantaine", UNQUARANTINE: "Fin de quarantaine", BULK_EXTRACT: "Extraction du vrac",
   ADJUST: "Correction", LOST: "Perte", DISPOSED: "Mise au rebut",
 };
-export const movementLabel = (m: Pick<Movement, "movementType">) => MOVEMENTS[m.movementType] ?? m.movementType;
+export const movementLabel = (m: Pick<Movement, "movementType">) => (MOVEMENTS[m.movementType] ? t(MOVEMENTS[m.movementType]!) : m.movementType);
 
 export const LIFECYCLE: Record<string, string> = { DRAFT: "Brouillon", ACTIVE: "Active", ARCHIVED: "Archivée" };
 
 export function positionTitle(p: Pick<Position, "card" | "bulk">): string {
-  return p.card?.name ?? p.bulk?.label ?? "Position";
+  return p.card?.name ?? p.bulk?.label ?? t("Position");
 }
 
 export function positionSubtitle(p: Pick<Position, "card" | "bulk" | "offer">): string {
@@ -57,12 +60,15 @@ export function positionSubtitle(p: Pick<Position, "card" | "bulk" | "offer">): 
     return [`${p.card.setId} ${p.card.localNumber}`, p.card.language.toUpperCase(), variantLabel({ ...p.card, stamp: "", subtype: "" }), p.offer?.condition]
       .filter(Boolean).join(" · ");
   }
-  return "Lot de vrac";
+  return t("Lot de vrac");
 }
 
-const dateTime = new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Paris" });
-export const formatDateTime = (iso: string) => dateTime.format(new Date(iso));
+export const formatDateTime = (iso: string) =>
+  new Intl.DateTimeFormat(intlLocale(), { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Paris" }).format(new Date(iso));
 
-const shortDay = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short" });
-/** « 2026-11-18 » → « mer. 18 nov » */
-export const dayLabel = (day: string) => shortDay.format(new Date(`${day}T12:00:00`)).replace(/\.$/, "");
+/** « 2026-11-18 » → « mer. 18 nov » (« Wed 18 Nov » en anglais) */
+export const dayLabel = (day: string) =>
+  new Intl.DateTimeFormat(intlLocale(), { weekday: "short", day: "numeric", month: "short" }).format(new Date(`${day}T12:00:00`)).replace(/\.$/, "");
+
+/** Formateur de dates à la demande, dans la langue de l'interface (à créer au rendu, jamais au chargement du module). */
+export const dateFormat = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(intlLocale(), options);

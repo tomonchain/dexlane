@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
 
@@ -12,7 +13,8 @@ export function SegmentedTabs<T extends string>({ value, onChange, tabs, label }
   label: string;
 }) {
   return (
-    <div role="tablist" aria-label={label} className="inline-flex rounded-lg border bg-muted/60 p-0.5">
+    /* Sur téléphone, les onglets occupent la largeur et passent à la ligne plutôt que de défiler de côté. */
+    <div role="tablist" aria-label={label} className="flex max-w-full flex-wrap rounded-lg border bg-muted/60 p-0.5 sm:inline-flex sm:flex-nowrap">
       {tabs.map((tab) => {
         const active = tab.value === value;
         return (
@@ -23,7 +25,7 @@ export function SegmentedTabs<T extends string>({ value, onChange, tabs, label }
             aria-selected={active}
             onClick={() => onChange(tab.value)}
             className={cn(
-              "flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30",
+              "flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30 max-sm:flex-auto max-sm:justify-center max-sm:px-2.5",
               active && "bg-card text-foreground shadow-xs",
             )}
           >
@@ -42,13 +44,13 @@ export function SegmentedTabs<T extends string>({ value, onChange, tabs, label }
 export function Pagination({ page, pageCount, onChange, className }: { page: number; pageCount: number; onChange: (page: number) => void; className?: string }) {
   if (pageCount <= 1) return null;
   return (
-    <nav aria-label="Pagination" className={cn("flex items-center justify-between gap-3", className)}>
+    <nav aria-label={t("Pagination")} className={cn("flex items-center justify-between gap-3", className)}>
       <Button variant="outline" size="sm" onClick={() => onChange(page - 1)} disabled={page <= 1}>
-        <ChevronLeft /> Précédent
+        <ChevronLeft /> {t("Précédent")}
       </Button>
-      <span className="tabular text-sm text-muted-foreground" aria-live="polite">Page {page} sur {pageCount}</span>
+      <span className="tabular text-sm text-muted-foreground" aria-live="polite">{t("Page {page} sur {count}", { page, count: pageCount })}</span>
       <Button variant="outline" size="sm" onClick={() => onChange(page + 1)} disabled={page >= pageCount}>
-        Suivant <ChevronRight />
+        {t("Suivant")} <ChevronRight />
       </Button>
     </nav>
   );

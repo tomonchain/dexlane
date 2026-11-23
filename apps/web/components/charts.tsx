@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, type KeyboardEvent } from "react";
+import { dateFormat } from "@/lib/format";
+import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-const monthName = new Intl.DateTimeFormat("fr-FR", { month: "short" });
-const monthFull = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
+const monthName = () => dateFormat({ month: "short" });
+const monthFull = () => dateFormat({ month: "long", year: "numeric" });
 const monthDate = (month: string) => new Date(`${month}-01T12:00:00`);
 
 /** Arrondit le haut de l'échelle à une valeur lisible (1, 2 ou 5 × 10ⁿ). */
@@ -35,12 +37,12 @@ export function MonthlyColumns({ data, format, label }: { data: ColumnDatum[]; f
     <figure className="grid gap-2" aria-label={label}>
       <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3">
         <div className="relative h-44 w-12 text-right text-[11px] text-muted-foreground tabular" aria-hidden>
-          {ticks.map((t) => (
-            <span key={t} className="absolute right-0 -translate-y-1/2" style={{ top: `${(1 - t) * 100}%` }}>{format(max * t)}</span>
+          {ticks.map((tick) => (
+            <span key={tick} className="absolute right-0 -translate-y-1/2" style={{ top: `${(1 - tick) * 100}%` }}>{format(max * tick)}</span>
           ))}
         </div>
         <div className="relative h-44">
-          {ticks.map((t) => <span key={t} className="absolute inset-x-0 border-t border-border/70" style={{ top: `${(1 - t) * 100}%` }} aria-hidden />)}
+          {ticks.map((tick) => <span key={tick} className="absolute inset-x-0 border-t border-border/70" style={{ top: `${(1 - tick) * 100}%` }} aria-hidden />)}
           <div className="absolute inset-0 grid" style={{ gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))` }}>
             {data.map((d, i) => {
               const labelled = d.value > 0 && (i === data.length - 1 || d.value === top);
@@ -49,7 +51,7 @@ export function MonthlyColumns({ data, format, label }: { data: ColumnDatum[]; f
                   key={d.key}
                   tabIndex={0}
                   className="group relative flex h-full flex-col items-center justify-end rounded-md outline-none hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/30"
-                  aria-label={`${monthFull.format(monthDate(d.month))} : ${format(d.value)}`}
+                  aria-label={t("{label} : {value}", { label: monthFull().format(monthDate(d.month)), value: format(d.value) })}
                 >
                   {labelled && <span className="tabular mb-1 text-[11px] font-medium text-foreground">{format(d.value)}</span>}
                   <span
@@ -63,7 +65,7 @@ export function MonthlyColumns({ data, format, label }: { data: ColumnDatum[]; f
                       i === 0 ? "left-0" : i === data.length - 1 ? "right-0" : "left-1/2 -translate-x-1/2",
                     )}
                   >
-                    <p className="mb-1 font-semibold first-letter:uppercase">{monthFull.format(monthDate(d.month))}</p>
+                    <p className="mb-1 font-semibold first-letter:uppercase">{monthFull().format(monthDate(d.month))}</p>
                     <dl className="grid grid-cols-[auto_auto] gap-x-4 gap-y-0.5">
                       {d.details.map(([name, value]) => (
                         <div key={name} className="contents"><dt className="text-muted-foreground">{name}</dt><dd className="tabular text-right font-medium">{value}</dd></div>
@@ -77,15 +79,15 @@ export function MonthlyColumns({ data, format, label }: { data: ColumnDatum[]; f
         </div>
         <span />
         <div className="grid pt-1.5 text-center text-[11px] text-muted-foreground" style={{ gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))` }} aria-hidden>
-          {data.map((d) => <span key={d.key}>{monthName.format(monthDate(d.month)).replace(".", "")}</span>)}
+          {data.map((d) => <span key={d.key}>{monthName().format(monthDate(d.month)).replace(".", "")}</span>)}
         </div>
       </div>
     </figure>
   );
 }
 
-const dayShort = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", timeZone: "UTC" });
-const dayFull = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+const dayShort = () => dateFormat({ day: "numeric", month: "short", timeZone: "UTC" });
+const dayFull = () => dateFormat({ weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
 const dayDate = (day: string) => new Date(`${day}T12:00:00Z`);
 
 export interface DayDatum {
@@ -122,18 +124,18 @@ export function DailyColumns({ data, format, label, wholeNumbers = false }: { da
       className="grid rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30"
       tabIndex={0}
       role="img"
-      aria-label={`${label}. Flèches gauche et droite pour parcourir les jours.`}
+      aria-label={t("{label}. Flèches gauche et droite pour parcourir les jours.", { label })}
       onKeyDown={onKey}
       onBlur={() => setActive(null)}
     >
       <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2.5">
         <div className="tabular relative h-28 w-11 text-right text-[11px] text-muted-foreground" aria-hidden>
-          {ticks.map((t) => (
-            <span key={t} className="absolute right-0 -translate-y-1/2" style={{ top: `${(1 - t) * 100}%` }}>{format(max * t)}</span>
+          {ticks.map((tick) => (
+            <span key={tick} className="absolute right-0 -translate-y-1/2" style={{ top: `${(1 - tick) * 100}%` }}>{format(max * tick)}</span>
           ))}
         </div>
         <div className="relative h-28" onPointerLeave={() => setActive(null)}>
-          {ticks.map((t) => <span key={t} className="absolute inset-x-0 border-t border-border/70" style={{ top: `${(1 - t) * 100}%` }} aria-hidden />)}
+          {ticks.map((tick) => <span key={tick} className="absolute inset-x-0 border-t border-border/70" style={{ top: `${(1 - tick) * 100}%` }} aria-hidden />)}
           <div className="absolute inset-0 grid" style={{ gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))` }}>
             {data.map((d, i) => (
               // La colonne entière est la zone de survol : inutile de viser une barre de quelques pixels.
@@ -151,7 +153,7 @@ export function DailyColumns({ data, format, label, wholeNumbers = false }: { da
               className="pointer-events-none absolute bottom-full z-10 mb-1 w-max min-w-36 rounded-lg border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-lg"
               style={active / last > 0.5 ? { right: `${(1 - (active + 1) / data.length) * 100}%` } : { left: `${(active / data.length) * 100}%` }}
             >
-              <p className="mb-1 font-semibold first-letter:uppercase">{dayFull.format(dayDate(data[active]!.day))}</p>
+              <p className="mb-1 font-semibold first-letter:uppercase">{dayFull().format(dayDate(data[active]!.day))}</p>
               <dl className="grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5">
                 {data[active]!.details.map(([name, value]) => (
                   <div key={name} className="contents"><dd className="tabular font-semibold">{value}</dd><dt className="text-muted-foreground">{name}</dt></div>
@@ -163,7 +165,7 @@ export function DailyColumns({ data, format, label, wholeNumbers = false }: { da
         <span />
         <div className="relative h-5 pt-1.5 text-[11px] text-muted-foreground" aria-hidden>
           {dates.map((i, n) => (
-            <span key={i} className={cn("absolute whitespace-nowrap", n === 0 ? "left-0" : n === 2 ? "right-0" : "left-1/2 -translate-x-1/2")}>{dayShort.format(dayDate(data[i]!.day)).replace(".", "")}</span>
+            <span key={i} className={cn("absolute whitespace-nowrap", n === 0 ? "left-0" : n === 2 ? "right-0" : "left-1/2 -translate-x-1/2")}>{dayShort().format(dayDate(data[i]!.day)).replace(".", "")}</span>
           ))}
         </div>
       </div>

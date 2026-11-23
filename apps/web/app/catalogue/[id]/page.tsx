@@ -16,7 +16,8 @@ import { Pagination, paginate } from "@/components/ui/tabs";
 import { type ApiError, api } from "@/lib/api";
 import { catalogMessage, fold, importedLabel } from "@/lib/catalog";
 import { useCardImage } from "@/lib/card-image";
-import { formatDateTime, formatEuros, variantLabel } from "@/lib/format";
+import { dateFormat, formatDateTime, formatEuros, variantLabel } from "@/lib/format";
+import { t, tn } from "@/lib/i18n";
 import { CONFIDENCE_LABEL } from "@/lib/pricing";
 import type { CatalogSetCard, CatalogSetDetail } from "@/lib/types";
 import { PageSkeleton } from "@/components/skeletons";
@@ -32,27 +33,27 @@ function CardTile({ card }: { card: CatalogSetCard }) {
           ? <img src={src} alt="" loading="lazy" onError={onError} className="aspect-[63/88] w-full object-cover" />
           : <div className="flex aspect-[63/88] w-full items-center justify-center text-muted-foreground/40" aria-hidden><BookOpen className="size-8" /></div>}
         {card.owned > 0 && (
-          <Badge variant="success" className="absolute top-2 right-2 shadow-sm"><PackageCheck /> {card.owned} en stock</Badge>
+          <Badge variant="success" className="absolute top-2 right-2 shadow-sm"><PackageCheck /> {t("{n} en stock", { n: card.owned })}</Badge>
         )}
       </div>
       <div className="grid gap-2 p-3">
         <div className="grid gap-0.5">
           <Link href={`/carte/${card.id}`} className="truncate text-sm font-semibold underline-offset-2 outline-none hover:underline focus-visible:underline" title={card.name}>{card.name}</Link>
-          <p className="truncate text-xs text-muted-foreground"><Code>n° {card.localNumber}</Code>{card.rarity ? ` · ${card.rarity}` : ""}</p>
+          <p className="truncate text-xs text-muted-foreground"><Code>{t("n° {number}", { number: card.localNumber })}</Code>{card.rarity ? ` · ${card.rarity}` : ""}</p>
         </div>
         <ul className="grid gap-1 border-t pt-2 text-xs">
           {card.variants.map((v) => (
             <li key={v.id} className="flex items-baseline justify-between gap-2">
-              <span className="min-w-0 truncate text-muted-foreground">{variantLabel(v)}{v.incomplete ? " (à confirmer)" : ""}</span>
+              <span className="min-w-0 truncate text-muted-foreground">{variantLabel(v)}{v.incomplete ? ` ${t("(à confirmer)")}` : ""}</span>
               <span
                 className={v.estimate && !v.estimate.sales ? "tabular shrink-0 text-muted-foreground" : "tabular shrink-0 font-medium"}
-                title={v.estimate ? `${v.estimate.sales ? `Ventes réussies Cardmarket (${CONFIDENCE_LABEL[v.estimate.sales.confidence]})` : "Aucune vente récente : tendance des annonces Cardmarket"}, relevé du ${formatDateTime(v.estimate.observedAt)}${v.estimate.variantAmbiguous ? " — partagé avec une autre variante" : ""}` : undefined}
+                title={v.estimate ? `${v.estimate.sales ? t("Ventes réussies Cardmarket ({confidence})", { confidence: t(CONFIDENCE_LABEL[v.estimate.sales.confidence]) }) : t("Aucune vente récente : tendance des annonces Cardmarket")}, ${t("relevé du {date}", { date: formatDateTime(v.estimate.observedAt) })}${v.estimate.variantAmbiguous ? ` — ${t("partagé avec une autre variante")}` : ""}` : undefined}
               >
                 {v.estimate === null ? "—" : `${v.estimate.variantAmbiguous || !v.estimate.sales ? "≈ " : ""}${formatEuros(v.estimate.cents)}`}
               </span>
             </li>
           ))}
-          {card.variants.length === 0 && <li className="text-muted-foreground">Aucune variante connue</li>}
+          {card.variants.length === 0 && <li className="text-muted-foreground">{t("Aucune variante connue")}</li>}
         </ul>
       </div>
     </Card>
@@ -92,7 +93,7 @@ export default function CatalogSetPage() {
     try {
       const report = await api.syncCatalogSet(setId, language);
       toast[report.errorCount ? "warning" : "success"](
-        report.errorCount ? `${importedLabel(report.cards)}, ${report.errorCount} en échec` : `${importedLabel(report.cards)}, cotations à jour`,
+        report.errorCount ? t("{imported}, {n} en échec", { imported: importedLabel(report.cards), n: report.errorCount }) : t("{imported}, cotations à jour", { imported: importedLabel(report.cards) }),
       );
       load();
     } catch (e) {
@@ -109,17 +110,17 @@ export default function CatalogSetPage() {
   );
   const view = paginate(matching, page, PAGE_SIZE);
 
-  const back = <BackLink href="/catalogue">Catalogue</BackLink>;
+  const back = <BackLink href="/catalogue">{t("Catalogue")}</BackLink>;
 
   if (notFound) {
     return (
       <div className="grid gap-5">
         {back}
-        <EmptyState icon={<CircleSlash />} title="Série inconnue">Aucune série <Code>{setId}</Code> pour cette langue. Actualisez la liste depuis le catalogue.</EmptyState>
+        <EmptyState icon={<CircleSlash />} title={t("Série inconnue")}>{t("Aucune série")} <Code>{setId}</Code> {t("pour cette langue. Actualisez la liste depuis le catalogue.")}</EmptyState>
       </div>
     );
   }
-  if (!detail) return error ? <Alert variant="destructive">{error}</Alert> : <PageSkeleton label="Chargement de la série" />;
+  if (!detail) return error ? <Alert variant="destructive">{error}</Alert> : <PageSkeleton label={t("Chargement de la série")} />;
 
   const { set, cards } = detail;
   const total = set.cardCountTotal ?? set.cardCountOfficial;
@@ -136,22 +137,22 @@ export default function CatalogSetPage() {
           <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
             <Badge variant="neutral"><Code>{set.id}</Code></Badge>
             {set.serieName && <Badge variant="outline">{set.serieName}</Badge>}
-            {(set.abbreviationLocalized ?? set.abbreviation) && <Badge variant="outline">Code imprimé {set.abbreviationLocalized ?? set.abbreviation}</Badge>}
-            {set.releaseDate && <span>Sortie le {new Date(`${set.releaseDate}T12:00:00Z`).toLocaleDateString("fr-FR")}</span>}
+            {(set.abbreviationLocalized ?? set.abbreviation) && <Badge variant="outline">{t("Code imprimé {code}", { code: (set.abbreviationLocalized ?? set.abbreviation)! })}</Badge>}
+            {set.releaseDate && <span>{t("Sortie le {date}", { date: dateFormat({}).format(new Date(`${set.releaseDate}T12:00:00Z`)) })}</span>}
           </div>
         </div>
         <Button variant="outline" onClick={sync} disabled={syncing}>
-          {syncing ? <><Spinner /> Import…</> : <><RefreshCw /> Mettre à jour</>}
+          {syncing ? <><Spinner /> {t("Import…")}</> : <><RefreshCw /> {t("Mettre à jour")}</>}
         </Button>
       </div>
 
       <Card className="overflow-hidden">
         <dl className="grid grid-cols-2 gap-px bg-border sm:grid-cols-4">
           {[
-            ["Cartes importées", total ? `${set.cardsSynced} / ${total}` : String(set.cardsSynced)],
-            ["Cartes possédées", `${ownedCards}`],
-            ["Exemplaires en stock", `${ownedCopies}`],
-            ["Dernier import", set.cardsSyncedAt ? formatDateTime(set.cardsSyncedAt) : "jamais"],
+            [t("Cartes importées"), total ? `${set.cardsSynced} / ${total}` : String(set.cardsSynced)],
+            [t("Cartes possédées"), `${ownedCards}`],
+            [t("Exemplaires en stock"), `${ownedCopies}`],
+            [t("Dernier import"), set.cardsSyncedAt ? formatDateTime(set.cardsSyncedAt) : t("jamais")],
           ].map(([label, value]) => (
             <div key={label} className="grid gap-1.5 bg-card px-4 py-3.5">
               <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
@@ -162,8 +163,8 @@ export default function CatalogSetPage() {
       </Card>
 
       {cards.length === 0 ? (
-        <EmptyState icon={<BookOpen />} title="Série non importée" action={<Button size="sm" onClick={sync} disabled={syncing}>Importer la série</Button>}>
-          Les cartes de cette série ne sont pas encore dans le catalogue.
+        <EmptyState icon={<BookOpen />} title={t("Série non importée")} action={<Button size="sm" onClick={sync} disabled={syncing}>{t("Importer la série")}</Button>}>
+          {t("Les cartes de cette série ne sont pas encore dans le catalogue.")}
         </EmptyState>
       ) : (
         <>
@@ -172,21 +173,21 @@ export default function CatalogSetPage() {
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
               <Input
                 type="search"
-                placeholder="Nom ou numéro de carte"
+                placeholder={t("Nom ou numéro de carte")}
                 value={filter}
                 onChange={(e) => {
                   setFilter(e.target.value);
                   setPage(1);
                 }}
-                aria-label="Filtrer les cartes"
+                aria-label={t("Filtrer les cartes")}
                 autoCorrect="off"
                 className="pl-9"
               />
             </span>
-            <SwitchRow label="En stock seulement" checked={ownedOnly} onCheckedChange={(v) => { setOwnedOnly(v); setPage(1); }} />
+            <SwitchRow label={t("En stock seulement")} checked={ownedOnly} onCheckedChange={(v) => { setOwnedOnly(v); setPage(1); }} />
           </div>
           <p className="tabular text-sm text-muted-foreground" role="status">
-            {matching.length} carte{matching.length > 1 ? "s" : ""}. Prix estimés d'après les ventes réussies sur Cardmarket, toutes langues et tous états confondus ; « ≈ » quand rien ne s'est vendu récemment.
+            {tn(matching.length, "{n} carte", "{n} cartes")}. {t("Prix estimés d'après les ventes réussies sur Cardmarket, toutes langues et tous états confondus ; « ≈ » quand rien ne s'est vendu récemment.")}
           </p>
 
           {view.items.length > 0 ? (
@@ -194,7 +195,7 @@ export default function CatalogSetPage() {
               {view.items.map((c) => <CardTile key={c.id} card={c} />)}
             </div>
           ) : (
-            <EmptyState icon={<Search />} title="Aucune carte ne correspond" />
+            <EmptyState icon={<Search />} title={t("Aucune carte ne correspond")} />
           )}
           <Pagination page={view.page} pageCount={view.pageCount} onChange={(p) => { setPage(p); window.scrollTo({ top: 0 }); }} />
         </>

@@ -10,6 +10,7 @@ import { Field, Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/misc";
 import { api } from "@/lib/api";
 import { parseEuros } from "@/lib/format";
+import { t } from "@/lib/i18n";
 import { eurosInput } from "@/lib/pricing";
 import type { AlertSettings } from "@/lib/types";
 
@@ -33,7 +34,7 @@ export function AlertRules({ settings, onSaved }: { settings: AlertSettings; onS
     setError(null);
     try {
       await api.saveAlertSettings(next);
-      toast.success("Seuils d'alerte enregistrés");
+      toast.success(t("Seuils d'alerte enregistrés"));
       onSaved();
     } catch (e) {
       setError((e as Error).message);
@@ -46,15 +47,15 @@ export function AlertRules({ settings, onSaved }: { settings: AlertSettings; onS
     <Card>
       <CardContent className="grid gap-3">
         <div className="grid grid-cols-2 items-end gap-3 sm:grid-cols-[repeat(3,minmax(0,10rem))_auto]">
-          <Field label="Comparer sur (jours)"><Input inputMode="numeric" value={windowDays} onChange={(e) => setWindowDays(e.target.value)} className="tabular" /></Field>
-          <Field label="Alerter à partir de (%)"><Input inputMode="decimal" value={threshold} onChange={(e) => setThreshold(e.target.value)} className="tabular" /></Field>
-          <Field label="Variation minimale (€)"><Input inputMode="decimal" value={minimum} onChange={(e) => setMinimum(e.target.value)} className="tabular" /></Field>
+          <Field label={t("Comparer sur (jours)")}><Input inputMode="numeric" value={windowDays} onChange={(e) => setWindowDays(e.target.value)} className="tabular" /></Field>
+          <Field label={t("Alerter à partir de (%)")}><Input inputMode="decimal" value={threshold} onChange={(e) => setThreshold(e.target.value)} className="tabular" /></Field>
+          <Field label={t("Variation minimale (€)")}><Input inputMode="decimal" value={minimum} onChange={(e) => setMinimum(e.target.value)} className="tabular" /></Field>
           <Button variant="outline" onClick={save} disabled={saving || !dirty || !next} className="col-span-2 justify-self-start sm:col-span-1">
-            {saving ? <Spinner /> : <Check />} Enregistrer les seuils
+            {saving ? <Spinner /> : <Check />} {t("Enregistrer les seuils")}
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          Une carte est signalée quand sa cote a bougé d'au moins ce pourcentage <em>et</em> de ce montant sur la période. De 1 à 90 jours, de 1 à 500 %.
+          {t("Une carte est signalée quand sa cote a bougé d'au moins ce pourcentage")} <em>{t("et")}</em> {t("de ce montant sur la période. De 1 à 90 jours, de 1 à 500 %.")}
         </p>
         {error && <Alert variant="destructive">{error}</Alert>}
       </CardContent>

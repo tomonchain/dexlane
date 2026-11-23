@@ -1,6 +1,7 @@
 import { ArrowLeft, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
+import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 export function Skeleton({ className, ...props }: ComponentProps<"div">) {
@@ -11,10 +12,10 @@ export function Spinner({ className }: { className?: string }) {
   return <LoaderCircle className={cn("size-4 animate-spin text-muted-foreground", className)} aria-hidden />;
 }
 
-export function Loading({ children = "Chargement…", className }: { children?: ReactNode; className?: string }) {
+export function Loading({ children, className }: { children?: ReactNode; className?: string }) {
   return (
     <p role="status" className={cn("flex items-center gap-2 text-sm text-muted-foreground", className)}>
-      <Spinner /> {children}
+      <Spinner /> {children ?? t("Chargement…")}
     </p>
   );
 }
@@ -65,14 +66,15 @@ export function PageHeader({ title, description, actions, back, meta, testId }: 
 }) {
   return (
     <div className="grid gap-3">
-      {back}
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+      {/* Sur téléphone, la première ligne laisse la place aux icônes de recherche et de réglages, en haut à droite. */}
+      {back && <div className="flex max-lg:pr-20">{back}</div>}
+      <div className={cn("flex flex-wrap items-end justify-between gap-x-6 gap-y-3", !back && "max-lg:[&>div:first-child]:pr-20")}>
         <div className="grid min-w-0 gap-1">
           <h1 className="text-xl leading-tight font-semibold tracking-tight sm:text-2xl" data-testid={testId}>{title}</h1>
           {meta && <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-muted-foreground">{meta}</div>}
           {description && <p className="max-w-2xl text-sm text-pretty text-muted-foreground">{description}</p>}
         </div>
-        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+        {actions && <div className="flex flex-wrap items-center gap-2 max-lg:w-full">{actions}</div>}
       </div>
     </div>
   );

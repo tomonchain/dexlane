@@ -20,6 +20,7 @@ import { Field, Textarea } from "@/components/ui/input";
 import { BackLink, Code, EmptyState } from "@/components/ui/misc";
 import { Modal } from "@/components/ui/modal";
 import { ApiError, api, createKeyring } from "@/lib/api";
+import { t, tn } from "@/lib/i18n";
 import { LIFECYCLE, formatDateTime, formatEuros, movementLabel, positionSubtitle, positionTitle } from "@/lib/format";
 import { CATEGORY_LABEL, CATEGORY_VARIANT, reasonLabel, type Category } from "@/lib/pricing";
 import type { Movement, PositionDetail } from "@/lib/types";
@@ -33,7 +34,7 @@ const ERRORS: Record<string, string> = {
   LOCATION_NOT_FOUND: "Cet emplacement n'existe pas.",
   NOT_DRAFT: "Cette position ne peut pas être validée.",
 };
-const message = (e: unknown) => (e instanceof ApiError ? (ERRORS[e.code] ?? e.message) : (e as Error).message);
+const message = (e: unknown) => (e instanceof ApiError ? (ERRORS[e.code] ? t(ERRORS[e.code]!) : e.message) : (e as Error).message);
 
 const MOVEMENT_ICONS: Record<string, LucideIcon> = {
   RECEIVE: ArrowDownToLine, MOVE: ArrowLeftRight, ALLOCATE: PackageCheck, RELEASE: PackageMinus, PICK: PackageCheck,
@@ -99,19 +100,19 @@ export default function PositionPage() {
   }, [ref]);
   useEffect(load, [load]);
 
-  const back = <BackLink href="/inventaire">Inventaire</BackLink>;
+  const back = <BackLink href="/inventaire">{t("Inventaire")}</BackLink>;
 
   if (notFound) {
     return (
       <div className="grid gap-5">
         {back}
-        <EmptyState icon={<CircleSlash />} title="Position introuvable">
-          Aucune position ne porte le code <Code>{decodeURIComponent(ref)}</Code>.
+        <EmptyState icon={<CircleSlash />} title={t("Position introuvable")}>
+          {t("Aucune position ne porte le code")} <Code>{decodeURIComponent(ref)}</Code>.
         </EmptyState>
       </div>
     );
   }
-  if (!position) return error ? <Alert variant="destructive">{error}</Alert> : <PageSkeleton label="Chargement de la position" />;
+  if (!position) return error ? <Alert variant="destructive">{error}</Alert> : <PageSkeleton label={t("Chargement de la position")} />;
 
   const p = position;
   async function run(action: () => Promise<PositionDetail>, done: string) {
@@ -144,30 +145,30 @@ export default function PositionPage() {
           <p className="text-sm text-muted-foreground">{positionSubtitle(p)}</p>
           {p.card && (
             <Link href={`/carte/${p.card.catalogCardId}`} className="justify-self-start text-[13px] font-medium underline underline-offset-2 hover:no-underline">
-              Fiche de la carte : tous ses exemplaires
+              {t("Fiche de la carte : tous ses exemplaires")}
             </Link>
           )}
           <div className="flex flex-wrap gap-1.5">
-            <Badge variant={p.lifecycle === "ACTIVE" ? "success" : p.lifecycle === "DRAFT" ? "warning" : "outline"}>{LIFECYCLE[p.lifecycle]}</Badge>
-            <Badge variant="neutral">{KIND[p.kind]}</Badge>
-            {p.card?.variantIncomplete && <Badge variant="warning">Variante à confirmer</Badge>}
+            <Badge variant={p.lifecycle === "ACTIVE" ? "success" : p.lifecycle === "DRAFT" ? "warning" : "outline"}>{LIFECYCLE[p.lifecycle] ? t(LIFECYCLE[p.lifecycle]!) : p.lifecycle}</Badge>
+            <Badge variant="neutral">{KIND[p.kind] ? t(KIND[p.kind]!) : p.kind}</Badge>
+            {p.card?.variantIncomplete && <Badge variant="warning">{t("Variante à confirmer")}</Badge>}
           </div>
         </div>
       </div>
 
       {error && <Alert variant="destructive">{error}</Alert>}
       {p.lifecycle === "DRAFT" && (
-        <Alert variant="warning">Brouillon : cette position n'est pas vendable tant qu'elle n'est pas validée.</Alert>
+        <Alert variant="warning">{t("Brouillon : cette position n'est pas vendable tant qu'elle n'est pas validée.")}</Alert>
       )}
 
       <div className="flex flex-wrap gap-2">
         {p.lifecycle === "DRAFT" && (
-          <Button disabled={busy} onClick={() => run(() => api.activate(p.id), "Position validée")}><BadgeCheck /> Valider (rendre vendable)</Button>
+          <Button disabled={busy} onClick={() => run(() => api.activate(p.id), t("Position validée"))}><BadgeCheck /> {t("Valider (rendre vendable)")}</Button>
         )}
-        <Button variant="outline" disabled={busy} onClick={() => setModal("move")}><ArrowLeftRight /> Déplacer</Button>
-        <Button variant="outline" disabled={busy} onClick={() => setModal("adjust")}><ClipboardPen /> Corriger le stock</Button>
+        <Button variant="outline" disabled={busy} onClick={() => setModal("move")}><ArrowLeftRight /> {t("Déplacer")}</Button>
+        <Button variant="outline" disabled={busy} onClick={() => setModal("adjust")}><ClipboardPen /> {t("Corriger le stock")}</Button>
         {p.kind === "BULK" && p.availableToSell > 0 && (
-          <Button variant="outline" asChild><Link href={`/ajouter?vrac=${p.id}`}><Layers /> Extraire une carte</Link></Button>
+          <Button variant="outline" asChild><Link href={`/ajouter?vrac=${p.id}`}><Layers /> {t("Extraire une carte")}</Link></Button>
         )}
       </div>
 
@@ -175,23 +176,23 @@ export default function PositionPage() {
         <div className="grid gap-5">
           <Card className="overflow-hidden">
             <dl className="grid grid-cols-2 gap-px bg-border sm:grid-cols-4">
-              <Metric label="En stock" value={p.onHand} testId="on-hand" />
-              <Metric label="Vendable" value={sellable} testId="sellable" />
-              <Metric label="Réservé" value={p.reserved} muted={p.reserved === 0} />
-              <Metric label="Coût unitaire" value={formatEuros(p.unitCostCents)} />
+              <Metric label={t("En stock")} value={p.onHand} testId="on-hand" />
+              <Metric label={t("Vendable")} value={sellable} testId="sellable" />
+              <Metric label={t("Réservé")} value={p.reserved} muted={p.reserved === 0} />
+              <Metric label={t("Coût unitaire")} value={formatEuros(p.unitCostCents)} />
             </dl>
           </Card>
 
           <Card>
             <CardContent className="py-2 sm:py-2">
               <dl className="divide-y">
-                <Fact label="Position"><Code>{p.unitSku}</Code></Fact>
-                <Fact label="Emplacement"><Code>{p.locationCode}</Code></Fact>
-                {p.offer && <Fact label="Offre"><Code className="whitespace-normal">{p.offer.offerSku}</Code></Fact>}
-                {p.offer && <Fact label="État">{p.offer.condition}</Fact>}
-                {p.inspection > 0 && <Fact label="En inspection">{p.inspection}</Fact>}
-                {p.quarantine > 0 && <Fact label="En quarantaine">{p.quarantine}</Fact>}
-                <Fact label="Entrée le">{formatDateTime(p.createdAt)}</Fact>
+                <Fact label={t("Position")}><Code>{p.unitSku}</Code></Fact>
+                <Fact label={t("Emplacement")}><Code>{p.locationCode}</Code></Fact>
+                {p.offer && <Fact label={t("Offre")}><Code className="whitespace-normal">{p.offer.offerSku}</Code></Fact>}
+                {p.offer && <Fact label={t("État")}>{p.offer.condition}</Fact>}
+                {p.inspection > 0 && <Fact label={t("En inspection")}>{p.inspection}</Fact>}
+                {p.quarantine > 0 && <Fact label={t("En quarantaine")}>{p.quarantine}</Fact>}
+                <Fact label={t("Entrée le")}>{formatDateTime(p.createdAt)}</Fact>
               </dl>
             </CardContent>
           </Card>
@@ -201,12 +202,12 @@ export default function PositionPage() {
         {p.photos.some((photo) => photo.kind !== "LISTING") && (
           <Card data-testid="position-photos">
             <CardContent className="grid gap-3">
-              <Eyebrow>Photos de l'exemplaire</Eyebrow>
+              <Eyebrow>{t("Photos de l'exemplaire")}</Eyebrow>
               <div className="flex flex-wrap gap-3">
                 {p.photos.filter((photo) => photo.kind !== "LISTING").map((photo) => (
                   <a key={photo.id} href={photo.url} target="_blank" rel="noreferrer" className="grid gap-1 rounded-lg outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30">
-                    <img className="aspect-[63/88] w-28 rounded-lg bg-muted object-cover ring-1 ring-border" src={photo.url} alt={PHOTO_KIND[photo.kind]} loading="lazy" />
-                    <span className="text-center text-xs text-muted-foreground">{PHOTO_KIND[photo.kind]}</span>
+                    <img className="aspect-[63/88] w-28 rounded-lg bg-muted object-cover ring-1 ring-border" src={photo.url} alt={PHOTO_KIND[photo.kind] ? t(PHOTO_KIND[photo.kind]!) : photo.kind} loading="lazy" />
+                    <span className="text-center text-xs text-muted-foreground">{PHOTO_KIND[photo.kind] ? t(PHOTO_KIND[photo.kind]!) : photo.kind}</span>
                   </a>
                 ))}
               </div>
@@ -217,27 +218,27 @@ export default function PositionPage() {
           <Card data-testid="offer-pricing">
             <CardContent className="grid gap-3">
               <div className="flex items-center justify-between gap-3">
-                <Eyebrow>Prix de l'offre</Eyebrow>
-                <Badge variant={CATEGORY_VARIANT[p.offer.category as Category]}>{CATEGORY_LABEL[p.offer.category as Category]}</Badge>
+                <Eyebrow>{t("Prix de l'offre")}</Eyebrow>
+                <Badge variant={CATEGORY_VARIANT[p.offer.category as Category]}>{CATEGORY_LABEL[p.offer.category as Category] ? t(CATEGORY_LABEL[p.offer.category as Category]) : p.offer.category}</Badge>
               </div>
               <dl className="tabular grid grid-cols-3 gap-3 text-sm">
-                <div className="grid gap-0.5"><dt className="text-xs text-muted-foreground">Prix cible</dt><dd className="text-lg font-semibold">{p.offer.targetPriceCents === null ? "—" : formatEuros(p.offer.targetPriceCents)}</dd></div>
-                <div className="grid gap-0.5"><dt className="text-xs text-muted-foreground">Plancher</dt><dd className="text-lg font-semibold text-muted-foreground">{p.offer.floorPriceCents === null ? "—" : formatEuros(p.offer.floorPriceCents)}</dd></div>
-                <div className="grid gap-0.5"><dt className="text-xs text-muted-foreground">Suggéré</dt><dd className="text-lg font-semibold text-muted-foreground">{p.offer.suggestedPriceCents === null ? "—" : formatEuros(p.offer.suggestedPriceCents)}</dd></div>
+                <div className="grid gap-0.5"><dt className="text-xs text-muted-foreground">{t("Prix cible")}</dt><dd className="text-lg font-semibold">{p.offer.targetPriceCents === null ? "—" : formatEuros(p.offer.targetPriceCents)}</dd></div>
+                <div className="grid gap-0.5"><dt className="text-xs text-muted-foreground">{t("Plancher")}</dt><dd className="text-lg font-semibold text-muted-foreground">{p.offer.floorPriceCents === null ? "—" : formatEuros(p.offer.floorPriceCents)}</dd></div>
+                <div className="grid gap-0.5"><dt className="text-xs text-muted-foreground">{t("Suggéré")}</dt><dd className="text-lg font-semibold text-muted-foreground">{p.offer.suggestedPriceCents === null ? "—" : formatEuros(p.offer.suggestedPriceCents)}</dd></div>
               </dl>
               {p.offer.reference && <SalesBasis reference={p.offer.reference} sales={p.offer.sales} className="text-xs text-muted-foreground" />}
               {p.offer.priceReasons.length > 0 && (
-                <Alert variant="warning"><ul className="grid gap-0.5">{p.offer.priceReasons.map((r) => <li key={r}>{reasonLabel(r)}</li>)}</ul></Alert>
+                <Alert variant="warning"><ul className="grid gap-0.5">{p.offer.priceReasons.map((r) => <li key={r}>{t(reasonLabel(r))}</li>)}</ul></Alert>
               )}
               <Button variant="link" size="sm" asChild className="justify-self-start">
-                <Link href={`/prix?q=${encodeURIComponent(p.offer.offerSku)}`}>Décider du prix</Link>
+                <Link href={`/prix?q=${encodeURIComponent(p.offer.offerSku)}`}>{t("Décider du prix")}</Link>
               </Button>
             </CardContent>
           </Card>
         )}
         <Card>
           <CardContent className="grid gap-1">
-            <Eyebrow>Historique</Eyebrow>
+            <Eyebrow>{t("Historique")}</Eyebrow>
             <ul className="divide-y">
               {p.movements.map((m) => <MovementRow key={m.id} m={m} />)}
             </ul>
@@ -247,10 +248,10 @@ export default function PositionPage() {
       </div>
 
       {modal === "move" && (
-        <LocationPicker value={p.locationCode} onClose={() => setModal(null)} onPick={(code) => run(() => api.move(p.id, code), `Déplacée en ${code}`)} />
+        <LocationPicker value={p.locationCode} onClose={() => setModal(null)} onPick={(code) => run(() => api.move(p.id, code), t("Déplacée en {code}", { code }))} />
       )}
       {modal === "adjust" && (
-        <AdjustModal position={p} busy={busy} onClose={() => setModal(null)} onSubmit={(count, reason, key) => run(() => api.adjust(p.id, count, reason, key), "Stock corrigé")} />
+        <AdjustModal position={p} busy={busy} onClose={() => setModal(null)} onSubmit={(count, reason, key) => run(() => api.adjust(p.id, count, reason, key), t("Stock corrigé"))} />
       )}
     </div>
   );
@@ -275,23 +276,23 @@ function AdjustModal({ position, busy, onClose, onSubmit }: {
 
   return (
     <Modal
-      title="Corriger le stock"
-      description={`Saisissez la quantité réellement comptée en ${position.locationCode}. Le système enregistre l'écart (${position.onHand} actuellement).`}
+      title={t("Corriger le stock")}
+      description={t("Saisissez la quantité réellement comptée en {location}. Le système enregistre l'écart ({count} actuellement).", { location: position.locationCode, count: position.onHand })}
       onClose={onClose}
     >
       <form className="grid gap-4" onSubmit={submit}>
         <div className="grid gap-1.5">
-          <span className="text-[13px] leading-none font-medium text-foreground/80">Quantité comptée</span>
-          <Stepper value={count} onChange={setCount} min={0} max={position.kind === "UNIQUE" ? 1 : 1_000_000} label="Quantité comptée" />
+          <span className="text-[13px] leading-none font-medium text-foreground/80">{t("Quantité comptée")}</span>
+          <Stepper value={count} onChange={setCount} min={0} max={position.kind === "UNIQUE" ? 1 : 1_000_000} label={t("Quantité comptée")} />
         </div>
         {count < committed && (
-          <Alert variant="warning">{committed} carte{committed > 1 ? "s sont engagées" : " est engagée"} (commande, inspection ou quarantaine) : la correction sera refusée.</Alert>
+          <Alert variant="warning">{tn(committed, "{n} carte est engagée (commande, inspection ou quarantaine) : la correction sera refusée.", "{n} cartes sont engagées (commande, inspection ou quarantaine) : la correction sera refusée.")}</Alert>
         )}
-        <Field label="Motif (obligatoire)">
-          <Textarea value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} placeholder="Ex. comptage du 17/11, carte abîmée retirée" required />
+        <Field label={t("Motif (obligatoire)")}>
+          <Textarea value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} placeholder={t("Ex. comptage du 17/11, carte abîmée retirée")} required />
         </Field>
         <Button type="submit" size="lg" disabled={busy || delta === 0 || !reason.trim()}>
-          {delta === 0 ? "Aucun écart" : `Enregistrer l'écart (${delta > 0 ? "+" : "−"}${Math.abs(delta)})`}
+          {delta === 0 ? t("Aucun écart") : t("Enregistrer l'écart ({delta})", { delta: `${delta > 0 ? "+" : "−"}${Math.abs(delta)}` })}
         </Button>
       </form>
     </Modal>

@@ -1,4 +1,5 @@
 import { ApiError } from "./api";
+import { t, tn } from "./i18n";
 import type { CardCondition } from "./types";
 
 /** Réglages qui restent d'une carte à l'autre : on range une série de cartes au même endroit, au même coût. */
@@ -21,7 +22,7 @@ export const PUBLISH_MODES: { value: AutopilotPrefs["publishMode"]; label: strin
 ];
 /** « mise en ligne immédiate », « 20 mises en ligne par jour », « sans mise en ligne ». */
 export const publishModeLabel = (mode: AutopilotPrefs["publishMode"], perDay: number | null) =>
-  mode === "NOW" ? "mise en ligne immédiate" : mode === "DAILY" ? `${perDay} mise${(perDay ?? 0) > 1 ? "s" : ""} en ligne par jour` : "sans mise en ligne";
+  mode === "NOW" ? t("mise en ligne immédiate") : mode === "DAILY" ? tn(perDay ?? 0, "{n} mise en ligne par jour", "{n} mises en ligne par jour") : t("sans mise en ligne");
 export const DEFAULT_SCAN_SESSION: ScanSession = { locationCode: "", cost: "0", lotId: "", language: "fr", condition: "" };
 
 export const LANGUAGES: [string, string][] = [
@@ -46,6 +47,6 @@ const SUBMIT_ERRORS: Record<string, string> = {
 };
 
 const translate = (table: Record<string, string>) => (e: unknown) =>
-  e instanceof ApiError ? (table[e.code] ?? e.message) : (e as Error).message;
+  e instanceof ApiError ? (table[e.code] ? t(table[e.code]!) : e.message) : (e as Error).message;
 export const scanErrorMessage = translate(SCAN_ERRORS);
 export const submitErrorMessage = translate(SUBMIT_ERRORS);

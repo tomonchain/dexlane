@@ -11,14 +11,14 @@ import { Card } from "@/components/ui/card";
 import { Input, Select } from "@/components/ui/input";
 import { Code, EmptyState, PageHeader, Skeleton } from "@/components/ui/misc";
 import { api } from "@/lib/api";
-import { LIFECYCLE, formatEuros, positionSubtitle, positionTitle } from "@/lib/format";
+import { LIFECYCLE, formatEuros, formatNumber, positionSubtitle, positionTitle } from "@/lib/format";
+import { t, tn } from "@/lib/i18n";
 import type { InventoryPage, InventorySummary, Position } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ListSkeleton } from "@/components/skeletons";
 
 const PAGE = 50;
 const COLUMNS = "md:grid-cols-[minmax(0,1fr)_7.5rem_minmax(0,11rem)_7rem_5.5rem_4rem_1rem]";
-const number = new Intl.NumberFormat("fr-FR");
 
 function Stat({ icon, label, value, hint, tone }: { icon: ReactNode; label: string; value: ReactNode; hint?: ReactNode; tone?: "warning" }) {
   return (
@@ -34,10 +34,10 @@ function Stat({ icon, label, value, hint, tone }: { icon: ReactNode; label: stri
 }
 
 function StatusBadge({ p }: { p: Position }) {
-  if (p.lifecycle === "DRAFT") return <Badge variant="warning">{LIFECYCLE.DRAFT}</Badge>;
-  if (p.lifecycle === "ARCHIVED") return <Badge variant="outline">{LIFECYCLE.ARCHIVED}</Badge>;
-  if (p.reserved > 0) return <Badge variant="brand">{p.reserved} réservée{p.reserved > 1 ? "s" : ""}</Badge>;
-  return <Badge variant="success">{LIFECYCLE.ACTIVE}</Badge>;
+  if (p.lifecycle === "DRAFT") return <Badge variant="warning">{t(LIFECYCLE.DRAFT!)}</Badge>;
+  if (p.lifecycle === "ARCHIVED") return <Badge variant="outline">{t(LIFECYCLE.ARCHIVED!)}</Badge>;
+  if (p.reserved > 0) return <Badge variant="brand">{tn(p.reserved, "{n} réservée", "{n} réservées")}</Badge>;
+  return <Badge variant="success">{t(LIFECYCLE.ACTIVE!)}</Badge>;
 }
 
 export default function InventoryPage() {
@@ -95,30 +95,30 @@ export default function InventoryPage() {
   return (
     <div className="grid gap-5">
       <PageHeader
-        title="Inventaire"
-        description="Chaque ligne est une position physique : une carte (ou un lot) à un emplacement."
-        actions={page && <span className="tabular text-sm text-muted-foreground" role="status">{page.total} position{page.total > 1 ? "s" : ""}</span>}
+        title={t("Inventaire")}
+        description={t("Chaque ligne est une position physique : une carte (ou un lot) à un emplacement.")}
+        actions={page && <span className="tabular text-sm text-muted-foreground" role="status">{tn(page.total, "{n} position", "{n} positions")}</span>}
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {summary ? (
           <>
-            <Stat icon={<Boxes />} label="Cartes en stock" value={number.format(summary.cards)} hint={summary.bulkCards > 0 ? `dont ${number.format(summary.bulkCards)} en vrac` : `${number.format(summary.positions)} position${summary.positions > 1 ? "s" : ""}`} />
-            <Stat icon={<ShoppingBag />} label="Disponibles à la vente" value={number.format(summary.sellable)} hint={summary.reserved > 0 ? `${number.format(summary.reserved)} réservées` : "hors vrac et brouillons"} />
+            <Stat icon={<Boxes />} label={t("Cartes en stock")} value={formatNumber(summary.cards)} hint={summary.bulkCards > 0 ? t("dont {n} en vrac", { n: formatNumber(summary.bulkCards) }) : tn(summary.positions, "{n} position", "{n} positions")} />
+            <Stat icon={<ShoppingBag />} label={t("Disponibles à la vente")} value={formatNumber(summary.sellable)} hint={summary.reserved > 0 ? t("{n} réservées", { n: formatNumber(summary.reserved) }) : t("hors vrac et brouillons")} />
             <Stat
               icon={<CircleDollarSign />}
-              label="Valeur estimée"
+              label={t("Valeur estimée")}
               value={formatEuros(summary.marketValueCents)}
-              hint={`coût d'achat ${formatEuros(summary.costCents)}${summary.unpricedCards > 0 ? ` · ${number.format(summary.unpricedCards)} sans prix` : ""}`}
+              hint={`${t("coût d'achat {amount}", { amount: formatEuros(summary.costCents) })}${summary.unpricedCards > 0 ? ` · ${t("{n} sans prix", { n: formatNumber(summary.unpricedCards) })}` : ""}`}
             />
             <Stat
               icon={<FileClock />}
-              label="Brouillons"
-              value={number.format(summary.drafts)}
+              label={t("Brouillons")}
+              value={formatNumber(summary.drafts)}
               tone={summary.drafts > 0 ? "warning" : undefined}
               hint={summary.drafts > 0
-                ? <button type="button" className="font-medium text-primary underline-offset-2 hover:underline" onClick={() => setLifecycle("DRAFT")}>à valider</button>
-                : "rien à valider"}
+                ? <button type="button" className="font-medium text-primary underline-offset-2 hover:underline" onClick={() => setLifecycle("DRAFT")}>{t("à valider")}</button>
+                : t("rien à valider")}
             />
           </>
         ) : (
@@ -129,24 +129,24 @@ export default function InventoryPage() {
       <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_10rem_12rem_13rem]">
         <span className="relative block">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <Input type="search" placeholder="Nom de carte, SKU de position ou d'offre" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Rechercher" autoCorrect="off" className="pl-9" />
+          <Input type="search" placeholder={t("Nom de carte, SKU de position ou d'offre")} value={q} onChange={(e) => setQ(e.target.value)} aria-label={t("Rechercher")} autoCorrect="off" className="pl-9" />
         </span>
         <div className="grid grid-cols-2 gap-2 md:contents">
-          <Select value={lifecycle} onChange={(e) => setLifecycle(e.target.value)} aria-label="Statut">
-            <option value="">En stock</option>
-            <option value="ACTIVE">Actives</option>
-            <option value="DRAFT">Brouillons</option>
-            <option value="ARCHIVED">Archivées</option>
-            <option value="ALL">Toutes</option>
+          <Select value={lifecycle} onChange={(e) => setLifecycle(e.target.value)} aria-label={t("Statut")}>
+            <option value="">{t("En stock")}</option>
+            <option value="ACTIVE">{t("Actives")}</option>
+            <option value="DRAFT">{t("Brouillons")}</option>
+            <option value="ARCHIVED">{t("Archivées")}</option>
+            <option value="ALL">{t("Toutes")}</option>
           </Select>
-          <Select value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Type">
-            <option value="">Tous les types</option>
-            <option value="FUNGIBLE">Interchangeables</option>
-            <option value="UNIQUE">Exemplaires uniques</option>
-            <option value="BULK">Vrac</option>
+          <Select value={kind} onChange={(e) => setKind(e.target.value)} aria-label={t("Type")}>
+            <option value="">{t("Tous les types")}</option>
+            <option value="FUNGIBLE">{t("Interchangeables")}</option>
+            <option value="UNIQUE">{t("Exemplaires uniques")}</option>
+            <option value="BULK">{t("Vrac")}</option>
           </Select>
         </div>
-        <Input placeholder="Emplacement (BOX-03…)" value={location} onChange={(e) => setLocation(e.target.value)} aria-label="Emplacement" autoCapitalize="characters" autoCorrect="off" className="font-mono" />
+        <Input placeholder={t("Emplacement (BOX-03…)")} value={location} onChange={(e) => setLocation(e.target.value)} aria-label={t("Emplacement")} autoCapitalize="characters" autoCorrect="off" className="font-mono" />
       </div>
 
       {error && <Alert variant="destructive">{error}</Alert>}
@@ -154,17 +154,17 @@ export default function InventoryPage() {
       {!error && page && items.length === 0 && !loading && (
         <EmptyState
           icon={<PackageSearch />}
-          title={filtered ? "Aucune position ne correspond" : "Le stock est vide"}
-          action={!filtered && <Button asChild size="sm"><Link href="/ajouter">Ajouter une première carte</Link></Button>}
+          title={filtered ? t("Aucune position ne correspond") : t("Le stock est vide")}
+          action={!filtered && <Button asChild size="sm"><Link href="/ajouter">{t("Ajouter une première carte")}</Link></Button>}
         >
-          {filtered ? "Élargissez la recherche ou retirez un filtre." : "Les cartes entrées depuis le Scanner apparaîtront ici."}
+          {filtered ? t("Élargissez la recherche ou retirez un filtre.") : t("Les cartes entrées depuis le Scanner apparaîtront ici.")}
         </EmptyState>
       )}
 
       {items.length > 0 && (
         <Card className="overflow-hidden">
           <div className={cn("hidden gap-4 border-b bg-muted/40 px-4 py-2.5 text-xs font-medium text-muted-foreground md:grid", COLUMNS)}>
-            <span>Carte</span><span>Position</span><span>Emplacement</span><span>Statut</span><span className="text-right">Prix cible</span><span className="text-right">Stock</span><span />
+            <span>{t("Carte")}</span><span>{t("Position")}</span><span>{t("Emplacement")}</span><span>{t("Statut")}</span><span className="text-right">{t("Prix cible")}</span><span className="text-right">{t("Stock")}</span><span />
           </div>
           <div className="divide-y">
             {items.map((p) => (
@@ -185,7 +185,7 @@ export default function InventoryPage() {
                 <Code className="hidden truncate text-[13px] md:block">{p.locationCode}</Code>
                 <span className="hidden md:block"><StatusBadge p={p} /></span>
                 <span className="tabular hidden text-right text-sm text-muted-foreground md:block">{p.offer?.targetPriceCents != null ? formatEuros(p.offer.targetPriceCents) : "—"}</span>
-                <span className="tabular text-right text-base font-semibold md:text-sm" title="En stock">{number.format(p.onHand)}</span>
+                <span className="tabular text-right text-base font-semibold md:text-sm" title={t("En stock")}>{formatNumber(p.onHand)}</span>
                 <ChevronRight className="hidden size-4 text-muted-foreground md:block" aria-hidden />
               </Link>
             ))}
@@ -193,9 +193,9 @@ export default function InventoryPage() {
         </Card>
       )}
 
-      {loading && <ListSkeleton count={6} thumb label="Chargement de l'inventaire" />}
+      {loading && <ListSkeleton count={6} thumb label={t("Chargement de l'inventaire")} />}
       {page && items.length < page.total && !loading && (
-        <Button variant="outline" onClick={more} className="justify-self-center">Afficher la suite ({page.total - items.length} restantes)</Button>
+        <Button variant="outline" onClick={more} className="justify-self-center">{t("Afficher la suite ({n} restantes)", { n: page.total - items.length })}</Button>
       )}
     </div>
   );

@@ -3,6 +3,7 @@
 import { ImageOff, Search } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { api } from "@/lib/api";
+import { t } from "@/lib/i18n";
 import { useCardImage } from "@/lib/card-image";
 import type { Candidate } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -32,7 +33,7 @@ function Score({ value }: { value: number }) {
   const percent = Math.round(value * 100);
   const tone = percent >= 95 ? "text-success" : percent >= 75 ? "text-warning" : "text-muted-foreground";
   return (
-    <span className="grid justify-items-end gap-1" title="Score de correspondance">
+    <span className="grid justify-items-end gap-1" title={t("Score de correspondance")}>
       <span className={cn("tabular text-sm font-semibold", tone)}>{percent} %</span>
       <span className="h-1 w-12 overflow-hidden rounded-full bg-muted" aria-hidden>
         <span className="block h-full rounded-full bg-current opacity-80" style={{ width: `${percent}%`, color: "inherit" }} />
@@ -48,7 +49,7 @@ export function CandidateList({ candidates, selectedId, onSelect }: {
   onSelect: (c: Candidate) => void;
 }) {
   return (
-    <div className="grid gap-2" role="radiogroup" aria-label="Cartes proposées">
+    <div className="grid gap-2" role="radiogroup" aria-label={t("Cartes proposées")}>
       {candidates.map((c) => {
         const selected = c.catalogCardId === selectedId;
         return (
@@ -67,7 +68,7 @@ export function CandidateList({ candidates, selectedId, onSelect }: {
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[15px] font-semibold">{c.name}</span>
               <span className="block truncate text-sm text-muted-foreground">
-                {c.setName ?? c.setId} · n° {c.localNumber}{c.rarity ? ` · ${c.rarity}` : ""}
+                {c.setName ?? c.setId} · {t("n° {number}", { number: c.localNumber })}{c.rarity ? ` · ${c.rarity}` : ""}
               </span>
             </span>
             <span className={selected ? "text-primary" : undefined}><Score value={c.score} /></span>
@@ -97,7 +98,7 @@ export function ManualSearch({ language, initial, onResults }: {
     try {
       const { candidates } = await api.searchCatalog({ language, name: name.trim(), number: number.trim(), set: set.trim() });
       onResults(candidates);
-      if (candidates.length === 0) setMessage("Aucune carte trouvée. Vérifiez la langue, ou synchronisez la série de cette carte depuis l'onglet Catalogue.");
+      if (candidates.length === 0) setMessage(t("Aucune carte trouvée. Vérifiez la langue, ou synchronisez la série de cette carte depuis l'onglet Catalogue."));
     } catch (err) {
       setMessage((err as Error).message);
     } finally {
@@ -108,19 +109,19 @@ export function ManualSearch({ language, initial, onResults }: {
   const empty = !name.trim() && !number.trim() && !set.trim();
   return (
     <form className="grid gap-3 rounded-xl border border-dashed bg-muted/30 p-3" onSubmit={search}>
-      <Field label="Nom">
-        <Input value={name} onChange={(e) => setName(e.target.value)} autoCorrect="off" enterKeyHint="search" placeholder="Dracaufeu" />
+      <Field label={t("Nom")}>
+        <Input value={name} onChange={(e) => setName(e.target.value)} autoCorrect="off" enterKeyHint="search" placeholder={t("Dracaufeu")} />
       </Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Numéro">
+        <Field label={t("Numéro")}>
           <Input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="136/189" autoCorrect="off" enterKeyHint="search" />
         </Field>
-        <Field label="Série">
+        <Field label={t("Série")}>
           <SetCombobox language={language} value={set} onChange={setSet} />
         </Field>
       </div>
       <Button type="submit" variant="outline" disabled={busy || empty}>
-        {busy ? <Spinner /> : <Search />} Rechercher dans le catalogue
+        {busy ? <Spinner /> : <Search />} {t("Rechercher dans le catalogue")}
       </Button>
       {message && <Alert variant="warning">{message}</Alert>}
     </form>

@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import type { PricingSettings } from "./types";
 
 export type Category = "BULK" | "LOT" | "SINGLE" | "PREMIUM" | "REVIEW";
@@ -21,7 +22,8 @@ export const REASON_LABEL: Record<string, string> = {
   PREMIUM_NOT_UNIQUE: "Valeur premium : à vendre en exemplaire unique",
   DRIFT: "Le marché a bougé depuis votre prix",
 };
-export const reasonLabel = (code: string) => REASON_LABEL[code] ?? code;
+/** Motif traduit dans la langue de l'interface (à appeler au rendu). */
+export const reasonLabel = (code: string) => (REASON_LABEL[code] ? t(REASON_LABEL[code]!) : code);
 
 export const QUOTE_LABEL: Record<string, string> = {
   SOLD_ESTIMATE: "Ventes réussies", SOLD_AVG_7D: "7 j", SOLD_AVG_30D: "30 j", SOLD_AVG_1D: "veille",
@@ -36,7 +38,8 @@ export const CONFIDENCE_HINT: Record<"HIGH" | "MEDIUM" | "LOW", string> = {
   MEDIUM: "Les ventes de la semaine s'écartent de plus de 20 % de celles du mois.",
   LOW: "Une seule période de ventes renseignée : estimation à confirmer.",
 };
-export const quoteLabel = (type: string) => QUOTE_LABEL[type] ?? type;
+/** Source de cote traduite dans la langue de l'interface (à appeler au rendu). */
+export const quoteLabel = (type: string) => (QUOTE_LABEL[type] ? t(QUOTE_LABEL[type]!) : type);
 
 /** Catégorie que donnent les seuils pour un prix, sans tenir compte des motifs de revue (même règle que le serveur). */
 export function tierOf(priceCents: number, s: PricingSettings): Exclude<Category, "REVIEW"> {
@@ -56,7 +59,7 @@ const DAY_MS = 24 * 3600 * 1000;
 /** « aujourd'hui », « hier », « il y a 12 j ». */
 export function age(iso: string): string {
   const days = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / DAY_MS));
-  return days === 0 ? "aujourd'hui" : days === 1 ? "hier" : `il y a ${days} j`;
+  return days === 0 ? t("aujourd'hui") : days === 1 ? t("hier") : t("il y a {days} j", { days });
 }
 
 /** Montant en euros pour un champ de saisie : « 12,50 ». */

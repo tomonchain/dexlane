@@ -22,7 +22,8 @@ import { Modal } from "@/components/ui/modal";
 import { Pagination, SegmentedTabs } from "@/components/ui/tabs";
 import { ApiError, api } from "@/lib/api";
 import { useCardImage } from "@/lib/card-image";
-import { dayLabel, formatEuros, parseEuros, variantLabel } from "@/lib/format";
+import { dayLabel, formatEuros, formatNumber, parseEuros, variantLabel } from "@/lib/format";
+import { t, tn } from "@/lib/i18n";
 import { CONFIDENCE_LABEL, age, eurosInput, quoteLabel, reasonLabel } from "@/lib/pricing";
 import { CONDITIONS, type ChannelState, type ListingBlocker, type StockDetail, type StockFacets, type StockPage, type StockRow, type StockStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -47,7 +48,7 @@ const ERRORS: Record<string, string> = {
   LISTING_NOT_READY: "Il manque un prix, une photo ou une variante confirmée pour publier.",
   OFFER_NOT_SELLABLE: "Cette carte n'a plus de stock vendable.",
 };
-const message = (e: unknown) => (e instanceof ApiError ? (ERRORS[e.code] ?? e.message) : (e as Error).message);
+const message = (e: unknown) => (e instanceof ApiError ? (ERRORS[e.code] ? t(ERRORS[e.code]!) : e.message) : (e as Error).message);
 const subtitle = (r: StockRow) => `${r.setName ?? r.setId.toUpperCase()} · ${r.localNumber} · ${variantLabel(r)}`;
 
 
@@ -55,7 +56,7 @@ function StatusMark({ status, plannedOn }: { status: StockStatus; plannedOn?: st
   return (
     <span className="inline-flex items-center gap-1.5 text-[13px] whitespace-nowrap">
       <span className={cn("size-2 rounded-full", STATUS[status].dot)} aria-hidden />
-      {plannedOn && status === "READY" ? `Planifiée ${dayLabel(plannedOn)}` : STATUS[status].label}
+      {plannedOn && status === "READY" ? t("Planifiée {day}", { day: dayLabel(plannedOn) }) : t(STATUS[status].label)}
     </span>
   );
 }
@@ -90,7 +91,7 @@ function PriceCell({ row, onSaved }: { row: StockRow; onSaved: () => void }) {
         inputMode="decimal"
         value={draft}
         disabled={saving}
-        aria-label={`Prix de ${row.name}`}
+        aria-label={t("Prix de {name}", { name: row.name })}
         onChange={(e) => setDraft(e.target.value)}
         onFocus={(e) => e.target.select()}
         onBlur={commit}
@@ -105,23 +106,23 @@ function PriceCell({ row, onSaved }: { row: StockRow; onSaved: () => void }) {
   const edit = (cents: number | null) => setDraft(cents === null ? "" : eurosInput(cents));
   if (row.targetPriceCents !== null) {
     return (
-      <button type="button" onClick={() => edit(row.targetPriceCents)} aria-label={`Modifier le prix de ${row.name}`} className="tabular h-7 rounded-md px-2 text-sm font-medium outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/30">
+      <button type="button" onClick={() => edit(row.targetPriceCents)} aria-label={t("Modifier le prix de {name}", { name: row.name })} className="tabular h-7 rounded-md px-2 text-sm font-medium outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/30">
         {formatEuros(row.targetPriceCents)}
       </button>
     );
   }
   return (
     <span className="inline-flex items-center gap-1">
-      <button type="button" onClick={() => edit(row.suggestedPriceCents)} aria-label={`Fixer le prix de ${row.name}`} className="tabular h-7 rounded-md px-2 text-sm text-muted-foreground outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/30">
-        {row.suggestedPriceCents === null ? "Fixer" : formatEuros(row.suggestedPriceCents)}
+      <button type="button" onClick={() => edit(row.suggestedPriceCents)} aria-label={t("Fixer le prix de {name}", { name: row.name })} className="tabular h-7 rounded-md px-2 text-sm text-muted-foreground outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/30">
+        {row.suggestedPriceCents === null ? t("Fixer") : formatEuros(row.suggestedPriceCents)}
       </button>
       {row.suggestedPriceCents !== null && (
         <button
           type="button"
           disabled={saving}
           onClick={() => save(row.suggestedPriceCents!)}
-          aria-label={`Accepter ${formatEuros(row.suggestedPriceCents)} pour ${row.name}`}
-          title="Accepter le prix suggéré"
+          aria-label={t("Accepter {price} pour {name}", { price: formatEuros(row.suggestedPriceCents), name: row.name })}
+          title={t("Accepter le prix suggéré")}
           className="flex size-7 items-center justify-center rounded-md border bg-card text-foreground shadow-xs outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/30"
         >
           {saving ? <Spinner className="size-3.5" /> : <Check className="size-3.5" strokeWidth={2.5} />}
@@ -159,7 +160,7 @@ function FilterSelect({ label, value, all, options, onChange }: {
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
       <Select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} className={cn("h-9 w-full text-sm md:h-9", value && "border-primary/50 font-medium")}>
         <option value="">{all}</option>
-        {options.map((o) => <option key={o.value} value={o.value}>{o.label}{o.count !== undefined ? ` (${o.count.toLocaleString("fr-FR")})` : ""}</option>)}
+        {options.map((o) => <option key={o.value} value={o.value}>{o.label}{o.count !== undefined ? ` (${formatNumber(o.count)})` : ""}</option>)}
       </Select>
     </label>
   );
@@ -168,10 +169,13 @@ function FilterSelect({ label, value, all, options, onChange }: {
 /** Les filtres posés, pour les puces sous la recherche : ce qu'ils filtrent et la valeur lisible. */
 function activeFilters(filters: Filters, facets: StockFacets): { key: keyof Filters; label: string; value: string }[] {
   const out: { key: keyof Filters; label: string; value: string }[] = [];
-  if (filters.setId) out.push({ key: "setId", label: "Série", value: facets.sets.find((x) => x.id === filters.setId)?.name ?? filters.setId });
-  if (filters.location) out.push({ key: "location", label: "Boîte", value: filters.location });
-  if (filters.condition) out.push({ key: "condition", label: "État", value: CONDITIONS.find((c) => c.code === filters.condition)?.label ?? filters.condition });
-  if (filters.price) out.push({ key: "price", label: "Prix", value: PRICE_RANGES.find((r) => r.value === filters.price)?.label ?? filters.price });
+  if (filters.setId) out.push({ key: "setId", label: t("Série"), value: facets.sets.find((x) => x.id === filters.setId)?.name ?? filters.setId });
+  if (filters.location) out.push({ key: "location", label: t("Boîte"), value: filters.location });
+  if (filters.condition) out.push({ key: "condition", label: t("État"), value: CONDITIONS.find((c) => c.code === filters.condition)?.label ?? filters.condition });
+  if (filters.price) {
+    const range = PRICE_RANGES.find((r) => r.value === filters.price);
+    out.push({ key: "price", label: t("Prix"), value: range ? t(range.label) : filters.price });
+  }
   return out;
 }
 
@@ -179,49 +183,74 @@ function activeFilters(filters: Filters, facets: StockFacets): { key: keyof Filt
  * Filtres regroupés derrière un seul bouton : la barre reste lisible, le nombre de filtres posés s'affiche sur le bouton.
  * Sur téléphone, le tri y est aussi.
  */
-function FiltersPopover({ facets, filters, onChange, onClear, sort, onSort }: {
+function FiltersPopover({ facets, filters, onChange, onClear, sort, onSort, desktop }: {
   facets: StockFacets | null; filters: Filters; onChange: (key: keyof Filters, value: string) => void; onClear: () => void; sort: Sort; onSort: (sort: Sort) => void;
+  desktop: boolean;
 }) {
+  const [open, setOpen] = useState(false);
   const active = Object.values(filters).filter(Boolean).length;
+  const trigger = (
+    <Button variant="outline" className="h-9 shrink-0 px-3" onClick={desktop ? undefined : () => setOpen(true)}
+      aria-label={active > 0 ? tn(active, "Filtres, {n} actif", "Filtres, {n} actifs") : t("Filtres")} data-testid="stock-filters-button">
+      <SlidersHorizontal />
+      <span className="hidden sm:inline">{t("Filtres")}</span>
+      {active > 0 && <span className="tabular flex size-5 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">{active}</span>}
+    </Button>
+  );
+  const fields = (close: ReactNode) => (
+    <>
+      {!desktop && (
+        <label className="grid gap-1.5">
+          <span className="text-xs font-medium text-muted-foreground">{t("Trier par")}</span>
+          <Select value={sort} onChange={(e) => onSort(e.target.value as Sort)} className="h-10 w-full text-sm md:h-10">
+            {SORTS.map((o) => <option key={o.value} value={o.value}>{t(o.label)}</option>)}
+          </Select>
+        </label>
+      )}
+      {facets && (
+        <>
+          <FilterSelect label={t("Série")} value={filters.setId} onChange={(v) => onChange("setId", v)} all={t("Toutes les séries")}
+            options={facets.sets.map((x) => ({ value: x.id, label: x.name, count: x.cards }))} />
+          <FilterSelect label={t("Boîte")} value={filters.location} onChange={(v) => onChange("location", v)} all={t("Toutes les boîtes")}
+            options={facets.locations.map((l) => ({ value: l.code, label: l.code, count: l.cards }))} />
+          <FilterSelect label={t("État")} value={filters.condition} onChange={(v) => onChange("condition", v)} all={t("Tous les états")}
+            options={facets.conditions.map((c) => ({ value: c.code, label: `${c.code} · ${CONDITIONS.find((k) => k.code === c.code)?.label ?? c.code}`, count: c.cards }))} />
+        </>
+      )}
+      <FilterSelect label={t("Prix")} value={filters.price} onChange={(v) => onChange("price", v)} all={t("Tous les prix")}
+        options={PRICE_RANGES.map((r) => ({ value: r.value, label: t(r.label) }))} />
+      <div className="flex items-center justify-between gap-2 border-t pt-3">
+        <Button variant="ghost" size={desktop ? "sm" : "default"} onClick={onClear} disabled={active === 0}>{t("Effacer")}</Button>
+        {close}
+      </div>
+    </>
+  );
+
+  // Sur téléphone, un tiroir depuis le bas : des champs pleine largeur, atteignables au pouce.
+  if (!desktop) {
+    return (
+      <>
+        {trigger}
+        {open && (
+          <Modal title={t("Filtres du stock")} onClose={() => setOpen(false)}>
+            <div className="grid gap-4">{fields(<Button onClick={() => setOpen(false)}>{t("Voir les cartes")}</Button>)}</div>
+          </Modal>
+        )}
+      </>
+    );
+  }
   return (
     <Popover.Root>
-      <Popover.Trigger asChild>
-        <Button variant="outline" className="h-9 shrink-0 px-3" aria-label={active > 0 ? `Filtres, ${active} actif${active > 1 ? "s" : ""}` : "Filtres"} data-testid="stock-filters-button">
-          <SlidersHorizontal />
-          <span className="hidden sm:inline">Filtres</span>
-          {active > 0 && <span className="tabular flex size-5 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">{active}</span>}
-        </Button>
-      </Popover.Trigger>
+      <Popover.Trigger asChild>{trigger}</Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
           align="end"
           sideOffset={6}
           collisionPadding={16}
           className="z-50 grid w-[min(20rem,calc(100vw-2rem))] gap-3 rounded-xl border bg-popover p-4 text-popover-foreground shadow-lg outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
-          aria-label="Filtres du stock"
+          aria-label={t("Filtres du stock")}
         >
-          <label className="grid gap-1.5 sm:hidden">
-            <span className="text-xs font-medium text-muted-foreground">Trier par</span>
-            <Select value={sort} onChange={(e) => onSort(e.target.value as Sort)} className="h-9 w-full text-sm md:h-9">
-              {SORTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </Select>
-          </label>
-          {facets && (
-            <>
-              <FilterSelect label="Série" value={filters.setId} onChange={(v) => onChange("setId", v)} all="Toutes les séries"
-                options={facets.sets.map((x) => ({ value: x.id, label: x.name, count: x.cards }))} />
-              <FilterSelect label="Boîte" value={filters.location} onChange={(v) => onChange("location", v)} all="Toutes les boîtes"
-                options={facets.locations.map((l) => ({ value: l.code, label: l.code, count: l.cards }))} />
-              <FilterSelect label="État" value={filters.condition} onChange={(v) => onChange("condition", v)} all="Tous les états"
-                options={facets.conditions.map((c) => ({ value: c.code, label: `${c.code} · ${CONDITIONS.find((k) => k.code === c.code)?.label ?? c.code}`, count: c.cards }))} />
-            </>
-          )}
-          <FilterSelect label="Prix" value={filters.price} onChange={(v) => onChange("price", v)} all="Tous les prix"
-            options={PRICE_RANGES.map((r) => ({ value: r.value, label: r.label }))} />
-          <div className="flex items-center justify-between gap-2 border-t pt-3">
-            <Button variant="ghost" size="sm" onClick={onClear} disabled={active === 0}>Effacer</Button>
-            <Popover.Close asChild><Button size="sm">Voir les cartes</Button></Popover.Close>
-          </div>
+          {fields(<Popover.Close asChild><Button size="sm">{t("Voir les cartes")}</Button></Popover.Close>)}
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
@@ -243,16 +272,16 @@ function SelectionBar({ rows, busy, onClear, onBulk, onMove, onPlan }: {
   const toPrice = rows.filter((r) => r.targetPriceCents === null && r.suggestedPriceCents !== null).length;
   const drafts = rows.filter((r) => r.draft > 0).length;
   const actions: { key: string; label: string; icon: ReactNode; onSelect: () => void; primary?: boolean }[] = [
-    ...(toPrice > 0 ? [{ key: "price", label: `Accepter les prix (${toPrice})`, icon: <Check />, onSelect: () => onBulk("ACCEPT_PRICE") }] : []),
-    ...(drafts > 0 ? [{ key: "activate", label: `Valider les brouillons (${drafts})`, icon: <BadgeCheck />, onSelect: () => onBulk("ACTIVATE") }] : []),
-    { key: "move", label: "Déplacer", icon: <MoveRight />, onSelect: onMove },
-    { key: "csv", label: "Exporter", icon: <Download />, onSelect: () => exportStockCsv(rows) },
-    { key: "plan", label: "Mettre en ligne", icon: <CalendarClock />, onSelect: onPlan, primary: true },
+    ...(toPrice > 0 ? [{ key: "price", label: t("Accepter les prix ({n})", { n: formatNumber(toPrice) }), icon: <Check />, onSelect: () => onBulk("ACCEPT_PRICE") }] : []),
+    ...(drafts > 0 ? [{ key: "activate", label: t("Valider les brouillons ({n})", { n: formatNumber(drafts) }), icon: <BadgeCheck />, onSelect: () => onBulk("ACTIVATE") }] : []),
+    { key: "move", label: t("Déplacer"), icon: <MoveRight />, onSelect: onMove },
+    { key: "csv", label: t("Exporter"), icon: <Download />, onSelect: () => exportStockCsv(rows) },
+    { key: "plan", label: t("Mettre en ligne"), icon: <CalendarClock />, onSelect: onPlan, primary: true },
   ];
   const n = rows.length;
   return (
-    <ActionBar message={<span className="flex flex-wrap items-center gap-x-3"><strong className="font-semibold text-foreground">{n} carte{n > 1 ? "s" : ""} sélectionnée{n > 1 ? "s" : ""}</strong>
-      <button type="button" onClick={onClear} className="text-xs underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline">Désélectionner</button></span>}
+    <ActionBar message={<span className="flex flex-wrap items-center gap-x-3"><strong className="font-semibold text-foreground">{tn(n, "{n} carte sélectionnée", "{n} cartes sélectionnées")}</strong>
+      <button type="button" onClick={onClear} className="text-xs underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline">{t("Désélectionner")}</button></span>}
     >
       {busy && <Spinner />}
       <span className="hidden items-center gap-2 md:flex" data-testid="selection-actions">
@@ -262,7 +291,7 @@ function SelectionBar({ rows, busy, onClear, onBulk, onMove, onPlan }: {
       </span>
       <DropdownMenu.Root>
         <DropdownMenu.Trigger asChild>
-          <Button size="sm" disabled={busy} className="md:hidden">Actions <ChevronUp /></Button>
+          <Button size="sm" disabled={busy} className="md:hidden">{t("Actions")} <ChevronUp /></Button>
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
           <DropdownMenu.Content side="top" align="end" sideOffset={8} className="z-50 w-60 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg outline-none">
@@ -365,7 +394,7 @@ function Stock() {
         await api.setOfferPrice(row.offerId, { targetPriceCents: row.suggestedPriceCents! });
         done++;
       }
-      toast.success(`${done} prix accepté${done > 1 ? "s" : ""}`);
+      toast.success(tn(done, "{n} prix accepté", "{n} prix acceptés"));
     } catch (e) {
       toast.error(message(e));
     } finally {
@@ -398,11 +427,11 @@ function Stock() {
     setBulkBusy(true);
     try {
       const { affected } = await api.stockBulk(action === "MOVE" ? { action, offerIds, locationCode: locationCode! } : { action, offerIds });
-      const s = affected > 1 ? "s" : "";
       toast.success(
-        action === "ACCEPT_PRICE" ? `${affected} prix accepté${s}`
-          : action === "ACTIVATE" ? `${affected} exemplaire${s} validé${s}`
-          : affected === 0 ? `Déjà rangées dans ${locationCode}` : `${affected} position${s} déplacée${s} dans ${locationCode}`,
+        action === "ACCEPT_PRICE" ? tn(affected, "{n} prix accepté", "{n} prix acceptés")
+          : action === "ACTIVATE" ? tn(affected, "{n} exemplaire validé", "{n} exemplaires validés")
+          : affected === 0 ? t("Déjà rangées dans {code}", { code: locationCode! })
+          : tn(affected, "{n} position déplacée dans {code}", "{n} positions déplacées dans {code}", { code: locationCode! }),
       );
       setChecked(new Map());
     } catch (e) {
@@ -424,16 +453,16 @@ function Stock() {
   return (
     <Page className="gap-4">
       <PageHeader
-        title="Stock"
+        title={t("Stock")}
         meta={data && data.counts.ALL > 0 && (
           <span className="tabular" data-testid="stock-totals">
-            {data.totals.cards.toLocaleString("fr-FR")} carte{data.totals.cards > 1 ? "s" : ""} · {formatEuros(data.totals.valueCents)}
+            {tn(data.totals.cards, "{n} carte", "{n} cartes")} · {formatEuros(data.totals.valueCents)}
           </span>
         )}
         actions={<>
           <Button asChild variant="outline">
             <Link href="/mises-en-ligne">
-              <CalendarClock /> Mises en ligne
+              <CalendarClock /> {t("Mises en ligne")}
               {scheduled > 0 && <span className="tabular rounded-full bg-muted px-1.5 text-[11px] font-semibold text-muted-foreground">{scheduled}</span>}
             </Link>
           </Button>
@@ -446,31 +475,31 @@ function Stock() {
       {empty ? (
         <div className="grid justify-items-center gap-4 rounded-lg border border-dashed px-6 py-16 text-center">
           <div className="grid gap-1">
-            <p className="text-base font-semibold">Votre stock est vide</p>
-            <p className="max-w-sm text-sm text-muted-foreground">Faites entrer vos cartes : elles sont identifiées, estimées, puis prêtes à vendre.</p>
+            <p className="text-base font-semibold">{t("Votre stock est vide")}</p>
+            <p className="max-w-sm text-sm text-muted-foreground">{t("Faites entrer vos cartes : elles sont identifiées, estimées, puis prêtes à vendre.")}</p>
           </div>
           <div className="flex flex-wrap justify-center gap-2">
-            <Button asChild><Link href="/scanner/lot"><Images /> Importer un lot d'images</Link></Button>
-            <Button asChild variant="outline"><Link href="/ajouter"><ScanLine /> Ajouter une carte</Link></Button>
+            <Button asChild><Link href="/scanner/lot"><Images /> {t("Importer un lot d'images")}</Link></Button>
+            <Button asChild variant="outline"><Link href="/ajouter"><ScanLine /> {t("Ajouter une carte")}</Link></Button>
           </div>
         </div>
       ) : (
         <>
           <div className="grid gap-3">
-            <div className="max-w-full overflow-x-auto">
+            <div>
               <SegmentedTabs
-                label="Statut"
+                label={t("Statut")}
                 value={filter}
                 onChange={(next) => {
                   setFilter(next);
                   setPage(1);
                 }}
                 tabs={[
-                  { value: "ALL", label: "Tout", count: data?.counts.ALL },
-                  { value: "TO_PRICE", label: "À tarifer", count: data?.counts.TO_PRICE },
-                  { value: "READY", label: "Prêtes", count: data?.counts.READY },
-                  { value: "LISTED", label: "En ligne", count: data?.counts.LISTED },
-                  { value: "DRAFT", label: "Brouillons", count: data?.counts.DRAFT },
+                  { value: "ALL", label: t("Tout"), count: data?.counts.ALL },
+                  { value: "TO_PRICE", label: t("À tarifer"), count: data?.counts.TO_PRICE },
+                  { value: "READY", label: t("Prêtes"), count: data?.counts.READY },
+                  { value: "LISTED", label: t("En ligne"), count: data?.counts.LISTED },
+                  { value: "DRAFT", label: t("Brouillons"), count: data?.counts.DRAFT },
                 ]}
               />
             </div>
@@ -485,29 +514,29 @@ function Stock() {
                     setQuery(e.target.value);
                     setPage(1);
                   }}
-                  placeholder="Nom, série, numéro ou référence"
-                  aria-label="Rechercher dans le stock"
+                  placeholder={t("Nom, série, numéro ou référence")}
+                  aria-label={t("Rechercher dans le stock")}
                   className="h-9 w-full rounded-md border border-input bg-card pr-3 pl-8 text-sm outline-none placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15"
                 />
               </div>
-              <FiltersPopover facets={facets} filters={filters} onChange={setFilterValue} onClear={clearFilters} sort={sort} onSort={setSort} />
-              <Select value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Trier" className="hidden h-9 w-auto text-sm sm:ml-auto sm:block md:h-9">
-                {SORTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              <FiltersPopover facets={facets} filters={filters} onChange={setFilterValue} onClear={clearFilters} sort={sort} onSort={setSort} desktop={desktop} />
+              <Select value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label={t("Trier")} className="hidden h-9 w-auto text-sm lg:ml-auto lg:block md:h-9">
+                {SORTS.map((o) => <option key={o.value} value={o.value}>{t(o.label)}</option>)}
               </Select>
             </div>
 
             {filtered && facets && (
-              <div className="flex flex-wrap items-center gap-1.5" data-testid="stock-filters" aria-label="Filtres actifs">
+              <div className="flex flex-wrap items-center gap-1.5" data-testid="stock-filters" aria-label={t("Filtres actifs")}>
                 {activeFilters(filters, facets).map((f) => (
                   <span key={f.key} className="inline-flex h-7 items-center gap-1 rounded-full border bg-accent pr-1 pl-2.5 text-xs font-medium">
-                    <span className="text-muted-foreground">{f.label} :</span> {f.value}
-                    <button type="button" onClick={() => setFilterValue(f.key, "")} aria-label={`Retirer le filtre ${f.label}`} className="flex size-5 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-background hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40">
+                    <span className="text-muted-foreground">{t("{label} :", { label: f.label })}</span> {f.value}
+                    <button type="button" onClick={() => setFilterValue(f.key, "")} aria-label={t("Retirer le filtre {label}", { label: f.label })} className="flex size-5 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-background hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40">
                       <X className="size-3" />
                     </button>
                   </span>
                 ))}
                 <button type="button" onClick={clearFilters} className="px-1.5 text-xs font-medium text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline">
-                  Tout effacer
+                  {t("Tout effacer")}
                 </button>
               </div>
             )}
@@ -517,10 +546,10 @@ function Stock() {
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-card px-3 py-2 text-sm">
               <Check className="size-4 text-muted-foreground" aria-hidden />
               <span className="min-w-0 flex-1 text-muted-foreground">
-                {suggested.length} carte{suggested.length > 1 ? "s ont" : " a"} un prix suggéré à valider sur cette page.
+                {tn(suggested.length, "{n} carte a un prix suggéré à valider sur cette page.", "{n} cartes ont un prix suggéré à valider sur cette page.")}
               </span>
               <Button variant="outline" size="sm" onClick={acceptAll} disabled={accepting}>
-                {accepting ? <Spinner /> : <Check />} Accepter les {suggested.length} prix suggérés
+                {accepting ? <Spinner /> : <Check />} {t("Accepter les {n} prix suggérés", { n: formatNumber(suggested.length) })}
               </Button>
             </div>
           )}
@@ -534,7 +563,7 @@ function Stock() {
                       <input
                         type="checkbox"
                         checked={allChecked}
-                        aria-label="Sélectionner toutes les cartes de la page"
+                        aria-label={t("Sélectionner toutes les cartes de la page")}
                         onChange={() => setChecked((current) => {
                           const next = new Map(current);
                           for (const row of data?.items ?? []) if (allChecked) next.delete(row.offerId); else next.set(row.offerId, row);
@@ -543,13 +572,13 @@ function Stock() {
                         className="size-4 cursor-pointer accent-foreground"
                       />
                     </th>
-                    <th className="h-9 px-3 font-medium">Carte</th>
-                    <th className="hidden px-3 font-medium sm:table-cell">État</th>
-                    <th className="px-3 text-right font-medium">Qté</th>
-                    <th className="hidden px-3 font-medium md:table-cell">Emplacement</th>
-                    <th className={cn("hidden px-3 text-right font-medium", selected ? "2xl:table-cell" : "lg:table-cell")} title="Prix estimé d'après les ventes réussies, toutes langues et tous états confondus">Cote ventes</th>
-                    <th className="px-3 text-right font-medium">Prix</th>
-                    <th className="hidden px-3 font-medium sm:table-cell">Statut</th>
+                    <th className="h-9 px-3 font-medium">{t("Carte")}</th>
+                    <th className="hidden px-3 font-medium sm:table-cell">{t("État")}</th>
+                    <th className="px-3 text-right font-medium">{t("Qté")}</th>
+                    <th className="hidden px-3 font-medium md:table-cell">{t("Emplacement")}</th>
+                    <th className={cn("hidden px-3 text-right font-medium", selected ? "2xl:table-cell" : "lg:table-cell")} title={t("Prix estimé d'après les ventes réussies, toutes langues et tous états confondus")}>{t("Cote ventes")}</th>
+                    <th className="px-3 text-right font-medium">{t("Prix")}</th>
+                    <th className="hidden px-3 font-medium sm:table-cell">{t("Statut")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -567,7 +596,7 @@ function Stock() {
                       )}
                     >
                       <td className="w-9 pl-3" onClick={(e) => e.stopPropagation()}>
-                        <input type="checkbox" checked={checked.has(row.offerId)} onChange={() => toggle(row)} aria-label={`Sélectionner ${row.name} ${row.condition}`} className="size-4 cursor-pointer accent-foreground" />
+                        <input type="checkbox" checked={checked.has(row.offerId)} onChange={() => toggle(row)} aria-label={t("Sélectionner {name} {condition}", { name: row.name, condition: row.condition })} className="size-4 cursor-pointer accent-foreground" />
                       </td>
                       <td className="px-3 py-1.5">
                         <span className="flex items-center gap-3">
@@ -583,15 +612,15 @@ function Stock() {
                       <td className="hidden px-3 font-mono text-xs sm:table-cell">{row.condition}</td>
                       <td className="tabular px-3 text-right whitespace-nowrap">
                         {row.onHand}
-                        {row.reserved > 0 && <span className="block text-[11px] leading-tight text-muted-foreground" title={`${row.reserved} réservée${row.reserved > 1 ? "s" : ""} par une vente`}>{row.reserved} rés.</span>}
+                        {row.reserved > 0 && <span className="block text-[11px] leading-tight text-muted-foreground" title={tn(row.reserved, "{n} réservée par une vente", "{n} réservées par une vente")}>{t("{n} rés.", { n: formatNumber(row.reserved) })}</span>}
                       </td>
                       <td className="hidden px-3 md:table-cell">
                         <Code className="text-xs">{row.locations[0]}</Code>
                         {row.locations.length > 1 && <span className="text-xs text-muted-foreground"> +{row.locations.length - 1}</span>}
                       </td>
                       <td className={cn("tabular hidden px-3 text-right text-muted-foreground", selected ? "2xl:table-cell" : "lg:table-cell")} title={row.reference ? (row.sales
-                        ? `Ventes réussies Cardmarket (${CONFIDENCE_LABEL[row.sales.confidence]}), relevées ${age(row.reference.observedAt)}`
-                        : `Aucune vente récente : ${quoteLabel(row.reference.quoteType).toLowerCase()} des annonces Cardmarket, relevée ${age(row.reference.observedAt)}`) : undefined}>
+                        ? t("Ventes réussies Cardmarket ({confidence}), relevées {age}", { confidence: t(CONFIDENCE_LABEL[row.sales.confidence]), age: age(row.reference.observedAt) })
+                        : t("Aucune vente récente : {quote} des annonces Cardmarket, relevée {age}", { quote: quoteLabel(row.reference.quoteType).toLowerCase(), age: age(row.reference.observedAt) })) : undefined}>
                         {row.reference ? `${row.sales ? "" : "≈ "}${formatEuros(row.reference.amountCents)}` : "—"}
                       </td>
                       <td className="px-3 text-right" onClick={(e) => e.stopPropagation()}>
@@ -603,9 +632,9 @@ function Stock() {
                 </tbody>
                 {!data && <StockRowsSkeleton wideSales={!selected} />}
               </table>
-              {data && data.items.length === 0 && <p className="px-4 py-10 text-center text-sm text-muted-foreground">Aucune carte ne correspond.</p>}
+              {data && data.items.length === 0 && <p className="px-4 py-10 text-center text-sm text-muted-foreground">{t("Aucune carte ne correspond.")}</p>}
             </div>
-            {desktop ? inspector : selected && <Modal title="Carte" onClose={() => setSelected(null)}>{inspector}</Modal>}
+            {desktop ? inspector : selected && <Modal title={t("Carte")} onClose={() => setSelected(null)}>{inspector}</Modal>}
           </div>
           {data && <Pagination page={page} pageCount={Math.ceil(data.total / PAGE_SIZE)} onChange={setPage} />}
         </>
@@ -620,7 +649,7 @@ function Stock() {
           onMove={() => setMoving(true)}
           onPlan={() => {
             if (channels.length > 0) setPlanning(true);
-            else toast.error("Aucun canal de vente actif", { description: "Activez eBay ou CardTrader, en simulation ou en réel, dans Réglages › Canaux de vente." });
+            else toast.error(t("Aucun canal de vente actif"), { description: t("Activez eBay ou CardTrader, en simulation ou en réel, dans Réglages › Canaux de vente.") });
           }}
         />
       )}
@@ -674,7 +703,7 @@ function Section({ title, aside, children }: { title: string; aside?: ReactNode;
 function Figure({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
     <div className="grid gap-0.5" title={hint}>
-      <dt className="text-xs text-muted-foreground">{label}{hint && <span className="sr-only"> : {hint}</span>}</dt>
+      <dt className="text-xs text-muted-foreground">{label}{hint && <span className="sr-only">{t(" : {hint}", { hint })}</span>}</dt>
       <dd className="tabular text-sm font-medium">{children}</dd>
     </div>
   );
@@ -741,20 +770,20 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
   const savePrice = (value: number) => run(async () => {
     await api.setOfferPrice(d.offerId, { targetPriceCents: value });
   });
-  const copy = (text: string, what: string) => void navigator.clipboard?.writeText(text).then(() => toast.success(`${what} copié${what === "Description" ? "e" : ""}`));
+  const copy = (text: string, done: string) => void navigator.clipboard?.writeText(text).then(() => toast.success(done));
   // Les vues de l'exemplaire : scans recto et verso, visuels d'annonce, puis l'image du catalogue.
   const frontScan = d.photos.find((p) => p.kind === "SCAN_FRONT");
   const backScan = d.photos.find((p) => p.kind === "SCAN_BACK");
   const visuals = d.photos.filter((p) => p.kind === "LISTING");
   const views: ViewerPhoto[] = [
-    ...(frontScan ? [{ src: frontScan.url, label: "Recto" }] : []),
-    ...(backScan ? [{ src: backScan.url, label: "Verso" }] : []),
-    ...visuals.map((p, i) => ({ src: p.url, label: visuals.length > 1 ? `Photo d'annonce ${i + 1}` : "Photo d'annonce", shape: "square" as const })),
-    ...(catalogPicture.src ? [{ src: catalogPicture.src, label: "Image du catalogue" }] : []),
+    ...(frontScan ? [{ src: frontScan.url, label: t("Recto") }] : []),
+    ...(backScan ? [{ src: backScan.url, label: t("Verso") }] : []),
+    ...visuals.map((p, i) => ({ src: p.url, label: visuals.length > 1 ? t("Photo d'annonce {n}", { n: i + 1 }) : t("Photo d'annonce"), shape: "square" as const })),
+    ...(catalogPicture.src ? [{ src: catalogPicture.src, label: t("Image du catalogue") }] : []),
   ];
 
   return (
-    <aside className="overflow-hidden rounded-lg border bg-card lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto" aria-label={`Carte ${d.name}`} data-testid="stock-inspector">
+    <aside className="overflow-hidden rounded-lg border bg-card lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto" aria-label={t("Carte {name}", { name: d.name })} data-testid="stock-inspector">
       <div className="flex gap-3 p-4">
         {views.length > 0
           ? <PhotoStack front={views[0]!} back={frontScan && backScan ? views[1] : null} onOpen={setViewing} className="w-24" />
@@ -762,26 +791,28 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
         {viewing !== null && <PhotoViewer photos={views} start={viewing} title={`${d.name} · ${d.condition}`} onClose={() => setViewing(null)} />}
         <div className="grid min-w-0 flex-1 content-start gap-1">
           <h2 className="text-base leading-snug font-semibold [overflow-wrap:anywhere]">
-            <Link href={`/carte/${d.catalogCardId}`} className="underline-offset-2 outline-none hover:underline focus-visible:underline" title="Fiche de la carte : toutes ses variantes et tous ses exemplaires">{d.name}</Link>
+            <Link href={`/carte/${d.catalogCardId}`} className="underline-offset-2 outline-none hover:underline focus-visible:underline" title={t("Fiche de la carte : toutes ses variantes et tous ses exemplaires")}>{d.name}</Link>
           </h2>
           <p className="text-[13px] text-muted-foreground">{subtitle(d)} · {d.condition}</p>
           <div className="mt-1"><StatusMark status={d.status} /></div>
         </div>
-        <button type="button" onClick={onClose} aria-label="Fermer la fiche" className="hidden size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/30 lg:flex">
+        <button type="button" onClick={onClose} aria-label={t("Fermer la fiche")} className="hidden size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/30 lg:flex">
           <X className="size-4" />
         </button>
       </div>
 
       <dl className="grid grid-cols-4 gap-3 border-t px-4 py-3">
-        <Figure label="En stock">{d.onHand}</Figure>
-        <Figure label="Vendable">{d.available}</Figure>
-        <Figure label="Coût">{formatEuros(d.averageCostCents)}</Figure>
-        <Figure label="Marge" hint={`Prix − coût d'achat${supplies > 0 ? ` − sleeve et top-loader (${formatEuros(supplies)})` : ""}. L'affranchissement et l'enveloppe se comptent sur la vente, en face du port facturé.`}>
+        <Figure label={t("En stock")}>{d.onHand}</Figure>
+        <Figure label={t("Vendable")}>{d.available}</Figure>
+        <Figure label={t("Coût")}>{formatEuros(d.averageCostCents)}</Figure>
+        <Figure label={t("Marge")} hint={t("{formula}. L'affranchissement et l'enveloppe se comptent sur la vente, en face du port facturé.", {
+          formula: supplies > 0 ? t("Prix − coût d'achat − sleeve et top-loader ({price})", { price: formatEuros(supplies) }) : t("Prix − coût d'achat"),
+        })}>
           <span data-testid="stock-margin">{d.targetPriceCents === null ? "—" : formatEuros(d.targetPriceCents - d.averageCostCents - supplies)}</span>
         </Figure>
       </dl>
 
-      <Section title="Prix">
+      <Section title={t("Prix")}>
         <form
           className="flex gap-2"
           onSubmit={(e) => {
@@ -794,23 +825,23 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
               inputMode="decimal"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
-              placeholder={d.suggestedPriceCents === null ? "Prix de vente" : eurosInput(d.suggestedPriceCents)}
-              aria-label="Prix de vente (€)"
+              placeholder={d.suggestedPriceCents === null ? t("Prix de vente") : eurosInput(d.suggestedPriceCents)}
+              aria-label={t("Prix de vente (€)")}
               aria-invalid={price !== "" && cents === null}
               className="tabular h-10 w-full rounded-md border border-input bg-card pr-8 pl-3 text-base font-medium outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15 aria-invalid:border-destructive"
             />
             <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-muted-foreground">€</span>
           </span>
-          <Button type="submit" disabled={busy || !dirty}>Enregistrer</Button>
+          <Button type="submit" disabled={busy || !dirty}>{t("Enregistrer")}</Button>
         </form>
         <div className="flex items-end justify-between gap-3">
           <div className="grid gap-1 text-[13px] text-muted-foreground">
             <SalesBasis reference={d.reference} sales={d.sales} />
             {d.suggestedPriceCents !== null && d.suggestedPriceCents !== d.targetPriceCents && (
               <p>
-                Suggéré pour cet état : <span className="tabular font-medium text-foreground">{formatEuros(d.suggestedPriceCents)}</span>{" "}
+                {t("Suggéré pour cet état :")} <span className="tabular font-medium text-foreground">{formatEuros(d.suggestedPriceCents)}</span>{" "}
                 <button type="button" disabled={busy} onClick={() => savePrice(d.suggestedPriceCents!)} className="font-medium text-foreground underline underline-offset-2 outline-none hover:no-underline focus-visible:ring-2 focus-visible:ring-ring/40">
-                  Accepter
+                  {t("Accepter")}
                 </button>
               </p>
             )}
@@ -823,16 +854,16 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
         <PriceHistory variantId={d.variantId} />
       </section>
 
-      <Section title="Annonce" aside={<Link href="/reglages/annonces" className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">Modèle et photos</Link>}>
+      <Section title={t("Annonce")} aside={<Link href="/reglages/annonces" className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">{t("Modèle et photos")}</Link>}>
         <div className="flex items-start gap-2">
           <p className="flex-1 text-sm leading-snug [overflow-wrap:anywhere]" data-testid="stock-listing-title">{d.text.title}</p>
-          <Button variant="ghost" size="icon-sm" onClick={() => copy(d.text.title, "Titre")} aria-label="Copier le titre"><Copy /></Button>
+          <Button variant="ghost" size="icon-sm" onClick={() => copy(d.text.title, t("Titre copié"))} aria-label={t("Copier le titre")}><Copy /></Button>
         </div>
         <details className="text-[13px]">
-          <summary className="cursor-pointer text-muted-foreground outline-none select-none hover:text-foreground focus-visible:underline">Description</summary>
+          <summary className="cursor-pointer text-muted-foreground outline-none select-none hover:text-foreground focus-visible:underline">{t("Description")}</summary>
           <div className="mt-2 flex items-start gap-2">
             <p className="flex-1 whitespace-pre-wrap">{d.text.description}</p>
-            <Button variant="ghost" size="icon-sm" onClick={() => copy(d.text.description, "Description")} aria-label="Copier la description"><Copy /></Button>
+            <Button variant="ghost" size="icon-sm" onClick={() => copy(d.text.description, t("Description copiée"))} aria-label={t("Copier la description")}><Copy /></Button>
           </div>
         </details>
         <OfferPhotos offerId={d.offerId} photos={d.photos} disabled={busy} run={(action) => void run(action)} onOpen={(photo) => setViewing(Math.max(0, views.findIndex((v) => v.src === photo.url)))} />
@@ -841,19 +872,19 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
             variant="outline" size="sm" className="justify-self-start" disabled={busy}
             onClick={() => run(async () => {
               const n = await composeMissingVisuals([d.offerId], undefined, { force: true, all: true });
-              return `${n} photo${n > 1 ? "s" : ""} d'annonce composée${n > 1 ? "s" : ""}`;
+              return tn(n, "{n} photo d'annonce composée", "{n} photos d'annonce composées");
             })}
           >
-            <Wand2 /> {d.photos.some((p) => p.kind === "LISTING") ? "Recomposer les photos d'annonce" : "Composer les photos d'annonce"}
+            <Wand2 /> {d.photos.some((p) => p.kind === "LISTING") ? t("Recomposer les photos d'annonce") : t("Composer les photos d'annonce")}
           </Button>
         )}
-        {d.missing.length > 0 && <p className="text-[13px] text-muted-foreground">Pour publier, il manque {d.missing.map((m) => BLOCKERS[m]).join(" et ")}.</p>}
+        {d.missing.length > 0 && <p className="text-[13px] text-muted-foreground">{t("Pour publier, il manque {list}.", { list: d.missing.map((m) => t(BLOCKERS[m])).join(t(" et ")) })}</p>}
         {d.planned && (
           <p className="flex items-center gap-2 text-[13px]">
             <CalendarClock className="size-3.5 text-muted-foreground" aria-hidden />
-            <span className="flex-1">Mise en ligne prévue {dayLabel(d.planned.plannedOn)}</span>
-            <button type="button" disabled={busy} onClick={() => run(async () => { await api.cancelPublications({ offerId: d.offerId }); return "Mise en ligne annulée"; })} className="font-medium underline underline-offset-2 outline-none hover:no-underline focus-visible:ring-2 focus-visible:ring-ring/40">
-              Annuler
+            <span className="flex-1">{t("Mise en ligne prévue {day}", { day: dayLabel(d.planned.plannedOn) })}</span>
+            <button type="button" disabled={busy} onClick={() => run(async () => { await api.cancelPublications({ offerId: d.offerId }); return t("Mise en ligne annulée"); })} className="font-medium underline underline-offset-2 outline-none hover:no-underline focus-visible:ring-2 focus-visible:ring-ring/40">
+              {t("Annuler")}
             </button>
           </p>
         )}
@@ -862,25 +893,25 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
           return (
             <div key={channel.id} className="flex flex-wrap items-center gap-2 rounded-md border px-3 py-2" data-testid={`stock-channel-${channel.id}`}>
               <span className="text-sm font-medium">{channel.label}</span>
-              {(listing ? listing.simulated : channel.mode === "SIMULATION") && <span className="text-xs text-muted-foreground">simulation</span>}
+              {(listing ? listing.simulated : channel.mode === "SIMULATION") && <span className="text-xs text-muted-foreground">{t("simulation")}</span>}
               {listing ? (
                 <>
                   <span className="tabular text-xs text-muted-foreground">
-                    {listing.status === "ACTIVE" ? "en ligne" : listing.status === "PAUSED" ? "en pause" : "erreur"} · {listing.quantitySent} × {formatEuros(listing.priceCents)}
+                    {listing.status === "ACTIVE" ? t("en ligne") : listing.status === "PAUSED" ? t("en pause") : t("erreur")} · {listing.quantitySent} × {formatEuros(listing.priceCents)}
                   </span>
                   <span className="ml-auto flex gap-1">
                     {listing.simulated && listing.status === "ACTIVE" && (
-                      <Button variant="ghost" size="icon-sm" disabled={busy} aria-label="Simuler un achat" title="Simuler un achat" onClick={() => run(async () => `Commande ${(await api.simulateOrder(listing.id)).externalId} reçue`)}><ShoppingCart /></Button>
+                      <Button variant="ghost" size="icon-sm" disabled={busy} aria-label={t("Simuler un achat")} title={t("Simuler un achat")} onClick={() => run(async () => t("Commande {id} reçue", { id: (await api.simulateOrder(listing.id)).externalId }))}><ShoppingCart /></Button>
                     )}
                     {d.available > 0 && (
-                      <Button variant="ghost" size="icon-sm" disabled={busy} aria-label={`Mettre à jour l'annonce ${channel.label}`} title="Mettre à jour" onClick={() => run(async () => { await api.publishListing(d.offerId, channel.id); return "Annonce mise à jour"; })}><RefreshCw /></Button>
+                      <Button variant="ghost" size="icon-sm" disabled={busy} aria-label={t("Mettre à jour l'annonce {channel}", { channel: channel.label })} title={t("Mettre à jour")} onClick={() => run(async () => { await api.publishListing(d.offerId, channel.id); return t("Annonce mise à jour"); })}><RefreshCw /></Button>
                     )}
-                    <Button variant="ghost" size="icon-sm" disabled={busy} aria-label={`Retirer l'annonce ${channel.label}`} title="Retirer" onClick={() => run(async () => { await api.endListing(listing.id); return "Annonce retirée"; })}><X /></Button>
+                    <Button variant="ghost" size="icon-sm" disabled={busy} aria-label={t("Retirer l'annonce {channel}", { channel: channel.label })} title={t("Retirer")} onClick={() => run(async () => { await api.endListing(listing.id); return t("Annonce retirée"); })}><X /></Button>
                   </span>
                 </>
               ) : (
-                <Button size="sm" variant="outline" className="ml-auto" disabled={busy || d.missing.length > 0 || d.available === 0} onClick={() => run(async () => { await composeMissingVisuals([d.offerId]); await api.publishListing(d.offerId, channel.id); return `Publiée sur ${channel.label}`; })}>
-                  <Megaphone /> Publier
+                <Button size="sm" variant="outline" className="ml-auto" disabled={busy || d.missing.length > 0 || d.available === 0} onClick={() => run(async () => { await composeMissingVisuals([d.offerId]); await api.publishListing(d.offerId, channel.id); return t("Publiée sur {channel}", { channel: channel.label }); })}>
+                  <Megaphone /> {t("Publier")}
                 </Button>
               )}
             </div>
@@ -888,7 +919,7 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
         })}
       </Section>
 
-      <Section title={d.positions.length > 1 ? `${d.positions.length} positions` : "Position"}>
+      <Section title={d.positions.length > 1 ? t("{n} positions", { n: formatNumber(d.positions.length) }) : t("Position")}>
         <ul className="grid gap-1">
           {d.positions.map((p) => (
             <li key={p.id} className="flex items-center gap-3 text-[13px]">
@@ -896,7 +927,7 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
               <Code className="text-xs text-muted-foreground">{p.locationCode}</Code>
               <span className="tabular ml-auto">× {p.onHand}</span>
               {p.lifecycle === "DRAFT" && (
-                <Button variant="outline" size="sm" disabled={busy} onClick={() => run(async () => { await api.activate(p.id); return "Position validée"; })}>Valider</Button>
+                <Button variant="outline" size="sm" disabled={busy} onClick={() => run(async () => { await api.activate(p.id); return t("Position validée"); })}>{t("Valider")}</Button>
               )}
             </li>
           ))}

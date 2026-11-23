@@ -4,6 +4,7 @@ import type {
   OfferPricing, OrderDetail, PriceHistory, OrderList, OrderStage, PricingSettings, ShippingCosts, ShippingRun, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
   PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockFacets, StockPage, StockStatus, StoredPhoto, VariantQuote,
 } from "./types";
+import { t } from "./i18n";
 
 export class ApiError extends Error {
   constructor(
@@ -42,16 +43,16 @@ async function request<T>(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", p
   try {
     res = await fetch(`/api${path}${params.size ? `?${params}` : ""}`, { method, headers, body, credentials: "same-origin" });
   } catch {
-    throw new ApiError(0, "NETWORK", "Connexion impossible. Vérifiez le réseau puis réessayez.");
+    throw new ApiError(0, "NETWORK", t("Connexion impossible. Vérifiez le réseau puis réessayez."));
   }
   if (res.status === 401) {
     window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
-    throw new ApiError(401, "UNAUTHORIZED", "Session expirée.");
+    throw new ApiError(401, "UNAUTHORIZED", t("Session expirée."));
   }
   const data = (await res.json().catch(() => null)) as { error?: { code: string; message: string; details?: unknown } } | null;
   if (!res.ok) {
     const e = data?.error;
-    throw new ApiError(res.status, e?.code ?? "HTTP_ERROR", e?.message ?? `Erreur ${res.status}`, e?.details);
+    throw new ApiError(res.status, e?.code ?? "HTTP_ERROR", e?.message ?? t("Erreur {status}", { status: res.status }), e?.details);
   }
   return data as T;
 }
@@ -63,9 +64,9 @@ async function auth<T = { ok: true }>(method: "GET" | "POST" | "PUT", body?: unk
     headers: body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   }).catch(() => null);
-  if (!res) throw new ApiError(0, "NETWORK", "Connexion impossible. Vérifiez le réseau puis réessayez.");
+  if (!res) throw new ApiError(0, "NETWORK", t("Connexion impossible. Vérifiez le réseau puis réessayez."));
   const data = (await res.json().catch(() => null)) as { error?: { code: string; message: string; details?: unknown } } | null;
-  if (!res.ok) throw new ApiError(res.status, data?.error?.code ?? "HTTP_ERROR", data?.error?.message ?? `Erreur ${res.status}`, data?.error?.details);
+  if (!res.ok) throw new ApiError(res.status, data?.error?.code ?? "HTTP_ERROR", data?.error?.message ?? t("Erreur {status}", { status: res.status }), data?.error?.details);
   return data as T;
 }
 

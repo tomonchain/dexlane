@@ -12,6 +12,7 @@ import { Field, Input } from "@/components/ui/input";
 import { BackLink, Page, PageHeader, Spinner } from "@/components/ui/misc";
 import { api } from "@/lib/api";
 import { formatEuros, parseEuros } from "@/lib/format";
+import { t } from "@/lib/i18n";
 import { eurosInput } from "@/lib/pricing";
 import { SHIPPING_LABEL } from "@/lib/sales";
 import type { ShippingCosts } from "@/lib/types";
@@ -60,7 +61,7 @@ export default function ShippingCostsPage() {
     setError(null);
     try {
       await api.saveShippingCosts({ postage: parsed.postage, supplies: parsed.supplies as ShippingCosts["supplies"] });
-      toast.success("Frais d'envoi enregistrés");
+      toast.success(t("Frais d'envoi enregistrés"));
       setSaved(form);
     } catch (err) {
       setError((err as Error).message);
@@ -72,22 +73,22 @@ export default function ShippingCostsPage() {
   return (
     <Page width="narrow" className="mx-auto w-full">
       <PageHeader
-        back={<BackLink href="/reglages">Réglages</BackLink>}
-        title="Frais d'envoi"
-        description="Ce qu'un envoi vous coûte. La marge d'une vente déduit l'affranchissement et les fournitures ; ils sont figés à la remise, changer ces tarifs ne réécrit pas les ventes passées."
+        back={<BackLink href="/reglages">{t("Réglages")}</BackLink>}
+        title={t("Frais d'envoi")}
+        description={t("Ce qu'un envoi vous coûte. La marge d'une vente déduit l'affranchissement et les fournitures ; ils sont figés à la remise, changer ces tarifs ne réécrit pas les ventes passées.")}
       />
       {error && <Alert variant="destructive">{error}</Alert>}
-      {!form ? !error && <ListSkeleton count={3} label="Chargement des frais d'envoi" /> : (
+      {!form ? !error && <ListSkeleton count={3} label={t("Chargement des frais d'envoi")} /> : (
         <form onSubmit={save} className="grid gap-4">
           <Card>
             <CardContent className="grid gap-4">
               <div className="grid gap-1">
-                <CardTitle>Affranchissement habituel</CardTitle>
-                <CardDescription>Prérempli à la remise, modifiable vente par vente. Laissez vide un mode que vous n'utilisez pas.</CardDescription>
+                <CardTitle>{t("Affranchissement habituel")}</CardTitle>
+                <CardDescription>{t("Prérempli à la remise, modifiable vente par vente. Laissez vide un mode que vous n'utilisez pas.")}</CardDescription>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 {POSTAL.map((m) => (
-                  <Field key={m} label={`${SHIPPING_LABEL[m]} (€)`}>
+                  <Field key={m} label={t("{mode} (€)", { mode: t(SHIPPING_LABEL[m]) })}>
                     <Input inputMode="decimal" value={form.postage[m]} placeholder="—" aria-invalid={invalid(form.postage[m], parsed!.postage[m])}
                       onChange={(e) => setForm({ ...form, postage: { ...form.postage, [m]: e.target.value } })} className="tabular" />
                   </Field>
@@ -98,22 +99,22 @@ export default function ShippingCostsPage() {
           <Card>
             <CardContent className="grid gap-4">
               <div className="grid gap-1">
-                <CardTitle>Fournitures</CardTitle>
-                <CardDescription>Sleeve et top-loader pour chaque carte vendue, une enveloppe par envoi postal (pas pour une remise en main propre).</CardDescription>
+                <CardTitle>{t("Fournitures")}</CardTitle>
+                <CardDescription>{t("Sleeve et top-loader pour chaque carte vendue, une enveloppe par envoi postal (pas pour une remise en main propre).")}</CardDescription>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 {SUPPLIES.map(([k, label, hint]) => (
-                  <Field key={k} label={label} hint={hint}>
+                  <Field key={k} label={t(label)} hint={t(hint)}>
                     <Input inputMode="decimal" value={form.supplies[k]} aria-invalid={parsed!.supplies[k] === null}
                       onChange={(e) => setForm({ ...form, supplies: { ...form.supplies, [k]: e.target.value } })} className="tabular" />
                   </Field>
                 ))}
               </div>
-              {perCard !== null && <p className="text-xs text-muted-foreground" data-testid="supplies-per-card">Soit {formatEuros(perCard)} de fournitures par carte, plus l'enveloppe par envoi.</p>}
+              {perCard !== null && <p className="text-xs text-muted-foreground" data-testid="supplies-per-card">{t("Soit {amount} de fournitures par carte, plus l'enveloppe par envoi.", { amount: formatEuros(perCard) })}</p>}
             </CardContent>
           </Card>
           {JSON.stringify(form) !== JSON.stringify(saved) && (
-            <SaveBar submit message="Frais d'envoi modifiés" saveLabel="Enregistrer les frais" saving={saving} disabled={!valid} onDiscard={() => setForm(saved)} />
+            <SaveBar submit message={t("Frais d'envoi modifiés")} saveLabel={t("Enregistrer les frais")} saving={saving} disabled={!valid} onDiscard={() => setForm(saved)} />
           )}
         </form>
       )}

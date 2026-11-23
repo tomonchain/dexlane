@@ -15,7 +15,8 @@ import { EmptyState, PageHeader, Spinner } from "@/components/ui/misc";
 import { Modal } from "@/components/ui/modal";
 import { SegmentedTabs } from "@/components/ui/tabs";
 import { ApiError, api } from "@/lib/api";
-import { formatEuros, parseEuros, variantLabel } from "@/lib/format";
+import { formatEuros, formatNumber, parseEuros, variantLabel } from "@/lib/format";
+import { intlLocale, t, tn } from "@/lib/i18n";
 import { CONFIDENCE_HINT, CONFIDENCE_LABEL, age, eurosInput } from "@/lib/pricing";
 import type { CatalogHit, Deal, DealList, TopCard, WatchedCard } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -24,7 +25,9 @@ type Tab = "WATCH" | "DEALS";
 type Card = WatchedCard["card"];
 type Prices = Pick<WatchedCard, "cardmarket" | "tcgplayer">;
 
-const dollars = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "USD" });
+const dollars = () => new Intl.NumberFormat(intlLocale(), { style: "currency", currency: "USD" });
+/** Montant rond sans décimales nulles : « 10 € », « €10 ». */
+const roundEuros = (cents: number) => formatEuros(cents).replace(/[.,]00(?=\D|$)/, "");
 const DOT = { HIGH: "bg-success", MEDIUM: "bg-warning", LOW: "bg-muted-foreground/50" } as const;
 const MIN_VALUES = [1000, 2500, 5000, 10000];
 const MIN_DISCOUNTS = [20, 25, 35, 50];
@@ -45,7 +48,7 @@ function CardLabel({ card, owned, children, meta }: { card: Card; owned: number;
       <span className="grid min-w-0 gap-0.5">
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <Link href={`/carte/${card.catalogCardId}`} className="truncate text-sm font-medium underline-offset-2 outline-none hover:underline focus-visible:underline">{card.name}</Link>
-          {owned > 0 && <Badge variant="outline">{owned} en stock</Badge>}
+          {owned > 0 && <Badge variant="outline">{t("{n} en stock", { n: owned })}</Badge>}
           {children}
         </span>
         <span className="truncate text-xs text-muted-foreground">
@@ -72,17 +75,17 @@ function PlatformCells({ prices }: { prices: Prices }) {
   const { cardmarket, tcgplayer } = prices;
   return (
     <>
-      <Cell label="Ventes Cardmarket">
+      <Cell label={t("Ventes Cardmarket")}>
         {cardmarket.sales ? (
-          <span className="inline-flex items-center gap-1.5" title={CONFIDENCE_HINT[cardmarket.sales.confidence]}>
+          <span className="inline-flex items-center gap-1.5" title={t(CONFIDENCE_HINT[cardmarket.sales.confidence])}>
             <span className={cn("size-1.5 rounded-full", DOT[cardmarket.sales.confidence])} aria-hidden />
             <span className="font-medium">{formatEuros(cardmarket.sales.cents)}</span>
-            <span className="sr-only">({CONFIDENCE_LABEL[cardmarket.sales.confidence]})</span>
+            <span className="sr-only">({t(CONFIDENCE_LABEL[cardmarket.sales.confidence])})</span>
           </span>
         ) : <span className="text-muted-foreground">{cardmarket.trendCents !== null ? `≈ ${formatEuros(cardmarket.trendCents)}` : "—"}</span>}
       </Cell>
-      <Cell label="Annonce dès">{cardmarket.lowCents !== null ? formatEuros(cardmarket.lowCents) : "—"}</Cell>
-      <Cell label="TCGplayer" className="hidden sm:grid">{tcgplayer ? dollars.format(tcgplayer.marketCents / 100) : "—"}</Cell>
+      <Cell label={t("Annonce dès")}>{cardmarket.lowCents !== null ? formatEuros(cardmarket.lowCents) : "—"}</Cell>
+      <Cell label="TCGplayer" className="hidden sm:grid">{tcgplayer ? dollars().format(tcgplayer.marketCents / 100) : "—"}</Cell>
     </>
   );
 }
@@ -92,7 +95,7 @@ function InlineLinks({ card }: { card: Card }) {
   return (
     <span className="flex items-center gap-2.5">
       {shopLinks(card).map((l) => (
-        <a key={l.label} href={l.href} target="_blank" rel="noopener noreferrer" aria-label={`Chercher ${card.name} sur ${l.label}`}
+        <a key={l.label} href={l.href} target="_blank" rel="noopener noreferrer" aria-label={t("Chercher {name} sur {site}", { name: card.name, site: l.label })}
           className="inline-flex items-center gap-0.5 font-medium underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline">
           {l.label} <ExternalLink className="size-3" aria-hidden />
         </a>
@@ -112,7 +115,7 @@ function TargetInput({ item, onSaved }: { item: WatchedCard; onSaved: () => void
     if (!changed || (cents !== null && cents <= 0)) return;
     try {
       await api.updateWatched(item.id, { targetCents: cents });
-      toast.success(cents === null ? "Prix cible retiré" : `Prix cible : ${formatEuros(cents)}`);
+      toast.success(cents === null ? t("Prix cible retiré") : t("Prix cible : {price}", { price: formatEuros(cents) }));
       onSaved();
     } catch (err) {
       toast.error((err as Error).message);
@@ -120,7 +123,7 @@ function TargetInput({ item, onSaved }: { item: WatchedCard; onSaved: () => void
   }
   return (
     <form onSubmit={save} className="grid gap-0.5">
-      <label className="text-[11px] text-muted-foreground" htmlFor={`target-${item.id}`}>Prix cible</label>
+      <label className="text-[11px] text-muted-foreground" htmlFor={`target-${item.id}`}>{t("Prix cible")}</label>
       <span className="relative">
         <input
           id={`target-${item.id}`}
@@ -130,7 +133,7 @@ function TargetInput({ item, onSaved }: { item: WatchedCard; onSaved: () => void
           onChange={(e) => setValue(e.target.value)}
           onBlur={() => void save()}
           aria-invalid={value.trim() !== "" && cents === null}
-          aria-label={`Prix cible pour ${item.card.name}`}
+          aria-label={t("Prix cible pour {name}", { name: item.card.name })}
           className="tabular h-8 w-24 rounded-md border border-input bg-card pr-6 pl-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15 aria-invalid:border-destructive"
         />
         <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-xs text-muted-foreground">€</span>
@@ -146,7 +149,7 @@ function WatchedRow({ item, onChanged }: { item: WatchedCard; onChanged: () => v
   async function remove() {
     try {
       await api.unwatch(item.id);
-      toast.success(`${item.card.name} n'est plus suivie`);
+      toast.success(t("{name} n'est plus suivie", { name: item.card.name }));
       onChanged();
     } catch (e) {
       toast.error((e as Error).message);
@@ -157,27 +160,27 @@ function WatchedRow({ item, onChanged }: { item: WatchedCard; onChanged: () => v
       <div className="grid items-center gap-x-5 gap-y-3 lg:grid-cols-[minmax(0,1fr)_auto]">
         <CardLabel card={item.card} owned={item.owned} meta={<>
           <span>
-            {item.cardmarket.observedAt ? `Relevé ${age(item.cardmarket.observedAt)}` : "Pas encore de cote pour cette variante"}
-            {item.cardmarket.ambiguous ? " · cote partagée avec une autre variante" : ""}
+            {item.cardmarket.observedAt ? t("Relevé {age}", { age: age(item.cardmarket.observedAt) }) : t("Pas encore de cote pour cette variante")}
+            {item.cardmarket.ambiguous ? ` · ${t("cote partagée avec une autre variante")}` : ""}
           </span>
           <InlineLinks card={item.card} />
         </>}>
-          {reached && <Badge variant="success"><BellRing /> Sous votre prix cible</Badge>}
-          {moved && item.change && <Badge variant="warning">{item.change.percent > 0 ? <TrendingUp /> : <TrendingDown />} {item.change.percent > 0 ? "+" : ""}{item.change.percent.toLocaleString("fr-FR")} % en {item.change.windowDays} j</Badge>}
+          {reached && <Badge variant="success"><BellRing /> {t("Sous votre prix cible")}</Badge>}
+          {moved && item.change && <Badge variant="warning">{item.change.percent > 0 ? <TrendingUp /> : <TrendingDown />} {item.change.percent > 0 ? "+" : ""}{t("{percent} % en {days} j", { percent: formatNumber(item.change.percent), days: item.change.windowDays })}</Badge>}
         </CardLabel>
         <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
           <PlatformCells prices={item} />
-          <Cell label={`Sur ${item.change?.windowDays ?? 7} j`}>
+          <Cell label={t("Sur {days} j", { days: item.change?.windowDays ?? 7 })}>
             {item.change ? (
               <span className={cn("inline-flex items-center gap-1", item.change.percent > 0 ? "text-success" : item.change.percent < 0 ? "text-destructive" : "text-muted-foreground")}>
-                {item.change.percent > 0 ? "+" : ""}{item.change.percent.toLocaleString("fr-FR")} %
+                {item.change.percent > 0 ? "+" : ""}{t("{percent} %", { percent: formatNumber(item.change.percent) })}
               </span>
             ) : <span className="text-muted-foreground">—</span>}
           </Cell>
           <TargetInput key={item.targetCents ?? "none"} item={item} onSaved={onChanged} />
           <span className="flex items-center gap-1">
-            <Button variant={chart ? "secondary" : "ghost"} size="icon-sm" onClick={() => setChart(!chart)} aria-label={`Évolution du prix de ${item.card.name}`} aria-expanded={chart} title="Évolution du prix"><ChartLine /></Button>
-            <Button variant="ghost" size="icon-sm" onClick={remove} aria-label={`Ne plus suivre ${item.card.name}`} title="Ne plus suivre"><X /></Button>
+            <Button variant={chart ? "secondary" : "ghost"} size="icon-sm" onClick={() => setChart(!chart)} aria-label={t("Évolution du prix de {name}", { name: item.card.name })} aria-expanded={chart} title={t("Évolution du prix")}><ChartLine /></Button>
+            <Button variant="ghost" size="icon-sm" onClick={remove} aria-label={t("Ne plus suivre {name}", { name: item.card.name })} title={t("Ne plus suivre")}><X /></Button>
           </span>
         </div>
       </div>
@@ -197,17 +200,17 @@ function PickRow({ card, price, trend, watchedId, onWatch }: {
       <span className="grid justify-items-end gap-0.5 text-right">
         <span className="tabular text-sm font-medium">{price}</span>
         {trend !== undefined && trend !== null && (
-          <span className={cn("tabular text-[11px]", trend > 0 ? "text-success" : trend < 0 ? "text-destructive" : "text-muted-foreground")} title="Ventes de la semaine comparées à celles du mois">
-            {trend > 0 ? "+" : ""}{trend} % cette semaine
+          <span className={cn("tabular text-[11px]", trend > 0 ? "text-success" : trend < 0 ? "text-destructive" : "text-muted-foreground")} title={t("Ventes de la semaine comparées à celles du mois")}>
+            {trend > 0 ? "+" : ""}{t("{percent} % cette semaine", { percent: trend })}
           </span>
         )}
       </span>
       {watchedId ? (
-        <Badge variant="outline" className="w-[5.5rem] justify-center"><Check /> Suivie</Badge>
+        <Badge variant="outline" className="w-[5.5rem] justify-center"><Check /> {t("Suivie")}</Badge>
       ) : (
-        <Button variant="outline" size="sm" className="w-[5.5rem]" disabled={busy} aria-label={`Suivre ${card.name} ${card.localNumber}`}
+        <Button variant="outline" size="sm" className="w-[5.5rem]" disabled={busy} aria-label={t("Suivre {name} {number}", { name: card.name, number: card.localNumber })}
           onClick={async () => { setBusy(true); await onWatch().finally(() => setBusy(false)); }}>
-          {busy ? <Spinner /> : <Star />} Suivre
+          {busy ? <Spinner /> : <Star />} {t("Suivre")}
         </Button>
       )}
     </li>
@@ -245,7 +248,7 @@ function WatchModal({ onClose, onWatched }: { onClose: () => void; onWatched: ()
     try {
       const { id } = await api.watch({ variantId });
       setFollowed((f) => ({ ...f, [variantId]: id }));
-      toast.success(`${name} suivie`);
+      toast.success(t("{name} suivie", { name }));
       onWatched();
     } catch (e) {
       toast.error((e as Error).message);
@@ -253,7 +256,7 @@ function WatchModal({ onClose, onWatched }: { onClose: () => void; onWatched: ()
   };
 
   return (
-    <Modal title="Suivre une carte" description="Cherchez par nom, numéro ou série. Le prix cible se règle ensuite dans la liste." onClose={onClose}>
+    <Modal title={t("Suivre une carte")} description={t("Cherchez par nom, numéro ou série. Le prix cible se règle ensuite dans la liste.")} onClose={onClose}>
       <div className="grid gap-3">
         <div className="relative">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
@@ -261,8 +264,8 @@ function WatchModal({ onClose, onWatched }: { onClose: () => void; onWatched: ()
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Dracaufeu, mew 151, fouinar ténèbres…"
-            aria-label="Rechercher une carte"
+            placeholder={t("Dracaufeu, mew 151, fouinar ténèbres…")}
+            aria-label={t("Rechercher une carte")}
             autoCorrect="off"
             enterKeyHint="search"
             className="h-11 w-full rounded-md border border-input bg-card pr-3 pl-9 text-base outline-none placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15"
@@ -270,39 +273,39 @@ function WatchModal({ onClose, onWatched }: { onClose: () => void; onWatched: ()
         </div>
 
         {!searching ? (
-          <section className="grid gap-2" aria-label="Les plus demandées en ce moment" data-testid="top-cards">
+          <section className="grid gap-2" aria-label={t("Les plus demandées en ce moment")} data-testid="top-cards">
             <div className="grid gap-0.5 px-1">
-              <h3 className="text-xs font-medium text-muted-foreground">Les plus demandées en ce moment</h3>
+              <h3 className="text-xs font-medium text-muted-foreground">{t("Les plus demandées en ce moment")}</h3>
               <p className="text-[11px] text-muted-foreground">
-                Cartes de plus de 10 € de vos séries importées, vendues hier sur Cardmarket et dont le prix de vente monte le plus cette semaine : la demande dépasse l'offre.
-                Cardmarket ne publie pas le nombre de recherches ; c'est l'indice le plus proche.
+                {t("Cartes de plus de 10 € de vos séries importées, vendues hier sur Cardmarket et dont le prix de vente monte le plus cette semaine : la demande dépasse l'offre.")}{" "}
+                {t("Cardmarket ne publie pas le nombre de recherches ; c'est l'indice le plus proche.")}
               </p>
             </div>
-            {!top ? <ListSkeleton count={5} thumb label="Chargement des cartes demandées" /> : top.length === 0 ? (
+            {!top ? <ListSkeleton count={5} thumb label={t("Chargement des cartes demandées")} /> : top.length === 0 ? (
               <p className="rounded-lg border border-dashed px-4 py-6 text-center text-[13px] text-muted-foreground">
-                Aucune carte de plus de 10 € en hausse dans vos séries importées. Importez d'autres séries dans le catalogue, ou actualisez les prix.
+                {t("Aucune carte de plus de 10 € en hausse dans vos séries importées. Importez d'autres séries dans le catalogue, ou actualisez les prix.")}
               </p>
             ) : (
               <ul className="divide-y overflow-hidden rounded-lg border bg-card">
-                {top.map((t) => (
-                  <PickRow key={t.variantId} card={t.card} price={formatEuros(t.sales.cents)} trend={t.trendPercent}
-                    watchedId={followed[t.variantId] ?? t.watchedId} onWatch={watch(t.variantId, t.card.name)} />
+                {top.map((c) => (
+                  <PickRow key={c.variantId} card={c.card} price={formatEuros(c.sales.cents)} trend={c.trendPercent}
+                    watchedId={followed[c.variantId] ?? c.watchedId} onWatch={watch(c.variantId, c.card.name)} />
                 ))}
               </ul>
             )}
           </section>
-        ) : !results ? <ListSkeleton count={4} thumb label="Recherche" /> : results.length === 0 ? (
+        ) : !results ? <ListSkeleton count={4} thumb label={t("Recherche…")} /> : results.length === 0 ? (
           <p className="rounded-lg border border-dashed px-4 py-6 text-center text-[13px] text-muted-foreground" role="status">
-            Aucune carte ne correspond. Seules les séries importées dans le catalogue sont cherchées.
+            {t("Aucune carte ne correspond. Seules les séries importées dans le catalogue sont cherchées.")}
           </p>
         ) : (
-          <ul className="max-h-[50dvh] divide-y overflow-y-auto rounded-lg border bg-card" aria-label="Résultats" data-testid="search-results">
+          <ul className="max-h-[50dvh] divide-y overflow-y-auto rounded-lg border bg-card" aria-label={t("Résultats")} data-testid="search-results">
             {results.map((h) => (
               <PickRow
                 key={h.variantId}
                 card={{ ...h, catalogCardId: h.catalogCardId }}
                 price={h.estimate
-                  ? <span title={h.estimate.variantAmbiguous ? "Cote partagée avec une autre variante" : h.estimate.sales ? "Ventes réussies Cardmarket" : "Aucune vente récente : tendance des annonces"}>
+                  ? <span title={h.estimate.variantAmbiguous ? t("Cote partagée avec une autre variante") : h.estimate.sales ? t("Ventes réussies Cardmarket") : t("Aucune vente récente : tendance des annonces")}>
                       {h.estimate.sales && !h.estimate.variantAmbiguous ? "" : "≈ "}{formatEuros(h.estimate.cents)}
                     </span>
                   : <span className="text-muted-foreground">—</span>}
@@ -312,7 +315,7 @@ function WatchModal({ onClose, onWatched }: { onClose: () => void; onWatched: ()
             ))}
           </ul>
         )}
-        <Button variant="outline" onClick={onClose} className="justify-self-end">Terminé</Button>
+        <Button variant="outline" onClick={onClose} className="justify-self-end">{t("Terminé")}</Button>
       </div>
     </Modal>
   );
@@ -324,24 +327,24 @@ function Watchlist({ data, onChanged }: { data: { items: WatchedCard[]; alerts: 
     <div className="flex flex-wrap items-center justify-between gap-3">
       <p className="text-sm text-muted-foreground">
         {data && data.items.length > 0
-          ? `${data.items.length} carte${data.items.length > 1 ? "s" : ""} suivie${data.items.length > 1 ? "s" : ""}, relevée${data.items.length > 1 ? "s" : ""} chaque jour.`
-          : "Les cartes que vous voulez acheter au bon prix."}
+          ? tn(data.items.length, "{n} carte suivie, relevée chaque jour.", "{n} cartes suivies, relevées chaque jour.")
+          : t("Les cartes que vous voulez acheter au bon prix.")}
       </p>
-      <Button onClick={() => setAdding(true)}><Plus /> Suivre une carte</Button>
+      <Button onClick={() => setAdding(true)}><Plus /> {t("Suivre une carte")}</Button>
     </div>
   );
   return (
     <div className="grid gap-3">
       {header}
-      {!data ? <ListSkeleton count={4} thumb label="Chargement des cartes suivies" /> : data.items.length === 0 ? (
-        <EmptyState icon={<Star />} title="Aucune carte suivie">
-          Suivez une carte pour voir son prix de vente, l'annonce la moins chère et le prix TCGplayer, et être alerté quand elle passe sous votre prix.
+      {!data ? <ListSkeleton count={4} thumb label={t("Chargement des cartes suivies")} /> : data.items.length === 0 ? (
+        <EmptyState icon={<Star />} title={t("Aucune carte suivie")}>
+          {t("Suivez une carte pour voir son prix de vente, l'annonce la moins chère et le prix TCGplayer, et être alerté quand elle passe sous votre prix.")}
         </EmptyState>
       ) : (
         <>
           {data.alerts > 0 && (
             <Alert variant="info">
-              {data.alerts} carte{data.alerts > 1 ? "s demandent" : " demande"} votre attention : prix cible atteint ou variation au-delà de vos seuils d'alerte.
+              {tn(data.alerts, "{n} carte demande votre attention : prix cible atteint ou variation au-delà de vos seuils d'alerte.", "{n} cartes demandent votre attention : prix cible atteint ou variation au-delà de vos seuils d'alerte.")}
             </Alert>
           )}
           <ul className="divide-y overflow-hidden rounded-lg border bg-card">
@@ -362,7 +365,7 @@ function DealRow({ deal, onWatched }: { deal: Deal; onWatched: () => void }) {
     setBusy(true);
     try {
       await api.watch({ variantId: deal.variantId });
-      toast.success(`${deal.card.name} suivie`);
+      toast.success(t("{name} suivie", { name: deal.card.name }));
       onWatched();
     } catch (e) {
       toast.error((e as Error).message);
@@ -374,12 +377,12 @@ function DealRow({ deal, onWatched }: { deal: Deal; onWatched: () => void }) {
       <CardLabel card={deal.card} owned={deal.owned} meta={<InlineLinks card={deal.card} />} />
       <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
         <PlatformCells prices={deal} />
-        <Cell label="Décote"><span className="font-semibold text-success">−{deal.discountPercent} %</span></Cell>
-        <Cell label="Écart"><span className="font-medium">{formatEuros(deal.gainCents)}</span></Cell>
+        <Cell label={t("Décote")}><span className="font-semibold text-success">−{t("{percent} %", { percent: deal.discountPercent })}</span></Cell>
+        <Cell label={t("Écart")}><span className="font-medium">{formatEuros(deal.gainCents)}</span></Cell>
         <span className="flex items-center gap-1">
           {deal.watchedId
-            ? <Badge variant="outline"><Star /> Suivie</Badge>
-            : <Button variant="outline" size="sm" disabled={busy} onClick={watch} aria-label={`Suivre ${deal.card.name}`}>{busy ? <Spinner /> : <Star />} Suivre</Button>}
+            ? <Badge variant="outline"><Star /> {t("Suivie")}</Badge>
+            : <Button variant="outline" size="sm" disabled={busy} onClick={watch} aria-label={t("Suivre {name}", { name: deal.card.name })}>{busy ? <Spinner /> : <Star />} {t("Suivre")}</Button>}
         </span>
       </div>
     </li>
@@ -398,26 +401,26 @@ function Deals({ onWatched }: { onWatched: () => void }) {
 
   return (
     <div className="grid gap-3">
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Critères">
-        <Select value={minCents} onChange={(e) => setMinCents(Number(e.target.value))} aria-label="Valeur minimale" className="h-8 w-auto text-[13px] md:h-8">
-          {MIN_VALUES.map((v) => <option key={v} value={v}>Cartes de plus de {formatEuros(v).replace(",00", "")}</option>)}
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("Critères")}>
+        <Select value={minCents} onChange={(e) => setMinCents(Number(e.target.value))} aria-label={t("Valeur minimale")} className="h-8 w-auto text-[13px] md:h-8">
+          {MIN_VALUES.map((v) => <option key={v} value={v}>{t("Cartes de plus de {price}", { price: roundEuros(v) })}</option>)}
         </Select>
-        <Select value={minDiscount} onChange={(e) => setMinDiscount(Number(e.target.value))} aria-label="Décote minimale" className="h-8 w-auto text-[13px] md:h-8">
-          {MIN_DISCOUNTS.map((v) => <option key={v} value={v}>Au moins {v} % sous les ventes</option>)}
+        <Select value={minDiscount} onChange={(e) => setMinDiscount(Number(e.target.value))} aria-label={t("Décote minimale")} className="h-8 w-auto text-[13px] md:h-8">
+          {MIN_DISCOUNTS.map((v) => <option key={v} value={v}>{t("Au moins {percent} % sous les ventes", { percent: v })}</option>)}
         </Select>
       </div>
       {error && <Alert variant="destructive">{error}</Alert>}
       {data && (
         <p className="text-xs text-muted-foreground" data-testid="deals-scope">
-          {data.examined.toLocaleString("fr-FR")} carte{data.examined > 1 ? "s" : ""} des séries importées, cotée{data.examined > 1 ? "s" : ""} autour de {formatEuros(data.minCents).replace(",00", "")} ou plus et relevée{data.examined > 1 ? "s" : ""} depuis moins de {data.freshDays} jours, comparée{data.examined > 1 ? "s" : ""} à leurs ventes réussies.
-          {" "}L'annonce la moins chère de Cardmarket mélange les états et les langues : vérifiez l'annonce avant d'acheter.
+          {tn(data.examined, "{n} carte des séries importées, cotée autour de {price} ou plus et relevée depuis moins de {days} jours, comparée à leurs ventes réussies.", "{n} cartes des séries importées, cotées autour de {price} ou plus et relevées depuis moins de {days} jours, comparées à leurs ventes réussies.", { price: roundEuros(data.minCents), days: data.freshDays })}
+          {" "}{t("L'annonce la moins chère de Cardmarket mélange les états et les langues : vérifiez l'annonce avant d'acheter.")}
         </p>
       )}
-      {!data && !error ? <ListSkeleton count={5} thumb label="Recherche des bonnes affaires" /> : data && data.deals.length === 0 ? (
-        <EmptyState icon={<Search />} title="Aucune bonne affaire pour ces critères">
+      {!data && !error ? <ListSkeleton count={5} thumb label={t("Recherche des bonnes affaires")} /> : data && data.deals.length === 0 ? (
+        <EmptyState icon={<Search />} title={t("Aucune bonne affaire pour ces critères")}>
           {data.examined === 0
-            ? "Aucune carte de cette valeur n'a été relevée récemment. Importez des séries dans le catalogue, puis actualisez les prix : les cartes de plus de 10 € sont relevées chaque jour."
-            : "Baissez la valeur ou la décote minimale, ou revenez après le prochain relevé quotidien."}
+            ? t("Aucune carte de cette valeur n'a été relevée récemment. Importez des séries dans le catalogue, puis actualisez les prix : les cartes de plus de 10 € sont relevées chaque jour.")
+            : t("Baissez la valeur ou la décote minimale, ou revenez après le prochain relevé quotidien.")}
         </EmptyState>
       ) : data && (
         <ul className="divide-y overflow-hidden rounded-lg border bg-card">
@@ -446,11 +449,11 @@ export default function PurchasesPage() {
     setRefreshing(true);
     try {
       const r = await api.refreshPrices();
-      toast.success(`${r.cards} carte${r.cards > 1 ? "s" : ""} relevée${r.cards > 1 ? "s" : ""}${r.remaining > 0 ? `, ${r.remaining} au prochain relevé` : ""}`);
+      toast.success(tn(r.cards, "{n} carte relevée", "{n} cartes relevées") + (r.remaining > 0 ? t(", {remaining} au prochain relevé", { remaining: r.remaining }) : ""));
       loadWatched();
       setVersion((v) => v + 1);
     } catch (e) {
-      setError(e instanceof ApiError && e.code === "CATALOG_UNAVAILABLE" ? "La source des prix ne répond pas. Réessayez plus tard." : (e as Error).message);
+      setError(e instanceof ApiError && e.code === "CATALOG_UNAVAILABLE" ? t("La source des prix ne répond pas. Réessayez plus tard.") : (e as Error).message);
     } finally {
       setRefreshing(false);
     }
@@ -459,19 +462,19 @@ export default function PurchasesPage() {
   return (
     <div className="grid gap-5">
       <PageHeader
-        title="Achats"
-        description="Les cartes à surveiller avant d'acheter, et les bonnes affaires du moment sur les cartes de plus de 10 €."
-        actions={<Button variant="outline" onClick={refresh} disabled={refreshing}>{refreshing ? <Spinner /> : <RefreshCw />} Actualiser les prix</Button>}
+        title={t("Achats")}
+        description={t("Les cartes à surveiller avant d'acheter, et les bonnes affaires du moment sur les cartes de plus de 10 €.")}
+        actions={<Button variant="outline" onClick={refresh} disabled={refreshing}>{refreshing ? <Spinner /> : <RefreshCw />} {t("Actualiser les prix")}</Button>}
       />
       {error && <Alert variant="destructive">{error}</Alert>}
-      <div className="overflow-x-auto">
+      <div>
         <SegmentedTabs
-          label="Vue"
+          label={t("Vue")}
           value={tab}
           onChange={setTab}
           tabs={[
-            { value: "WATCH", label: "Cartes suivies", count: watched?.items.length },
-            { value: "DEALS", label: "Bonnes affaires" },
+            { value: "WATCH", label: t("Cartes suivies"), count: watched?.items.length },
+            { value: "DEALS", label: t("Bonnes affaires") },
           ]}
         />
       </div>

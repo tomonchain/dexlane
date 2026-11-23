@@ -3,6 +3,7 @@
 import { ArrowRight } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Logo } from "@/components/app-shell";
+import { LocaleSwitch } from "@/components/landing";
 import { PasswordInput } from "@/components/password-input";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import { Field } from "@/components/ui/input";
 import { Loading, Spinner } from "@/components/ui/misc";
 import { api } from "@/lib/api";
 import { authMessage } from "@/lib/auth-messages";
+import { t } from "@/lib/i18n";
 
 type Mode = "loading" | "login" | "setup" | "reset";
 
@@ -64,7 +66,7 @@ export default function LoginPage() {
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (mode !== "login" && password !== confirm) {
-      setError("Les deux mots de passe ne correspondent pas.");
+      setError(t("Les deux mots de passe ne correspondent pas."));
       return;
     }
     setBusy(true);
@@ -93,15 +95,15 @@ export default function LoginPage() {
         ) : (
           <form onSubmit={submit} className="grid gap-5 rounded-2xl border bg-card p-6 shadow-xl shadow-black/5">
             <div className="grid gap-1.5">
-              <h1 className="text-xl font-semibold tracking-tight">{COPY[mode].title}</h1>
-              <p className="text-sm text-muted-foreground">{COPY[mode].description}</p>
+              <h1 className="text-xl font-semibold tracking-tight">{t(COPY[mode].title)}</h1>
+              <p className="text-sm text-muted-foreground">{t(COPY[mode].description)}</p>
             </div>
             {choosing && (
-              <Field label="Jeton d'installation">
+              <Field label={t("Jeton d'installation")}>
                 <PasswordInput value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" className="font-mono" required autoFocus />
               </Field>
             )}
-            <Field label={choosing ? "Nouveau mot de passe" : "Mot de passe"} hint={choosing ? "10 caractères minimum." : undefined}>
+            <Field label={choosing ? t("Nouveau mot de passe") : t("Mot de passe")} hint={choosing ? t("10 caractères minimum.") : undefined}>
               <PasswordInput
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -112,23 +114,26 @@ export default function LoginPage() {
               />
             </Field>
             {choosing && (
-              <Field label="Confirmer le mot de passe">
+              <Field label={t("Confirmer le mot de passe")}>
                 <PasswordInput value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" required />
               </Field>
             )}
             {error && <Alert variant="destructive">{error}</Alert>}
             <Button type="submit" size="lg" disabled={busy || !ready}>
-              {busy ? <><Spinner className="text-primary-foreground" /> Vérification…</> : <>{COPY[mode].submit} <ArrowRight /></>}
+              {busy ? <><Spinner className="text-primary-foreground" /> {t("Vérification…")}</> : <>{t(COPY[mode].submit)} <ArrowRight /></>}
             </Button>
             {mode === "login" && (
-              <Button variant="link" size="sm" onClick={() => switchTo("reset")} className="justify-self-center text-muted-foreground">Mot de passe oublié ?</Button>
+              <Button variant="link" size="sm" onClick={() => switchTo("reset")} className="justify-self-center text-muted-foreground">{t("Mot de passe oublié ?")}</Button>
             )}
             {mode === "reset" && (
-              <Button variant="link" size="sm" onClick={() => switchTo("login")} className="justify-self-center text-muted-foreground">Retour à la connexion</Button>
+              <Button variant="link" size="sm" onClick={() => switchTo("login")} className="justify-self-center text-muted-foreground">{t("Retour à la connexion")}</Button>
             )}
           </form>
         )}
-        <p className="mt-6 text-center text-xs text-muted-foreground">Stock et négoce de cartes Pokémon</p>
+        <p className="mt-6 text-center text-xs text-muted-foreground">{t("Stock et négoce de cartes Pokémon")}</p>
+        <div className="mt-3 flex justify-center">
+          <LocaleSwitch />
+        </div>
       </div>
     </div>
   );

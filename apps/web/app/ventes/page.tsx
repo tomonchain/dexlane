@@ -11,6 +11,7 @@ import { Code, EmptyState, PageHeader } from "@/components/ui/misc";
 import { SegmentedTabs } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { formatDateTime, formatEuros } from "@/lib/format";
+import { t, tn } from "@/lib/i18n";
 import { SHIPPING_LABEL } from "@/lib/sales";
 import type { OrderList, OrderStage } from "@/lib/types";
 import { SalesSkeleton, SalesTotalsSkeleton } from "@/components/skeletons";
@@ -57,33 +58,33 @@ export default function SalesPage() {
   return (
     <div className="grid gap-5">
       <PageHeader
-        title="Ventes"
-        description="Ventes directes : les cartes sont réservées à l'enregistrement, puis prélevées, emballées et remises."
+        title={t("Ventes")}
+        description={t("Ventes directes : les cartes sont réservées à l'enregistrement, puis prélevées, emballées et remises.")}
         actions={<>
-          <Button asChild variant="outline"><Link href="/ventes/preparation"><Printer /> Préparer les envois</Link></Button>
-          <Button asChild><Link href="/ventes/nouvelle"><Plus /> Nouvelle vente</Link></Button>
+          <Button asChild variant="outline"><Link href="/ventes/preparation"><Printer /> {t("Préparer les envois")}</Link></Button>
+          <Button asChild><Link href="/ventes/nouvelle"><Plus /> {t("Nouvelle vente")}</Link></Button>
         </>}
       />
 
       {!data && !error && <SalesTotalsSkeleton />}
       {totals && (
         <div className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border bg-border shadow-xs">
-          <Stat icon={<ShoppingBag />} label="Ventes remises (30 j)" value={String(totals.orders)} hint="déposées ou remises en main propre" />
-          <Stat icon={<CircleDollarSign />} label="Encaissé (30 j)" value={formatEuros(totals.grossCents)} hint="frais de port facturés compris" />
-          <Stat icon={<TrendingUp />} label="Marge (30 j)" value={formatEuros(totals.marginCents)} hint={`après ${formatEuros(totals.costCents)} de cartes, ${formatEuros(totals.postageCents)} d'affranchissement et ${formatEuros(totals.suppliesCents)} de fournitures`} />
+          <Stat icon={<ShoppingBag />} label={t("Ventes remises (30 j)")} value={String(totals.orders)} hint={t("déposées ou remises en main propre")} />
+          <Stat icon={<CircleDollarSign />} label={t("Encaissé (30 j)")} value={formatEuros(totals.grossCents)} hint={t("frais de port facturés compris")} />
+          <Stat icon={<TrendingUp />} label={t("Marge (30 j)")} value={formatEuros(totals.marginCents)} hint={t("après {cost} de cartes, {postage} d'affranchissement et {supplies} de fournitures", { cost: formatEuros(totals.costCents), postage: formatEuros(totals.postageCents), supplies: formatEuros(totals.suppliesCents) })} />
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      <div>
         <SegmentedTabs
-          label="Étape"
+          label={t("Étape")}
           value={stage}
           onChange={setStage}
           tabs={[
-            { value: "TO_PREPARE", label: "À préparer", count: data?.counts.TO_PREPARE },
-            { value: "PACKED", label: "Emballées", count: data?.counts.PACKED },
-            { value: "SHIPPED", label: "Remises", count: data?.counts.SHIPPED },
-            { value: "CANCELLED", label: "Annulées", count: data?.counts.CANCELLED },
+            { value: "TO_PREPARE", label: t("À préparer"), count: data?.counts.TO_PREPARE },
+            { value: "PACKED", label: t("Emballées"), count: data?.counts.PACKED },
+            { value: "SHIPPED", label: t("Remises"), count: data?.counts.SHIPPED },
+            { value: "CANCELLED", label: t("Annulées"), count: data?.counts.CANCELLED },
           ]}
         />
       </div>
@@ -91,8 +92,8 @@ export default function SalesPage() {
       {error && <Alert variant="destructive">{error}</Alert>}
       {!data && !error && <SalesSkeleton />}
       {data && data.items.length === 0 && data.counts[stage] === 0 && (
-        <EmptyState icon={<Receipt />} title={EMPTY[stage][0]} action={stage === "TO_PREPARE" && <Button asChild size="sm"><Link href="/ventes/nouvelle">Enregistrer une vente</Link></Button>}>
-          {EMPTY[stage][1] || undefined}
+        <EmptyState icon={<Receipt />} title={t(EMPTY[stage][0])} action={stage === "TO_PREPARE" && <Button asChild size="sm"><Link href="/ventes/nouvelle">{t("Enregistrer une vente")}</Link></Button>}>
+          {EMPTY[stage][1] ? t(EMPTY[stage][1]) : undefined}
         </EmptyState>
       )}
 
@@ -104,12 +105,12 @@ export default function SalesPage() {
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <Code className="text-sm font-semibold">{o.externalId}</Code>
                   {o.channel !== "direct" && <Badge variant="brand">{CHANNEL_LABEL[o.channel] ?? o.channel}</Badge>}
-                  {o.oversold && <Badge variant="destructive">Survente</Badge>}
+                  {o.oversold && <Badge variant="destructive">{t("Survente")}</Badge>}
                   {o.buyerName && <span className="truncate text-sm">{o.buyerName}</span>}
-                  {o.shippingMode && <Badge variant="outline">{SHIPPING_LABEL[o.shippingMode]}</Badge>}
+                  {o.shippingMode && <Badge variant="outline">{t(SHIPPING_LABEL[o.shippingMode])}</Badge>}
                 </span>
                 <span className="mt-0.5 block truncate text-[13px] text-muted-foreground">
-                  {o.cardNames.join(", ")}{o.cards > o.cardNames.length ? "…" : ""} · {o.cards} carte{o.cards > 1 ? "s" : ""} · {formatDateTime(o.orderedAt)}
+                  {o.cardNames.join(", ")}{o.cards > o.cardNames.length ? "…" : ""} · {tn(o.cards, "{n} carte", "{n} cartes")} · {formatDateTime(o.orderedAt)}
                 </span>
               </span>
               <span className="tabular text-sm font-semibold">{formatEuros(o.grossCents)}</span>

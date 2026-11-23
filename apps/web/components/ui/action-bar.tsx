@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 /**
@@ -19,7 +20,7 @@ export function ActionBar({ message, children, tone = "default", className }: {
       <div className={cn("fixed inset-x-0 bottom-nav z-30 px-3 lg:bottom-0 lg:left-56 lg:px-8 lg:pb-4 print:hidden", className)} data-testid="action-bar">
         <div
           role="region"
-          aria-label="Action principale"
+          aria-label={t("Action principale")}
           className={cn(
             "mx-auto flex max-w-[92rem] items-center gap-3 rounded-lg border px-4 py-2.5 shadow-lg",
             tone === "unsaved" ? "border-foreground/80 bg-foreground text-background [&_[data-slot=message]]:text-background/80" : "bg-popover",
@@ -37,7 +38,7 @@ export function ActionBar({ message, children, tone = "default", className }: {
  * Barre d'enregistrement d'un formulaire de réglages : elle n'apparaît qu'en présence de modifications non enregistrées,
  * avec de quoi les annuler ou les enregistrer. `submit` : le bouton d'enregistrement soumet le formulaire qui l'entoure.
  */
-export function SaveBar({ message = "Modifications non enregistrées", saveLabel, saving, disabled, onSave, onDiscard, submit = false }: {
+export function SaveBar({ message, saveLabel, saving, disabled, onSave, onDiscard, submit = false }: {
   message?: ReactNode;
   saveLabel: string;
   saving: boolean;
@@ -47,14 +48,14 @@ export function SaveBar({ message = "Modifications non enregistrées", saveLabel
   submit?: boolean;
 }) {
   return (
-    <ActionBar tone="unsaved" message={message}>
+    <ActionBar tone="unsaved" message={message ?? t("Modifications non enregistrées")}>
       <button
         type="button"
         onClick={onDiscard}
         disabled={saving}
         className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium text-background/90 outline-none hover:bg-background/10 focus-visible:ring-2 focus-visible:ring-background/40 disabled:opacity-50"
       >
-        Annuler
+        {t("Annuler")}
       </button>
       <button
         type={submit ? "submit" : "button"}
