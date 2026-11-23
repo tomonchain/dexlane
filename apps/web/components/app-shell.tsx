@@ -58,7 +58,7 @@ function AddMenu({ compact, intake }: { compact?: boolean; intake: IntakeMode })
       <DropdownMenu.Trigger
         className={cn(
           "flex items-center justify-center gap-2 rounded-md bg-primary text-sm font-medium text-primary-foreground shadow-xs transition-colors outline-none hover:bg-primary/90 focus-visible:ring-[3px] focus-visible:ring-ring/30",
-          compact ? "size-11 rounded-full" : "h-10 w-full px-3",
+          compact ? "size-12 rounded-full shadow-md [&_svg]:size-5" : "h-10 w-full px-3",
         )}
         aria-label={compact ? "Ajouter des cartes" : undefined}
       >
@@ -87,6 +87,42 @@ function AddMenu({ compact, intake }: { compact?: boolean; intake: IntakeMode })
   );
 }
 
+/**
+ * Barre d'onglets escamotable, comme dans les applis de réseaux sociaux : cachée quand on descend, montrée quand on
+ * remonte, en haut de page ou à chaque changement d'écran. L'état est aussi posé sur <html> (data-nav-hidden) pour que
+ * les barres d'action fixées au-dessus d'elle descendent avec elle.
+ */
+function useHideOnScroll(pathname: string): boolean {
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    setHidden(false);
+    let last = window.scrollY;
+    let frame = 0;
+    const desktop = window.matchMedia("(min-width: 64rem)"); // la barre latérale ne s'escamote pas
+    const onScroll = () => {
+      if (desktop.matches) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const y = window.scrollY;
+        const atBottom = window.innerHeight + y >= document.documentElement.scrollHeight - 4;
+        if (y < 64) setHidden(false);
+        else if (y > last + 6 && !atBottom) setHidden(true);
+        else if (y < last - 6) setHidden(false);
+        last = y;
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, [pathname]);
+  useEffect(() => {
+    document.documentElement.toggleAttribute("data-nav-hidden", hidden);
+  }, [hidden]);
+  return hidden;
+}
+
 export function AppShell({ children, signedIn }: { children: ReactNode; signedIn: boolean }) {
   const pathname = usePathname();
   const [searching, setSearching] = useState(false);
@@ -95,6 +131,7 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
   // Sans session, la racine est la page de présentation publique : pas de navigation d'application autour.
   const bare = NO_SHELL.includes(pathname) || (pathname === "/" && !signedIn);
   const [intake, setIntake] = useState<IntakeMode>(null);
+  const navHidden = useHideOnScroll(pathname);
 
   // Première utilisation : tant que l'assistant de démarrage n'a pas été terminé ou passé, il s'ouvre de lui-même.
   useEffect(() => {
@@ -179,8 +216,18 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
         <main className="mx-auto w-full max-w-[92rem] px-4 pt-4 pb-nav lg:px-8 lg:pt-6 lg:pb-10 print:!m-0 print:!max-w-none print:!p-0">{children}</main>
       </div>
 
-      {/* Onglets (téléphone) : deux destinations, l'ajout au centre, deux destinations. */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 items-center border-t bg-background pb-[env(safe-area-inset-bottom)] lg:hidden print:hidden" aria-label="Navigation principale">
+      {/*
+        Onglets (téléphone) : une barre flottante, détachée des bords et translucide. Elle s'efface quand on fait défiler
+        vers le bas pour laisser la place au contenu, et revient dès qu'on remonte.
+      */}
+      <nav
+        className={cn(
+          "fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-30 mx-auto grid h-16 max-w-md grid-cols-5 items-center rounded-full border border-border/70 bg-background/80 px-1.5 shadow-[0_8px_30px_-6px_rgb(0_0_0/0.18)] backdrop-blur-xl backdrop-saturate-150 motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out lg:hidden print:hidden",
+          navHidden && "translate-y-[calc(100%+1.5rem+env(safe-area-inset-bottom))]",
+        )}
+        aria-label="Navigation principale"
+        data-testid="mobile-nav"
+      >
         {MOBILE_NAV.map((item) =>
           item === null ? (
             <span key="add" className="flex justify-center"><AddMenu compact intake={intake} /></span>
@@ -189,12 +236,11 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
               key={item.href}
               href={item.href}
               aria-current={isCurrent(pathname, item) ? "page" : undefined}
-              className={cn(
-                "flex h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-muted-foreground outline-none",
-                isCurrent(pathname, item) && "text-foreground",
-              )}
+              className="group flex h-full flex-col items-center justify-center gap-0.5 text-[10px] font-medium text-muted-foreground outline-none aria-[current=page]:text-foreground"
             >
-              <item.icon className="size-[18px]" aria-hidden />
+              <span className="flex h-7 w-12 items-center justify-center rounded-full transition-colors group-hover:bg-accent/70 group-focus-visible:ring-[3px] group-focus-visible:ring-ring/30 group-aria-[current=page]:bg-accent">
+                <item.icon className="size-5 group-aria-[current=page]:stroke-[2.25]" aria-hidden />
+              </span>
               {item.label}
             </Link>
           ),

@@ -1102,6 +1102,14 @@ test("page d'accueil : vitrine publique sans session, puis « Aujourd'hui » ave
   await expect(lastSale).toHaveAttribute("href", /\/ventes\/[0-9a-f-]{36}$/);
   await expect(page.getByTestId("home-listing").first()).toContainText("Fouinar");
   await expect(page.getByTestId("home-listing").first()).toContainText("eBay");
+  // Barre d'onglets flottante : elle s'efface quand on descend, revient dès qu'on remonte.
+  const tabs = page.getByTestId("mobile-nav");
+  await expect(tabs).toBeInViewport();
+  await page.mouse.wheel(0, 600);
+  await expect(tabs).not.toBeInViewport();
+  await page.mouse.wheel(0, -200);
+  await expect(tabs).toBeInViewport();
+  await page.evaluate(() => window.scrollTo(0, 0));
   const task = page.getByTestId("home-task").filter({ hasText: "Lot d'accueil" });
   await expect(task).toContainText("carte à corriger");
   await task.click();
