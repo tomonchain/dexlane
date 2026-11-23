@@ -1,5 +1,5 @@
 import type {
-  AcquisitionLot, Activity, CardPage, CatalogHit, Deal, DealList, TopCard, WatchedCard, AlertSettings, AppSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, PriceMoves, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
+  AcquisitionLot, Activity, CardPage, CatalogHit, Deal, DealList, TopCard, WatchedCard, AlertSettings, AppSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, SalesInsights, PriceMoves, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
   Location, Photo, PositionDetail, Received,
   OfferPricing, OrderDetail, PriceHistory, OrderList, OrderStage, PricingSettings, ShippingCosts, ShippingRun, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
   PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockFacets, StockPage, StockStatus, StoredPhoto, VariantQuote,
@@ -147,9 +147,13 @@ export const api = {
     setId?: string; location?: string; condition?: string; minCents?: number; maxCents?: number;
   }) => request<StockPage>("GET", "/stock", { query: q }),
   stockFacets: () => request<StockFacets>("GET", "/stock/facets"),
+  /** Action groupée sur des cartes du stock ; renvoie le nombre de positions ou d'offres réellement modifiées. */
+  stockBulk: (body: { action: "ACCEPT_PRICE" | "ACTIVATE"; offerIds: string[] } | { action: "MOVE"; offerIds: string[]; locationCode: string }) =>
+    request<{ affected: number }>("POST", "/stock/bulk", { json: body }),
   stockDetail: (offerId: string) => request<StockDetail>("GET", `/stock/${offerId}`),
 
   dashboard: () => request<Dashboard>("GET", "/stats/dashboard"),
+  salesInsights: (days: number) => request<SalesInsights>("GET", "/stats/sales", { query: { days: String(days) } }),
   activity: () => request<Activity>("GET", "/stats/activity"),
   priceMoves: (alertsOnly: boolean) => request<PriceMoves>("GET", "/stats/price-moves", { query: { alerts: String(alertsOnly) } }),
   saveAlertSettings: (settings: AlertSettings) => request<AlertSettings>("PUT", "/stats/alert-settings", { json: settings }),

@@ -15,7 +15,7 @@ import { authMessage } from "@/lib/auth-messages";
 
 export default function AccountPage() {
   return (
-    <Page width="narrow">
+    <Page width="narrow" className="mx-auto w-full">
       <PageHeader back={<BackLink href="/reglages">Réglages</BackLink>} title="Compte" description="Accès à l'application et préférences de cet appareil." />
       <ChangePassword />
 

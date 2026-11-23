@@ -229,3 +229,198 @@ export function getDashboard(sql: Db): Promise<Dashboard> {
     };
   });
 }
+
+// ───────────────────────── Ce qui se vend ─────────────────────────
+
+/** Une tranche d'analyse : combien de cartes vendues, pour quel chiffre d'affaires. */
+export interface SalesSlice {
+  key: string;
+  label: string;
+  cards: number;
+  revenueCents: number;
+}
+
+export interface SalesInsights {
+  /** Fenêtre analysée, en jours, jusqu'à maintenant. */
+  days: number;
+  totals: {
+    orders: number;
+    cards: number;
+    /** Prix des cartes vendues, hors port facturé. */
+    revenueCents: number;
+    /** Prix des cartes − leur coût d'achat (sans port ni fournitures, qui se comptent par envoi). */
+    marginCents: number;
+    averageCardCents: number;
+    averageOrderCents: number;
+    /** Délai médian entre l'entrée en stock et la vente, en jours ; null sans vente. */
+    medianDaysToSell: number | null;
+    /** Cartes vendues sur la période ÷ (vendues + encore en stock), en %. */
+    sellThroughPercent: number | null;
+  };
+  /** Même mesure sur la période précédente de même durée, pour la comparaison. */
+  previous: { orders: number; cards: number; revenueCents: number };
+  /** Chiffre d'affaires et cartes vendues par mois, sur les douze derniers mois. */
+  months: { month: string; cards: number; revenueCents: number }[];
+  /** Par série : vendues, en stock, taux d'écoulement. Les plus vendues d'abord. */
+  bySet: (SalesSlice & { inStock: number; sellThroughPercent: number })[];
+  byPriceBand: SalesSlice[];
+  byCondition: SalesSlice[];
+  byRarity: SalesSlice[];
+  byChannel: (SalesSlice & { orders: number })[];
+  /** Ventes par jour de la semaine (lundi d'abord), pour savoir quand ça part. */
+  byWeekday: { weekday: number; label: string; orders: number }[];
+  /** Délai entre l'entrée en stock et la vente. */
+  daysToSell: SalesSlice[];
+  topCards: { catalogCardId: string; name: string; setName: string; cards: number; revenueCents: number; averageCents: number }[];
+}
+
+export const PRICE_BANDS: { key: string; label: string; max: number }[] = [
+  { key: "lt1", label: "Moins de 1 €", max: 100 },
+  { key: "1-5", label: "1 à 5 €", max: 500 },
+  { key: "5-10", label: "5 à 10 €", max: 1000 },
+  { key: "10-20", label: "10 à 20 €", max: 2000 },
+  { key: "20-50", label: "20 à 50 €", max: 5000 },
+  { key: "gte50", label: "50 € et plus", max: Infinity },
+];
+const DELAYS: { key: string; label: string; max: number }[] = [
+  { key: "lt7", label: "Moins d'une semaine", max: 7 },
+  { key: "7-30", label: "1 à 4 semaines", max: 30 },
+  { key: "30-90", label: "1 à 3 mois", max: 90 },
+  { key: "gte90", label: "Plus de 3 mois", max: Infinity },
+];
+const WEEKDAYS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
+const CONDITION_LABEL: Record<string, string> = { MT: "Mint", NM: "Near Mint", EX: "Excellent", GD: "Good", LP: "Light Played", PL: "Played", PO: "Poor" };
+const CONDITION_ORDER = Object.keys(CONDITION_LABEL);
+
+interface SoldLine {
+  orderId: string;
+  channel: string;
+  orderedAt: Date;
+  /** Jour de la semaine à Paris : 1 = lundi … 7 = dimanche. */
+  isoDow: number;
+  qty: number;
+  unitPriceCents: number;
+  costCents: string;
+  condition: string;
+  catalogCardId: string;
+  name: string;
+  setId: string;
+  setName: string;
+  rarity: string | null;
+  daysInStock: number | null;
+}
+
+/** Regroupe des lignes vendues selon une clé, en cartes et chiffre d'affaires, les plus vendues d'abord. */
+function slices(lines: SoldLine[], keyOf: (l: SoldLine) => [key: string, label: string]): SalesSlice[] {
+  const by = new Map<string, SalesSlice>();
+  for (const l of lines) {
+    const [key, label] = keyOf(l);
+    const slice = by.get(key) ?? { key, label, cards: 0, revenueCents: 0 };
+    slice.cards += l.qty;
+    slice.revenueCents += l.qty * l.unitPriceCents;
+    by.set(key, slice);
+  }
+  return [...by.values()].sort((a, b) => b.cards - a.cards || b.revenueCents - a.revenueCents);
+}
+
+const ordered = (all: SalesSlice[], keys: string[], labels: string[]): SalesSlice[] =>
+  keys.map((key, i) => all.find((s) => s.key === key) ?? { key, label: labels[i]!, cards: 0, revenueCents: 0 });
+
+/**
+ * Ce qui se vend, sur les `days` derniers jours : par série, tranche de prix, état, rareté, canal, jour de la semaine,
+ * délai depuis l'entrée en stock, et les cartes les plus vendues. Une vente compte dès qu'elle est enregistrée
+ * (date de commande), hors ventes annulées : c'est la demande qu'on cherche à comprendre, pas la date d'envoi.
+ */
+export async function salesInsights(sql: Db, opts: { days?: number } = {}): Promise<SalesInsights> {
+  const days = Math.min(Math.max(Math.round(opts.days ?? 90), 1), 730);
+  const lines = await sql<SoldLine[]>`
+    select o.id as order_id, o.channel, o.ordered_at,
+           extract(isodow from o.ordered_at at time zone 'Europe/Paris')::int as iso_dow,
+           ol.qty, ol.unit_price_cents, off.condition::text as condition,
+           c.id as catalog_card_id, c.name, c.set_id, coalesce(st.name, c.set_id) as set_name, c.rarity,
+           (select coalesce(sum(a.qty::bigint * s.unit_cost_cents), 0)
+              from order_allocations a join stock_items s on s.id = a.stock_item_id
+             where a.order_line_id = ol.id and a.status <> 'RELEASED')::text as cost_cents,
+           (select floor(extract(epoch from o.ordered_at - min(s.created_at)) / 86400)::int
+              from order_allocations a join stock_items s on s.id = a.stock_item_id
+             where a.order_line_id = ol.id) as days_in_stock
+      from order_lines ol
+      join orders o on o.id = ol.order_id
+      join offers off on off.id = ol.offer_id
+      join card_variants v on v.id = off.variant_id
+      join catalog_cards c on c.id = v.catalog_card_id
+      left join catalog_sets st on st.id = c.set_id and st.language = c.language
+     where o.fulfillment_status <> 'CANCELLED' and o.ordered_at >= now() - make_interval(days => ${days})`;
+  const [previous] = await sql<{ orders: number; cards: number; revenueCents: string }[]>`
+    select count(distinct o.id)::int as orders, coalesce(sum(ol.qty), 0)::int as cards,
+           coalesce(sum(ol.qty::bigint * ol.unit_price_cents), 0)::text as revenue_cents
+      from order_lines ol join orders o on o.id = ol.order_id
+     where o.fulfillment_status <> 'CANCELLED'
+       and o.ordered_at >= now() - make_interval(days => ${days * 2}) and o.ordered_at < now() - make_interval(days => ${days})`;
+  const months = await sql<{ month: string; cards: number; revenueCents: string }[]>`
+    select to_char(m.start, 'YYYY-MM') as month, coalesce(sum(ol.qty), 0)::int as cards,
+           coalesce(sum(ol.qty::bigint * ol.unit_price_cents), 0)::text as revenue_cents
+      from generate_series(date_trunc('month', now()) - interval '11 months', date_trunc('month', now()), interval '1 month') as m(start)
+      left join orders o on o.fulfillment_status <> 'CANCELLED' and o.ordered_at >= m.start and o.ordered_at < m.start + interval '1 month'
+      left join order_lines ol on ol.order_id = o.id
+     group by m.start order by m.start`;
+  // Ce qui reste à vendre : les cartes réservées par une vente sont déjà comptées comme vendues.
+  const stock = await sql<{ setId: string; cards: number }[]>`
+    select c.set_id, sum(s.on_hand - s.reserved)::int as cards
+      from stock_items s
+      join offers o on o.id = s.offer_id
+      join card_variants v on v.id = o.variant_id
+      join catalog_cards c on c.id = v.catalog_card_id
+     where s.lifecycle <> 'ARCHIVED' and s.on_hand > 0
+     group by c.set_id`;
+
+  const cards = lines.reduce((n, l) => n + l.qty, 0);
+  const revenueCents = lines.reduce((n, l) => n + l.qty * l.unitPriceCents, 0);
+  const costCents = lines.reduce((n, l) => n + Number(l.costCents), 0);
+  const orders = new Set(lines.map((l) => l.orderId)).size;
+  const inStock = stock.reduce((n, s) => n + s.cards, 0);
+  const delays = lines.flatMap((l) => (l.daysInStock === null ? [] : Array<number>(l.qty).fill(Math.max(l.daysInStock, 0)))).sort((a, b) => a - b);
+  const median = delays.length === 0 ? null
+    : delays.length % 2 ? delays[(delays.length - 1) / 2]! : Math.round((delays[delays.length / 2 - 1]! + delays[delays.length / 2]!) / 2);
+  const percent = (part: number, whole: number) => (whole === 0 ? 0 : Math.round((part / whole) * 1000) / 10);
+  const stockBySet = new Map(stock.map((s) => [s.setId, s.cards]));
+
+  const band = (cents: number) => PRICE_BANDS.find((b) => cents < b.max)!;
+  const delay = (d: number) => DELAYS.find((b) => d < b.max)!;
+  const conditions = slices(lines, (l) => [l.condition, CONDITION_LABEL[l.condition] ?? l.condition]);
+  const channels = slices(lines, (l) => [l.channel, l.channel]);
+
+  const top = new Map<string, SalesInsights["topCards"][number]>();
+  for (const l of lines) {
+    const t = top.get(l.catalogCardId) ?? { catalogCardId: l.catalogCardId, name: l.name, setName: l.setName, cards: 0, revenueCents: 0, averageCents: 0 };
+    t.cards += l.qty;
+    t.revenueCents += l.qty * l.unitPriceCents;
+    t.averageCents = Math.round(t.revenueCents / t.cards);
+    top.set(l.catalogCardId, t);
+  }
+
+  return {
+    days,
+    totals: {
+      orders, cards, revenueCents,
+      marginCents: revenueCents - costCents,
+      averageCardCents: cards ? Math.round(revenueCents / cards) : 0,
+      averageOrderCents: orders ? Math.round(revenueCents / orders) : 0,
+      medianDaysToSell: median,
+      sellThroughPercent: cards + inStock === 0 ? null : percent(cards, cards + inStock),
+    },
+    previous: { ...previous!, revenueCents: Number(previous!.revenueCents) },
+    months: months.map((m) => ({ ...m, revenueCents: Number(m.revenueCents) })),
+    bySet: slices(lines, (l) => [l.setId, l.setName]).slice(0, 10).map((s) => {
+      const left = stockBySet.get(s.key) ?? 0;
+      return { ...s, inStock: left, sellThroughPercent: percent(s.cards, s.cards + left) };
+    }),
+    byPriceBand: ordered(slices(lines, (l) => { const b = band(l.unitPriceCents); return [b.key, b.label]; }), PRICE_BANDS.map((b) => b.key), PRICE_BANDS.map((b) => b.label)),
+    byCondition: conditions.sort((a, b) => CONDITION_ORDER.indexOf(a.key) - CONDITION_ORDER.indexOf(b.key)),
+    byRarity: slices(lines, (l) => [l.rarity ?? "", l.rarity ?? "Sans rareté"]).slice(0, 8),
+    byChannel: channels.map((c) => ({ ...c, orders: new Set(lines.filter((l) => l.channel === c.key).map((l) => l.orderId)).size })),
+    byWeekday: WEEKDAYS.map((label, i) => ({ weekday: i + 1, label, orders: new Set(lines.filter((l) => l.isoDow === i + 1).map((l) => l.orderId)).size })),
+    daysToSell: ordered(slices(lines.filter((l) => l.daysInStock !== null), (l) => { const d = delay(Math.max(l.daysInStock!, 0)); return [d.key, d.label]; }), DELAYS.map((d) => d.key), DELAYS.map((d) => d.label)),
+    topCards: [...top.values()].sort((a, b) => b.cards - a.cards || b.revenueCents - a.revenueCents).slice(0, 10),
+  };
+}

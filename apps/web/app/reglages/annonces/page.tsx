@@ -18,7 +18,7 @@ export default function ListingSettingsPage() {
   }, []);
 
   return (
-    <Page>
+    <Page className="mx-auto w-full max-w-5xl">
       <PageHeader back={<BackLink href="/reglages">Réglages</BackLink>} title="Modèle d'annonce et photos" description="Le texte des annonces et la mise en scène des photos, communs à tous les canaux." />
       <div>
         <SegmentedTabs label="Réglages des annonces" value={tab} onChange={setTab} tabs={[{ value: "TEMPLATE", label: "Modèle" }, { value: "PHOTOS", label: "Photos" }]} />

@@ -1,27 +1,33 @@
 "use client";
 
-import { CalendarClock, Check, Copy, Images, Megaphone, RefreshCw, ScanLine, Search, ShoppingCart, Wand2, X } from "lucide-react";
+import { BadgeCheck, CalendarClock, Check, ChevronUp, Copy, Download, Images, Megaphone, MoveRight, RefreshCw, ScanLine, Search, ShoppingCart, SlidersHorizontal, Wand2, X } from "lucide-react";
+import { DropdownMenu, Popover } from "radix-ui";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { toast } from "sonner";
+import { AddMenu } from "@/components/add-menu";
 import { CardThumb } from "@/components/card-chooser";
+import { LocationPicker } from "@/components/location-picker";
 import { OfferPhotos } from "@/components/offer-photos";
+import { PhotoStack, PhotoViewer, type ViewerPhoto } from "@/components/photo-viewer";
 import { PlanModal } from "@/components/plan-modal";
 import { PriceHistory } from "@/components/price-history";
 import { SalesBasis } from "@/components/sales-basis";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
-import { Code, Spinner } from "@/components/ui/misc";
+import { ActionBar } from "@/components/ui/action-bar";
+import { Code, Page, PageHeader, Spinner } from "@/components/ui/misc";
 import { Modal } from "@/components/ui/modal";
 import { Pagination, SegmentedTabs } from "@/components/ui/tabs";
 import { ApiError, api } from "@/lib/api";
 import { useCardImage } from "@/lib/card-image";
 import { dayLabel, formatEuros, parseEuros, variantLabel } from "@/lib/format";
 import { CONFIDENCE_LABEL, age, eurosInput, quoteLabel, reasonLabel } from "@/lib/pricing";
-import { CONDITIONS, type ChannelState, type ListingBlocker, type Schedule, type StockDetail, type StockFacets, type StockPage, type StockRow, type StockStatus } from "@/lib/types";
+import { CONDITIONS, type ChannelState, type ListingBlocker, type StockDetail, type StockFacets, type StockPage, type StockRow, type StockStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { composeMissingVisuals } from "@/lib/visuals";
+import { exportStockCsv } from "@/lib/export";
 import { InspectorSkeleton, StockRowsSkeleton } from "@/components/skeletons";
 
 const PAGE_SIZE = 50;
@@ -44,12 +50,6 @@ const ERRORS: Record<string, string> = {
 const message = (e: unknown) => (e instanceof ApiError ? (ERRORS[e.code] ?? e.message) : (e as Error).message);
 const subtitle = (r: StockRow) => `${r.setName ?? r.setId.toUpperCase()} · ${r.localNumber} · ${variantLabel(r)}`;
 
-const PLAN_ERRORS: Record<string, string> = {
-  LISTING_NOT_READY: "prix, photo ou variante manquante",
-  OFFER_NOT_SELLABLE: "plus de stock vendable",
-  CHANNEL_DISABLED: "canal désactivé",
-  CHANNEL_NOT_CONFIGURED: "connecteur du canal non configuré",
-};
 
 function StatusMark({ status, plannedOn }: { status: StockStatus; plannedOn?: string | null }) {
   return (
@@ -144,20 +144,137 @@ const PRICE_RANGES: { value: string; label: string; min?: number; max?: number }
   { value: "gte200", label: "200 € et plus", min: 20000 },
 ];
 
-/** Un filtre : liste déroulante compacte, mise en avant quand une valeur est choisie. */
+const SORTS: { value: Sort; label: string }[] = [
+  { value: "recent", label: "Plus récentes" },
+  { value: "value", label: "Plus chères" },
+  { value: "name", label: "Nom" },
+];
+
+/** Un filtre du panneau : libellé au-dessus, liste déroulante pleine largeur. */
 function FilterSelect({ label, value, all, options, onChange }: {
   label: string; value: string; all: string; options: { value: string; label: string; count?: number }[]; onChange: (value: string) => void;
 }) {
   return (
-    <Select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      aria-label={label}
-      className={cn("h-8 w-auto max-w-52 shrink-0 text-[13px] md:h-8", value && "border-primary/50 bg-accent font-medium")}
+    <label className="grid gap-1.5">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      <Select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} className={cn("h-9 w-full text-sm md:h-9", value && "border-primary/50 font-medium")}>
+        <option value="">{all}</option>
+        {options.map((o) => <option key={o.value} value={o.value}>{o.label}{o.count !== undefined ? ` (${o.count.toLocaleString("fr-FR")})` : ""}</option>)}
+      </Select>
+    </label>
+  );
+}
+
+/** Les filtres posés, pour les puces sous la recherche : ce qu'ils filtrent et la valeur lisible. */
+function activeFilters(filters: Filters, facets: StockFacets): { key: keyof Filters; label: string; value: string }[] {
+  const out: { key: keyof Filters; label: string; value: string }[] = [];
+  if (filters.setId) out.push({ key: "setId", label: "Série", value: facets.sets.find((x) => x.id === filters.setId)?.name ?? filters.setId });
+  if (filters.location) out.push({ key: "location", label: "Boîte", value: filters.location });
+  if (filters.condition) out.push({ key: "condition", label: "État", value: CONDITIONS.find((c) => c.code === filters.condition)?.label ?? filters.condition });
+  if (filters.price) out.push({ key: "price", label: "Prix", value: PRICE_RANGES.find((r) => r.value === filters.price)?.label ?? filters.price });
+  return out;
+}
+
+/**
+ * Filtres regroupés derrière un seul bouton : la barre reste lisible, le nombre de filtres posés s'affiche sur le bouton.
+ * Sur téléphone, le tri y est aussi.
+ */
+function FiltersPopover({ facets, filters, onChange, onClear, sort, onSort }: {
+  facets: StockFacets | null; filters: Filters; onChange: (key: keyof Filters, value: string) => void; onClear: () => void; sort: Sort; onSort: (sort: Sort) => void;
+}) {
+  const active = Object.values(filters).filter(Boolean).length;
+  return (
+    <Popover.Root>
+      <Popover.Trigger asChild>
+        <Button variant="outline" className="h-9 shrink-0 px-3" aria-label={active > 0 ? `Filtres, ${active} actif${active > 1 ? "s" : ""}` : "Filtres"} data-testid="stock-filters-button">
+          <SlidersHorizontal />
+          <span className="hidden sm:inline">Filtres</span>
+          {active > 0 && <span className="tabular flex size-5 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">{active}</span>}
+        </Button>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          align="end"
+          sideOffset={6}
+          collisionPadding={16}
+          className="z-50 grid w-[min(20rem,calc(100vw-2rem))] gap-3 rounded-xl border bg-popover p-4 text-popover-foreground shadow-lg outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
+          aria-label="Filtres du stock"
+        >
+          <label className="grid gap-1.5 sm:hidden">
+            <span className="text-xs font-medium text-muted-foreground">Trier par</span>
+            <Select value={sort} onChange={(e) => onSort(e.target.value as Sort)} className="h-9 w-full text-sm md:h-9">
+              {SORTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </Select>
+          </label>
+          {facets && (
+            <>
+              <FilterSelect label="Série" value={filters.setId} onChange={(v) => onChange("setId", v)} all="Toutes les séries"
+                options={facets.sets.map((x) => ({ value: x.id, label: x.name, count: x.cards }))} />
+              <FilterSelect label="Boîte" value={filters.location} onChange={(v) => onChange("location", v)} all="Toutes les boîtes"
+                options={facets.locations.map((l) => ({ value: l.code, label: l.code, count: l.cards }))} />
+              <FilterSelect label="État" value={filters.condition} onChange={(v) => onChange("condition", v)} all="Tous les états"
+                options={facets.conditions.map((c) => ({ value: c.code, label: `${c.code} · ${CONDITIONS.find((k) => k.code === c.code)?.label ?? c.code}`, count: c.cards }))} />
+            </>
+          )}
+          <FilterSelect label="Prix" value={filters.price} onChange={(v) => onChange("price", v)} all="Tous les prix"
+            options={PRICE_RANGES.map((r) => ({ value: r.value, label: r.label }))} />
+          <div className="flex items-center justify-between gap-2 border-t pt-3">
+            <Button variant="ghost" size="sm" onClick={onClear} disabled={active === 0}>Effacer</Button>
+            <Popover.Close asChild><Button size="sm">Voir les cartes</Button></Popover.Close>
+          </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}
+
+/**
+ * Actions sur les cartes cochées, dans une barre fixée en bas : ce qu'elles permettent dépend de leur état
+ * (prix suggéré à accepter, brouillons à valider). Sur téléphone, les actions se replient dans un menu.
+ */
+function SelectionBar({ rows, busy, onClear, onBulk, onMove, onPlan }: {
+  rows: StockRow[];
+  busy: boolean;
+  onClear: () => void;
+  onBulk: (action: "ACCEPT_PRICE" | "ACTIVATE") => void;
+  onMove: () => void;
+  onPlan: () => void;
+}) {
+  const toPrice = rows.filter((r) => r.targetPriceCents === null && r.suggestedPriceCents !== null).length;
+  const drafts = rows.filter((r) => r.draft > 0).length;
+  const actions: { key: string; label: string; icon: ReactNode; onSelect: () => void; primary?: boolean }[] = [
+    ...(toPrice > 0 ? [{ key: "price", label: `Accepter les prix (${toPrice})`, icon: <Check />, onSelect: () => onBulk("ACCEPT_PRICE") }] : []),
+    ...(drafts > 0 ? [{ key: "activate", label: `Valider les brouillons (${drafts})`, icon: <BadgeCheck />, onSelect: () => onBulk("ACTIVATE") }] : []),
+    { key: "move", label: "Déplacer", icon: <MoveRight />, onSelect: onMove },
+    { key: "csv", label: "Exporter", icon: <Download />, onSelect: () => exportStockCsv(rows) },
+    { key: "plan", label: "Mettre en ligne", icon: <CalendarClock />, onSelect: onPlan, primary: true },
+  ];
+  const n = rows.length;
+  return (
+    <ActionBar message={<span className="flex flex-wrap items-center gap-x-3"><strong className="font-semibold text-foreground">{n} carte{n > 1 ? "s" : ""} sélectionnée{n > 1 ? "s" : ""}</strong>
+      <button type="button" onClick={onClear} className="text-xs underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline">Désélectionner</button></span>}
     >
-      <option value="">{all}</option>
-      {options.map((o) => <option key={o.value} value={o.value}>{o.label}{o.count !== undefined ? ` (${o.count.toLocaleString("fr-FR")})` : ""}</option>)}
-    </Select>
+      {busy && <Spinner />}
+      <span className="hidden items-center gap-2 md:flex" data-testid="selection-actions">
+        {actions.map((a) => (
+          <Button key={a.key} size="sm" variant={a.primary ? "default" : "outline"} disabled={busy} onClick={a.onSelect}>{a.icon} {a.label}</Button>
+        ))}
+      </span>
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild>
+          <Button size="sm" disabled={busy} className="md:hidden">Actions <ChevronUp /></Button>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content side="top" align="end" sideOffset={8} className="z-50 w-60 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg outline-none">
+            {actions.map((a) => (
+              <DropdownMenu.Item key={a.key} onSelect={a.onSelect} className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-sm outline-none data-[highlighted]:bg-accent [&_svg]:size-4 [&_svg]:text-muted-foreground">
+                {a.icon} {a.label}
+              </DropdownMenu.Item>
+            ))}
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
+    </ActionBar>
   );
 }
 
@@ -186,9 +303,12 @@ function Stock() {
   const [version, setVersion] = useState(0);
   const [channels, setChannels] = useState<ChannelState[]>([]);
   const [accepting, setAccepting] = useState(false);
-  const [checked, setChecked] = useState<Set<string>>(new Set());
-  const [schedule, setSchedule] = useState<Schedule | null>(null);
+  // La sélection garde les lignes elles-mêmes : les actions groupées en ont besoin, même d'une page à l'autre.
+  const [checked, setChecked] = useState<Map<string, StockRow>>(new Map());
+  const [scheduled, setScheduled] = useState(0);
   const [planning, setPlanning] = useState(false);
+  const [moving, setMoving] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const desktop = useIsDesktop();
 
   const load = useCallback(() => {
@@ -218,7 +338,7 @@ function Stock() {
   }, [version]);
 
   const loadSchedule = useCallback(() => {
-    api.schedule().then(setSchedule).catch(() => setSchedule(null));
+    api.schedule().then((r) => setScheduled(r.pending)).catch(() => setScheduled(0));
   }, []);
   useEffect(loadSchedule, [loadSchedule]);
 
@@ -228,9 +348,9 @@ function Stock() {
     setVersion((v) => v + 1);
   }, [load, loadSchedule]);
 
-  const toggle = (offerId: string) => setChecked((current) => {
-    const next = new Set(current);
-    if (!next.delete(offerId)) next.add(offerId);
+  const toggle = (row: StockRow) => setChecked((current) => {
+    const next = new Map(current);
+    if (!next.delete(row.offerId)) next.set(row.offerId, row);
     return next;
   });
   const pageIds = (data?.items ?? []).map((r) => r.offerId);
@@ -269,6 +389,29 @@ function Stock() {
   }
 
   const filtered = Object.values(filters).some(Boolean);
+  const clearFilters = () => {
+    setFilters(NO_FILTERS);
+    setPage(1);
+  };
+  async function bulk(action: "ACCEPT_PRICE" | "ACTIVATE" | "MOVE", locationCode?: string) {
+    const offerIds = [...checked.keys()];
+    setBulkBusy(true);
+    try {
+      const { affected } = await api.stockBulk(action === "MOVE" ? { action, offerIds, locationCode: locationCode! } : { action, offerIds });
+      const s = affected > 1 ? "s" : "";
+      toast.success(
+        action === "ACCEPT_PRICE" ? `${affected} prix accepté${s}`
+          : action === "ACTIVATE" ? `${affected} exemplaire${s} validé${s}`
+          : affected === 0 ? `Déjà rangées dans ${locationCode}` : `${affected} position${s} déplacée${s} dans ${locationCode}`,
+      );
+      setChecked(new Map());
+    } catch (e) {
+      toast.error(message(e));
+    } finally {
+      setBulkBusy(false);
+      changed();
+    }
+  }
   const empty = data && data.counts.ALL === 0 && !query && !filtered;
   const setFilterValue = (key: keyof Filters, value: string) => {
     setFilters((current) => ({ ...current, [key]: value }));
@@ -279,51 +422,24 @@ function Stock() {
   );
 
   return (
-    <div className="grid gap-4">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <h1 className="text-xl leading-tight font-semibold tracking-tight sm:text-2xl">Stock</h1>
-        {data && data.counts.ALL > 0 && (
-          <p className="tabular text-sm text-muted-foreground" data-testid="stock-totals">
+    <Page className="gap-4">
+      <PageHeader
+        title="Stock"
+        meta={data && data.counts.ALL > 0 && (
+          <span className="tabular" data-testid="stock-totals">
             {data.totals.cards.toLocaleString("fr-FR")} carte{data.totals.cards > 1 ? "s" : ""} · {formatEuros(data.totals.valueCents)}
-          </p>
+          </span>
         )}
-        <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
-          <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-            <input
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setPage(1);
-              }}
-              placeholder="Carte, série ou référence"
-              aria-label="Rechercher dans le stock"
-              className="h-9 w-full rounded-md border border-input bg-card pr-3 pl-8 text-sm outline-none placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15 sm:w-64"
-            />
-          </div>
-          <Select value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Trier" className="h-9 w-auto text-sm md:h-9">
-            <option value="recent">Plus récentes</option>
-            <option value="value">Plus chères</option>
-            <option value="name">Nom</option>
-          </Select>
-        </div>
-      </div>
-
-      {!empty && facets && (facets.sets.length > 1 || facets.locations.length > 1 || facets.conditions.length > 1 || filtered) && (
-        <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-0.5 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0" data-testid="stock-filters" role="group" aria-label="Filtres">
-          <FilterSelect label="Série" value={filters.setId} onChange={(v) => setFilterValue("setId", v)} all="Toutes les séries"
-            options={facets.sets.map((s) => ({ value: s.id, label: s.name, count: s.cards }))} />
-          <FilterSelect label="Boîte" value={filters.location} onChange={(v) => setFilterValue("location", v)} all="Toutes les boîtes"
-            options={facets.locations.map((l) => ({ value: l.code, label: l.code, count: l.cards }))} />
-          <FilterSelect label="État" value={filters.condition} onChange={(v) => setFilterValue("condition", v)} all="Tous les états"
-            options={facets.conditions.map((c) => ({ value: c.code, label: `${c.code} · ${CONDITIONS.find((k) => k.code === c.code)?.label ?? c.code}`, count: c.cards }))} />
-          <FilterSelect label="Prix" value={filters.price} onChange={(v) => setFilterValue("price", v)} all="Tous les prix"
-            options={PRICE_RANGES.map((r) => ({ value: r.value, label: r.label }))} />
-          {filtered && (
-            <Button variant="ghost" size="sm" className="shrink-0" onClick={() => { setFilters(NO_FILTERS); setPage(1); }}><X /> Effacer les filtres</Button>
-          )}
-        </div>
-      )}
+        actions={<>
+          <Button asChild variant="outline">
+            <Link href="/mises-en-ligne">
+              <CalendarClock /> Mises en ligne
+              {scheduled > 0 && <span className="tabular rounded-full bg-muted px-1.5 text-[11px] font-semibold text-muted-foreground">{scheduled}</span>}
+            </Link>
+          </Button>
+          <AddMenu />
+        </>}
+      />
 
       {error && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive-soft px-3 py-2 text-sm text-destructive">{error}</p>}
 
@@ -340,40 +456,73 @@ function Stock() {
         </div>
       ) : (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="grid gap-3">
             <div className="max-w-full overflow-x-auto">
-            <SegmentedTabs
-              label="Statut"
-              value={filter}
-              onChange={(next) => {
-                setFilter(next);
-                setPage(1);
-              }}
-              tabs={[
-                { value: "ALL", label: "Tout", count: data?.counts.ALL },
-                { value: "TO_PRICE", label: "À tarifer", count: data?.counts.TO_PRICE },
-                { value: "READY", label: "Prêtes", count: data?.counts.READY },
-                { value: "LISTED", label: "En ligne", count: data?.counts.LISTED },
-                { value: "DRAFT", label: "Brouillons", count: data?.counts.DRAFT },
-              ]}
-            />
+              <SegmentedTabs
+                label="Statut"
+                value={filter}
+                onChange={(next) => {
+                  setFilter(next);
+                  setPage(1);
+                }}
+                tabs={[
+                  { value: "ALL", label: "Tout", count: data?.counts.ALL },
+                  { value: "TO_PRICE", label: "À tarifer", count: data?.counts.TO_PRICE },
+                  { value: "READY", label: "Prêtes", count: data?.counts.READY },
+                  { value: "LISTED", label: "En ligne", count: data?.counts.LISTED },
+                  { value: "DRAFT", label: "Brouillons", count: data?.counts.DRAFT },
+                ]}
+              />
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {suggested.length > 0 && (
-                <Button variant="outline" size="sm" onClick={acceptAll} disabled={accepting}>
-                  {accepting ? <Spinner /> : <Check />} Accepter les {suggested.length} prix suggérés
-                </Button>
-              )}
-              {channels.length > 0 && data && (checked.size > 0 || data.counts.READY > 0) && (
-                <Button size="sm" onClick={() => setPlanning(true)}>
-                  <CalendarClock /> Planifier la mise en ligne{checked.size > 0 ? ` (${checked.size})` : ""}
-                </Button>
-              )}
+
+            <div className="flex items-center gap-2" role="search">
+              <div className="relative min-w-0 flex-1 sm:max-w-md">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="Nom, série, numéro ou référence"
+                  aria-label="Rechercher dans le stock"
+                  className="h-9 w-full rounded-md border border-input bg-card pr-3 pl-8 text-sm outline-none placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15"
+                />
+              </div>
+              <FiltersPopover facets={facets} filters={filters} onChange={setFilterValue} onClear={clearFilters} sort={sort} onSort={setSort} />
+              <Select value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Trier" className="hidden h-9 w-auto text-sm sm:ml-auto sm:block md:h-9">
+                {SORTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </Select>
             </div>
+
+            {filtered && facets && (
+              <div className="flex flex-wrap items-center gap-1.5" data-testid="stock-filters" aria-label="Filtres actifs">
+                {activeFilters(filters, facets).map((f) => (
+                  <span key={f.key} className="inline-flex h-7 items-center gap-1 rounded-full border bg-accent pr-1 pl-2.5 text-xs font-medium">
+                    <span className="text-muted-foreground">{f.label} :</span> {f.value}
+                    <button type="button" onClick={() => setFilterValue(f.key, "")} aria-label={`Retirer le filtre ${f.label}`} className="flex size-5 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-background hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40">
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                ))}
+                <button type="button" onClick={clearFilters} className="px-1.5 text-xs font-medium text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline">
+                  Tout effacer
+                </button>
+              </div>
+            )}
           </div>
 
-          {schedule && (schedule.pending > 0 || schedule.failed.length > 0) && (
-            <SchedulePanel schedule={schedule} channels={channels} onChanged={changed} />
+          {suggested.length > 0 && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-card px-3 py-2 text-sm">
+              <Check className="size-4 text-muted-foreground" aria-hidden />
+              <span className="min-w-0 flex-1 text-muted-foreground">
+                {suggested.length} carte{suggested.length > 1 ? "s ont" : " a"} un prix suggéré à valider sur cette page.
+              </span>
+              <Button variant="outline" size="sm" onClick={acceptAll} disabled={accepting}>
+                {accepting ? <Spinner /> : <Check />} Accepter les {suggested.length} prix suggérés
+              </Button>
+            </div>
           )}
 
           <div className={cn("grid items-start gap-4", selected && desktop && "lg:grid-cols-[minmax(0,1fr)_25rem]")}>
@@ -387,8 +536,8 @@ function Stock() {
                         checked={allChecked}
                         aria-label="Sélectionner toutes les cartes de la page"
                         onChange={() => setChecked((current) => {
-                          const next = new Set(current);
-                          for (const id of pageIds) if (allChecked) next.delete(id); else next.add(id);
+                          const next = new Map(current);
+                          for (const row of data?.items ?? []) if (allChecked) next.delete(row.offerId); else next.set(row.offerId, row);
                           return next;
                         })}
                         className="size-4 cursor-pointer accent-foreground"
@@ -418,11 +567,13 @@ function Stock() {
                       )}
                     >
                       <td className="w-9 pl-3" onClick={(e) => e.stopPropagation()}>
-                        <input type="checkbox" checked={checked.has(row.offerId)} onChange={() => toggle(row.offerId)} aria-label={`Sélectionner ${row.name} ${row.condition}`} className="size-4 cursor-pointer accent-foreground" />
+                        <input type="checkbox" checked={checked.has(row.offerId)} onChange={() => toggle(row)} aria-label={`Sélectionner ${row.name} ${row.condition}`} className="size-4 cursor-pointer accent-foreground" />
                       </td>
                       <td className="px-3 py-1.5">
                         <span className="flex items-center gap-3">
-                          <CardThumb imageUrl={row.imageUrl} size="sm" className="w-8 rounded-[3px]" />
+                          {row.photoUrl
+                            ? <img src={row.photoUrl} alt="" loading="lazy" className="aspect-[63/88] w-8 shrink-0 rounded-[3px] bg-muted object-cover ring-1 ring-border" />
+                            : <CardThumb imageUrl={row.imageUrl} size="sm" className="w-8 rounded-[3px]" />}
                           <span className="grid min-w-0">
                             <span className="truncate font-medium">{row.name}</span>
                             <span className="truncate text-xs text-muted-foreground"><span className="sm:hidden">{row.condition} · </span>{subtitle(row)}</span>
@@ -457,22 +608,42 @@ function Stock() {
             {desktop ? inspector : selected && <Modal title="Carte" onClose={() => setSelected(null)}>{inspector}</Modal>}
           </div>
           {data && <Pagination page={page} pageCount={Math.ceil(data.total / PAGE_SIZE)} onChange={setPage} />}
-          {planning && data && (
-            <PlanModal
-              channels={channels}
-              selected={[...checked]}
-              readyCount={data.counts.READY}
-              onClose={() => setPlanning(false)}
-              onPlanned={() => {
-                setPlanning(false);
-                setChecked(new Set());
-                changed();
-              }}
-            />
-          )}
         </>
       )}
-    </div>
+
+      {checked.size > 0 && (
+        <SelectionBar
+          rows={[...checked.values()]}
+          busy={bulkBusy}
+          onClear={() => setChecked(new Map())}
+          onBulk={bulk}
+          onMove={() => setMoving(true)}
+          onPlan={() => {
+            if (channels.length > 0) setPlanning(true);
+            else toast.error("Aucun canal de vente actif", { description: "Activez eBay ou CardTrader, en simulation ou en réel, dans Réglages › Canaux de vente." });
+          }}
+        />
+      )}
+      {moving && (
+        <LocationPicker value="" onClose={() => setMoving(false)} onPick={(code) => {
+          setMoving(false);
+          void bulk("MOVE", code);
+        }} />
+      )}
+      {planning && data && (
+        <PlanModal
+          channels={channels}
+          selected={[...checked.keys()]}
+          readyCount={data.counts.READY}
+          onClose={() => setPlanning(false)}
+          onPlanned={() => {
+            setPlanning(false);
+            setChecked(new Map());
+            changed();
+          }}
+        />
+      )}
+    </Page>
   );
 }
 
@@ -559,7 +730,8 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
   }
 
   // Avant tout retour anticipé : un hook s'appelle à chaque rendu.
-  const catalogPicture = useCardImage(detail && !detail.photoUrl ? detail.imageUrl : null, "high");
+  const catalogPicture = useCardImage(detail?.imageUrl ?? null, "high");
+  const [viewing, setViewing] = useState<number | null>(null);
   if (!detail) {
     return error ? <aside className="rounded-lg border bg-card p-4 text-sm text-muted-foreground lg:sticky lg:top-6">{error}</aside> : <InspectorSkeleton />;
   }
@@ -570,14 +742,24 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
     await api.setOfferPrice(d.offerId, { targetPriceCents: value });
   });
   const copy = (text: string, what: string) => void navigator.clipboard?.writeText(text).then(() => toast.success(`${what} copié${what === "Description" ? "e" : ""}`));
-  const picture = d.photoUrl ?? catalogPicture.src;
+  // Les vues de l'exemplaire : scans recto et verso, visuels d'annonce, puis l'image du catalogue.
+  const frontScan = d.photos.find((p) => p.kind === "SCAN_FRONT");
+  const backScan = d.photos.find((p) => p.kind === "SCAN_BACK");
+  const visuals = d.photos.filter((p) => p.kind === "LISTING");
+  const views: ViewerPhoto[] = [
+    ...(frontScan ? [{ src: frontScan.url, label: "Recto" }] : []),
+    ...(backScan ? [{ src: backScan.url, label: "Verso" }] : []),
+    ...visuals.map((p, i) => ({ src: p.url, label: visuals.length > 1 ? `Photo d'annonce ${i + 1}` : "Photo d'annonce", shape: "square" as const })),
+    ...(catalogPicture.src ? [{ src: catalogPicture.src, label: "Image du catalogue" }] : []),
+  ];
 
   return (
     <aside className="overflow-hidden rounded-lg border bg-card lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto" aria-label={`Carte ${d.name}`} data-testid="stock-inspector">
       <div className="flex gap-3 p-4">
-        {picture
-          ? <img src={picture} alt="" onError={d.photoUrl ? undefined : catalogPicture.onError} className={cn("w-24 shrink-0 rounded-md bg-muted object-cover ring-1 ring-border", d.photoUrl?.includes("/annonces/") ? "aspect-square" : "aspect-[63/88]")} />
+        {views.length > 0
+          ? <PhotoStack front={views[0]!} back={frontScan && backScan ? views[1] : null} onOpen={setViewing} className="w-24" />
           : <CardThumb imageUrl={null} size="lg" />}
+        {viewing !== null && <PhotoViewer photos={views} start={viewing} title={`${d.name} · ${d.condition}`} onClose={() => setViewing(null)} />}
         <div className="grid min-w-0 flex-1 content-start gap-1">
           <h2 className="text-base leading-snug font-semibold [overflow-wrap:anywhere]">
             <Link href={`/carte/${d.catalogCardId}`} className="underline-offset-2 outline-none hover:underline focus-visible:underline" title="Fiche de la carte : toutes ses variantes et tous ses exemplaires">{d.name}</Link>
@@ -653,7 +835,7 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
             <Button variant="ghost" size="icon-sm" onClick={() => copy(d.text.description, "Description")} aria-label="Copier la description"><Copy /></Button>
           </div>
         </details>
-        <OfferPhotos offerId={d.offerId} photos={d.photos} disabled={busy} run={(action) => void run(action)} />
+        <OfferPhotos offerId={d.offerId} photos={d.photos} disabled={busy} run={(action) => void run(action)} onOpen={(photo) => setViewing(Math.max(0, views.findIndex((v) => v.src === photo.url)))} />
         {d.photos.some((p) => p.kind === "SCAN_FRONT" || p.kind === "SCAN_BACK") && (
           <Button
             variant="outline" size="sm" className="justify-self-start" disabled={busy}
@@ -726,61 +908,3 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
 }
 
 /** Planning des mises en ligne : ce qui part, quel jour, et ce qui n'a pas pu partir. */
-function SchedulePanel({ schedule, channels, onChanged }: { schedule: Schedule; channels: ChannelState[]; onChanged: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const label = (id: string) => channels.find((c) => c.id === id)?.label ?? id;
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date());
-  async function run(action: () => Promise<string>) {
-    setBusy(true);
-    try {
-      toast.success(await action());
-    } catch (e) {
-      toast.error(message(e));
-    } finally {
-      setBusy(false);
-      onChanged();
-    }
-  }
-  const due = schedule.days.filter((d) => d.plannedOn <= today).reduce((sum, d) => sum + d.count, 0);
-  return (
-    <section className="overflow-hidden rounded-lg border bg-card" aria-label="Planning des mises en ligne" data-testid="schedule">
-      <div className="flex flex-wrap items-center gap-3 border-b bg-muted/50 px-4 py-2">
-        <CalendarClock className="size-4 text-muted-foreground" aria-hidden />
-        <h2 className="flex-1 text-[13px] font-medium">
-          {schedule.pending} mise{schedule.pending > 1 ? "s" : ""} en ligne planifiée{schedule.pending > 1 ? "s" : ""} sur {schedule.days.length} jour{schedule.days.length > 1 ? "s" : ""}
-        </h2>
-        {due > 0 && (
-          <Button variant="outline" size="sm" disabled={busy} onClick={() => run(async () => {
-            const r = await api.runPublications();
-            return `${r.published} annonce${r.published > 1 ? "s" : ""} publiée${r.published > 1 ? "s" : ""}${r.failed ? `, ${r.failed} en échec` : ""}`;
-          })}>
-            Publier maintenant les {due} du jour
-          </Button>
-        )}
-      </div>
-      <ul className="divide-y text-sm">
-        {schedule.days.map((d) => (
-          <li key={`${d.plannedOn}-${d.channel}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2">
-            <span className="w-28 font-medium first-letter:uppercase">{dayLabel(d.plannedOn)}</span>
-            <span className="tabular w-36 text-muted-foreground">{d.count} carte{d.count > 1 ? "s" : ""} · {label(d.channel)}</span>
-            <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">{d.cardNames.join(", ")}{d.count > d.cardNames.length ? "…" : ""}</span>
-            <Button variant="ghost" size="sm" disabled={busy} aria-label={`Annuler les mises en ligne du ${dayLabel(d.plannedOn)}`} onClick={() => run(async () => {
-              const r = await api.cancelPublications({ plannedOn: d.plannedOn, channel: d.channel });
-              return `${r.cancelled} mise${r.cancelled > 1 ? "s" : ""} en ligne annulée${r.cancelled > 1 ? "s" : ""}`;
-            })}>
-              Annuler
-            </Button>
-          </li>
-        ))}
-        {schedule.failed.map((f) => (
-          <li key={f.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-[13px]">
-            <span className="size-2 rounded-full bg-destructive" aria-hidden />
-            <span className="flex-1">
-              <strong className="font-medium">{f.cardName}</strong> n'a pas pu être publiée {dayLabel(f.plannedOn)} : {PLAN_ERRORS[f.errorCode ?? ""] ?? "erreur du canal"}.
-            </span>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}

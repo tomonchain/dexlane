@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** Les annonces se gèrent depuis le stock (fiche d'une carte) : l'ancienne adresse y mène, sur les cartes prêtes à vendre. */
+/** Ancienne adresse des annonces : le planning des mises en ligne a désormais sa page. */
 export default function ListingsPage() {
-  redirect("/stock?statut=READY");
+  redirect("/mises-en-ligne");
 }

@@ -70,7 +70,7 @@ export default function ShippingCostsPage() {
   }
 
   return (
-    <Page width="narrow">
+    <Page width="narrow" className="mx-auto w-full">
       <PageHeader
         back={<BackLink href="/reglages">Réglages</BackLink>}
         title="Frais d'envoi"

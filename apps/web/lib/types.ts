@@ -9,7 +9,7 @@ import type {
   ListingState as ListingStateRow, PhotoStyle, PlanResult, Schedule as ScheduleRow, StockDetail as StockDetailRow, StockFacets, StockPage as StockPageRow, StockRow as StockRowRaw, StockStatus,
 } from "@dexlane/listings";
 import type {
-  AlertSettings, Dashboard as DashboardRow, OfferPricing as PricingRow, PriceMove as PriceMoveRow, PriceMoves as PriceMovesRow, PricingSettings,
+  AlertSettings, Dashboard as DashboardRow, SalesInsights as SalesInsightsRow, OfferPricing as PricingRow, PriceMove as PriceMoveRow, PriceMoves as PriceMovesRow, PricingSettings,
   Deal as DealRow, PriceHistory as PriceHistoryRow, TopCard as TopCardRow, VariantQuote as Quote, WatchedCard as WatchedCardRow,
 } from "@dexlane/pricing";
 import type { CardReadingRaw, RecognitionUsage, ScanBatch as ScanBatchRow, ScanItem as ScanItemRow } from "@dexlane/scan";
@@ -101,6 +101,7 @@ export type ListingOffer = Json<ListingOfferRow>;
 
 export type { AlertSettings };
 export type Dashboard = Json<DashboardRow>;
+export type SalesInsights = Json<SalesInsightsRow>;
 export type PriceMove = Json<PriceMoveRow>;
 export type PriceMoves = Json<PriceMovesRow>;
 
