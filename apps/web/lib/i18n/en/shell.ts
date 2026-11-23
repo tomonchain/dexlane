@@ -324,4 +324,11 @@ export const SHELL: Record<string, string> = {
   "Boîtes, classeurs et lots d'acquisition": "Boxes, binders and acquisition lots",
   "Séries importées": "Imported sets",
   "Prix, annonces, emplacements, catalogue, compte": "Prices, listings, locations, catalog, account",
+  "Plus": "More",
+  "Acheter et analyser": "Buy and analyze",
+  "Gérer": "Manage",
+  "Application": "App",
+  "Ventes et chiffre d'affaires": "Sales and revenue",
+  "{amount} sur 30 jours": "{amount} over 30 days",
+  "Ce qui se vend, ce mois-ci": "What sells this month",
 };

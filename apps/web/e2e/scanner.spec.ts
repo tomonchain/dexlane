@@ -135,7 +135,8 @@ test("première utilisation : l'assistant crée le compte, règle le scan, impor
   await expect(page.getByRole("heading", { name: "Inventaire" })).toBeVisible();
 
   // Déconnexion depuis le compte, puis retour par le seul mot de passe.
-  await page.getByRole("link", { name: "Réglages" }).click();
+  await page.getByTestId("more-button").click();
+  await page.getByTestId("more-sheet").getByRole("link", { name: "Réglages" }).click();
   await page.getByRole("link", { name: /^Compte/ }).click();
   await page.getByRole("button", { name: "Se déconnecter" }).click();
   await page.waitForURL(/\/login$/);
@@ -949,7 +950,7 @@ test("mise en ligne planifiée : image de fin d'annonce, sélection de cartes, r
   await expect(page.getByTestId("action-bar")).toHaveCount(0);
 
   // Le planning a sa page, ouverte depuis l'en-tête du stock.
-  await page.getByRole("link", { name: /^Mises en ligne/ }).click();
+  await page.getByRole("main").getByRole("link", { name: /^Mises en ligne/ }).click();
   await page.waitForURL(/\/mises-en-ligne$/);
   const schedule = page.getByTestId("schedule");
   await expect(schedule).toContainText("2 mises en ligne planifiées sur 2 jours");
@@ -1156,6 +1157,15 @@ test("page d'accueil : vitrine publique sans session, puis « Aujourd'hui » ave
   await page.mouse.wheel(0, -200);
   await expect(tabs).not.toHaveAttribute("data-compact");
   await page.evaluate(() => window.scrollTo(0, 0));
+  // Onglet « Plus » : une feuille avec les écrans moins fréquents ; un lien y mène et la referme.
+  await tabs.getByRole("button", { name: "Plus" }).click();
+  const more = page.getByTestId("more-sheet");
+  await expect(more).toContainText("Ventes et chiffre d'affaires");
+  await more.getByRole("link", { name: "Achats" }).click();
+  await page.waitForURL(/\/achats$/);
+  await expect(more).toHaveCount(0);
+  await expect(tabs.getByRole("button", { name: "Plus" })).toHaveAttribute("aria-current", "page");
+  await page.goto("/");
   const task = page.getByTestId("home-task").filter({ hasText: "Lot d'accueil" });
   await expect(task).toContainText("carte à corriger");
   await task.click();
@@ -1291,7 +1301,8 @@ test("préparation des envois : liste de prélèvement, bon de livraison et reç
 test("achats : suivre une carte avec un prix cible, ses prix sur Cardmarket et TCGplayer, alertes, et bonnes affaires sur les grosses cartes", async ({ page }) => {
   await login(page);
   await page.goto("/");
-  await page.getByRole("navigation", { name: "Navigation principale" }).last().getByRole("link", { name: "Achats" }).click();
+  await page.getByTestId("more-button").click();
+  await page.getByTestId("more-sheet").getByRole("link", { name: "Achats" }).click();
   await expect(page.getByRole("heading", { name: "Achats" })).toBeVisible();
 
   // Suivre le Dracaufeu du Set de Base (impression illimitée) avec un prix cible de 100 €.
@@ -1418,7 +1429,13 @@ test("langue : l'interface passe en anglais depuis le compte, montants et dates 
   await expect(page.getByRole("heading", { name: "Account", level: 1 })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   const tabs = page.getByTestId("mobile-nav");
-  for (const name of ["Home", "Stock", "Buying", "Sales", "Stats"]) await expect(tabs.getByRole("link", { name })).toBeVisible();
+  for (const name of ["Home", "Stock", "Listings", "Sales"]) await expect(tabs.getByRole("link", { name })).toBeVisible();
+  // « Plus » range les écrans moins fréquents : achats, statistiques, réglages…
+  await tabs.getByRole("button", { name: "More" }).click();
+  const more = page.getByTestId("more-sheet");
+  for (const name of ["Buying", "Statistics", "Settings", "Account"]) await expect(more.getByRole("link", { name })).toBeVisible();
+  await more.getByRole("button", { name: "Close" }).click();
+  await expect(more).toHaveCount(0);
 
   await tabs.getByRole("link", { name: "Stock" }).click();
   await expect(page.getByRole("heading", { name: "Stock", level: 1 })).toBeVisible();
