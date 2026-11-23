@@ -51,14 +51,15 @@ export function Logo({ className }: { className?: string }) {
 }
 
 /** Bouton d'ajout : une seule entrée pour faire entrer des cartes, trois façons de le faire. */
-function AddMenu({ compact, intake }: { compact?: boolean; intake: IntakeMode }) {
+/** `compact` : bouton rond de la barre d'onglets ; `shrunk` : la barre est réduite pendant le défilement. */
+function AddMenu({ compact, shrunk, intake }: { compact?: boolean; shrunk?: boolean; intake: IntakeMode }) {
   const items = ADD.map((item) => (item.href === "/scanner/lot" && intake ? { ...item, ...LOT[intake] } : item));
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
         className={cn(
           "flex items-center justify-center gap-2 rounded-md bg-primary text-sm font-medium text-primary-foreground shadow-xs transition-colors outline-none hover:bg-primary/90 focus-visible:ring-[3px] focus-visible:ring-ring/30",
-          compact ? "size-12 rounded-full shadow-md [&_svg]:size-5" : "h-10 w-full px-3",
+          compact ? cn("rounded-full shadow-md motion-safe:transition-all motion-safe:duration-300 [&_svg]:transition-all [&_svg]:duration-300", shrunk ? "size-9 [&_svg]:size-4" : "size-12 [&_svg]:size-5") : "h-10 w-full px-3",
         )}
         aria-label={compact ? "Ajouter des cartes" : undefined}
       >
@@ -88,26 +89,25 @@ function AddMenu({ compact, intake }: { compact?: boolean; intake: IntakeMode })
 }
 
 /**
- * Barre d'onglets escamotable, comme dans les applis de réseaux sociaux : cachée quand on descend, montrée quand on
- * remonte, en haut de page ou à chaque changement d'écran. L'état est aussi posé sur <html> (data-nav-hidden) pour que
- * les barres d'action fixées au-dessus d'elle descendent avec elle.
+ * Barre d'onglets qui se fait discrète, comme dans les applis de réseaux sociaux : réduite (icônes seules, plus petite)
+ * quand on descend, en grand quand on remonte, en haut de page ou à chaque changement d'écran. L'état est aussi posé sur
+ * <html> (data-nav-compact) pour que les barres d'action fixées au-dessus d'elle la suivent.
  */
-function useHideOnScroll(pathname: string): boolean {
-  const [hidden, setHidden] = useState(false);
+function useCompactOnScroll(pathname: string): boolean {
+  const [compact, setCompact] = useState(false);
   useEffect(() => {
-    setHidden(false);
+    setCompact(false);
     let last = window.scrollY;
     let frame = 0;
-    const desktop = window.matchMedia("(min-width: 64rem)"); // la barre latérale ne s'escamote pas
+    const desktop = window.matchMedia("(min-width: 64rem)"); // la barre latérale ne change pas
     const onScroll = () => {
       if (desktop.matches) return;
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         const y = window.scrollY;
-        const atBottom = window.innerHeight + y >= document.documentElement.scrollHeight - 4;
-        if (y < 64) setHidden(false);
-        else if (y > last + 6 && !atBottom) setHidden(true);
-        else if (y < last - 6) setHidden(false);
+        if (y < 64) setCompact(false);
+        else if (y > last + 6) setCompact(true);
+        else if (y < last - 6) setCompact(false);
         last = y;
       });
     };
@@ -118,9 +118,9 @@ function useHideOnScroll(pathname: string): boolean {
     };
   }, [pathname]);
   useEffect(() => {
-    document.documentElement.toggleAttribute("data-nav-hidden", hidden);
-  }, [hidden]);
-  return hidden;
+    document.documentElement.toggleAttribute("data-nav-compact", compact);
+  }, [compact]);
+  return compact;
 }
 
 export function AppShell({ children, signedIn }: { children: ReactNode; signedIn: boolean }) {
@@ -131,7 +131,7 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
   // Sans session, la racine est la page de présentation publique : pas de navigation d'application autour.
   const bare = NO_SHELL.includes(pathname) || (pathname === "/" && !signedIn);
   const [intake, setIntake] = useState<IntakeMode>(null);
-  const navHidden = useHideOnScroll(pathname);
+  const navCompact = useCompactOnScroll(pathname);
 
   // Première utilisation : tant que l'assistant de démarrage n'a pas été terminé ou passé, il s'ouvre de lui-même.
   useEffect(() => {
@@ -217,31 +217,38 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
       </div>
 
       {/*
-        Onglets (téléphone) : une barre flottante, détachée des bords et translucide. Elle s'efface quand on fait défiler
-        vers le bas pour laisser la place au contenu, et revient dès qu'on remonte.
+        Onglets (téléphone) : une barre flottante, détachée des bords et translucide. Quand on fait défiler vers le bas,
+        elle se réduit (icônes seules, plus petite) pour laisser la place au contenu, et reprend sa taille dès qu'on remonte.
       */}
       <nav
         className={cn(
-          "fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-30 mx-auto grid h-16 max-w-md grid-cols-5 items-center rounded-full border border-border/70 bg-background/80 px-1.5 shadow-[0_8px_30px_-6px_rgb(0_0_0/0.18)] backdrop-blur-xl backdrop-saturate-150 motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out lg:hidden print:hidden",
-          navHidden && "translate-y-[calc(100%+1.5rem+env(safe-area-inset-bottom))]",
+          "fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-30 mx-auto grid grid-cols-5 items-center rounded-full border border-border/70 bg-background/80 shadow-[0_8px_30px_-6px_rgb(0_0_0/0.18)] backdrop-blur-xl backdrop-saturate-150 motion-safe:transition-all motion-safe:duration-300 motion-safe:ease-out lg:hidden print:hidden",
+          navCompact ? "h-12 max-w-64 px-1" : "h-16 max-w-md px-1.5",
         )}
         aria-label="Navigation principale"
         data-testid="mobile-nav"
+        data-compact={navCompact || undefined}
       >
         {MOBILE_NAV.map((item) =>
           item === null ? (
-            <span key="add" className="flex justify-center"><AddMenu compact intake={intake} /></span>
+            <span key="add" className="flex justify-center"><AddMenu compact shrunk={navCompact} intake={intake} /></span>
           ) : (
             <Link
               key={item.href}
               href={item.href}
               aria-current={isCurrent(pathname, item) ? "page" : undefined}
-              className="group flex h-full flex-col items-center justify-center gap-0.5 text-[10px] font-medium text-muted-foreground outline-none aria-[current=page]:text-foreground"
+              className={cn(
+                "group flex h-full flex-col items-center justify-center text-[10px] font-medium text-muted-foreground outline-none aria-[current=page]:text-foreground",
+                !navCompact && "gap-0.5",
+              )}
             >
-              <span className="flex h-7 w-12 items-center justify-center rounded-full transition-colors group-hover:bg-accent/70 group-focus-visible:ring-[3px] group-focus-visible:ring-ring/30 group-aria-[current=page]:bg-accent">
-                <item.icon className="size-5 group-aria-[current=page]:stroke-[2.25]" aria-hidden />
+              <span className={cn(
+                "flex items-center justify-center rounded-full transition-all duration-300 motion-reduce:transition-none group-hover:bg-accent/70 group-focus-visible:ring-[3px] group-focus-visible:ring-ring/30 group-aria-[current=page]:bg-accent",
+                navCompact ? "h-8 w-10" : "h-7 w-12",
+              )}>
+                <item.icon className={cn("transition-all duration-300 motion-reduce:transition-none group-aria-[current=page]:stroke-[2.25]", navCompact ? "size-[18px]" : "size-5")} aria-hidden />
               </span>
-              {item.label}
+              <span className={cn("overflow-hidden leading-none transition-all duration-300 motion-reduce:transition-none", navCompact ? "max-h-0 opacity-0" : "max-h-4 opacity-100")}>{item.label}</span>
             </Link>
           ),
         )}
