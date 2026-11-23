@@ -87,10 +87,7 @@ export function MoreSheet({ open, onClose }: { open: boolean; onClose: () => voi
             </Dialog.Close>
           </div>
 
-          <Link href="/statistiques" onClick={onClose} className="mt-4 flex items-center gap-3.5 rounded-2xl p-2 -mx-2 outline-none hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/30">
-            <span className="relative flex size-10 shrink-0 items-center justify-center rounded-full border-[3px] border-brand" aria-hidden>
-              <span className="size-2.5 rounded-full bg-muted-foreground/60" />
-            </span>
+          <Link href="/statistiques" onClick={onClose} className="mt-4 flex items-center rounded-2xl p-2 -mx-2 outline-none hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/30">
             <span className="grid min-w-0">
               <span className="text-[15px] font-medium">{t("Ventes et chiffre d'affaires")}</span>
               <span className="tabular truncate text-sm text-muted-foreground">
