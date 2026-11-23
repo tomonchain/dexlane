@@ -1,5 +1,6 @@
 import { api } from "./api";
 import { variantLabel } from "./format";
+import { t } from "./i18n";
 import type { StockRow, StockStatus } from "./types";
 
 export const STATUS_LABEL: Record<StockStatus, string> = { TO_PRICE: "À tarifer", READY: "Prête", LISTED: "En ligne", DRAFT: "Brouillon" };
@@ -12,9 +13,9 @@ export function exportStockCsv(rows: StockRow[], name = "stock") {
   };
   const euros = (c: number | null) => (c === null ? "" : (c / 100).toFixed(2).replace(".", ","));
   const lines = [
-    ["Référence", "Carte", "Série", "Numéro", "Variante", "État", "Langue", "Quantité", "Emplacements", "Coût moyen", "Prix", "Prix suggéré", "Statut"],
+    ["Référence", "Carte", "Série", "Numéro", "Variante", "État", "Langue", "Quantité", "Emplacements", "Coût moyen", "Prix", "Prix suggéré", "Statut"].map((h) => t(h)),
     ...rows.map((r) => [r.offerSku, r.name, r.setName ?? r.setId, r.localNumber, variantLabel(r), r.condition, r.language.toUpperCase(), r.onHand, r.locations.join(" "),
-      euros(r.averageCostCents), euros(r.targetPriceCents), euros(r.suggestedPriceCents), STATUS_LABEL[r.status] ?? r.status]),
+      euros(r.averageCostCents), euros(r.targetPriceCents), euros(r.suggestedPriceCents), STATUS_LABEL[r.status] ? t(STATUS_LABEL[r.status]) : r.status]),
   ];
   const blob = new Blob(["\uFEFF" + lines.map((l) => l.map(cell).join(";")).join("\r\n")], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);

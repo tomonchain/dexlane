@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import type { PhotoStyle } from "./types";
 
 /** Proportion d'une carte : rayon des coins rapporté à sa largeur (3 mm sur 63). */
@@ -30,7 +31,7 @@ const luminance = (hex: string) => {
 export async function loadBitmap(source: string | Blob): Promise<ImageBitmap> {
   if (typeof source !== "string") return createImageBitmap(source, { imageOrientation: "from-image" });
   const res = await fetch(source, { credentials: "same-origin" });
-  if (!res.ok) throw new Error("Photo introuvable dans le stockage.");
+  if (!res.ok) throw new Error(t("Photo introuvable dans le stockage."));
   return createImageBitmap(await res.blob());
 }
 
@@ -48,7 +49,7 @@ export function placeholderCard(): HTMLCanvasElement {
   ctx.fillRect(64, 110, 502, 330);
   ctx.fillStyle = "#334155";
   ctx.font = "600 40px system-ui, sans-serif";
-  ctx.fillText("Aperçu", 64, 86);
+  ctx.fillText(t("Aperçu"), 64, 86);
   ctx.fillStyle = "#cbd5e1";
   for (let i = 0; i < 4; i++) ctx.fillRect(64, 500 + i * 70, 502 - i * 60, 26);
   return canvas;
@@ -142,6 +143,6 @@ export async function composeListingPhoto(card: ImageBitmap, style: PhotoStyle, 
   const canvas = document.createElement("canvas");
   drawListingPhoto(canvas, card, style, backgroundImage);
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
-  if (!blob) throw new Error("Impossible de composer la photo.");
+  if (!blob) throw new Error(t("Impossible de composer la photo."));
   return blob;
 }

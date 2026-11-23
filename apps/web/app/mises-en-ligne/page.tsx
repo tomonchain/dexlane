@@ -10,6 +10,8 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { EmptyState, Page, PageHeader } from "@/components/ui/misc";
 import { api } from "@/lib/api";
+import { formatNumber } from "@/lib/format";
+import { t, tn } from "@/lib/i18n";
 import type { ChannelState, Schedule, StockPage } from "@/lib/types";
 
 /**
@@ -40,28 +42,28 @@ export default function PublicationsPage() {
   return (
     <Page>
       <PageHeader
-        title="Mises en ligne"
-        description="Quand vos cartes partent sur eBay et CardTrader : le planning jour par jour, et ce qui n'a pas pu être publié."
+        title={t("Mises en ligne")}
+        description={t("Quand vos cartes partent sur eBay et CardTrader : le planning jour par jour, et ce qui n'a pas pu être publié.")}
         actions={loaded && channels.length > 0 && ready > 0 && (
-          <Button onClick={() => setPlanning(true)}><CalendarClock /> Planifier {ready} carte{ready > 1 ? "s" : ""}</Button>
+          <Button onClick={() => setPlanning(true)}><CalendarClock /> {tn(ready, "Planifier {n} carte", "Planifier {n} cartes")}</Button>
         )}
       />
       {error && <Alert variant="destructive">{error}</Alert>}
-      {!loaded && !error && <ListSkeleton count={4} label="Chargement du planning" />}
+      {!loaded && !error && <ListSkeleton count={4} label={t("Chargement du planning")} />}
 
       {loaded && (
         <>
           {channels.length === 0 && (
             <Alert variant="info">
-              Aucun canal de vente n'est actif : activez eBay ou CardTrader, en simulation pour tout essayer sans rien publier,
-              dans <Link href="/reglages/canaux" className="font-medium underline underline-offset-2">Réglages › Canaux de vente</Link>.
+              {t("Aucun canal de vente n'est actif : activez eBay ou CardTrader, en simulation pour tout essayer sans rien publier, dans")}{" "}
+              <Link href="/reglages/canaux" className="font-medium underline underline-offset-2">{t("Réglages › Canaux de vente")}</Link>.
             </Alert>
           )}
 
           <div className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border bg-border shadow-xs">
-            <Figure icon={<CircleCheck />} label="Prêtes, non planifiées" value={ready} href="/stock?statut=READY" />
-            <Figure icon={<CalendarClock />} label="Planifiées" value={schedule.pending} />
-            <Figure icon={<Globe />} label="En ligne" value={stock.counts.LISTED} href="/stock?statut=LISTED" />
+            <Figure icon={<CircleCheck />} label={t("Prêtes, non planifiées")} value={ready} href="/stock?statut=READY" />
+            <Figure icon={<CalendarClock />} label={t("Planifiées")} value={schedule.pending} />
+            <Figure icon={<Globe />} label={t("En ligne")} value={stock.counts.LISTED} href="/stock?statut=LISTED" />
           </div>
 
           {schedule.pending > 0 || schedule.failed.length > 0 ? (
@@ -69,10 +71,10 @@ export default function PublicationsPage() {
           ) : (
             <EmptyState
               icon={channels.length > 0 ? <CalendarClock /> : <Plug />}
-              title="Rien n'est planifié"
-              action={channels.length > 0 && ready > 0 && <Button size="sm" onClick={() => setPlanning(true)}>Planifier les {ready} cartes prêtes</Button>}
+              title={t("Rien n'est planifié")}
+              action={channels.length > 0 && ready > 0 && <Button size="sm" onClick={() => setPlanning(true)}>{t("Planifier les {n} cartes prêtes", { n: formatNumber(ready) })}</Button>}
             >
-              Planifiez les cartes prêtes pour les publier quelques-unes par jour, ou cochez-en dans le stock pour choisir lesquelles.
+              {t("Planifiez les cartes prêtes pour les publier quelques-unes par jour, ou cochez-en dans le stock pour choisir lesquelles.")}
             </EmptyState>
           )}
         </>
@@ -98,7 +100,7 @@ function Figure({ icon, label, value, href }: { icon: ReactNode; label: string; 
   const body = (
     <>
       <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground [&_svg]:size-3.5">{icon} {label}</span>
-      <span className="tabular text-lg leading-none font-semibold tracking-tight sm:text-2xl">{value.toLocaleString("fr-FR")}</span>
+      <span className="tabular text-lg leading-none font-semibold tracking-tight sm:text-2xl">{formatNumber(value)}</span>
     </>
   );
   return href

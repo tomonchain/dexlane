@@ -4,7 +4,8 @@ import { CalendarClock } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ApiError, api } from "@/lib/api";
-import { dayLabel } from "@/lib/format";
+import { dayLabel, formatNumber } from "@/lib/format";
+import { t, tn } from "@/lib/i18n";
 import type { ChannelId, ChannelState } from "@/lib/types";
 import { composeMissingVisuals } from "@/lib/visuals";
 import { Button } from "./ui/button";
@@ -12,7 +13,7 @@ import { Field, Input, Select } from "./ui/input";
 import { Spinner } from "./ui/misc";
 import { Modal } from "./ui/modal";
 
-const message = (e: unknown) => (e instanceof ApiError && e.code === "CHANNEL_DISABLED" ? "Ce canal est désactivé." : (e as Error).message);
+const message = (e: unknown) => (e instanceof ApiError && e.code === "CHANNEL_DISABLED" ? t("Ce canal est désactivé.") : (e as Error).message);
 
 /**
  * Répartit des cartes sur des jours de mise en ligne. `selected` vide : toutes les cartes prêtes.
@@ -58,40 +59,54 @@ export function PlanModal({ channels, selected, readyCount, scope, onClose, onPl
       setPreparing(null);
       const r = await api.planPublications({ offerIds: selected.length ? selected : undefined, channel, startOn, perDay: pace });
       toast.success(
-        r.planned === 0 ? "Aucune carte à planifier : elles sont déjà en ligne, sans prix ou sans stock."
-          : `${r.planned} carte${r.planned > 1 ? "s" : ""} planifiée${r.planned > 1 ? "s" : ""} sur ${r.days} jour${r.days > 1 ? "s" : ""}${r.skipped ? `, ${r.skipped} laissée${r.skipped > 1 ? "s" : ""} de côté` : ""}`,
+        r.planned === 0 ? t("Aucune carte à planifier : elles sont déjà en ligne, sans prix ou sans stock.")
+          : t("{what} sur {days}", {
+            what: tn(r.planned, "{n} carte planifiée", "{n} cartes planifiées"),
+            days: tn(r.days, "{n} jour", "{n} jours"),
+          }) + (r.skipped ? tn(r.skipped, ", {n} laissée de côté", ", {n} laissées de côté") : ""),
       );
       onPlanned();
     } catch (e) {
-      setError(e instanceof ApiError && e.code === "INVALID_SCHEDULE" ? "Le premier jour doit être aujourd'hui ou plus tard, avec 1 à 500 cartes par jour." : message(e));
+      setError(e instanceof ApiError && e.code === "INVALID_SCHEDULE" ? t("Le premier jour doit être aujourd'hui ou plus tard, avec 1 à 500 cartes par jour.") : message(e));
       setBusy(false);
       setPreparing(null);
     }
   }
 
   return (
-    <Modal title="Planifier la mise en ligne" description={scope ?? (selected.length ? `Les ${selected.length} cartes sélectionnées, dans l'ordre de la sélection.` : `Toutes les cartes prêtes (${readyCount}), dans l'ordre d'entrée en stock.`)} onClose={onClose}>
+    <Modal
+      title={t("Planifier la mise en ligne")}
+      description={scope ?? (selected.length
+        ? t("Les {n} cartes sélectionnées, dans l'ordre de la sélection.", { n: formatNumber(selected.length) })
+        : t("Toutes les cartes prêtes ({n}), dans l'ordre d'entrée en stock.", { n: formatNumber(readyCount) }))}
+      onClose={onClose}
+    >
       {channels.length > 1 && (
-        <Field label="Canal">
+        <Field label={t("Canal")}>
           <Select value={channel} onChange={(e) => setChannel(e.target.value as ChannelId)}>
-            {channels.map((c) => <option key={c.id} value={c.id}>{c.label}{c.mode === "SIMULATION" ? " (simulation)" : ""}</option>)}
+            {channels.map((c) => <option key={c.id} value={c.id}>{c.label}{c.mode === "SIMULATION" ? t(" (simulation)") : ""}</option>)}
           </Select>
         </Field>
       )}
       <div className="grid grid-cols-2 gap-3">
-        <Field label="À partir du"><Input type="date" value={startOn} onChange={(e) => setStartOn(e.target.value)} /></Field>
-        <Field label="Cartes par jour"><Input inputMode="numeric" value={perDay} onChange={(e) => setPerDay(e.target.value)} className="tabular" /></Field>
+        <Field label={t("À partir du")}><Input type="date" value={startOn} onChange={(e) => setStartOn(e.target.value)} /></Field>
+        <Field label={t("Cartes par jour")}><Input inputMode="numeric" value={perDay} onChange={(e) => setPerDay(e.target.value)} className="tabular" /></Field>
       </div>
       <p className="rounded-md bg-muted/50 px-3 py-2 text-sm" data-testid="plan-summary">
         {valid && last
-          ? <>Jusqu'à <strong className="font-medium">{count} carte{count > 1 ? "s" : ""}</strong> sur <strong className="font-medium">{days} jour{days > 1 ? "s" : ""}</strong>, {days > 1 ? `du ${dayLabel(startOn)} au ${dayLabel(last)}` : `le ${dayLabel(startOn)}`}. Publication chaque matin.</>
-          : "Indiquez une date et un nombre de cartes par jour."}
+          ? <>
+            {t("Jusqu'à")} <strong className="font-medium">{tn(count, "{n} carte", "{n} cartes")}</strong> {t("sur")}{" "}
+            <strong className="font-medium">{tn(days, "{n} jour", "{n} jours")}</strong>,{" "}
+            {days > 1 ? t("du {from} au {to}", { from: dayLabel(startOn), to: dayLabel(last) }) : t("le {day}", { day: dayLabel(startOn) })}.{" "}
+            {t("Publication chaque matin.")}
+          </>
+          : t("Indiquez une date et un nombre de cartes par jour.")}
       </p>
-      <p className="text-[13px] text-muted-foreground">Les cartes déjà en ligne sur ce canal, sans prix ou sans stock vendable sont laissées de côté.</p>
+      <p className="text-[13px] text-muted-foreground">{t("Les cartes déjà en ligne sur ce canal, sans prix ou sans stock vendable sont laissées de côté.")}</p>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <Button size="lg" onClick={plan} disabled={busy || !valid}>
         {busy ? <Spinner className="text-primary-foreground" /> : <CalendarClock />}{" "}
-        {preparing ? `Préparation des photos ${preparing.done} / ${preparing.total}…` : "Planifier"}
+        {preparing ? t("Préparation des photos {done} / {total}…", { done: preparing.done, total: preparing.total }) : t("Planifier")}
       </Button>
     </Modal>
   );

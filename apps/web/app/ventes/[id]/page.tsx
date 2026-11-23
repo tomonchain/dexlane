@@ -16,6 +16,7 @@ import { ActionBar } from "@/components/ui/action-bar";
 import type { ApiError } from "@/lib/api";
 import { api } from "@/lib/api";
 import { formatDateTime, formatEuros, parseEuros, variantLabel } from "@/lib/format";
+import { t, tn } from "@/lib/i18n";
 import { eurosInput } from "@/lib/pricing";
 import { SHIPPING_LABEL, STAGE_LABEL, STAGE_VARIANT, needsTracking, salesMessage } from "@/lib/sales";
 import type { OrderDetail } from "@/lib/types";
@@ -55,8 +56,8 @@ export default function SalePage() {
     }
   }
 
-  const back = <BackLink href="/ventes">Ventes</BackLink>;
-  if (notFound) return <div className="grid gap-5">{back}<EmptyState icon={<CircleSlash />} title="Vente introuvable" /></div>;
+  const back = <BackLink href="/ventes">{t("Ventes")}</BackLink>;
+  if (notFound) return <div className="grid gap-5">{back}<EmptyState icon={<CircleSlash />} title={t("Vente introuvable")} /></div>;
   if (!order) return error ? <Alert variant="destructive">{error}</Alert> : <OrderSkeleton />;
 
   const allocations = order.lines.flatMap((l) => l.allocations.map((a) => ({ ...a, line: l })));
@@ -69,25 +70,25 @@ export default function SalePage() {
     <div className="grid gap-5">
       <PageHeader
         back={back}
-        title={<>Vente <Code>{order.externalId}</Code></>}
+        title={<>{t("Vente")} <Code>{order.externalId}</Code></>}
         meta={<>
-          <Badge variant={STAGE_VARIANT[order.stage]} data-testid="order-stage">{STAGE_LABEL[order.stage]}</Badge>
-          {order.shipment && <Badge variant="outline">{SHIPPING_LABEL[order.shipment.mode]}</Badge>}
+          <Badge variant={STAGE_VARIANT[order.stage]} data-testid="order-stage">{t(STAGE_LABEL[order.stage])}</Badge>
+          {order.shipment && <Badge variant="outline">{t(SHIPPING_LABEL[order.shipment.mode])}</Badge>}
           <span>{[order.buyerName, formatDateTime(order.orderedAt)].filter(Boolean).join(" · ")}</span>
         </>}
         actions={order.stage !== "SHIPPED" && order.stage !== "CANCELLED" && (
-          <Button variant="destructive" size="sm" onClick={() => setModal("cancel")} disabled={busy}><X /> Annuler la vente</Button>
+          <Button variant="destructive" size="sm" onClick={() => setModal("cancel")} disabled={busy}><X /> {t("Annuler la vente")}</Button>
         )}
       />
 
       {order.stage !== "CANCELLED" && (
-        <ol className="grid grid-cols-4 gap-1.5" aria-label="Avancement">
+        <ol className="grid grid-cols-4 gap-1.5" aria-label={t("Avancement")}>
           {STEPS.map((label, i) => {
             const done = i + 1 <= step;
             return (
               <li key={label} className="grid gap-1.5" aria-current={i + 1 === step ? "step" : undefined}>
                 <span className={cn("h-1.5 rounded-full", done ? "bg-primary" : "bg-muted")} aria-hidden />
-                <span className={cn("text-xs font-medium", done ? "text-foreground" : "text-muted-foreground")}>{label}</span>
+                <span className={cn("text-xs font-medium", done ? "text-foreground" : "text-muted-foreground")}>{t(label)}</span>
               </li>
             );
           })}
@@ -101,8 +102,8 @@ export default function SalePage() {
         <Card>
           <CardContent className="grid gap-3">
             <div className="flex items-center justify-between gap-3">
-              <Eyebrow>{order.stage === "TO_PREPARE" ? "À prélever" : "Cartes"}</Eyebrow>
-              {order.stage === "TO_PREPARE" && remaining > 0 && <span className="tabular text-xs text-muted-foreground">{remaining} restante{remaining > 1 ? "s" : ""}</span>}
+              <Eyebrow>{order.stage === "TO_PREPARE" ? t("À prélever") : t("Cartes")}</Eyebrow>
+              {order.stage === "TO_PREPARE" && remaining > 0 && <span className="tabular text-xs text-muted-foreground">{tn(remaining, "{n} restante", "{n} restantes")}</span>}
             </div>
             {allocations.length === 0 ? (
               <ul className="grid divide-y">
@@ -125,47 +126,47 @@ export default function SalePage() {
 
         <Card>
           <CardContent className="grid gap-3">
-            <Eyebrow>Résultat</Eyebrow>
+            <Eyebrow>{t("Résultat")}</Eyebrow>
             <dl className="tabular grid gap-1.5 text-sm">
-              <div className="flex justify-between"><dt className="text-muted-foreground">Cartes</dt><dd>{formatEuros(order.totals.itemsCents)}</dd></div>
-              {order.totals.shippingChargedCents > 0 && <div className="flex justify-between"><dt className="text-muted-foreground">Port facturé</dt><dd>{formatEuros(order.totals.shippingChargedCents)}</dd></div>}
-              <div className="flex justify-between font-medium"><dt>Encaissé</dt><dd>{formatEuros(order.totals.grossCents)}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">Coût des cartes</dt><dd>− {formatEuros(order.totals.costCents)}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">Affranchissement</dt><dd>− {formatEuros(order.totals.postageCents)}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">Fournitures <span className="text-xs">(sleeve, top-loader{inPerson ? "" : ", enveloppe"})</span></dt><dd data-testid="order-supplies">− {formatEuros(order.totals.suppliesCents)}</dd></div>
-              <div className="flex justify-between border-t pt-2 text-base font-semibold"><dt>{order.totals.estimated ? "Marge estimée" : "Marge"}</dt><dd data-testid="order-margin" className={order.totals.marginCents < 0 ? "text-destructive" : undefined}>{formatEuros(order.totals.marginCents)}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted-foreground">{t("Cartes")}</dt><dd>{formatEuros(order.totals.itemsCents)}</dd></div>
+              {order.totals.shippingChargedCents > 0 && <div className="flex justify-between"><dt className="text-muted-foreground">{t("Port facturé")}</dt><dd>{formatEuros(order.totals.shippingChargedCents)}</dd></div>}
+              <div className="flex justify-between font-medium"><dt>{t("Encaissé")}</dt><dd>{formatEuros(order.totals.grossCents)}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted-foreground">{t("Coût des cartes")}</dt><dd>− {formatEuros(order.totals.costCents)}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted-foreground">{t("Affranchissement")}</dt><dd>− {formatEuros(order.totals.postageCents)}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted-foreground">{t("Fournitures")} <span className="text-xs">({inPerson ? t("sleeve, top-loader") : t("sleeve, top-loader, enveloppe")})</span></dt><dd data-testid="order-supplies">− {formatEuros(order.totals.suppliesCents)}</dd></div>
+              <div className="flex justify-between border-t pt-2 text-base font-semibold"><dt>{order.totals.estimated ? t("Marge estimée") : t("Marge")}</dt><dd data-testid="order-margin" className={order.totals.marginCents < 0 ? "text-destructive" : undefined}>{formatEuros(order.totals.marginCents)}</dd></div>
             </dl>
             {order.totals.estimated && (
               <p className="text-xs text-muted-foreground">
-                Affranchissement et fournitures d'après vos <Link href="/reglages/envois" className="underline underline-offset-2 hover:text-foreground">frais d'envoi</Link> ; figés à la remise.
+                {t("Affranchissement et fournitures d'après vos")} <Link href="/reglages/envois" className="underline underline-offset-2 hover:text-foreground">{t("frais d'envoi")}</Link>{t(" ; figés à la remise.")}
               </p>
             )}
-            {order.shipment?.tracking && <p className="text-xs text-muted-foreground">Suivi : <Code>{order.shipment.tracking}</Code></p>}
-            {order.shipment?.handoverConfirmedAt && <p className="text-xs text-muted-foreground">Remise le {formatDateTime(order.shipment.handoverConfirmedAt)}</p>}
+            {order.shipment?.tracking && <p className="text-xs text-muted-foreground">{t("Suivi :")} <Code>{order.shipment.tracking}</Code></p>}
+            {order.shipment?.handoverConfirmedAt && <p className="text-xs text-muted-foreground">{t("Remise le {date}", { date: formatDateTime(order.shipment.handoverConfirmedAt) })}</p>}
           </CardContent>
         </Card>
       </div>
 
       {order.stage === "TO_PREPARE" && (
-        <ActionBar message={allPicked ? "Toutes les cartes sont prélevées : la vente peut être emballée." : `Prélevez ${remaining} carte${remaining > 1 ? "s" : ""} pour pouvoir emballer.`}>
-          <Button disabled={busy || !allPicked} onClick={() => run(() => api.packOrder(order.id), "Vente emballée")}>
-            {busy ? <Spinner className="text-primary-foreground" /> : <PackageCheck />} Marquer comme emballée
+        <ActionBar message={allPicked ? t("Toutes les cartes sont prélevées : la vente peut être emballée.") : tn(remaining, "Prélevez {n} carte pour pouvoir emballer.", "Prélevez {n} cartes pour pouvoir emballer.")}>
+          <Button disabled={busy || !allPicked} onClick={() => run(() => api.packOrder(order.id), t("Vente emballée"))}>
+            {busy ? <Spinner className="text-primary-foreground" /> : <PackageCheck />} {t("Marquer comme emballée")}
           </Button>
         </ActionBar>
       )}
       {order.stage === "PACKED" && (
-        <ActionBar message={inPerson ? "Emballée : à remettre à l'acheteur." : `Emballée : à déposer${order.shipment ? ` (${SHIPPING_LABEL[order.shipment.mode].toLowerCase()})` : ""}.`}>
+        <ActionBar message={inPerson ? t("Emballée : à remettre à l'acheteur.") : order.shipment ? t("Emballée : à déposer ({mode}).", { mode: t(SHIPPING_LABEL[order.shipment.mode]).toLowerCase() }) : t("Emballée : à déposer.")}>
           <Button disabled={busy} onClick={() => setModal("handover")}>
-            <Send /> {inPerson ? "Confirmer la remise" : "Confirmer le dépôt"}
+            <Send /> {inPerson ? t("Confirmer la remise") : t("Confirmer le dépôt")}
           </Button>
         </ActionBar>
       )}
 
       {modal === "handover" && order.shipment && (
-        <HandoverModal order={order} busy={busy} onClose={() => setModal(null)} onSubmit={(input) => run(() => api.handOver(order.id, input), inPerson ? "Remise confirmée" : "Dépôt confirmé")} />
+        <HandoverModal order={order} busy={busy} onClose={() => setModal(null)} onSubmit={(input) => run(() => api.handOver(order.id, input), inPerson ? t("Remise confirmée") : t("Dépôt confirmé"))} />
       )}
       {modal === "cancel" && (
-        <CancelModal busy={busy} onClose={() => setModal(null)} onSubmit={(reason) => run(() => api.cancelOrder(order.id, reason), "Vente annulée, cartes remises en vente")} />
+        <CancelModal busy={busy} onClose={() => setModal(null)} onSubmit={(reason) => run(() => api.cancelOrder(order.id, reason), t("Vente annulée, cartes remises en vente"))} />
       )}
     </div>
   );
@@ -202,15 +203,15 @@ function PickRow({ allocation, line, editable, busy, onPick }: {
             {line.card.setId} {line.card.localNumber} · {variantLabel({ ...line.card, stamp: "", subtype: "" })} · {line.condition}
           </span>
         </span>
-        {picked && <Badge variant="success">Prélevée</Badge>}
+        {picked && <Badge variant="success">{t("Prélevée")}</Badge>}
       </div>
       {editable && !picked && (
         <form className="flex items-end gap-2" onSubmit={submit}>
-          <Field label="Code lu sur la pochette" className="flex-1">
-            <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder={`${allocation.unitSku} ou ${Number(allocation.unitSku.slice(3))}`} inputMode="numeric" autoCapitalize="characters" autoCorrect="off" className="font-mono" required />
+          <Field label={t("Code lu sur la pochette")} className="flex-1">
+            <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder={t("{sku} ou {number}", { sku: allocation.unitSku, number: Number(allocation.unitSku.slice(3)) })} inputMode="numeric" autoCapitalize="characters" autoCorrect="off" className="font-mono" required />
           </Field>
-          <Button type="submit" variant="outline" disabled={busy || !code.trim()} aria-label={`Prélever ${allocation.unitSku}`}>
-            {busy ? <Spinner /> : <Check />} Prélever
+          <Button type="submit" variant="outline" disabled={busy || !code.trim()} aria-label={t("Prélever {sku}", { sku: allocation.unitSku })}>
+            {busy ? <Spinner /> : <Check />} {t("Prélever")}
           </Button>
         </form>
       )}
@@ -233,8 +234,8 @@ function HandoverModal({ order, busy, onClose, onSubmit }: {
 
   return (
     <Modal
-      title={inPerson ? "Confirmer la remise" : "Confirmer le dépôt"}
-      description={inPerson ? "Les cartes ont été remises à l'acheteur : elles sortent du stock." : "Le pli a été déposé (poste ou point relais) : les cartes sortent du stock."}
+      title={inPerson ? t("Confirmer la remise") : t("Confirmer le dépôt")}
+      description={inPerson ? t("Les cartes ont été remises à l'acheteur : elles sortent du stock.") : t("Le pli a été déposé (poste ou point relais) : les cartes sortent du stock.")}
       onClose={onClose}
     >
       <form
@@ -245,17 +246,17 @@ function HandoverModal({ order, busy, onClose, onSubmit }: {
         }}
       >
         {needsTracking(mode) && (
-          <Field label="Numéro de suivi">
+          <Field label={t("Numéro de suivi")}>
             <Input value={tracking} onChange={(e) => setTracking(e.target.value)} autoCapitalize="characters" autoCorrect="off" required autoFocus className="font-mono" />
           </Field>
         )}
         {!inPerson && (
-          <Field label="Affranchissement payé (€)" hint="Déduit de la marge, avec les fournitures.">
+          <Field label={t("Affranchissement payé (€)")} hint={t("Déduit de la marge, avec les fournitures.")}>
             <Input inputMode="decimal" value={postage} onChange={(e) => setPostage(e.target.value)} onFocus={(e) => e.target.select()} aria-invalid={postageCents === null} className="tabular" />
           </Field>
         )}
         <Button type="submit" size="lg" disabled={busy || postageCents === null || (needsTracking(mode) && !tracking.trim())}>
-          {inPerson ? "Confirmer la remise" : "Confirmer le dépôt"}
+          {inPerson ? t("Confirmer la remise") : t("Confirmer le dépôt")}
         </Button>
       </form>
     </Modal>
@@ -265,12 +266,12 @@ function HandoverModal({ order, busy, onClose, onSubmit }: {
 function CancelModal({ busy, onClose, onSubmit }: { busy: boolean; onClose: () => void; onSubmit: (reason: string) => void }) {
   const [reason, setReason] = useState("");
   return (
-    <Modal title="Annuler la vente" description="Les réservations sont libérées : les cartes redeviennent disponibles à la vente." onClose={onClose}>
+    <Modal title={t("Annuler la vente")} description={t("Les réservations sont libérées : les cartes redeviennent disponibles à la vente.")} onClose={onClose}>
       <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); onSubmit(reason.trim()); }}>
-        <Field label="Motif (obligatoire)">
-          <Textarea value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} placeholder="Ex. acheteur désisté" required autoFocus className="min-h-20" />
+        <Field label={t("Motif (obligatoire)")}>
+          <Textarea value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} placeholder={t("Ex. acheteur désisté")} required autoFocus className="min-h-20" />
         </Field>
-        <Button type="submit" size="lg" variant="destructive" disabled={busy || !reason.trim()}>Annuler la vente</Button>
+        <Button type="submit" size="lg" variant="destructive" disabled={busy || !reason.trim()}>{t("Annuler la vente")}</Button>
       </form>
     </Modal>
   );

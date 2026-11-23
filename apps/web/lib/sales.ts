@@ -1,4 +1,5 @@
 import { ApiError } from "./api";
+import { t } from "./i18n";
 import type { OrderStage, ShippingMode } from "./types";
 
 export const SHIPPING_LABEL: Record<ShippingMode, string> = {
@@ -27,4 +28,4 @@ const ERRORS: Record<string, string> = {
   TRACKING_REQUIRED: "Un envoi suivi a besoin de son numéro de suivi.",
   ALREADY_SHIPPED: "Cette vente est déjà remise : elle ne peut plus être annulée.",
 };
-export const salesMessage = (e: unknown) => (e instanceof ApiError ? (ERRORS[e.code] ?? e.message) : (e as Error).message);
+export const salesMessage = (e: unknown) => (e instanceof ApiError ? (ERRORS[e.code] ? t(ERRORS[e.code]!) : e.message) : (e as Error).message);

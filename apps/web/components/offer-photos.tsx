@@ -3,6 +3,7 @@
 import { ImagePlus, X } from "lucide-react";
 import { useRef } from "react";
 import { api } from "@/lib/api";
+import { t } from "@/lib/i18n";
 import { prepareImage } from "@/lib/image";
 import type { Photo } from "@/lib/types";
 import { composeMissingVisuals } from "@/lib/visuals";
@@ -30,22 +31,22 @@ export function OfferPhotos({ offerId, photos, run, disabled, onOpen }: {
       {scans.map((photo) => (
         <span key={photo.id} className="relative">
           {onOpen ? (
-            <button type="button" onClick={() => onOpen(photo)} title="Agrandir" className="block rounded outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30">
-              <img src={photo.url} alt={photo.kind === "SCAN_BACK" ? "Verso" : "Recto"} loading="lazy" className="aspect-[63/88] w-12 rounded bg-muted object-cover ring-1 ring-border" />
+            <button type="button" onClick={() => onOpen(photo)} title={t("Agrandir")} className="block rounded outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30">
+              <img src={photo.url} alt={photo.kind === "SCAN_BACK" ? t("Verso") : t("Recto")} loading="lazy" className="aspect-[63/88] w-12 rounded bg-muted object-cover ring-1 ring-border" />
             </button>
           ) : (
             <a href={photo.url} target="_blank" rel="noreferrer" className="block rounded outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30">
-              <img src={photo.url} alt={photo.kind === "SCAN_BACK" ? "Verso" : "Recto"} loading="lazy" className="aspect-[63/88] w-12 rounded bg-muted object-cover ring-1 ring-border" />
+              <img src={photo.url} alt={photo.kind === "SCAN_BACK" ? t("Verso") : t("Recto")} loading="lazy" className="aspect-[63/88] w-12 rounded bg-muted object-cover ring-1 ring-border" />
             </a>
           )}
           <button
             type="button"
             disabled={disabled}
-            aria-label={`Retirer la photo ${photo.kind === "SCAN_BACK" ? "du verso" : "du recto"}`}
-            title="Retirer cette photo"
+            aria-label={photo.kind === "SCAN_BACK" ? t("Retirer la photo du verso") : t("Retirer la photo du recto")}
+            title={t("Retirer cette photo")}
             onClick={() => run(async () => {
               await api.deletePhoto(photo.id);
-              return "Photo retirée";
+              return t("Photo retirée");
             })}
             className="absolute -top-1.5 -right-1.5 flex size-5 items-center justify-center rounded-full border bg-card text-muted-foreground shadow-xs outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/30"
           >
@@ -65,12 +66,12 @@ export function OfferPhotos({ offerId, photos, run, disabled, onOpen }: {
           if (file) run(async () => {
             await api.addOfferPhoto(offerId, await prepareImage(file), next);
             await composeMissingVisuals([offerId]).catch(() => 0);
-            return next === "SCAN_BACK" ? "Verso ajouté" : "Photo ajoutée";
+            return next === "SCAN_BACK" ? t("Verso ajouté") : t("Photo ajoutée");
           });
         }}
       />
       <Button variant={scans.length === 0 ? "default" : "outline"} size="sm" disabled={disabled} onClick={() => inputRef.current?.click()}>
-        <ImagePlus /> {scans.length === 0 ? "Ajouter une photo" : next === "SCAN_BACK" ? "Ajouter le verso" : "Ajouter une photo"}
+        <ImagePlus /> {scans.length === 0 ? t("Ajouter une photo") : next === "SCAN_BACK" ? t("Ajouter le verso") : t("Ajouter une photo")}
       </Button>
     </div>
   );

@@ -10,7 +10,8 @@ import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { BackLink, EmptyState, PageHeader } from "@/components/ui/misc";
 import { SwitchRow } from "@/components/ui/switch";
 import { api } from "@/lib/api";
-import { formatEuros, variantLabel } from "@/lib/format";
+import { dateFormat, formatEuros, variantLabel } from "@/lib/format";
+import { t, tn } from "@/lib/i18n";
 import { SHIPPING_LABEL } from "@/lib/sales";
 import type { OrderDetail, Seller, ShippingRun, SlipPaper } from "@/lib/types";
 import { PreparationSkeleton } from "@/components/skeletons";
@@ -24,7 +25,7 @@ const PAPERS: Record<SlipPaper, { label: string; width: string; page: string }> 
   A4: { label: "Feuille A4", width: "180mm", page: "size: A4; margin: 15mm" },
 };
 const CHANNEL_LABEL: Record<string, string> = { direct: "Vente directe", ebay: "eBay", cardtrader: "CardTrader" };
-const day = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeZone: "Europe/Paris" });
+const day = () => dateFormat({ dateStyle: "long", timeZone: "Europe/Paris" });
 
 const cardLine = (line: OrderDetail["lines"][number]) =>
   [line.card.name, `${line.card.setId.toUpperCase()} ${line.card.localNumber}`, variantLabel({ ...line.card, stamp: "", subtype: "" }), line.card.language.toUpperCase(), line.condition]
@@ -54,12 +55,12 @@ function OrderHeader({ order }: { order: OrderDetail }) {
   return (
     <>
       <p className="text-[11px] leading-snug">
-        Commande <strong className="font-mono">{order.externalId}</strong> · {CHANNEL_LABEL[order.channel] ?? order.channel}
-        <br />{day.format(new Date(order.orderedAt))}{order.shipment ? ` · ${SHIPPING_LABEL[order.shipment.mode]}` : ""}
+        {t("Commande")} <strong className="font-mono">{order.externalId}</strong> · {CHANNEL_LABEL[order.channel] ? t(CHANNEL_LABEL[order.channel]!) : order.channel}
+        <br />{day().format(new Date(order.orderedAt))}{order.shipment ? ` · ${t(SHIPPING_LABEL[order.shipment.mode])}` : ""}
       </p>
       {(order.buyerName || order.addressLines.length > 0) && (
         <p className="text-[12px] leading-snug">
-          <span className="block text-[10px] uppercase">Destinataire</span>
+          <span className="block text-[10px] uppercase">{t("Destinataire")}</span>
           {order.buyerName && <strong className="block">{order.buyerName}</strong>}
           {order.addressLines.map((line, i) => <span key={i} className="block">{line}</span>)}
         </p>
@@ -82,15 +83,15 @@ function Document({ orders, seller, parts }: { orders: OrderDetail[]; seller: Se
   return (
     <>
       {parts.picking && (
-        <Sheet title="Prélèvement" testId="sheet-picking">
-          <p className="text-[11px]">{day.format(new Date())} · {orders.length} commande{orders.length > 1 ? "s" : ""} · {cards} carte{cards > 1 ? "s" : ""}</p>
+        <Sheet title={t("Prélèvement")} testId="sheet-picking">
+          <p className="text-[11px]">{day().format(new Date())} · {tn(orders.length, "{n} commande", "{n} commandes")} · {tn(cards, "{n} carte", "{n} cartes")}</p>
           <ul className="grid gap-1.5">
             {picks.map(({ order, line, a }) => (
               <li key={a.id} className="grid grid-cols-[auto_1fr] gap-x-2 text-[11px] leading-snug">
                 <span className="mt-0.5 size-3 border border-black" aria-hidden />
                 <span>
                   <strong className="font-mono text-[12px]">{a.locationCode}</strong>
-                  {a.scan ? ` · carte n° ${a.scan.position} (${a.scan.batchName})` : ""} · <span className="font-mono">{a.unitSku}</span>
+                  {a.scan ? ` · ${t("carte n° {position} ({batch})", { position: a.scan.position, batch: a.scan.batchName })}` : ""} · <span className="font-mono">{a.unitSku}</span>
                   <br />{a.qty} × {cardLine(line)}
                   <br />→ <span className="font-mono">{order.externalId}</span>{order.buyerName ? ` · ${order.buyerName}` : ""}
                 </span>
@@ -102,17 +103,17 @@ function Document({ orders, seller, parts }: { orders: OrderDetail[]; seller: Se
       {orders.map((order) => (
         <Fragment key={order.id}>
           {parts.slips && (
-            <Sheet title="Bon de livraison" testId="sheet-slip">
+            <Sheet title={t("Bon de livraison")} testId="sheet-slip">
               <SellerHeader seller={seller} />
               <OrderHeader order={order} />
               <ul className="grid gap-1 border-y border-black py-1.5 text-[11px] leading-snug">
                 {order.lines.map((line) => <li key={line.id}>{line.qty} × {cardLine(line)}</li>)}
               </ul>
-              <p className="text-[11px]">{order.cards} carte{order.cards > 1 ? "s" : ""}. Merci pour votre commande.</p>
+              <p className="text-[11px]">{tn(order.cards, "{n} carte", "{n} cartes")}. {t("Merci pour votre commande.")}</p>
             </Sheet>
           )}
           {parts.receipts && (
-            <Sheet title="Reçu" testId="sheet-receipt">
+            <Sheet title={t("Reçu")} testId="sheet-receipt">
               <SellerHeader seller={seller} />
               <OrderHeader order={order} />
               <table className="w-full border-y border-black text-[11px] leading-snug">
@@ -124,11 +125,11 @@ function Document({ orders, seller, parts }: { orders: OrderDetail[]; seller: Se
                     </tr>
                   ))}
                   {order.totals.shippingChargedCents > 0 && (
-                    <tr><td className="py-0.5 pr-2">Frais de port</td><td className="py-0.5 text-right whitespace-nowrap tabular-nums">{formatEuros(order.totals.shippingChargedCents)}</td></tr>
+                    <tr><td className="py-0.5 pr-2">{t("Frais de port")}</td><td className="py-0.5 text-right whitespace-nowrap tabular-nums">{formatEuros(order.totals.shippingChargedCents)}</td></tr>
                   )}
                 </tbody>
               </table>
-              <p className="flex justify-between text-[13px] font-bold"><span>Total payé</span><span className="tabular-nums">{formatEuros(order.totals.grossCents)}</span></p>
+              <p className="flex justify-between text-[13px] font-bold"><span>{t("Total payé")}</span><span className="tabular-nums">{formatEuros(order.totals.grossCents)}</span></p>
               {seller.legal && <p className="text-[10px] leading-snug whitespace-pre-line">{seller.legal}</p>}
             </Sheet>
           )}
@@ -192,7 +193,7 @@ function Preparation() {
     setMarking(true);
     try {
       const { marked } = await api.markSlipsPrinted(orders.map((o) => o.id));
-      toast.success(`${marked} commande${marked > 1 ? "s" : ""} marquée${marked > 1 ? "s" : ""} comme imprimée${marked > 1 ? "s" : ""}`);
+      toast.success(tn(marked, "{n} commande marquée comme imprimée", "{n} commandes marquées comme imprimées"));
       setPrinted(false);
       // Plus rien de nouveau : on montre tout, pour pouvoir réimprimer.
       if (!(await load()).orders.some((o) => !o.slipPrintedAt)) setOnlyNew(false);
@@ -210,10 +211,10 @@ function Preparation() {
       <style>{`@media print { @page { ${spec.page} } html, body { background: #fff !important; } [data-sonner-toaster] { display: none !important; } }`}</style>
       <div className="grid gap-5 print:hidden">
         <PageHeader
-          back={<BackLink href="/ventes">Ventes</BackLink>}
-          title="Préparer les envois"
-          description="Une liste de prélèvement rangée par boîte, puis un bon de livraison et un reçu par commande, au format de votre imprimante."
-          actions={<Button onClick={() => window.print()} disabled={orders.length === 0 || !Object.values(parts).some(Boolean)} data-testid="print-run"><Printer /> Imprimer {orders.length > 0 ? `${orders.length} commande${orders.length > 1 ? "s" : ""}` : ""}</Button>}
+          back={<BackLink href="/ventes">{t("Ventes")}</BackLink>}
+          title={t("Préparer les envois")}
+          description={t("Une liste de prélèvement rangée par boîte, puis un bon de livraison et un reçu par commande, au format de votre imprimante.")}
+          actions={<Button onClick={() => window.print()} disabled={orders.length === 0 || !Object.values(parts).some(Boolean)} data-testid="print-run"><Printer /> {orders.length > 0 ? tn(orders.length, "Imprimer {n} commande", "Imprimer {n} commandes") : t("Imprimer")}</Button>}
         />
         {error && <Alert variant="destructive">{error}</Alert>}
 
@@ -222,7 +223,7 @@ function Preparation() {
       {!run && !error && <PreparationSkeleton />}
 
       {run && run.orders.length === 0 && (
-        <div className="print:hidden"><EmptyState icon={<Check />} title="Rien à préparer">Aucune commande n'attend d'être emballée.</EmptyState></div>
+        <div className="print:hidden"><EmptyState icon={<Check />} title={t("Rien à préparer")}>{t("Aucune commande n'attend d'être emballée.")}</EmptyState></div>
       )}
 
       {run && run.orders.length > 0 && (
@@ -230,37 +231,37 @@ function Preparation() {
           <div className="grid gap-4 print:hidden">
             <div className="grid gap-3 rounded-lg border bg-card p-4">
               <p className="text-sm" role="status" data-testid="run-summary">
-                <strong className="font-semibold">{run.orders.length} commande{run.orders.length > 1 ? "s" : ""} à préparer</strong>
-                {fresh.length < run.orders.length ? `, dont ${fresh.length} pas encore imprimée${fresh.length > 1 ? "s" : ""}.` : "."}
+                <strong className="font-semibold">{tn(run.orders.length, "{n} commande à préparer", "{n} commandes à préparer")}</strong>
+                {fresh.length < run.orders.length ? tn(fresh.length, ", dont {n} pas encore imprimée.", ", dont {n} pas encore imprimées.") : "."}
               </p>
               {fresh.length > 0 && fresh.length < run.orders.length && (
-                <SwitchRow label="Nouvelles commandes seulement" description="Coupé : toutes les commandes à préparer, pour réimprimer." checked={onlyNew} onCheckedChange={setOnlyNew} />
+                <SwitchRow label={t("Nouvelles commandes seulement")} description={t("Coupé : toutes les commandes à préparer, pour réimprimer.")} checked={onlyNew} onCheckedChange={setOnlyNew} />
               )}
               {(printed || orders.some((o) => !o.slipPrintedAt)) && orders.length > 0 && (
                 <Button variant={printed ? "default" : "outline"} onClick={markPrinted} disabled={marking} data-testid="mark-printed">
-                  <Check /> {printed ? "L'impression est bonne : marquer comme imprimées" : "Marquer comme imprimées"}
+                  <Check /> {printed ? t("L'impression est bonne : marquer comme imprimées") : t("Marquer comme imprimées")}
                 </Button>
               )}
             </div>
             <div className="grid gap-3 rounded-lg border bg-card p-4">
-              <Field label="Papier">
-                <Select value={paper} onChange={(e) => savePaper(e.target.value as SlipPaper)} aria-label="Papier">
-                  {(Object.keys(PAPERS) as SlipPaper[]).map((p) => <option key={p} value={p}>{PAPERS[p].label}</option>)}
+              <Field label={t("Papier")}>
+                <Select value={paper} onChange={(e) => savePaper(e.target.value as SlipPaper)} aria-label={t("Papier")}>
+                  {(Object.keys(PAPERS) as SlipPaper[]).map((p) => <option key={p} value={p}>{t(PAPERS[p].label)}</option>)}
                 </Select>
               </Field>
-              <SwitchRow label="Liste de prélèvement" checked={parts.picking} onCheckedChange={(picking) => setParts({ ...parts, picking })} />
-              <SwitchRow label="Bons de livraison" checked={parts.slips} onCheckedChange={(slips) => setParts({ ...parts, slips })} />
-              <SwitchRow label="Reçus" checked={parts.receipts} onCheckedChange={(receipts) => setParts({ ...parts, receipts })} />
+              <SwitchRow label={t("Liste de prélèvement")} checked={parts.picking} onCheckedChange={(picking) => setParts({ ...parts, picking })} />
+              <SwitchRow label={t("Bons de livraison")} checked={parts.slips} onCheckedChange={(slips) => setParts({ ...parts, slips })} />
+              <SwitchRow label={t("Reçus")} checked={parts.receipts} onCheckedChange={(receipts) => setParts({ ...parts, receipts })} />
             </div>
             <div className="grid gap-3 rounded-lg border bg-card p-4">
-              <p className="text-[13px] font-medium">En-tête des bons et des reçus</p>
-              <Field label="Nom de la boutique">
+              <p className="text-[13px] font-medium">{t("En-tête des bons et des reçus")}</p>
+              <Field label={t("Nom de la boutique")}>
                 <Input value={seller.name} onChange={(e) => setSeller({ ...seller, name: e.target.value })} onBlur={saveSeller} maxLength={80} />
               </Field>
-              <Field label="Adresse">
+              <Field label={t("Adresse")}>
                 <Textarea value={seller.address} onChange={(e) => setSeller({ ...seller, address: e.target.value })} onBlur={saveSeller} maxLength={300} className="min-h-16" />
               </Field>
-              <Field label="Mention du reçu" hint="SIRET, régime de TVA… Imprimée en bas de chaque reçu.">
+              <Field label={t("Mention du reçu")} hint={t("SIRET, régime de TVA… Imprimée en bas de chaque reçu.")}>
                 <Textarea value={seller.legal} onChange={(e) => setSeller({ ...seller, legal: e.target.value })} onBlur={saveSeller} maxLength={300} className="min-h-16" />
               </Field>
             </div>
@@ -272,7 +273,7 @@ function Preparation() {
               style={{ width: spec.width }}
               data-testid="run-document"
             >
-              {orders.length > 0 ? <Document orders={orders} seller={seller} parts={parts} /> : <p className="p-4 text-[12px]">Rien de nouveau à imprimer.</p>}
+              {orders.length > 0 ? <Document orders={orders} seller={seller} parts={parts} /> : <p className="p-4 text-[12px]">{t("Rien de nouveau à imprimer.")}</p>}
             </div>
           </div>
         </div>
