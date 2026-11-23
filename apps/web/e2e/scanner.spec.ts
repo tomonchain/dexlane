@@ -163,8 +163,13 @@ test("photo lisible : la carte entre en stock et se retrouve dans l'inventaire",
   await expect(page.getByText("Identification sûre.")).toBeVisible();
   await expect(page.getByRole("radio", { name: /Fouinar/ })).toBeChecked();
   await expect(page.getByRole("radio", { name: "Reverse" })).toBeChecked();
-  await expect(confirm(page)).toBeDisabled();
   await expect(confirm(page)).toHaveText("Reste : l'état");
+  // Valider avec une étape manquante y mène : l'étape « État » défile à l'écran et se signale, rien n'est enregistré.
+  await confirm(page).click();
+  const conditionStep = page.locator("#etape-etat");
+  await expect(conditionStep).toHaveAttribute("data-attention", "true");
+  await expect(conditionStep).toBeInViewport();
+  await expect(onHand(page)).toHaveCount(0);
 
   await page.getByRole("radio", { name: "Near Mint" }).click();
   await page.getByRole("button", { name: "Quantité : plus" }).click();

@@ -41,9 +41,15 @@ export default function ScannerPage() {
 }
 
 /** Étape numérotée du formulaire ; la pastille se coche quand l'étape est renseignée. */
-function Step({ n, title, done, aside, children }: { n: number; title: string; done: boolean; aside?: ReactNode; children: ReactNode }) {
+function Step({ n, title, done, aside, children, id, attention = false }: {
+  n: number; title: string; done: boolean; aside?: ReactNode; children: ReactNode;
+  /** Ancre de l'étape : le bouton de validation y mène quand elle manque. */
+  id?: string;
+  /** L'étape vient d'être signalée comme manquante : elle se détache un instant. */
+  attention?: boolean;
+}) {
   return (
-    <Card>
+    <Card id={id} className={cn("scroll-mt-20 transition-shadow duration-300", attention && "ring-2 ring-brand ring-offset-2 ring-offset-background")} data-attention={attention || undefined}>
       <CardContent className="grid gap-4">
         <div className="flex items-center gap-2.5">
           <span
@@ -105,13 +111,37 @@ function Scanner() {
   const card = candidates.find((c) => c.catalogCardId === cardId) ?? null;
   const variant = card?.variants.find((v) => v.id === variantId) ?? null;
   const costCents = parseEuros(session.cost);
-  const missing = [
-    !card && "la carte",
-    card && !variant && "la variante",
-    !condition && "l'état",
-    !session.locationCode && "l'emplacement",
-    !bulkId && costCents === null && "un coût valide",
-  ].filter(Boolean) as string[];
+  // Ce qui manque pour valider, avec l'étape où le compléter.
+  const gaps = ([
+    !card && { label: "la carte", step: "etape-carte" },
+    card && !variant && { label: "la variante", step: "etape-variante" },
+    !condition && { label: "l'état", step: "etape-etat" },
+    !session.locationCode && { label: "l'emplacement", step: "etape-rangement" },
+    !bulkId && costCents === null && { label: "un coût valide", step: "etape-rangement" },
+  ].filter(Boolean)) as { label: string; step: string }[];
+  const missing = gaps.map((g) => g.label);
+  const [attention, setAttention] = useState<string | null>(null);
+  // Le signalement s'efface dès que l'étape est remplie, ou après quelques secondes.
+  const gapSteps = gaps.map((g) => g.step).join(" ");
+  useEffect(() => {
+    if (!attention) return;
+    if (!gapSteps.split(" ").includes(attention)) {
+      setAttention(null);
+      return;
+    }
+    const timer = setTimeout(() => setAttention(null), 2500);
+    return () => clearTimeout(timer);
+  }, [attention, gapSteps]);
+
+  /** Valider avec une étape manquante : on y va, on la signale, et le premier choix prend le focus. */
+  function goToMissing() {
+    const first = gaps[0];
+    if (!first) return;
+    const section = document.getElementById(first.step);
+    section?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+    section?.querySelector<HTMLElement>('[role="radio"], input, button:not([disabled])')?.focus({ preventScroll: true });
+    setAttention(first.step);
+  }
 
   function resetCard() {
     setScan(null);
@@ -426,7 +456,7 @@ function Scanner() {
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_23rem]">
         <div className="grid gap-5">
-          <Step n={1} title="Carte" done={!!card}>
+          <Step n={1} title="Carte" done={!!card} id="etape-carte" attention={attention === "etape-carte"}>
             {(photoUrl || reading) && (
               <div className="flex items-start gap-3 rounded-lg bg-muted/50 p-2.5">
                 {photoUrl && <img className="aspect-[63/88] w-16 shrink-0 rounded-md object-cover ring-1 ring-border" src={photoUrl} alt="Photo prise" />}
@@ -488,7 +518,7 @@ function Scanner() {
             )}
           </Step>
 
-          <Step n={2} title="Variante" done={!!variant}>
+          <Step n={2} title="Variante" done={!!variant} id="etape-variante" attention={attention === "etape-variante"}>
             {card ? (
               <div className="flex items-start gap-4">
                 <CardThumb imageUrl={card.imageUrl} size="lg" />
@@ -512,7 +542,7 @@ function Scanner() {
         </div>
 
         <div className="grid gap-5 lg:sticky lg:top-6">
-          <Step n={3} title="État" done={!!condition} aside={conditionLabel && <Badge variant="brand">{conditionLabel}</Badge>}>
+          <Step n={3} title="État" done={!!condition} id="etape-etat" attention={attention === "etape-etat"} aside={conditionLabel && <Badge variant="brand">{conditionLabel}</Badge>}>
             <ChoiceGroup value={condition} onValueChange={setCondition} aria-label="État" className="grid grid-cols-7 gap-1.5">
               {CONDITIONS.map((c) => (
                 <Choice key={c.code} value={c.code} aria-label={c.label} title={c.label} className="px-0 font-mono text-[13px]">
@@ -535,7 +565,7 @@ function Scanner() {
             <SwitchRow label="Exemplaire unique" description="Forte valeur, vendu avec ses propres photos." checked={unique} onCheckedChange={setUnique} />
           </Step>
 
-          <Step n={5} title="Rangement" done={!!session.locationCode && (!!bulkId || costCents !== null)}>
+          <Step n={5} title="Rangement" done={!!session.locationCode && (!!bulkId || costCents !== null)} id="etape-rangement" attention={attention === "etape-rangement"}>
             {storageFields}
             <SwitchRow label="Brouillon" description="À revoir plus tard, non vendable d'ici là." checked={draft} onCheckedChange={setDraft} />
           </Step>
@@ -549,8 +579,9 @@ function Scanner() {
                 key={scan && missing.length === 0 ? "ready" : "pending"}
                 autoFocus={!!scan && missing.length === 0}
                 size="lg"
-                onClick={submit}
-                disabled={submitting || missing.length > 0}
+                onClick={missing.length > 0 ? goToMissing : submit}
+                disabled={submitting}
+                variant={missing.length > 0 ? "outline" : "default"}
                 className="min-w-0 flex-1"
                 data-testid="confirm"
               >
