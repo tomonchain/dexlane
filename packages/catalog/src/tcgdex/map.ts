@@ -83,7 +83,32 @@ export function mapTcgdexCard(src: TcgdexCard, language: string): MappedCardWith
 
   variants = disambiguateNaturalKeys(variants);
   attachPrices(variants, src);
-  return { card, variants };
+  return { card, variants: localizeEnglishPrints(variants, language) };
+}
+
+/**
+ * Impressions qui n'existent qu'en anglais : le Set de Base « sans ombre » (Shadowless) et le tirage britannique
+ * « Copyright 1999-2000 ». TCGdex les rattache aussi aux fiches des autres langues.
+ */
+const ENGLISH_ONLY_PRINT = /sans ombre|shadowless|1999-2000/i;
+
+/**
+ * Dans une autre langue que l'anglais, une impression purement anglaise n'existe pas : elle est retirée. La 1re édition,
+ * elle, existe aussi dans les autres langues ; elle est gardée sans la mention anglaise, mais sa cote est celle de
+ * l'impression anglaise : elle est marquée partagée (jamais publiée sans revue) et le prix TCGplayer, américain, est retiré.
+ */
+function localizeEnglishPrints(variants: MappedVariant[], language: string): MappedVariant[] {
+  if (language === "en") return variants;
+  return variants.flatMap((v): MappedVariant[] => {
+    if (!ENGLISH_ONLY_PRINT.test(v.subtype)) return [v];
+    if (v.edition !== "1st") return [];
+    return [{
+      ...v,
+      subtype: "",
+      attributes: { ...v.attributes, pricedFromEnglishPrint: v.subtype },
+      prices: v.prices.filter((p) => p.quoteType !== "MARKET").map((p) => ({ ...p, variantAmbiguous: true })),
+    }];
+  });
 }
 
 function fromDetailed(v: TcgdexVariantDetailed, promo: boolean): MappedVariant {

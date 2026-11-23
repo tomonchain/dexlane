@@ -12,7 +12,8 @@ describe("free-text catalogue search", () => {
     const names = async (q: string) => [...new Set((await searchCatalog(sql, q)).map((h) => `${h.name} ${h.localNumber}`))];
 
     expect(await names("dracaufeu")).toEqual(["Dracaufeu 4"]);
-    expect((await searchCatalog(sql, "dracaufeu")).map((h) => h.subtype)).toHaveLength(4); // une ligne par variante
+    // Une ligne par variante existant en français : illimitée et 1re édition (les impressions anglaises sont écartées).
+    expect((await searchCatalog(sql, "dracaufeu")).map((h) => [h.subtype, h.edition])).toEqual([["illimité", ""], ["", "1st"]]);
     expect(await names("DRACAUFEU 4/102")).toEqual(["Dracaufeu 4"]);
     expect(await names("dracaufeu 5")).toEqual([]);
     expect(await names("fouinar tenebres")).toEqual(["Fouinar 136"]); // nom + série, sans accent

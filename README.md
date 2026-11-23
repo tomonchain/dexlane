@@ -258,6 +258,7 @@ Ce qui reste une action de votre part, et pourquoi :
 
 ## Catalogue et cotations — points d'attention
 
+- **Impressions anglaises** : TCGdex rattache aux fiches des autres langues des impressions qui n'existent qu'en anglais (Set de Base « sans ombre » / Shadowless, tirage britannique « Copyright 1999-2000 »). Elles sont écartées des catalogues non anglais ; la 1re édition, qui existe aussi en français, reste, mais sa cote est celle de l'impression anglaise : elle est marquée partagée (jamais tarifée ni publiée sans revue) et sans prix TCGplayer. Pour suivre ou vendre un Charizard Shadowless, importer la série en anglais.
 - **Images des cartes** : celles de TCGdex, dans la langue de la carte. TCGdex ne les a pas toutes dans toutes les langues : une carte importée sans image reçoit l'adresse de l'image anglaise de la même carte (même série, même numéro), et l'écran essaie l'image anglaise si l'image dans la langue de la carte ne se charge pas, avant un emplacement vide.
 
 - **Blocs** : « Actualiser la liste » rattache chaque série à son bloc (Wizards, Soleil et Lune, Épée et Bouclier…), y compris les séries non importées ; le catalogue se regroupe et se filtre par bloc. Si la source ne répond pas pour les blocs, la liste des séries reste utilisable.
