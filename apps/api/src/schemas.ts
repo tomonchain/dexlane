@@ -184,7 +184,7 @@ export const cancelOrderBody = z.strictObject({ reason: z.string().trim().min(1)
 export const sellableQuery = z.object({ q: z.string().trim().min(1).max(100).optional() });
 
 export const photoQuery = z
-  .object({ kind: z.enum(["SCAN_FRONT", "SCAN_BACK", "LISTING", "BACKGROUND", "PROMO"]).default("SCAN_BACK"), source: z.uuid().optional() })
+  .object({ kind: z.enum(["SCAN_FRONT", "SCAN_BACK", "LISTING", "BACKGROUND", "PROMO", "LOGO"]).default("SCAN_BACK"), source: z.uuid().optional() })
   .refine((q) => (q.kind === "LISTING") === (q.source !== undefined), "source is required for a LISTING photo, and only for it");
 export const photoId = z.uuid();
 
@@ -204,6 +204,9 @@ export const listingSettingsBody = z.strictObject({
     roundCorners: z.boolean(),
     shadow: z.boolean(),
     caption: z.string().max(60),
+    logoPhotoId: z.uuid().nullable().default(null),
+    brandPosition: z.enum(["top-left", "top-right", "bottom-left", "bottom-right"]).default("bottom-left"),
+    poweredBy: z.boolean().default(true),
   }),
   promoPhotoId: z.uuid().nullable().default(null),
   autoCompose: z.boolean().default(true),

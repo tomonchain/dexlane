@@ -21,7 +21,7 @@ import { ApiError, api } from "@/lib/api";
 import { BACKGROUND_PRESETS, backgroundCss, composeListingPhoto, drawListingPhoto, loadBitmap, placeholderCard } from "@/lib/compose";
 import { formatDateTime, formatEuros } from "@/lib/format";
 import { t, tn } from "@/lib/i18n";
-import { prepareImage } from "@/lib/image";
+import { prepareImage, prepareLogo } from "@/lib/image";
 import type { ChannelId, ChannelMode, ChannelState, ListingBlocker, ListingOffer, ListingSettings, ListingState, Photo, PhotoStyle } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { composeMissingVisuals } from "@/lib/visuals";
@@ -53,7 +53,11 @@ const SAMPLE: ListingSubject = {
 
 /** Image de fond des visuels, chargée une fois par réglage. */
 function useBackgroundImage(style: PhotoStyle): { image: ImageBitmap | null; ready: boolean } {
-  const photoId = style.background.type === "image" ? style.background.photoId : null;
+  return usePhotoBitmap(style.background.type === "image" ? style.background.photoId : null);
+}
+
+/** Image enregistrée (fond, logo), chargée pour le dessin de l'aperçu ; `ready` une fois chargée ou absente. */
+function usePhotoBitmap(photoId: string | null): { image: ImageBitmap | null; ready: boolean } {
   const [state, setState] = useState<{ id: string | null; image: ImageBitmap | null }>({ id: null, image: null });
   useEffect(() => {
     if (!photoId) return;
@@ -202,6 +206,8 @@ export function PhotoStyleEditor({ settings, onSaved }: { settings: ListingSetti
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const background = useBackgroundImage(style);
+  const logo = usePhotoBitmap(style.logoPhotoId);
+  const logoRef = useRef<HTMLInputElement>(null);
   const patch = (change: Partial<PhotoStyle>) => setStyle((s) => ({ ...s, ...change }));
 
   // Aperçu sur un vrai scan s'il en existe un, sinon sur une carte factice.
@@ -219,8 +225,21 @@ export function PhotoStyleEditor({ settings, onSaved }: { settings: ListingSetti
   }, []);
 
   useEffect(() => {
-    if (canvasRef.current && sample && background.ready) drawListingPhoto(canvasRef.current, sample, style, background.image);
-  }, [sample, style, background.image, background.ready]);
+    if (canvasRef.current && sample && background.ready && logo.ready) drawListingPhoto(canvasRef.current, sample, style, background.image, logo.image);
+  }, [sample, style, background.image, background.ready, logo.image, logo.ready]);
+
+  async function uploadLogo(file: File) {
+    setUploading(true);
+    setError(null);
+    try {
+      const photo = await api.uploadPhoto(await prepareLogo(file), "LOGO");
+      patch({ logoPhotoId: photo.id });
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function uploadBackground(file: File) {
     setUploading(true);
@@ -365,6 +384,48 @@ export function PhotoStyleEditor({ settings, onSaved }: { settings: ListingSetti
           <div className="grid gap-1 sm:grid-cols-2 sm:gap-6">
             <SwitchRow label={t("Coins arrondis")} description={t("Masque les coins du scan au format de la carte.")} checked={style.roundCorners} onCheckedChange={(roundCorners) => patch({ roundCorners })} />
             <SwitchRow label={t("Ombre portée")} description={t("Détache la carte du fond.")} checked={style.shadow} onCheckedChange={(shadow) => patch({ shadow })} />
+          </div>
+
+          <div className="grid gap-3 border-t pt-5" data-testid="brand">
+            <Eyebrow>{t("Logo et signature")}</Eyebrow>
+            <p className="text-sm text-muted-foreground">{t("Votre logo dans un coin du visuel, avec à côté la mention « powered by » et le logo Dexlane. Un PNG à fond transparent rend le mieux.")}</p>
+            <div className="flex flex-wrap items-center gap-3">
+              {style.logoPhotoId && (
+                <img
+                  src={api.photoContentUrl(style.logoPhotoId)}
+                  alt={t("Logo de la boutique")}
+                  className="h-14 max-w-40 rounded-md object-contain p-1 ring-1 ring-border"
+                  style={{ background: backgroundCss({ type: "image", photoId: "" }) }}
+                />
+              )}
+              <input
+                ref={logoRef}
+                type="file"
+                accept="image/png,image/webp,image/jpeg"
+                hidden
+                data-testid="logo-input"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (file) void uploadLogo(file);
+                }}
+              />
+              <Button variant="outline" onClick={() => logoRef.current?.click()} disabled={uploading}>
+                {uploading ? <Spinner /> : <Upload />} {style.logoPhotoId ? t("Changer le logo") : t("Ajouter votre logo")}
+              </Button>
+              {style.logoPhotoId && <Button variant="ghost" onClick={() => patch({ logoPhotoId: null })} disabled={uploading}>{t("Retirer")}</Button>}
+            </div>
+            <div className="grid items-end gap-3 sm:grid-cols-2 sm:gap-6">
+              <Field label={t("Emplacement sur le visuel")}>
+                <Select value={style.brandPosition} onChange={(e) => patch({ brandPosition: e.target.value as PhotoStyle["brandPosition"] })}>
+                  <option value="bottom-left">{t("En bas à gauche")}</option>
+                  <option value="bottom-right">{t("En bas à droite")}</option>
+                  <option value="top-left">{t("En haut à gauche")}</option>
+                  <option value="top-right">{t("En haut à droite")}</option>
+                </Select>
+              </Field>
+              <SwitchRow label={t("« powered by Dexlane »")} description={t("Le logo Dexlane complet, à côté du vôtre.")} checked={style.poweredBy} onCheckedChange={(poweredBy) => patch({ poweredBy })} />
+            </div>
           </div>
 
           <div className="border-t pt-4">

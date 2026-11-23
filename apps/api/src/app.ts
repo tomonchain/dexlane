@@ -157,7 +157,7 @@ export function createApp(deps: AppDeps) {
     },
   );
 
-  const FOLDERS = { SCAN_FRONT: "scans", SCAN_BACK: "scans", LISTING: "annonces", BACKGROUND: "fonds", PROMO: "fonds" } as const;
+  const FOLDERS = { SCAN_FRONT: "scans", SCAN_BACK: "scans", LISTING: "annonces", BACKGROUND: "fonds", PROMO: "fonds", LOGO: "fonds" } as const;
 
   async function putFile(image: CardImage, kind: keyof typeof FOLDERS) {
     const stored = await deps.photos!.put({ folder: FOLDERS[kind], data: image.data, contentType: image.mediaType });
@@ -165,7 +165,7 @@ export function createApp(deps: AppDeps) {
   }
 
   /** Dépose une image dans le stockage et en garde la référence ; null si aucun stockage n'est configuré ou s'il échoue. */
-  async function storePhoto(image: CardImage, kind: "SCAN_FRONT" | "SCAN_BACK" | "BACKGROUND" | "PROMO") {
+  async function storePhoto(image: CardImage, kind: "SCAN_FRONT" | "SCAN_BACK" | "BACKGROUND" | "PROMO" | "LOGO") {
     if (!deps.photos) return null;
     try {
       const row = await recordPhoto(sql, { ...(await putFile(image, kind)), kind });

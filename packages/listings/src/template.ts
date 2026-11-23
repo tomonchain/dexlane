@@ -21,7 +21,15 @@ export interface PhotoStyle {
   shadow: boolean;
   /** Texte discret en bas de l'image (pseudo du vendeur, par exemple). */
   caption: string;
+  /** Logo de la boutique, posé dans un coin du visuel ; null : aucun. */
+  logoPhotoId: string | null;
+  /** Coin où se placent le logo et la mention « powered by Dexlane ». */
+  brandPosition: BrandPosition;
+  /** Mention « powered by » avec le logo Dexlane complet, à côté du logo de la boutique. */
+  poweredBy: boolean;
 }
+
+export type BrandPosition = "top-left" | "top-right" | "bottom-left" | "bottom-right";
 
 export interface ListingSettings {
   titleTemplate: string;
@@ -49,6 +57,7 @@ export const DEFAULT_LISTING_SETTINGS: ListingSettings = {
   photo: {
     background: { type: "gradient", from: "#1e293b", to: "#0f172a", angle: 135 },
     size: 1600, marginPercent: 9, trimPercent: 0, roundCorners: true, shadow: true, caption: "",
+    logoPhotoId: null, brandPosition: "bottom-left", poweredBy: true,
   },
   promoPhotoId: null,
   autoCompose: true,

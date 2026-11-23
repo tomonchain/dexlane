@@ -919,6 +919,17 @@ test("mise en ligne planifiée : image de fin d'annonce, sélection de cartes, r
   await expect(page.getByText("Image de fin d'annonce enregistrée")).toBeVisible();
   await expect(page.getByTestId("promo").getByRole("img", { name: "Image de fin d'annonce" })).toBeVisible();
 
+  // Logo de la boutique sur les visuels, avec la mention « powered by Dexlane » (active par défaut), en haut à droite.
+  const brand = page.getByTestId("brand");
+  await brand.getByTestId("logo-input").setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: png(60, 20) });
+  await expect(brand.getByRole("img", { name: "Logo de la boutique" })).toBeVisible();
+  await brand.getByLabel("Emplacement sur le visuel").selectOption("top-right");
+  await page.getByRole("button", { name: "Enregistrer le style" }).click();
+  await expect(page.getByText("Style des photos enregistré")).toBeVisible();
+  const style = ((await (await page.request.get("/api/listings/settings")).json()) as { photo: { logoPhotoId: string | null; brandPosition: string; poweredBy: boolean } }).photo;
+  expect(style).toMatchObject({ brandPosition: "top-right", poweredBy: true });
+  expect(style.logoPhotoId).toMatch(/^[0-9a-f-]{36}$/);
+
   // Stock : deux cartes sélectionnées, une par jour à partir d'aujourd'hui.
   await page.goto("/stock");
   await page.getByLabel("Rechercher dans le stock").fill("OF-SWSH3-136-FR-N-");

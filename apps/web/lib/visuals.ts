@@ -19,6 +19,7 @@ export async function composeMissingVisuals(
   const background = settings.photo.background.type === "image"
     ? await loadBitmap(api.photoContentUrl(settings.photo.background.photoId)).catch(() => null)
     : null;
+  const logo = settings.photo.logoPhotoId ? await loadBitmap(api.photoContentUrl(settings.photo.logoPhotoId)).catch(() => null) : null;
   let composed = 0;
   for (const [index, offerId] of ids.entries()) {
     onProgress?.(index, ids.length);
@@ -28,7 +29,7 @@ export async function composeMissingVisuals(
       const done = new Set(opts.all ? [] : photos.filter((p) => p.kind === "LISTING").map((p) => p.sourcePhotoId));
       for (const scan of photos.filter((p) => (p.kind === "SCAN_FRONT" || p.kind === "SCAN_BACK") && !done.has(p.id))) {
         const card = await loadBitmap(api.photoContentUrl(scan.id));
-        await api.uploadListingPhoto(await composeListingPhoto(card, settings.photo, background), scan.id);
+        await api.uploadListingPhoto(await composeListingPhoto(card, settings.photo, background, logo), scan.id);
         card.close();
         composed++;
       }
