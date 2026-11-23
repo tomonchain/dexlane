@@ -18,6 +18,7 @@ import { formatEuros, parseEuros, variantLabel } from "@/lib/format";
 import { CATEGORY_LABEL, CATEGORY_VARIANT, DECIDABLE_CATEGORIES, age, eurosInput, quoteLabel, reasonLabel, roundPrice, tierOf, type Category } from "@/lib/pricing";
 import { CONDITIONS, type OfferPricing, type PricingSettings } from "@/lib/types";
 import { ListSkeleton } from "@/components/skeletons";
+import { SaveBar } from "@/components/ui/action-bar";
 
 const PAGE_SIZE = 25;
 type Tab = "REVIEW" | "ALL" | "RULES";
@@ -275,18 +276,32 @@ function PriceModal({ offer, settings, onClose, onSaved }: { offer: OfferPricing
   );
 }
 
-function Rules({ settings, onSaved }: { settings: PricingSettings; onSaved: (s: PricingSettings) => void }) {
-  const [strategy, setStrategy] = useState(settings.strategy);
-  const [numbers, setNumbers] = useState({
-    maxAgeDays: String(settings.maxAgeDays), floorPercent: String(settings.floorPercent), driftPercent: String(settings.driftPercent),
-  });
-  const [euros, setEuros] = useState({
+/** Valeurs du formulaire des règles, telles que saisies, à partir des réglages enregistrés. */
+const rulesForm = (settings: PricingSettings) => ({
+  strategy: settings.strategy,
+  numbers: { maxAgeDays: String(settings.maxAgeDays), floorPercent: String(settings.floorPercent), driftPercent: String(settings.driftPercent) },
+  euros: {
     bulkBelowCents: eurosInput(settings.bulkBelowCents), lotBelowCents: eurosInput(settings.lotBelowCents),
     singleFromCents: eurosInput(settings.singleFromCents), premiumFromCents: eurosInput(settings.premiumFromCents),
     minMarginCents: eurosInput(settings.minMarginCents), roundFromCents: eurosInput(settings.roundFromCents),
     roundStepCents: eurosInput(settings.roundStepCents),
-  });
-  const [conditions, setConditions] = useState(Object.fromEntries(CONDITIONS.map((c) => [c.code, String(settings.conditionPercent[c.code])])));
+  },
+  conditions: Object.fromEntries(CONDITIONS.map((c) => [c.code, String(settings.conditionPercent[c.code])])),
+});
+
+function Rules({ settings, onSaved }: { settings: PricingSettings; onSaved: (s: PricingSettings) => void }) {
+  const initial = rulesForm(settings);
+  const [strategy, setStrategy] = useState(initial.strategy);
+  const [numbers, setNumbers] = useState(initial.numbers);
+  const [euros, setEuros] = useState(initial.euros);
+  const [conditions, setConditions] = useState(initial.conditions);
+  const dirty = JSON.stringify({ strategy, numbers, euros, conditions }) !== JSON.stringify(initial);
+  const discard = () => {
+    setStrategy(initial.strategy);
+    setNumbers(initial.numbers);
+    setEuros(initial.euros);
+    setConditions(initial.conditions);
+  };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -388,10 +403,8 @@ function Rules({ settings, onSaved }: { settings: PricingSettings; onSaved: (s: 
 
       <div className="grid gap-3 lg:col-span-2">
         {error && <Alert variant="destructive">{error}</Alert>}
-        <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" disabled={busy || !valid}>{busy && <Spinner className="text-primary-foreground" />} Enregistrer les règles</Button>
-          <span className="text-xs text-muted-foreground">Toutes les offres sont recalculées ; les prix déjà décidés ne changent pas.</span>
-        </div>
+        <p className="text-xs text-muted-foreground">À l'enregistrement, toutes les offres sont recalculées ; les prix déjà décidés ne changent pas.</p>
+        {dirty && <SaveBar submit message="Règles de prix modifiées : toutes les offres seront recalculées" saveLabel="Enregistrer les règles" saving={busy} disabled={!valid} onDiscard={discard} />}
       </div>
     </form>
   );
