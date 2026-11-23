@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { fold } from "@/lib/catalog";
+import { t, tn } from "@/lib/i18n";
 import type { CatalogSet } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Input } from "./ui/input";
@@ -86,7 +87,7 @@ export function SetCombobox({ language, value, onChange }: { language: string; v
             setOpen(false);
           }
         }}
-        placeholder="Nom ou identifiant"
+        placeholder={t("Nom ou identifiant")}
         autoCapitalize="none"
         autoCorrect="off"
         autoComplete="off"
@@ -94,7 +95,7 @@ export function SetCombobox({ language, value, onChange }: { language: string; v
       />
       <ChevronsUpDown className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
       {open && sets && (
-        <div id={listId} role="listbox" aria-label="Séries importées" className="absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-lg">
+        <div id={listId} role="listbox" aria-label={t("Séries importées")} className="absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-lg">
           {options.map((s, i) => (
             <button
               key={s.id}
@@ -110,15 +111,15 @@ export function SetCombobox({ language, value, onChange }: { language: string; v
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{s.name}</span>
-                <span className="block truncate text-xs text-muted-foreground"><Code>{s.id}</Code>{s.serieName ? ` · ${s.serieName}` : ""} · {s.cardsSynced} carte{s.cardsSynced > 1 ? "s" : ""}</span>
+                <span className="block truncate text-xs text-muted-foreground"><Code>{s.id}</Code>{s.serieName ? ` · ${s.serieName}` : ""} · {tn(s.cardsSynced, "{n} carte", "{n} cartes")}</span>
               </span>
               <Check className={cn("size-4 text-primary", s.id !== value && "invisible")} aria-hidden />
             </button>
           ))}
           {options.length === 0 && (
             <p className="px-2.5 py-3 text-sm text-muted-foreground">
-              {sets.length === 0 ? "Aucune série importée pour cette langue." : "Aucune série importée ne correspond."}{" "}
-              <Link href="/catalogue" className="font-medium text-primary underline-offset-2 hover:underline" onMouseDown={(e) => e.preventDefault()}>Ouvrir le catalogue</Link>
+              {sets.length === 0 ? t("Aucune série importée pour cette langue.") : t("Aucune série importée ne correspond.")}{" "}
+              <Link href="/catalogue" className="font-medium text-primary underline-offset-2 hover:underline" onMouseDown={(e) => e.preventDefault()}>{t("Ouvrir le catalogue")}</Link>
             </p>
           )}
         </div>

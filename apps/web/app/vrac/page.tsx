@@ -12,6 +12,7 @@ import { Code, PageHeader, Spinner } from "@/components/ui/misc";
 import { Choice, ChoiceGroup } from "@/components/ui/toggle-group";
 import { ApiError, api, createKeyring } from "@/lib/api";
 import { formatEuros, parseEuros } from "@/lib/format";
+import { t } from "@/lib/i18n";
 import { useStored } from "@/lib/storage";
 import type { AcquisitionLot, ReceivedBulkLot } from "@/lib/types";
 
@@ -60,7 +61,7 @@ export default function BulkPage() {
       setQuantity("");
       window.scrollTo(0, 0);
     } catch (err) {
-      setError(err instanceof ApiError && err.code === "LOCATION_NOT_FOUND" ? "Cet emplacement n'existe pas." : (err as Error).message);
+      setError(err instanceof ApiError && err.code === "LOCATION_NOT_FOUND" ? t("Cet emplacement n'existe pas.") : (err as Error).message);
     } finally {
       setBusy(false);
     }
@@ -68,22 +69,22 @@ export default function BulkPage() {
 
   return (
     <form className="grid max-w-3xl gap-5" onSubmit={submit}>
-      <PageHeader title="Lot de vrac" description="Un lot compté ou pesé entre en une seule position, sans scanner chaque carte." />
+      <PageHeader title={t("Lot de vrac")} description={t("Un lot compté ou pesé entre en une seule position, sans scanner chaque carte.")} />
 
       {done && (
         <Card className="overflow-hidden border-success/25" aria-live="polite">
           <div className="flex items-center gap-2 border-b border-success/15 bg-success-soft px-4 py-2.5 text-sm font-medium text-success sm:px-5">
-            <Check className="size-4" strokeWidth={2.5} aria-hidden /> Lot enregistré.
+            <Check className="size-4" strokeWidth={2.5} aria-hidden /> {t("Lot enregistré.")}
           </div>
           <CardContent className="grid gap-3">
             <div className="grid gap-1">
-              <Eyebrow>Code de la position</Eyebrow>
+              <Eyebrow>{t("Code de la position")}</Eyebrow>
               <p className="font-mono text-3xl font-semibold tracking-tight">{done.stockItem.unitSku}</p>
             </div>
-            <p className="text-sm"><strong className="font-semibold">{done.descriptor.label}</strong> × {done.stockItem.onHand}, rangé en <Code>{done.locationCode}</Code></p>
-            <p className="text-sm text-muted-foreground">Coût unitaire retenu : {formatEuros(done.stockItem.unitCostCents)} (arrondi au centime).</p>
+            <p className="text-sm"><strong className="font-semibold">{done.descriptor.label}</strong> × {done.stockItem.onHand}, {t("rangé en")} <Code>{done.locationCode}</Code></p>
+            <p className="text-sm text-muted-foreground">{t("Coût unitaire retenu : {cost} (arrondi au centime).", { cost: formatEuros(done.stockItem.unitCostCents) })}</p>
             <Button variant="link" size="sm" asChild className="justify-self-start">
-              <Link href={`/inventaire/${done.stockItem.unitSku}`}>Voir la fiche <ArrowRight /></Link>
+              <Link href={`/inventaire/${done.stockItem.unitSku}`}>{t("Voir la fiche")} <ArrowRight /></Link>
             </Button>
           </CardContent>
         </Card>
@@ -91,24 +92,24 @@ export default function BulkPage() {
 
       <Card>
         <CardContent className="grid gap-4">
-          <h2 className="text-[15px] font-semibold tracking-tight">Contenu</h2>
-          <ChoiceGroup value={cardType} onValueChange={setCardType} aria-label="Type de cartes">
-            {TYPES.map((t) => <Choice key={t} value={t} className="capitalize">{t}</Choice>)}
+          <h2 className="text-[15px] font-semibold tracking-tight">{t("Contenu")}</h2>
+          <ChoiceGroup value={cardType} onValueChange={setCardType} aria-label={t("Type de cartes")}>
+            {TYPES.map((type) => <Choice key={type} value={type} className="capitalize">{t(type)}</Choice>)}
           </ChoiceGroup>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Regroupement">
+            <Field label={t("Regroupement")}>
               <Select value={scopeKind} onChange={(e) => setScopeKind(e.target.value as "setId" | "era")}>
-                <option value="era">Époque</option>
-                <option value="setId">Série (identifiant)</option>
+                <option value="era">{t("Époque")}</option>
+                <option value="setId">{t("Série (identifiant)")}</option>
               </Select>
             </Field>
-            <Field label={scopeKind === "era" ? "Époque (facultatif)" : "Série (facultatif)"}>
-              <Input value={scope} onChange={(e) => setScope(e.target.value)} placeholder={scopeKind === "era" ? "Écarlate et Violet" : "sv01"} autoCorrect="off" />
+            <Field label={scopeKind === "era" ? t("Époque (facultatif)") : t("Série (facultatif)")}>
+              <Input value={scope} onChange={(e) => setScope(e.target.value)} placeholder={scopeKind === "era" ? t("Écarlate et Violet") : "sv01"} autoCorrect="off" />
             </Field>
           </div>
-          <Field label="Langue">
+          <Field label={t("Langue")}>
             <Select value={language} onChange={(e) => setLanguage(e.target.value)}>
-              {LANGUAGES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+              {LANGUAGES.map(([code, label]) => <option key={code} value={code}>{t(label)}</option>)}
             </Select>
           </Field>
         </CardContent>
@@ -116,18 +117,18 @@ export default function BulkPage() {
 
       <Card>
         <CardContent className="grid gap-4">
-          <h2 className="text-[15px] font-semibold tracking-tight">Quantité et coût</h2>
+          <h2 className="text-[15px] font-semibold tracking-tight">{t("Quantité et coût")}</h2>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Nombre de cartes">
+            <Field label={t("Nombre de cartes")}>
               <Input inputMode="numeric" value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="1000" required className="tabular" />
             </Field>
-            <Field label="Coût total du lot (€)" hint={unitPreview ? `soit ${unitPreview} par carte` : undefined}>
+            <Field label={t("Coût total du lot (€)")} hint={unitPreview ? t("soit {price} par carte", { price: unitPreview }) : undefined}>
               <Input inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} onFocus={(e) => e.target.select()} aria-invalid={totalCents === null} className="tabular" />
             </Field>
           </div>
-          <Field label="Lot d'acquisition">
+          <Field label={t("Lot d'acquisition")}>
             <Select value={lotId} onChange={(e) => setLotId(e.target.value)}>
-              <option value="">Aucun</option>
+              <option value="">{t("Aucun")}</option>
               {lots.map((l) => <option key={l.id} value={l.id}>{l.purchaseDate} · {l.sourceType}{l.sellerRef ? ` · ${l.sellerRef}` : ""}</option>)}
             </Select>
           </Field>
@@ -137,7 +138,7 @@ export default function BulkPage() {
 
       {error && <Alert variant="destructive">{error}</Alert>}
       <Button type="submit" size="xl" disabled={busy || !ready}>
-        {busy ? <><Spinner className="text-primary-foreground" /> Enregistrement…</> : <><Layers /> Enregistrer le lot</>}
+        {busy ? <><Spinner className="text-primary-foreground" /> {t("Enregistrement…")}</> : <><Layers /> {t("Enregistrer le lot")}</>}
       </Button>
     </form>
   );
