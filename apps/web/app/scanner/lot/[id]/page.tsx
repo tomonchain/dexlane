@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
 import { Code, Spinner } from "@/components/ui/misc";
 import { Modal } from "@/components/ui/modal";
+import { ActionBar } from "@/components/ui/action-bar";
 import { Choice, ChoiceGroup } from "@/components/ui/toggle-group";
 import { ApiError, api } from "@/lib/api";
 import { variantLabel } from "@/lib/format";
@@ -619,20 +620,15 @@ export default function ScanBatchPage() {
       )}
 
       {!done && items.length > 0 && (
-        <div className="fixed inset-x-0 bottom-nav z-20 px-3 lg:bottom-0 lg:left-56 lg:px-8 lg:pb-4">
-          <div className="mx-auto flex max-w-[92rem] items-center gap-3 rounded-lg border bg-popover px-4 py-2.5 shadow-lg">
-            <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-              {inFlight > 0 ? "Lecture en cours…"
+        <ActionBar message={<span className="block truncate">{inFlight > 0 ? "Lecture en cours…"
                 : pending.length > 0 ? (batch.autopilot ? `${pending.length} carte${pending.length > 1 ? "s" : ""} à vérifier : une fois corrigée, chacune suit toute seule.` : `Reste ${pending.length} carte${pending.length > 1 ? "s" : ""} à corriger avant l'entrée en stock.`)
                 : remaining.length === 0 ? "Tout le lot est en stock. Terminez-le quand la pile est passée."
-                : "Tout est prêt. Les codes suivront l'ordre du scan."}
-            </p>
-            <Button onClick={receive} variant={batch.autopilot ? "outline" : "default"} disabled={receiving || inFlight > 0 || pending.length > 0 || kept.length === 0} data-testid="batch-save">
+                : "Tout est prêt. Les codes suivront l'ordre du scan."}</span>}>
+          <Button onClick={receive} variant={batch.autopilot ? "outline" : "default"} disabled={receiving || inFlight > 0 || pending.length > 0 || kept.length === 0} data-testid="batch-save">
               {receiving ? <Spinner className={batch.autopilot ? undefined : "text-primary-foreground"} /> : remaining.length === 0 ? <Check /> : <PackagePlus />}{" "}
               {remaining.length === 0 ? "Terminer le lot" : `Entrer ${remaining.length} carte${remaining.length > 1 ? "s" : ""} en stock`}
             </Button>
-          </div>
-        </div>
+        </ActionBar>
       )}
 
       {edited && !done && (

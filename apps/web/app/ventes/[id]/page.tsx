@@ -12,6 +12,7 @@ import { Card, CardContent, Eyebrow } from "@/components/ui/card";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { Code, EmptyState, Spinner } from "@/components/ui/misc";
 import { Modal } from "@/components/ui/modal";
+import { ActionBar } from "@/components/ui/action-bar";
 import type { ApiError } from "@/lib/api";
 import { api } from "@/lib/api";
 import { formatDateTime, formatEuros, parseEuros, variantLabel } from "@/lib/format";
@@ -126,16 +127,6 @@ export default function SalePage() {
                 ))}
               </ul>
             )}
-            {order.stage === "TO_PREPARE" && (
-              <Button size="lg" disabled={busy || !allPicked} onClick={() => run(() => api.packOrder(order.id), "Vente emballée")}>
-                <PackageCheck /> {allPicked ? "Marquer comme emballée" : "Prélevez toutes les cartes pour emballer"}
-              </Button>
-            )}
-            {order.stage === "PACKED" && (
-              <Button size="lg" disabled={busy} onClick={() => setModal("handover")}>
-                <Send /> {inPerson ? "Confirmer la remise" : "Confirmer le dépôt"}
-              </Button>
-            )}
           </CardContent>
         </Card>
 
@@ -161,6 +152,21 @@ export default function SalePage() {
           </CardContent>
         </Card>
       </div>
+
+      {order.stage === "TO_PREPARE" && (
+        <ActionBar message={allPicked ? "Toutes les cartes sont prélevées : la vente peut être emballée." : `Prélevez ${remaining} carte${remaining > 1 ? "s" : ""} pour pouvoir emballer.`}>
+          <Button disabled={busy || !allPicked} onClick={() => run(() => api.packOrder(order.id), "Vente emballée")}>
+            {busy ? <Spinner className="text-primary-foreground" /> : <PackageCheck />} Marquer comme emballée
+          </Button>
+        </ActionBar>
+      )}
+      {order.stage === "PACKED" && (
+        <ActionBar message={inPerson ? "Emballée : à remettre à l'acheteur." : `Emballée : à déposer${order.shipment ? ` (${SHIPPING_LABEL[order.shipment.mode].toLowerCase()})` : ""}.`}>
+          <Button disabled={busy} onClick={() => setModal("handover")}>
+            <Send /> {inPerson ? "Confirmer la remise" : "Confirmer le dépôt"}
+          </Button>
+        </ActionBar>
+      )}
 
       {modal === "handover" && order.shipment && (
         <HandoverModal order={order} busy={busy} onClose={() => setModal(null)} onSubmit={(input) => run(() => api.handOver(order.id, input), inPerson ? "Remise confirmée" : "Dépôt confirmé")} />

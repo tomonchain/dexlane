@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { ListSkeleton } from "@/components/skeletons";
+import { SaveBar } from "@/components/ui/action-bar";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
@@ -26,16 +27,22 @@ const SUPPLIES: [keyof ShippingCosts["supplies"], string, string][] = [
 
 /** Frais d'envoi : ce qu'un envoi coûte, pour que la marge soit la vraie. */
 export default function ShippingCostsPage() {
-  const [form, setForm] = useState<{ postage: Record<PostalMode, string>; supplies: Record<keyof ShippingCosts["supplies"], string> } | null>(null);
+  type Form = { postage: Record<PostalMode, string>; supplies: Record<keyof ShippingCosts["supplies"], string> };
+  const [form, setForm] = useState<Form | null>(null);
+  const [saved, setSaved] = useState<Form | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     api.shippingCosts()
-      .then((c) => setForm({
-        postage: Object.fromEntries(POSTAL.map((m) => [m, c.postage[m] === null ? "" : eurosInput(c.postage[m]!)])) as Record<PostalMode, string>,
-        supplies: Object.fromEntries(SUPPLIES.map(([k]) => [k, eurosInput(c.supplies[k])])) as Record<keyof ShippingCosts["supplies"], string>,
-      }))
+      .then((c) => {
+        const loaded: Form = {
+          postage: Object.fromEntries(POSTAL.map((m) => [m, c.postage[m] === null ? "" : eurosInput(c.postage[m]!)])) as Record<PostalMode, string>,
+          supplies: Object.fromEntries(SUPPLIES.map(([k]) => [k, eurosInput(c.supplies[k])])) as Record<keyof ShippingCosts["supplies"], string>,
+        };
+        setForm(loaded);
+        setSaved(loaded);
+      })
       .catch((e: Error) => setError(e.message));
   }, []);
 
@@ -55,6 +62,7 @@ export default function ShippingCostsPage() {
     try {
       await api.saveShippingCosts({ postage: parsed.postage, supplies: parsed.supplies as ShippingCosts["supplies"] });
       toast.success("Frais d'envoi enregistrés");
+      setSaved(form);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -109,9 +117,9 @@ export default function ShippingCostsPage() {
               {perCard !== null && <p className="text-xs text-muted-foreground" data-testid="supplies-per-card">Soit {formatEuros(perCard)} de fournitures par carte, plus l'enveloppe par envoi.</p>}
             </CardContent>
           </Card>
-          <Button type="submit" disabled={saving || !valid} className="justify-self-start">
-            {saving ? <Spinner className="text-primary-foreground" /> : <Check />} Enregistrer les frais
-          </Button>
+          {JSON.stringify(form) !== JSON.stringify(saved) && (
+            <SaveBar submit message="Frais d'envoi modifiés" saveLabel="Enregistrer les frais" saving={saving} disabled={!valid} onDiscard={() => setForm(saved)} />
+          )}
         </form>
       )}
     </div>

@@ -17,6 +17,7 @@ import { formatEuros, parseEuros, variantLabel } from "@/lib/format";
 import { eurosInput } from "@/lib/pricing";
 import { SHIPPING_LABEL, SHIPPING_MODES, salesMessage } from "@/lib/sales";
 import type { SellableOffer, ShippingMode } from "@/lib/types";
+import { ActionBar } from "@/components/ui/action-bar";
 
 interface Line {
   offer: SellableOffer;
@@ -200,13 +201,15 @@ export default function NewSalePage() {
                 <div className="flex justify-between border-t pt-2 text-base font-semibold"><dt>Total encaissé</dt><dd data-testid="sale-total">{formatEuros(itemsCents + (shippingCents ?? 0))}</dd></div>
               </dl>
               {error && <Alert variant="destructive">{error}</Alert>}
-              <Button type="submit" size="lg" disabled={busy || !ready}>
-                {busy ? <><Spinner className="text-primary-foreground" /> Enregistrement…</> : "Enregistrer la vente"}
-              </Button>
             </CardContent>
           </Card>
         </div>
       </div>
+      <ActionBar message={lines.length === 0 ? "Ajoutez au moins une carte." : <span className="tabular">{lines.length} ligne{lines.length > 1 ? "s" : ""} · <strong className="font-semibold text-foreground">{formatEuros(itemsCents + (shippingCents ?? 0))}</strong> encaissés</span>}>
+        <Button type="submit" disabled={busy || !ready}>
+          {busy ? <><Spinner className="text-primary-foreground" /> Enregistrement…</> : "Enregistrer la vente"}
+        </Button>
+      </ActionBar>
     </form>
   );
 }

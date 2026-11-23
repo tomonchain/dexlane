@@ -445,7 +445,10 @@ test("ventes : vente directe réservée, prélevée par code, emballée, dépos�
   // Préparation : l'emplacement est indiqué, un mauvais code est refusé, le bon valide le prélèvement.
   const pick = page.getByTestId(`pick-${sku}`);
   await expect(pick).toContainText("BOX-V");
-  await expect(page.getByRole("button", { name: /Prélevez toutes les cartes/ })).toBeDisabled();
+  // L'action de l'étape reste en bas de l'écran, avec ce qui manque pour la lancer.
+  const bar = page.getByTestId("action-bar");
+  await expect(bar).toContainText("Prélevez 1 carte pour pouvoir emballer.");
+  await expect(bar.getByRole("button", { name: "Marquer comme emballée" })).toBeDisabled();
   await pick.getByLabel("Code lu sur la pochette").fill("999999");
   await pick.getByRole("button", { name: `Prélever ${sku}` }).click();
   await expect(errorBanner(page)).toHaveText("Aucune position ne porte ce code.");

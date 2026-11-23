@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { TITLE_MAX, VARIABLES, buildListingText, type ListingSubject } from "@dexlane/listings/template";
 import { CardThumb } from "@/components/card-chooser";
 import { OfferPhotos } from "@/components/offer-photos";
+import { SaveBar } from "@/components/ui/action-bar";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -158,9 +159,10 @@ export function TemplateEditor({ settings, onSaved }: { settings: ListingSetting
             </div>
           </div>
           {error && <Alert variant="destructive">{error}</Alert>}
-          <Button onClick={save} disabled={saving || !dirty} className="justify-self-start">
-            {saving ? <Spinner className="text-primary-foreground" /> : <Check />} Enregistrer le modèle
-          </Button>
+          {dirty && (
+            <SaveBar message="Modèle d'annonce modifié" saveLabel="Enregistrer le modèle" saving={saving} onSave={save}
+              onDiscard={() => { setTitle(settings.titleTemplate); setDescription(settings.descriptionTemplate); }} />
+          )}
         </CardContent>
       </Card>
 
@@ -401,12 +403,8 @@ export function PhotoStyleEditor({ settings, onSaved }: { settings: ListingSetti
           </div>
 
           {error && <Alert variant="destructive">{error}</Alert>}
-          <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={save} disabled={saving || !dirty}>
-              {saving ? <Spinner className="text-primary-foreground" /> : <Check />} Enregistrer le style
-            </Button>
-            <RecomposeAll disabled={dirty || saving} />
-          </div>
+          <RecomposeAll disabled={dirty || saving} />
+          {dirty && <SaveBar message="Style des photos modifié" saveLabel="Enregistrer le style" saving={saving} onSave={save} onDiscard={() => setStyle(settings.photo)} />}
         </CardContent>
       </Card>
 
