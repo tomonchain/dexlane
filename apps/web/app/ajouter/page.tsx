@@ -324,7 +324,7 @@ function Scanner() {
     const sessionCards = history.reduce((n, e) => n + e.received.stockItem.onHand, 0);
     const latestSaved = latest?.status === "saved" ? { received: latest.received!, name: latest.name } : null;
     return (
-      <div className="mx-auto grid max-w-2xl gap-5">
+      <div className="grid max-w-3xl gap-5">
         {fileInput}
         <PageHeader
           title={bulkId ? "Extraire une carte" : "Ajouter une carte"}
@@ -491,7 +491,7 @@ function Scanner() {
 
   if (phase === "reading") {
     return (
-      <div className="mx-auto grid max-w-md gap-5">
+      <div className="grid max-w-md gap-5">
         <PageHeader title="Lecture de la carte" />
         <Card className="overflow-hidden">
           {photoUrl && (

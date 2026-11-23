@@ -9,14 +9,14 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/input";
-import { PageHeader, Spinner } from "@/components/ui/misc";
+import { BackLink, Page, PageHeader, Spinner } from "@/components/ui/misc";
 import { api } from "@/lib/api";
 import { authMessage } from "@/lib/auth-messages";
 
 export default function AccountPage() {
   return (
-    <div className="mx-auto grid max-w-2xl gap-5">
-      <PageHeader title="Compte et réglages" description="Accès à l'application et préférences de cet appareil." />
+    <Page width="narrow">
+      <PageHeader back={<BackLink href="/reglages">Réglages</BackLink>} title="Compte" description="Accès à l'application et préférences de cet appareil." />
       <ChangePassword />
 
       <Card>
@@ -40,7 +40,7 @@ export default function AccountPage() {
           </Button>
         </CardContent>
       </Card>
-    </div>
+    </Page>
   );
 }
 

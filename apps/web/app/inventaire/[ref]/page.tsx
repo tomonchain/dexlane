@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  ArrowDownToLine, ArrowLeft, ArrowLeftRight, BadgeCheck, CircleSlash, ClipboardPen, Layers, MoveRight, PackageCheck, PackageMinus,
+  ArrowDownToLine, ArrowLeftRight, BadgeCheck, CircleSlash, ClipboardPen, Layers, MoveRight, PackageCheck, PackageMinus,
   ShieldAlert, Truck, type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, Eyebrow } from "@/components/ui/card";
 import { Field, Textarea } from "@/components/ui/input";
-import { Code, EmptyState } from "@/components/ui/misc";
+import { BackLink, Code, EmptyState } from "@/components/ui/misc";
 import { Modal } from "@/components/ui/modal";
 import { ApiError, api, createKeyring } from "@/lib/api";
 import { LIFECYCLE, formatDateTime, formatEuros, movementLabel, positionSubtitle, positionTitle } from "@/lib/format";
@@ -99,11 +99,7 @@ export default function PositionPage() {
   }, [ref]);
   useEffect(load, [load]);
 
-  const back = (
-    <Button variant="ghost" size="sm" asChild className="-ml-2 justify-self-start text-muted-foreground">
-      <Link href="/inventaire"><ArrowLeft /> Inventaire</Link>
-    </Button>
-  );
+  const back = <BackLink href="/inventaire">Inventaire</BackLink>;
 
   if (notFound) {
     return (
@@ -144,7 +140,7 @@ export default function PositionPage() {
           <span className="flex aspect-[63/88] w-24 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground ring-1 ring-border" aria-hidden><Layers className="size-6" /></span>
         )}
         <div className="grid min-w-0 gap-2">
-          <h1 className="text-2xl leading-tight font-semibold tracking-tight">{positionTitle(p)}</h1>
+          <h1 className="text-xl leading-tight font-semibold tracking-tight sm:text-2xl">{positionTitle(p)}</h1>
           <p className="text-sm text-muted-foreground">{positionSubtitle(p)}</p>
           {p.card && (
             <Link href={`/carte/${p.card.catalogCardId}`} className="justify-self-start text-[13px] font-medium underline underline-offset-2 hover:no-underline">

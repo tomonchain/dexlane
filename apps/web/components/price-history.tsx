@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { formatEuros } from "@/lib/format";
 import type { PriceHistory as History } from "@/lib/types";
@@ -43,7 +43,8 @@ function scaleOf(min: number, max: number): { low: number; high: number; ticks: 
  * Évolution des prix d'une carte : les ventes réussies (moyennes sur 7 et 30 jours) et l'annonce la moins chère, relevé après
  * relevé. Sans vente sur la période, la tendance des annonces prend leur place. Un seul axe, en euros.
  */
-export function PriceHistory({ variantId, className }: { variantId: string; className?: string }) {
+/** `title` : l'intitulé au-dessus de la courbe ; null quand la section qui l'entoure le porte déjà. */
+export function PriceHistory({ variantId, className, title = "Évolution du prix" }: { variantId: string; className?: string; title?: ReactNode }) {
   const [days, setDays] = useState(90);
   const [history, setHistory] = useState<History | null>(null);
   const [loading, setLoading] = useState(true);
@@ -128,7 +129,7 @@ export function PriceHistory({ variantId, className }: { variantId: string; clas
   return (
     <section className={cn("grid gap-3", className)} data-testid="price-history" aria-label="Évolution du prix">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-xs font-medium text-muted-foreground">Évolution du prix</h3>
+        {title ? <h3 className="text-xs font-medium text-muted-foreground">{title}</h3> : <span aria-hidden />}
         <div role="radiogroup" aria-label="Période" className="flex gap-0.5 rounded-md bg-muted p-0.5">
           {RANGES.map((r) => (
             <button

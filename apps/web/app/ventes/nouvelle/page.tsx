@@ -1,7 +1,6 @@
 "use client";
 
-import { ArrowLeft, Plus, Search, ShoppingBag, Trash2 } from "lucide-react";
-import Link from "next/link";
+import { Plus, Search, ShoppingBag, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { CardThumb } from "@/components/card-chooser";
@@ -10,7 +9,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, Input, Textarea } from "@/components/ui/input";
-import { EmptyState, PageHeader, Spinner } from "@/components/ui/misc";
+import { BackLink, EmptyState, PageHeader, Spinner } from "@/components/ui/misc";
 import { Choice, ChoiceGroup } from "@/components/ui/toggle-group";
 import { api, createKeyring } from "@/lib/api";
 import { formatEuros, parseEuros, variantLabel } from "@/lib/format";
@@ -87,10 +86,7 @@ export default function NewSalePage() {
 
   return (
     <form className="grid gap-5" onSubmit={submit}>
-      <Button variant="ghost" size="sm" asChild className="-ml-2 justify-self-start text-muted-foreground">
-        <Link href="/ventes"><ArrowLeft /> Ventes</Link>
-      </Button>
-      <PageHeader title="Nouvelle vente" description="Les cartes sont réservées dès l'enregistrement : elles ne peuvent plus être vendues deux fois." />
+      <PageHeader back={<BackLink href="/ventes">Ventes</BackLink>} title="Nouvelle vente" description="Les cartes sont réservées dès l'enregistrement : elles ne peuvent plus être vendues deux fois." />
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <div className="grid gap-5">

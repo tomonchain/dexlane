@@ -10,7 +10,7 @@ import { CardThumb } from "./card-chooser";
 import { DailyColumns } from "./charts";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { Code } from "./ui/misc";
+import { Code, Page, PageHeader } from "./ui/misc";
 import { HomeSkeleton } from "./skeletons";
 
 interface Data {
@@ -58,6 +58,7 @@ function Recent({ title, href, all, empty, children }: { title: string; href: st
   );
 }
 
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 const today = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" });
 const plural = (n: number, one: string, many: string) => `${n.toLocaleString("fr-FR")} ${n > 1 ? many : one}`;
 
@@ -148,11 +149,8 @@ export function Home() {
   ].filter(Boolean);
 
   return (
-    <div className="mx-auto grid max-w-4xl gap-6">
-      <div className="grid gap-1">
-        <h1 className="text-xl font-semibold tracking-tight">Aujourd'hui</h1>
-        <p className="text-sm text-muted-foreground first-letter:uppercase">{today.format(new Date())}</p>
-      </div>
+    <Page className="gap-6">
+      <PageHeader title="Aujourd'hui" description={capitalize(today.format(new Date()))} />
 
       <section className="grid gap-2" aria-label="À faire">
         <h2 className="px-1 text-xs font-medium text-muted-foreground">À faire</h2>
@@ -203,7 +201,7 @@ export function Home() {
                     <span className="truncate text-sm">{sale.cardNames.join(", ")}{sale.cards > sale.cardNames.length ? "…" : ""}</span>
                   </span>
                   <span className="truncate text-xs text-muted-foreground">
-                    {CHANNEL_LABEL[sale.channel] ?? sale.channel}{sale.buyerName ? ` · ${sale.buyerName}` : ""} · {formatDateTime(sale.orderedAt)} · {SALE_STATUS[sale.fulfillmentStatus] ?? sale.fulfillmentStatus}
+                    {[sale.channel === "direct" ? null : CHANNEL_LABEL[sale.channel] ?? sale.channel, sale.buyerName, formatDateTime(sale.orderedAt), SALE_STATUS[sale.fulfillmentStatus] ?? sale.fulfillmentStatus].filter(Boolean).join(" · ")}
                   </span>
                 </span>
                 <span className="tabular text-sm font-semibold">{formatEuros(sale.grossCents)}</span>
@@ -235,10 +233,10 @@ export function Home() {
           <Figure label="En ligne" value={stock.counts.LISTED} hint={`${plural(schedule.pending, "planifiée", "planifiées")}`} />
           <Figure label="Marge sur 30 jours" value={formatEuros(orders.last30Days.marginCents)} hint={`${plural(orders.last30Days.orders, "vente remise", "ventes remises")}, après cartes, port et fournitures`} />
         </dl>
-        <Link href="/statistiques" className="justify-self-start px-1 text-[13px] text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline">
-          Tableau de bord complet
+        <Link href="/statistiques" className="flex items-center gap-1 justify-self-start px-1 text-[13px] font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:underline">
+          Tableau de bord complet <ArrowRight className="size-3.5" aria-hidden />
         </Link>
       </section>
-    </div>
+    </Page>
   );
 }

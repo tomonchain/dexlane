@@ -38,7 +38,7 @@ function shopLinks(card: Card) {
   ];
 }
 
-function CardLabel({ card, owned, children }: { card: Card; owned: number; children?: ReactNode }) {
+function CardLabel({ card, owned, children, meta }: { card: Card; owned: number; children?: ReactNode; meta?: ReactNode }) {
   return (
     <span className="flex min-w-0 items-center gap-3">
       <CardThumb imageUrl={card.imageUrl} size="sm" className="w-9 rounded-[3px]" />
@@ -51,6 +51,7 @@ function CardLabel({ card, owned, children }: { card: Card; owned: number; child
         <span className="truncate text-xs text-muted-foreground">
           {card.setName ?? card.setId} · {card.localNumber} · {variantLabel(card)} · {card.language.toUpperCase()}
         </span>
+        {meta && <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">{meta}</span>}
       </span>
     </span>
   );
@@ -86,13 +87,15 @@ function PlatformCells({ prices }: { prices: Prices }) {
   );
 }
 
-function Links({ card }: { card: Card }) {
+/** Liens de recherche discrets, dans le texte d'une ligne. */
+function InlineLinks({ card }: { card: Card }) {
   return (
-    <span className="flex items-center gap-1">
+    <span className="flex items-center gap-2.5">
       {shopLinks(card).map((l) => (
-        <Button key={l.label} asChild variant="ghost" size="sm" className="text-muted-foreground">
-          <a href={l.href} target="_blank" rel="noopener noreferrer" aria-label={`Chercher ${card.name} sur ${l.label}`}>{l.label} <ExternalLink className="size-3" /></a>
-        </Button>
+        <a key={l.label} href={l.href} target="_blank" rel="noopener noreferrer" aria-label={`Chercher ${card.name} sur ${l.label}`}
+          className="inline-flex items-center gap-0.5 font-medium underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline">
+          {l.label} <ExternalLink className="size-3" aria-hidden />
+        </a>
       ))}
     </span>
   );
@@ -152,7 +155,13 @@ function WatchedRow({ item, onChanged }: { item: WatchedCard; onChanged: () => v
   return (
     <li className={cn("grid gap-3 px-4 py-3", item.alerts.length > 0 && "bg-brand-soft/40")} data-testid="watched-card">
       <div className="grid items-center gap-x-5 gap-y-3 lg:grid-cols-[minmax(0,1fr)_auto]">
-        <CardLabel card={item.card} owned={item.owned}>
+        <CardLabel card={item.card} owned={item.owned} meta={<>
+          <span>
+            {item.cardmarket.observedAt ? `Relevé ${age(item.cardmarket.observedAt)}` : "Pas encore de cote pour cette variante"}
+            {item.cardmarket.ambiguous ? " · cote partagée avec une autre variante" : ""}
+          </span>
+          <InlineLinks card={item.card} />
+        </>}>
           {reached && <Badge variant="success"><BellRing /> Sous votre prix cible</Badge>}
           {moved && item.change && <Badge variant="warning">{item.change.percent > 0 ? <TrendingUp /> : <TrendingDown />} {item.change.percent > 0 ? "+" : ""}{item.change.percent.toLocaleString("fr-FR")} % en {item.change.windowDays} j</Badge>}
         </CardLabel>
@@ -171,13 +180,6 @@ function WatchedRow({ item, onChanged }: { item: WatchedCard; onChanged: () => v
             <Button variant="ghost" size="icon-sm" onClick={remove} aria-label={`Ne plus suivre ${item.card.name}`} title="Ne plus suivre"><X /></Button>
           </span>
         </div>
-      </div>
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span>
-          {item.cardmarket.observedAt ? `Relevé Cardmarket ${age(item.cardmarket.observedAt)}` : "Aucune cote connue pour cette variante pour l'instant."}
-          {item.cardmarket.ambiguous ? " · cote partagée avec une autre variante" : ""}
-        </span>
-        <Links card={item.card} />
       </div>
       {chart && <div className="rounded-md border bg-card p-3"><PriceHistory variantId={item.variantId} /></div>}
     </li>
@@ -369,13 +371,12 @@ function DealRow({ deal, onWatched }: { deal: Deal; onWatched: () => void }) {
   }
   return (
     <li className="grid items-center gap-x-5 gap-y-3 px-4 py-3 lg:grid-cols-[minmax(0,1fr)_auto]" data-testid="deal">
-      <CardLabel card={deal.card} owned={deal.owned} />
+      <CardLabel card={deal.card} owned={deal.owned} meta={<InlineLinks card={deal.card} />} />
       <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
         <PlatformCells prices={deal} />
         <Cell label="Décote"><span className="font-semibold text-success">−{deal.discountPercent} %</span></Cell>
         <Cell label="Écart"><span className="font-medium">{formatEuros(deal.gainCents)}</span></Cell>
         <span className="flex items-center gap-1">
-          <Links card={deal.card} />
           {deal.watchedId
             ? <Badge variant="outline"><Star /> Suivie</Badge>
             : <Button variant="outline" size="sm" disabled={busy} onClick={watch} aria-label={`Suivre ${deal.card.name}`}>{busy ? <Spinner /> : <Star />} Suivre</Button>}
@@ -459,7 +460,7 @@ export default function PurchasesPage() {
     <div className="grid gap-5">
       <PageHeader
         title="Achats"
-        description="Les cartes à surveiller avant d'acheter, sur Cardmarket et TCGplayer, et les bonnes affaires du moment sur les cartes qui valent quelque chose."
+        description="Les cartes à surveiller avant d'acheter, et les bonnes affaires du moment sur les cartes de plus de 10 €."
         actions={<Button variant="outline" onClick={refresh} disabled={refreshing}>{refreshing ? <Spinner /> : <RefreshCw />} Actualiser les prix</Button>}
       />
       {error && <Alert variant="destructive">{error}</Alert>}

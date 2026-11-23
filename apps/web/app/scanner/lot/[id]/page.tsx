@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, CalendarClock, Camera, Check, FolderOpen, FolderUp, PackagePlus, Pencil, Undo2, X, Zap } from "lucide-react";
+import { CalendarClock, Camera, Check, FolderOpen, FolderUp, PackagePlus, Pencil, Undo2, X, Zap } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -9,7 +9,7 @@ import { CandidateList, CardThumb, ManualSearch } from "@/components/card-choose
 import { PlanModal } from "@/components/plan-modal";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
-import { Code, Spinner } from "@/components/ui/misc";
+import { BackLink, Code, PageHeader, Spinner } from "@/components/ui/misc";
 import { Modal } from "@/components/ui/modal";
 import { ActionBar } from "@/components/ui/action-bar";
 import { Choice, ChoiceGroup } from "@/components/ui/toggle-group";
@@ -373,16 +373,12 @@ export default function ScanBatchPage() {
 
   return (
     <div className="grid gap-4 pb-24">
-      <Link href="/scanner/lot" className="flex items-center gap-1.5 justify-self-start text-[13px] text-muted-foreground outline-none hover:text-foreground focus-visible:underline">
-        <ArrowLeft className="size-3.5" aria-hidden /> Lots scannés
-      </Link>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <h1 className="text-xl font-semibold tracking-tight">{batch.name}</h1>
-        <p className="text-sm text-muted-foreground">
-          Boîte <Code className="text-xs text-foreground">{batch.locationCode}</Code> · {batch.paired ? "recto verso" : "recto seul"}
-        </p>
-        {!done && (
-          <div className="ml-auto flex items-center gap-2 text-sm">
+      <PageHeader
+        back={<BackLink href="/scanner/lot">Lots scannés</BackLink>}
+        title={batch.name}
+        meta={<>Boîte <Code className="text-xs text-foreground">{batch.locationCode}</Code> · {batch.paired ? "recto verso" : "recto seul"}</>}
+        actions={!done && (
+          <div className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">État du lot</span>
             <Select
               value={batch.defaultCondition ?? ""}
@@ -395,7 +391,7 @@ export default function ScanBatchPage() {
             </Select>
           </div>
         )}
-      </div>
+      />
 
       {!done && (
         <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border px-4 py-2.5 text-sm", batch.autopilot ? "border-brand/40 bg-brand-soft/50" : "bg-card")} data-testid="autopilot">

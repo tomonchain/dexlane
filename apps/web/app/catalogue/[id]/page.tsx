@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, BookOpen, CircleSlash, PackageCheck, RefreshCw, Search } from "lucide-react";
+import { BookOpen, CircleSlash, PackageCheck, RefreshCw, Search } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Code, EmptyState, Spinner } from "@/components/ui/misc";
+import { BackLink, Code, EmptyState, Spinner } from "@/components/ui/misc";
 import { SwitchRow } from "@/components/ui/switch";
 import { Pagination, paginate } from "@/components/ui/tabs";
 import { type ApiError, api } from "@/lib/api";
@@ -109,11 +109,7 @@ export default function CatalogSetPage() {
   );
   const view = paginate(matching, page, PAGE_SIZE);
 
-  const back = (
-    <Button variant="ghost" size="sm" asChild className="-ml-2 justify-self-start text-muted-foreground">
-      <Link href="/catalogue"><ArrowLeft /> Catalogue</Link>
-    </Button>
-  );
+  const back = <BackLink href="/catalogue">Catalogue</BackLink>;
 
   if (notFound) {
     return (
@@ -136,7 +132,7 @@ export default function CatalogSetPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="grid gap-2">
-          <h1 className="text-2xl leading-tight font-semibold tracking-tight">{set.name}</h1>
+          <h1 className="text-xl leading-tight font-semibold tracking-tight sm:text-2xl">{set.name}</h1>
           <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
             <Badge variant="neutral"><Code>{set.id}</Code></Badge>
             {set.serieName && <Badge variant="outline">{set.serieName}</Badge>}

@@ -67,7 +67,7 @@ export default function BulkPage() {
   }
 
   return (
-    <form className="mx-auto grid max-w-2xl gap-5" onSubmit={submit}>
+    <form className="grid max-w-3xl gap-5" onSubmit={submit}>
       <PageHeader title="Lot de vrac" description="Un lot compté ou pesé entre en une seule position, sans scanner chaque carte." />
 
       {done && (
