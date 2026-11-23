@@ -1,7 +1,6 @@
 "use client";
 
-import { ArrowLeft, Check } from "lucide-react";
-import Link from "next/link";
+import { Check } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { ListSkeleton } from "@/components/skeletons";
@@ -10,7 +9,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/misc";
+import { BackLink, Page, PageHeader, Spinner } from "@/components/ui/misc";
 import { api } from "@/lib/api";
 import { formatEuros, parseEuros } from "@/lib/format";
 import { eurosInput } from "@/lib/pricing";
@@ -71,16 +70,12 @@ export default function ShippingCostsPage() {
   }
 
   return (
-    <div className="mx-auto grid max-w-2xl gap-4">
-      <Link href="/reglages" className="flex items-center gap-1.5 justify-self-start text-[13px] text-muted-foreground outline-none hover:text-foreground focus-visible:underline">
-        <ArrowLeft className="size-3.5" aria-hidden /> Réglages
-      </Link>
-      <div className="grid gap-1">
-        <h1 className="text-xl font-semibold tracking-tight">Frais d'envoi</h1>
-        <p className="text-sm text-muted-foreground">
-          Ce qu'un envoi vous coûte. La marge d'une vente déduit l'affranchissement et les fournitures ; ils sont figés à la remise, changer ces tarifs ne réécrit pas les ventes passées.
-        </p>
-      </div>
+    <Page width="narrow">
+      <PageHeader
+        back={<BackLink href="/reglages">Réglages</BackLink>}
+        title="Frais d'envoi"
+        description="Ce qu'un envoi vous coûte. La marge d'une vente déduit l'affranchissement et les fournitures ; ils sont figés à la remise, changer ces tarifs ne réécrit pas les ventes passées."
+      />
       {error && <Alert variant="destructive">{error}</Alert>}
       {!form ? !error && <ListSkeleton count={3} label="Chargement des frais d'envoi" /> : (
         <form onSubmit={save} className="grid gap-4">
@@ -122,6 +117,6 @@ export default function ShippingCostsPage() {
           )}
         </form>
       )}
-    </div>
+    </Page>
   );
 }

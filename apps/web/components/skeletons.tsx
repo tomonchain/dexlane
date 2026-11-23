@@ -71,7 +71,7 @@ function Columns({ count = 30, className }: { count?: number; className?: string
 
 export function HomeSkeleton() {
   return (
-    <Loading label="Chargement de l'accueil" className="mx-auto grid max-w-4xl gap-6">
+    <Loading label="Chargement de l'accueil" className="grid gap-6">
       <div className="grid gap-2">
         <Bone className="h-6 w-36" />
         <Bone className="h-4 w-44" />
@@ -182,7 +182,7 @@ export function SalesSkeleton() {
 export function SalesTotalsSkeleton() {
   return (
     <Loading label="Chargement des chiffres" className="contents">
-      <Figures count={3} className="grid-cols-1 sm:grid-cols-3" />
+      <Figures count={3} className="grid-cols-3" />
     </Loading>
   );
 }

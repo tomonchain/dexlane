@@ -685,7 +685,7 @@ test("statistiques : chiffres clés, variation de cote d'une carte en stock, seu
   });
 
   await page.goto("/statistiques");
-  await expect(page.getByRole("heading", { name: "Statistiques" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tableau de bord", level: 1 })).toBeVisible();
   await expect(page.getByTestId("stat-value")).toContainText("€");
   await expect(page.getByRole("heading", { name: "Valeur du stock par catégorie" })).toBeVisible();
 

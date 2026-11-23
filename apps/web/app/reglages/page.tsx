@@ -1,6 +1,6 @@
 import { Archive, BookOpen, Mail, Boxes, ChartColumn, ChevronRight, CircleUserRound, Megaphone, Sparkles, Store, Tags, type LucideIcon } from "lucide-react";
 import Link from "next/link";
-import { PageHeader } from "@/components/ui/misc";
+import { Page, PageHeader } from "@/components/ui/misc";
 
 const SECTIONS: { title: string; items: { href: string; label: string; hint: string; icon: LucideIcon }[] }[] = [
   {
@@ -32,7 +32,7 @@ const SECTIONS: { title: string; items: { href: string; label: string; hint: str
 
 export default function SettingsPage() {
   return (
-    <div className="mx-auto grid max-w-2xl gap-6">
+    <Page width="narrow" className="gap-6">
       <PageHeader title="Réglages" />
       {SECTIONS.map((section) => (
         <section key={section.title} className="grid gap-2">
@@ -51,6 +51,6 @@ export default function SettingsPage() {
           </div>
         </section>
       ))}
-    </div>
+    </Page>
   );
 }

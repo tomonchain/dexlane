@@ -1,14 +1,13 @@
 "use client";
 
-import { ArrowLeft, Check, Printer } from "lucide-react";
-import Link from "next/link";
+import { Check, Printer } from "lucide-react";
 import { Fragment, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
-import { EmptyState, PageHeader } from "@/components/ui/misc";
+import { BackLink, EmptyState, PageHeader } from "@/components/ui/misc";
 import { SwitchRow } from "@/components/ui/switch";
 import { api } from "@/lib/api";
 import { formatEuros, variantLabel } from "@/lib/format";
@@ -210,10 +209,8 @@ function Preparation() {
       {/* À l'impression, la page ne garde que le document, à la largeur du papier. */}
       <style>{`@media print { @page { ${spec.page} } html, body { background: #fff !important; } [data-sonner-toaster] { display: none !important; } }`}</style>
       <div className="grid gap-5 print:hidden">
-        <Link href="/ventes" className="flex items-center gap-1.5 justify-self-start text-[13px] text-muted-foreground outline-none hover:text-foreground focus-visible:underline">
-          <ArrowLeft className="size-3.5" aria-hidden /> Ventes
-        </Link>
         <PageHeader
+          back={<BackLink href="/ventes">Ventes</BackLink>}
           title="Préparer les envois"
           description="Une liste de prélèvement rangée par boîte, puis un bon de livraison et un reçu par commande, au format de votre imprimante."
           actions={<Button onClick={() => window.print()} disabled={orders.length === 0 || !Object.values(parts).some(Boolean)} data-testid="print-run"><Printer /> Imprimer {orders.length > 0 ? `${orders.length} commande${orders.length > 1 ? "s" : ""}` : ""}</Button>}

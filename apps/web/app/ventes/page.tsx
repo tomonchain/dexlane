@@ -24,14 +24,14 @@ const EMPTY: Record<OrderStage, [string, string]> = {
 
 function Stat({ icon, label, value, hint }: { icon: ReactNode; label: string; value: string; hint: string }) {
   return (
-    <Card className="grid gap-2 p-4">
-      <div className="flex items-center justify-between gap-2 text-muted-foreground">
-        <span className="text-[13px] font-medium">{label}</span>
-        <span className="[&_svg]:size-4">{icon}</span>
+    <div className="grid content-start gap-1.5 bg-card p-3 sm:gap-2 sm:p-4">
+      <div className="flex items-start justify-between gap-2 text-muted-foreground">
+        <span className="text-xs font-medium sm:text-[13px]">{label}</span>
+        <span className="hidden sm:block [&_svg]:size-4">{icon}</span>
       </div>
-      <div className="tabular text-2xl leading-none font-semibold tracking-tight">{value}</div>
-      <div className="text-xs text-muted-foreground">{hint}</div>
-    </Card>
+      <div className="tabular text-lg leading-none font-semibold tracking-tight sm:text-2xl">{value}</div>
+      <div className="hidden text-xs text-muted-foreground sm:block">{hint}</div>
+    </div>
   );
 }
 
@@ -67,7 +67,7 @@ export default function SalesPage() {
 
       {!data && !error && <SalesTotalsSkeleton />}
       {totals && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border bg-border shadow-xs">
           <Stat icon={<ShoppingBag />} label="Ventes remises (30 j)" value={String(totals.orders)} hint="déposées ou remises en main propre" />
           <Stat icon={<CircleDollarSign />} label="Encaissé (30 j)" value={formatEuros(totals.grossCents)} hint="frais de port facturés compris" />
           <Stat icon={<TrendingUp />} label="Marge (30 j)" value={formatEuros(totals.marginCents)} hint={`après ${formatEuros(totals.costCents)} de cartes, ${formatEuros(totals.postageCents)} d'affranchissement et ${formatEuros(totals.suppliesCents)} de fournitures`} />

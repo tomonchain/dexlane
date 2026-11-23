@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, CircleSlash, ExternalLink, PackageOpen, Star } from "lucide-react";
+import { CircleSlash, ExternalLink, PackageOpen, Star } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
@@ -10,7 +10,7 @@ import { PageSkeleton } from "@/components/skeletons";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Code, EmptyState, Spinner } from "@/components/ui/misc";
+import { BackLink, Code, EmptyState, Spinner } from "@/components/ui/misc";
 import { SegmentedTabs } from "@/components/ui/tabs";
 import { ApiError, api } from "@/lib/api";
 import { useCardImage } from "@/lib/card-image";
@@ -48,7 +48,7 @@ function Section({ title, aside, children, testId }: { title: string; aside?: Re
 
 function Figure({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
   return (
-    <div className="grid gap-1 bg-card px-4 py-3">
+    <div className="grid content-start gap-1 bg-card px-4 py-3">
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="tabular text-lg leading-none font-semibold tracking-tight">{value}</dd>
       {hint && <dd className="text-xs text-muted-foreground">{hint}</dd>}
@@ -94,7 +94,7 @@ function VariantRow({ variant, selected, onChart, onWatch }: { variant: Variant;
           <span className="tabular text-sm">{tcgplayer ? dollars.format(tcgplayer.marketCents / 100) : "—"}</span>
         </span>
         <span className="flex items-center gap-1">
-          <Button variant={selected ? "secondary" : "ghost"} size="sm" onClick={onChart} aria-pressed={selected}>Courbe</Button>
+          <Button variant={selected ? "secondary" : "outline"} size="sm" onClick={onChart} aria-pressed={selected}>Courbe</Button>
           {variant.watched ? (
             <Button asChild variant="ghost" size="sm"><Link href="/achats"><Star className="fill-current" /> Suivie</Link></Button>
           ) : (
@@ -168,11 +168,7 @@ export default function CardDetailPage() {
   useEffect(load, [load]);
   const picture = useCardImage(data?.card.imageUrl ?? null, "high");
 
-  const back = (
-    <button type="button" onClick={() => router.back()} className="flex items-center gap-1.5 justify-self-start text-[13px] text-muted-foreground outline-none hover:text-foreground focus-visible:underline">
-      <ArrowLeft className="size-3.5" aria-hidden /> Retour
-    </button>
-  );
+  const back = <BackLink onClick={() => router.back()}>Retour</BackLink>;
   if (missing) return <div className="grid gap-5">{back}<EmptyState icon={<CircleSlash />} title="Carte introuvable" /></div>;
   if (!data) return error ? <Alert variant="destructive">{error}</Alert> : <PageSkeleton label="Chargement de la carte" />;
 
@@ -201,7 +197,7 @@ export default function CardDetailPage() {
 
         <div className="grid min-w-0 gap-6">
           <div className="grid gap-2">
-            <h1 className="text-2xl leading-tight font-semibold tracking-tight" data-testid="card-name">{card.name}</h1>
+            <h1 className="text-xl leading-tight font-semibold tracking-tight sm:text-2xl" data-testid="card-name">{card.name}</h1>
             <p className="text-sm text-muted-foreground">
               {card.setName ?? card.setId} {card.serieName ? `(${card.serieName})` : ""} · n° {numbering}{card.rarity ? ` · ${card.rarity}` : ""} · {LANGUAGE[card.language] ?? card.language.toUpperCase()}
             </p>
@@ -218,7 +214,7 @@ export default function CardDetailPage() {
           <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-4" data-testid="card-totals">
             <Figure label="Exemplaires en stock" value={totals.copies} hint={`${offers.length} offre${offers.length > 1 ? "s" : ""}`} />
             <Figure label="Valeur" value={formatEuros(totals.valueCents)} hint="au prix fixé" />
-            <Figure label="Coût d'achat" value={formatEuros(totals.costCents)} />
+            <Figure label="Coût d'achat" value={formatEuros(totals.costCents)} hint={totals.copies > 0 ? "des exemplaires en stock" : undefined} />
             <Figure label="Vendues" value={totals.soldCards} hint={totals.soldCards > 0 ? formatEuros(totals.soldCents) : undefined} />
           </dl>
 
@@ -231,7 +227,7 @@ export default function CardDetailPage() {
           </Section>
 
           {chartVariant && (
-            <Section title={`Évolution du prix · ${variantLabel(variants.find((v) => v.id === chartVariant)!)}`}>
+            <Section title="Évolution du prix">
               <div className="rounded-lg border bg-card p-4">
                 {variants.length > 1 && (
                   <div className="mb-3 overflow-x-auto">
@@ -239,7 +235,7 @@ export default function CardDetailPage() {
                       tabs={variants.map((v) => ({ value: v.id, label: variantLabel(v) }))} />
                   </div>
                 )}
-                <PriceHistory key={chartVariant} variantId={chartVariant} />
+                <PriceHistory key={chartVariant} variantId={chartVariant} title={variants.length > 1 ? null : variantLabel(variants[0]!)} />
               </div>
             </Section>
           )}

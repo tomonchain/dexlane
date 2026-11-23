@@ -7,7 +7,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { LocationField } from "@/components/location-picker";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
-import { Code, Spinner } from "@/components/ui/misc";
+import { Code, Page, PageHeader, Spinner } from "@/components/ui/misc";
 import { SwitchRow } from "@/components/ui/switch";
 import { Choice, ChoiceGroup } from "@/components/ui/toggle-group";
 import { ApiError, api } from "@/lib/api";
@@ -53,11 +53,8 @@ export default function ScanBatchesPage() {
   }
 
   return (
-    <div className="mx-auto grid max-w-3xl gap-6">
-      <div className="grid gap-1">
-        <h1 className="text-xl font-semibold tracking-tight">Lots scannés</h1>
-        <p className="text-sm text-muted-foreground">Un lot = une pile de cartes passée au scanner, qui finit dans une boîte, dans l'ordre.</p>
-      </div>
+    <Page width="narrow" className="gap-6">
+      <PageHeader title="Lots scannés" description="Un lot = une pile de cartes passée au scanner, qui finit dans une boîte, dans l'ordre." />
 
       <form onSubmit={create} className="grid gap-4 rounded-lg border bg-card p-4">
         <h2 className="text-sm font-semibold">Nouveau lot</h2>
@@ -125,6 +122,6 @@ export default function ScanBatchesPage() {
           </div>
         </section>
       )}
-    </div>
+    </Page>
   );
 }

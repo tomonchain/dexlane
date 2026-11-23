@@ -84,7 +84,7 @@ export default function StatisticsPage() {
   return (
     <div className="grid gap-5">
       <PageHeader
-        title="Statistiques"
+        title="Tableau de bord"
         description="La valeur du stock, les ventes, et les cartes dont la cote bouge."
         actions={<Button variant="outline" onClick={refreshPrices} disabled={refreshing}>{refreshing ? <Spinner /> : <RefreshCw />} Relever les cotes</Button>}
       />
@@ -232,7 +232,7 @@ function MoveRow({ move }: { move: PriceMove }) {
         label={`Cote de ${move.cardName} sur 90 jours : de ${formatEuros(move.series[0]?.cents ?? move.previousCents)} à ${formatEuros(move.latestCents)}`}
         className="hidden sm:block"
       />
-      <div className="tabular grid justify-items-end gap-0.5 text-sm">
+      <div className="tabular grid justify-items-end gap-0.5 text-sm sm:w-44">
         <span className="flex items-center gap-1.5">
           <span className="text-muted-foreground">{formatEuros(move.previousCents)}</span>
           <ArrowRight className="size-3.5 text-muted-foreground" aria-hidden />
@@ -240,14 +240,14 @@ function MoveRow({ move }: { move: PriceMove }) {
         </span>
         <span className="text-xs text-muted-foreground">du {day.format(new Date(move.previousAt))} au {day.format(new Date(move.latestAt))}</span>
       </div>
-      <div className="grid w-28 justify-items-end gap-0.5">
+      <div className="grid w-24 justify-items-end gap-0.5">
         <Badge variant={up ? "success" : "destructive"} className="tabular">
           <Arrow /> {percent.format(move.deltaPercent)} %
         </Badge>
         <span className="tabular text-xs text-muted-foreground">{signed(move.deltaCents)}{move.quantity > 1 ? ` × ${move.quantity}` : ""}</span>
       </div>
       {move.targetPriceCents !== null && (
-        <p className={cn("basis-full text-xs sm:basis-auto", move.targetPriceCents < move.latestCents * 0.9 || move.targetPriceCents > move.latestCents * 1.25 ? "text-warning" : "text-muted-foreground")}>
+        <p className={cn("basis-full text-xs sm:w-48 sm:basis-auto sm:text-right", move.targetPriceCents < move.latestCents * 0.9 || move.targetPriceCents > move.latestCents * 1.25 ? "text-warning" : "text-muted-foreground")}>
           Votre prix : {formatEuros(move.targetPriceCents)} — <Link href="/prix" className="font-medium text-primary underline-offset-2 hover:underline">revoir</Link>
         </p>
       )}

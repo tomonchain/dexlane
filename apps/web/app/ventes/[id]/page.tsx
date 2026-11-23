@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Check, CircleSlash, MapPin, PackageCheck, Send, X } from "lucide-react";
+import { Check, CircleSlash, MapPin, PackageCheck, Send, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, Eyebrow } from "@/components/ui/card";
 import { Field, Input, Textarea } from "@/components/ui/input";
-import { Code, EmptyState, Spinner } from "@/components/ui/misc";
+import { BackLink, Code, EmptyState, PageHeader, Spinner } from "@/components/ui/misc";
 import { Modal } from "@/components/ui/modal";
 import { ActionBar } from "@/components/ui/action-bar";
 import type { ApiError } from "@/lib/api";
@@ -55,11 +55,7 @@ export default function SalePage() {
     }
   }
 
-  const back = (
-    <Button variant="ghost" size="sm" asChild className="-ml-2 justify-self-start text-muted-foreground">
-      <Link href="/ventes"><ArrowLeft /> Ventes</Link>
-    </Button>
-  );
+  const back = <BackLink href="/ventes">Ventes</BackLink>;
   if (notFound) return <div className="grid gap-5">{back}<EmptyState icon={<CircleSlash />} title="Vente introuvable" /></div>;
   if (!order) return error ? <Alert variant="destructive">{error}</Alert> : <OrderSkeleton />;
 
@@ -71,21 +67,18 @@ export default function SalePage() {
 
   return (
     <div className="grid gap-5">
-      {back}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="grid gap-2">
-          <h1 className="text-2xl leading-tight font-semibold tracking-tight">Vente <Code>{order.externalId}</Code></h1>
-          <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
-            <Badge variant={STAGE_VARIANT[order.stage]} data-testid="order-stage">{STAGE_LABEL[order.stage]}</Badge>
-            {order.shipment && <Badge variant="outline">{SHIPPING_LABEL[order.shipment.mode]}</Badge>}
-            {order.buyerName && <span>{order.buyerName}</span>}
-            <span>· {formatDateTime(order.orderedAt)}</span>
-          </div>
-        </div>
-        {order.stage !== "SHIPPED" && order.stage !== "CANCELLED" && (
+      <PageHeader
+        back={back}
+        title={<>Vente <Code>{order.externalId}</Code></>}
+        meta={<>
+          <Badge variant={STAGE_VARIANT[order.stage]} data-testid="order-stage">{STAGE_LABEL[order.stage]}</Badge>
+          {order.shipment && <Badge variant="outline">{SHIPPING_LABEL[order.shipment.mode]}</Badge>}
+          <span>{[order.buyerName, formatDateTime(order.orderedAt)].filter(Boolean).join(" · ")}</span>
+        </>}
+        actions={order.stage !== "SHIPPED" && order.stage !== "CANCELLED" && (
           <Button variant="destructive" size="sm" onClick={() => setModal("cancel")} disabled={busy}><X /> Annuler la vente</Button>
         )}
-      </div>
+      />
 
       {order.stage !== "CANCELLED" && (
         <ol className="grid grid-cols-4 gap-1.5" aria-label="Avancement">

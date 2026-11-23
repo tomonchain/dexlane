@@ -153,7 +153,7 @@ function FilterSelect({ label, value, all, options, onChange }: {
       value={value}
       onChange={(e) => onChange(e.target.value)}
       aria-label={label}
-      className={cn("h-8 w-auto max-w-52 text-[13px] md:h-8", value && "border-primary/50 bg-accent font-medium")}
+      className={cn("h-8 w-auto max-w-52 shrink-0 text-[13px] md:h-8", value && "border-primary/50 bg-accent font-medium")}
     >
       <option value="">{all}</option>
       {options.map((o) => <option key={o.value} value={o.value}>{o.label}{o.count !== undefined ? ` (${o.count.toLocaleString("fr-FR")})` : ""}</option>)}
@@ -281,7 +281,7 @@ function Stock() {
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <h1 className="text-xl font-semibold tracking-tight">Stock</h1>
+        <h1 className="text-xl leading-tight font-semibold tracking-tight sm:text-2xl">Stock</h1>
         {data && data.counts.ALL > 0 && (
           <p className="tabular text-sm text-muted-foreground" data-testid="stock-totals">
             {data.totals.cards.toLocaleString("fr-FR")} carte{data.totals.cards > 1 ? "s" : ""} · {formatEuros(data.totals.valueCents)}
@@ -310,7 +310,7 @@ function Stock() {
       </div>
 
       {!empty && facets && (facets.sets.length > 1 || facets.locations.length > 1 || facets.conditions.length > 1 || filtered) && (
-        <div className="flex flex-wrap items-center gap-2" data-testid="stock-filters" role="group" aria-label="Filtres">
+        <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-0.5 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0" data-testid="stock-filters" role="group" aria-label="Filtres">
           <FilterSelect label="Série" value={filters.setId} onChange={(v) => setFilterValue("setId", v)} all="Toutes les séries"
             options={facets.sets.map((s) => ({ value: s.id, label: s.name, count: s.cards }))} />
           <FilterSelect label="Boîte" value={filters.location} onChange={(v) => setFilterValue("location", v)} all="Toutes les boîtes"
@@ -320,7 +320,7 @@ function Stock() {
           <FilterSelect label="Prix" value={filters.price} onChange={(v) => setFilterValue("price", v)} all="Tous les prix"
             options={PRICE_RANGES.map((r) => ({ value: r.value, label: r.label }))} />
           {filtered && (
-            <Button variant="ghost" size="sm" onClick={() => { setFilters(NO_FILTERS); setPage(1); }}><X /> Effacer les filtres</Button>
+            <Button variant="ghost" size="sm" className="shrink-0" onClick={() => { setFilters(NO_FILTERS); setPage(1); }}><X /> Effacer les filtres</Button>
           )}
         </div>
       )}
@@ -398,7 +398,7 @@ function Stock() {
                     <th className="hidden px-3 font-medium sm:table-cell">État</th>
                     <th className="px-3 text-right font-medium">Qté</th>
                     <th className="hidden px-3 font-medium md:table-cell">Emplacement</th>
-                    <th className={cn("hidden px-3 text-right font-medium", selected ? "2xl:table-cell" : "lg:table-cell")} title="Prix estimé d'après les ventes réussies, toutes langues et tous états confondus">Ventes</th>
+                    <th className={cn("hidden px-3 text-right font-medium", selected ? "2xl:table-cell" : "lg:table-cell")} title="Prix estimé d'après les ventes réussies, toutes langues et tous états confondus">Cote ventes</th>
                     <th className="px-3 text-right font-medium">Prix</th>
                     <th className="hidden px-3 font-medium sm:table-cell">Statut</th>
                   </tr>
@@ -425,14 +425,14 @@ function Stock() {
                           <CardThumb imageUrl={row.imageUrl} size="sm" className="w-8 rounded-[3px]" />
                           <span className="grid min-w-0">
                             <span className="truncate font-medium">{row.name}</span>
-                            <span className="truncate text-xs text-muted-foreground">{subtitle(row)}</span>
+                            <span className="truncate text-xs text-muted-foreground"><span className="sm:hidden">{row.condition} · </span>{subtitle(row)}</span>
                           </span>
                         </span>
                       </td>
                       <td className="hidden px-3 font-mono text-xs sm:table-cell">{row.condition}</td>
-                      <td className="tabular px-3 text-right">
+                      <td className="tabular px-3 text-right whitespace-nowrap">
                         {row.onHand}
-                        {row.reserved > 0 && <span className="text-xs text-muted-foreground"> · {row.reserved} rés.</span>}
+                        {row.reserved > 0 && <span className="block text-[11px] leading-tight text-muted-foreground" title={`${row.reserved} réservée${row.reserved > 1 ? "s" : ""} par une vente`}>{row.reserved} rés.</span>}
                       </td>
                       <td className="hidden px-3 md:table-cell">
                         <Code className="text-xs">{row.locations[0]}</Code>
