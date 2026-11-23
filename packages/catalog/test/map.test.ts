@@ -98,4 +98,12 @@ describe("mapTcgdexCard", () => {
     const cardmarket = mapTcgdexCard(card("swsh3-136"), "fr").variants[0]!.prices.filter((p) => p.quoteType !== "MARKET");
     expect(cardmarket.every((p) => p.currency === "EUR" && p.source === "cardmarket_price_guide_via_tcgdex")).toBe(true);
   });
+
+  it("keeps a single 1st edition per finish when several English-only 1st edition prints exist", () => {
+    const base = card("base1-4");
+    const detailed = base.variants_detailed!;
+    const twin = { ...detailed[1]!, subtype: "Copyright 1999-2000", variantId: "twin" };
+    const { variants } = mapTcgdexCard({ ...base, variants_detailed: [...detailed, twin] }, "fr");
+    expect(variants.map((v) => [v.finish, v.subtype, v.edition])).toEqual([["holo", "illimité", ""], ["holo", "", "1st"]]);
+  });
 });

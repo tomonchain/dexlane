@@ -99,9 +99,15 @@ const ENGLISH_ONLY_PRINT = /sans ombre|shadowless|1999-2000/i;
  */
 function localizeEnglishPrints(variants: MappedVariant[], language: string): MappedVariant[] {
   if (language === "en") return variants;
+  const keyOf = (v: MappedVariant) => [v.finish, v.edition, v.promo, v.stamp, v.subtype, v.size].join("|");
+  const kept = new Set(variants.filter((v) => !ENGLISH_ONLY_PRINT.test(v.subtype)).map(keyOf));
   return variants.flatMap((v): MappedVariant[] => {
     if (!ENGLISH_ONLY_PRINT.test(v.subtype)) return [v];
     if (v.edition !== "1st") return [];
+    // Une seule 1re édition par finition : plusieurs impressions anglaises deviennent la même variante une fois renommées.
+    const key = keyOf({ ...v, subtype: "" });
+    if (kept.has(key)) return [];
+    kept.add(key);
     return [{
       ...v,
       subtype: "",
