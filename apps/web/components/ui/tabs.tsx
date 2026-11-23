@@ -12,7 +12,8 @@ export function SegmentedTabs<T extends string>({ value, onChange, tabs, label }
   label: string;
 }) {
   return (
-    <div role="tablist" aria-label={label} className="inline-flex rounded-lg border bg-muted/60 p-0.5">
+    /* Sur téléphone, les onglets occupent la largeur et passent à la ligne plutôt que de défiler de côté. */
+    <div role="tablist" aria-label={label} className="flex max-w-full flex-wrap rounded-lg border bg-muted/60 p-0.5 sm:inline-flex sm:flex-nowrap">
       {tabs.map((tab) => {
         const active = tab.value === value;
         return (
@@ -23,7 +24,7 @@ export function SegmentedTabs<T extends string>({ value, onChange, tabs, label }
             aria-selected={active}
             onClick={() => onChange(tab.value)}
             className={cn(
-              "flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30",
+              "flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30 max-sm:flex-auto max-sm:justify-center max-sm:px-2.5",
               active && "bg-card text-foreground shadow-xs",
             )}
           >

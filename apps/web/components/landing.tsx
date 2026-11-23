@@ -1,3 +1,5 @@
+"use client";
+
 import { ArrowRight, CalendarClock, Camera, ScanLine, ShieldCheck, Tags } from "lucide-react";
 import Link from "next/link";
 import { Logo } from "./app-shell";

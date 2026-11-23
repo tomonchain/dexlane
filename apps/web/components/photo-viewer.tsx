@@ -95,7 +95,7 @@ export function PhotoViewer({ photos, start = 0, title, onClose }: { photos: Vie
           </div>
 
           {photos.length > 1 && (
-            <div className="flex max-w-full gap-2 overflow-x-auto p-1" role="tablist" aria-label="Photos">
+            <div className="flex max-w-full flex-wrap justify-center gap-2 p-1" role="tablist" aria-label="Photos">
               {photos.map((p, i) => (
                 <button
                   key={p.src}

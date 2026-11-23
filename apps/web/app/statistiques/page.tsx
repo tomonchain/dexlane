@@ -64,7 +64,7 @@ function Statistics() {
   return (
     <Page>
       <PageHeader title="Statistiques" description="Ce qui se vend, à quel prix et à quelle vitesse ; puis la valeur de votre stock et les cotes qui bougent." />
-      <div className="max-w-full overflow-x-auto">
+      <div>
         <SegmentedTabs label="Vue" value={view} onChange={setView} tabs={[{ value: "VENTES", label: "Ventes" }, { value: "COTES", label: "Stock et cotes" }]} />
       </div>
       {view === "VENTES" ? <SalesView /> : <StockView />}
@@ -208,36 +208,28 @@ function SalesReport({ data }: { data: SalesInsights }) {
       </div>
 
       <Panel title="Séries qui se vendent" description="Cartes vendues sur la période, ce qu'il en reste, et la part écoulée.">
-        <div className="-mx-4 overflow-x-auto sm:mx-0">
-          <table className="tabular w-full min-w-[30rem] text-left text-sm" data-testid="sales-by-set">
-            <thead className="text-xs text-muted-foreground">
-              <tr className="border-b">
-                <th className="py-2 pl-4 font-medium sm:pl-0">Série</th>
-                <th className="py-2 text-right font-medium">Vendues</th>
-                <th className="py-2 text-right font-medium">CA</th>
-                <th className="py-2 text-right font-medium">En stock</th>
-                <th className="w-[30%] py-2 pr-4 pl-4 font-medium sm:pr-0">Écoulement</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {data.bySet.map((x) => (
-                <tr key={x.key}>
-                  <td className="max-w-[14rem] truncate py-2 pl-4 font-medium sm:pl-0">{x.label}</td>
-                  <td className="py-2 text-right">{x.cards}</td>
-                  <td className="py-2 text-right">{formatEuros(x.revenueCents)}</td>
-                  <td className="py-2 text-right text-muted-foreground">{x.inStock}</td>
-                  <td className="py-2 pr-4 pl-4 sm:pr-0">
-                    <span className="flex items-center gap-2">
-                      <span className="h-2 flex-1 overflow-hidden rounded-full bg-muted" aria-hidden>
-                        <span className="block h-full rounded-full bg-chart-1" style={{ width: `${Math.min(x.sellThroughPercent, 100)}%` }} />
-                      </span>
-                      <span className="w-10 text-right text-xs font-medium">{Math.round(x.sellThroughPercent)} %</span>
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* Une grille plutôt qu'un tableau : sur téléphone, chaque série tient sur deux lignes, sans défilement de côté. */}
+        <div className="grid text-sm" data-testid="sales-by-set">
+          <div className="hidden grid-cols-[minmax(0,1fr)_5rem_6rem_5rem_minmax(8rem,30%)] gap-3 border-b pb-2 text-xs font-medium text-muted-foreground sm:grid">
+            <span>Série</span><span className="text-right">Vendues</span><span className="text-right">CA</span><span className="text-right">En stock</span><span>Écoulement</span>
+          </div>
+          <ul className="divide-y">
+            {data.bySet.map((x) => (
+              <li key={x.key} className="tabular grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 py-2.5 sm:grid-cols-[minmax(0,1fr)_5rem_6rem_5rem_minmax(8rem,30%)] sm:py-2">
+                <span className="truncate font-medium">{x.label}</span>
+                <span className="text-right text-xs text-muted-foreground sm:hidden">{x.cards} vendue{x.cards > 1 ? "s" : ""} · {formatEuros(x.revenueCents)} · {x.inStock} en stock</span>
+                <span className="hidden text-right sm:block">{x.cards}</span>
+                <span className="hidden text-right sm:block">{formatEuros(x.revenueCents)}</span>
+                <span className="hidden text-right text-muted-foreground sm:block">{x.inStock}</span>
+                <span className="col-span-2 flex items-center gap-2 sm:col-span-1">
+                  <span className="h-2 flex-1 overflow-hidden rounded-full bg-muted" aria-hidden>
+                    <span className="block h-full rounded-full bg-chart-1" style={{ width: `${Math.min(x.sellThroughPercent, 100)}%` }} />
+                  </span>
+                  <span className="w-16 text-right text-xs font-medium sm:w-10">{Math.round(x.sellThroughPercent)} %<span className="sm:hidden"> écoulé</span></span>
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       </Panel>
 

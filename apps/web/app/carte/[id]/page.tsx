@@ -230,7 +230,7 @@ export default function CardDetailPage() {
             <Section title="Évolution du prix">
               <div className="rounded-lg border bg-card p-4">
                 {variants.length > 1 && (
-                  <div className="mb-3 overflow-x-auto">
+                  <div className="mb-3">
                     <SegmentedTabs label="Variante" value={chartVariant} onChange={setChartVariant}
                       tabs={variants.map((v) => ({ value: v.id, label: variantLabel(v) }))} />
                   </div>

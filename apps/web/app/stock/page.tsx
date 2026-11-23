@@ -179,19 +179,65 @@ function activeFilters(filters: Filters, facets: StockFacets): { key: keyof Filt
  * Filtres regroupés derrière un seul bouton : la barre reste lisible, le nombre de filtres posés s'affiche sur le bouton.
  * Sur téléphone, le tri y est aussi.
  */
-function FiltersPopover({ facets, filters, onChange, onClear, sort, onSort }: {
+function FiltersPopover({ facets, filters, onChange, onClear, sort, onSort, desktop }: {
   facets: StockFacets | null; filters: Filters; onChange: (key: keyof Filters, value: string) => void; onClear: () => void; sort: Sort; onSort: (sort: Sort) => void;
+  desktop: boolean;
 }) {
+  const [open, setOpen] = useState(false);
   const active = Object.values(filters).filter(Boolean).length;
+  const trigger = (
+    <Button variant="outline" className="h-9 shrink-0 px-3" onClick={desktop ? undefined : () => setOpen(true)}
+      aria-label={active > 0 ? `Filtres, ${active} actif${active > 1 ? "s" : ""}` : "Filtres"} data-testid="stock-filters-button">
+      <SlidersHorizontal />
+      <span className="hidden sm:inline">Filtres</span>
+      {active > 0 && <span className="tabular flex size-5 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">{active}</span>}
+    </Button>
+  );
+  const fields = (close: ReactNode) => (
+    <>
+      {!desktop && (
+        <label className="grid gap-1.5">
+          <span className="text-xs font-medium text-muted-foreground">Trier par</span>
+          <Select value={sort} onChange={(e) => onSort(e.target.value as Sort)} className="h-10 w-full text-sm md:h-10">
+            {SORTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </Select>
+        </label>
+      )}
+      {facets && (
+        <>
+          <FilterSelect label="Série" value={filters.setId} onChange={(v) => onChange("setId", v)} all="Toutes les séries"
+            options={facets.sets.map((x) => ({ value: x.id, label: x.name, count: x.cards }))} />
+          <FilterSelect label="Boîte" value={filters.location} onChange={(v) => onChange("location", v)} all="Toutes les boîtes"
+            options={facets.locations.map((l) => ({ value: l.code, label: l.code, count: l.cards }))} />
+          <FilterSelect label="État" value={filters.condition} onChange={(v) => onChange("condition", v)} all="Tous les états"
+            options={facets.conditions.map((c) => ({ value: c.code, label: `${c.code} · ${CONDITIONS.find((k) => k.code === c.code)?.label ?? c.code}`, count: c.cards }))} />
+        </>
+      )}
+      <FilterSelect label="Prix" value={filters.price} onChange={(v) => onChange("price", v)} all="Tous les prix"
+        options={PRICE_RANGES.map((r) => ({ value: r.value, label: r.label }))} />
+      <div className="flex items-center justify-between gap-2 border-t pt-3">
+        <Button variant="ghost" size={desktop ? "sm" : "default"} onClick={onClear} disabled={active === 0}>Effacer</Button>
+        {close}
+      </div>
+    </>
+  );
+
+  // Sur téléphone, un tiroir depuis le bas : des champs pleine largeur, atteignables au pouce.
+  if (!desktop) {
+    return (
+      <>
+        {trigger}
+        {open && (
+          <Modal title="Filtres du stock" onClose={() => setOpen(false)}>
+            <div className="grid gap-4">{fields(<Button onClick={() => setOpen(false)}>Voir les cartes</Button>)}</div>
+          </Modal>
+        )}
+      </>
+    );
+  }
   return (
     <Popover.Root>
-      <Popover.Trigger asChild>
-        <Button variant="outline" className="h-9 shrink-0 px-3" aria-label={active > 0 ? `Filtres, ${active} actif${active > 1 ? "s" : ""}` : "Filtres"} data-testid="stock-filters-button">
-          <SlidersHorizontal />
-          <span className="hidden sm:inline">Filtres</span>
-          {active > 0 && <span className="tabular flex size-5 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">{active}</span>}
-        </Button>
-      </Popover.Trigger>
+      <Popover.Trigger asChild>{trigger}</Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
           align="end"
@@ -200,28 +246,7 @@ function FiltersPopover({ facets, filters, onChange, onClear, sort, onSort }: {
           className="z-50 grid w-[min(20rem,calc(100vw-2rem))] gap-3 rounded-xl border bg-popover p-4 text-popover-foreground shadow-lg outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
           aria-label="Filtres du stock"
         >
-          <label className="grid gap-1.5 sm:hidden">
-            <span className="text-xs font-medium text-muted-foreground">Trier par</span>
-            <Select value={sort} onChange={(e) => onSort(e.target.value as Sort)} className="h-9 w-full text-sm md:h-9">
-              {SORTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </Select>
-          </label>
-          {facets && (
-            <>
-              <FilterSelect label="Série" value={filters.setId} onChange={(v) => onChange("setId", v)} all="Toutes les séries"
-                options={facets.sets.map((x) => ({ value: x.id, label: x.name, count: x.cards }))} />
-              <FilterSelect label="Boîte" value={filters.location} onChange={(v) => onChange("location", v)} all="Toutes les boîtes"
-                options={facets.locations.map((l) => ({ value: l.code, label: l.code, count: l.cards }))} />
-              <FilterSelect label="État" value={filters.condition} onChange={(v) => onChange("condition", v)} all="Tous les états"
-                options={facets.conditions.map((c) => ({ value: c.code, label: `${c.code} · ${CONDITIONS.find((k) => k.code === c.code)?.label ?? c.code}`, count: c.cards }))} />
-            </>
-          )}
-          <FilterSelect label="Prix" value={filters.price} onChange={(v) => onChange("price", v)} all="Tous les prix"
-            options={PRICE_RANGES.map((r) => ({ value: r.value, label: r.label }))} />
-          <div className="flex items-center justify-between gap-2 border-t pt-3">
-            <Button variant="ghost" size="sm" onClick={onClear} disabled={active === 0}>Effacer</Button>
-            <Popover.Close asChild><Button size="sm">Voir les cartes</Button></Popover.Close>
-          </div>
+          {fields(<Popover.Close asChild><Button size="sm">Voir les cartes</Button></Popover.Close>)}
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
@@ -457,7 +482,7 @@ function Stock() {
       ) : (
         <>
           <div className="grid gap-3">
-            <div className="max-w-full overflow-x-auto">
+            <div>
               <SegmentedTabs
                 label="Statut"
                 value={filter}
@@ -490,8 +515,8 @@ function Stock() {
                   className="h-9 w-full rounded-md border border-input bg-card pr-3 pl-8 text-sm outline-none placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15"
                 />
               </div>
-              <FiltersPopover facets={facets} filters={filters} onChange={setFilterValue} onClear={clearFilters} sort={sort} onSort={setSort} />
-              <Select value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Trier" className="hidden h-9 w-auto text-sm sm:ml-auto sm:block md:h-9">
+              <FiltersPopover facets={facets} filters={filters} onChange={setFilterValue} onClear={clearFilters} sort={sort} onSort={setSort} desktop={desktop} />
+              <Select value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Trier" className="hidden h-9 w-auto text-sm lg:ml-auto lg:block md:h-9">
                 {SORTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </Select>
             </div>

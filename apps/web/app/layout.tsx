@@ -1,20 +1,29 @@
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import type { Metadata, Viewport } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import type { ReactNode } from "react";
 import { Toaster } from "sonner";
 import { AppShell } from "@/components/app-shell";
+import { I18nProvider } from "@/components/i18n-provider";
 import { ThemeProvider } from "@/components/theme";
+import { LOCALE_COOKIE, resolveLocale } from "@/lib/i18n";
 import { SESSION_COOKIE, parseSession } from "@/lib/session";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: { default: "dexlane", template: "%s · dexlane" },
-  description: "Stock et négoce de cartes Pokémon",
-  robots: { index: false, follow: false },
-  appleWebApp: { capable: true, title: "dexlane", statusBarStyle: "default" },
-};
+async function requestLocale() {
+  return resolveLocale((await cookies()).get(LOCALE_COOKIE)?.value, (await headers()).get("accept-language"));
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await requestLocale();
+  return {
+    title: { default: "dexlane", template: "%s · dexlane" },
+    description: locale === "en" ? "Pokémon card stock and trading" : "Stock et négoce de cartes Pokémon",
+    robots: { index: false, follow: false },
+    appleWebApp: { capable: true, title: "dexlane", statusBarStyle: "default" },
+  };
+}
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -34,14 +43,17 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   } catch {
     signedIn = false; // serveur sans jeton configuré : tout visiteur voit la page publique
   }
+  const locale = await requestLocale();
   return (
     // suppressHydrationWarning : la classe de thème est posée avant l'hydratation par next-themes.
-    <html lang="fr" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
+    <html lang={locale} className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <body>
-        <ThemeProvider>
-          <AppShell signedIn={signedIn}>{children}</AppShell>
-          <Toaster position="top-center" richColors closeButton toastOptions={{ className: "font-sans" }} />
-        </ThemeProvider>
+        <I18nProvider locale={locale}>
+          <ThemeProvider>
+            <AppShell signedIn={signedIn}>{children}</AppShell>
+            <Toaster position="top-center" richColors closeButton toastOptions={{ className: "font-sans" }} />
+          </ThemeProvider>
+        </I18nProvider>
       </body>
     </html>
   );

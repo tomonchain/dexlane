@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
+import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { CommandMenu } from "./command-menu";
 import { ThemeSwitch } from "./theme";
@@ -113,11 +114,11 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
             className="flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-sm text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/30"
           >
             <Search className="size-[18px]" aria-hidden />
-            <span className="flex-1 text-left">Rechercher</span>
+            <span className="flex-1 text-left">{t("Rechercher")}</span>
             <kbd className="font-mono text-[11px] text-muted-foreground/80">⌘K</kbd>
           </button>
         </div>
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-3" aria-label="Navigation principale">
+        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-3" aria-label={t("Navigation principale")}>
           {NAV.map((item) => {
             const current = isCurrent(pathname, item);
             return (
@@ -131,7 +132,7 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
                 )}
               >
                 <item.icon className="size-[18px]" aria-hidden />
-                {item.label}
+                {t(item.label)}
               </Link>
             );
           })}
@@ -140,7 +141,7 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
           <ThemeSwitch />
           <Link
             href="/compte"
-            aria-label="Compte"
+            aria-label={t("Compte")}
             className="flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/30"
           >
             <CircleUserRound className="size-[18px]" aria-hidden />
@@ -148,21 +149,20 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
         </div>
       </aside>
 
-      {/* En-tête (téléphone) */}
-      <header className="sticky top-0 z-30 flex h-12 items-center justify-between border-b bg-background px-4 pt-[env(safe-area-inset-top)] lg:hidden print:hidden">
-        <Link href="/" className="outline-none"><Logo /></Link>
-        <span className="flex items-center">
-          <button type="button" onClick={() => setSearching(true)} aria-label="Rechercher" className="flex size-9 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent">
-            <Search className="size-[18px]" aria-hidden />
+      <div className="relative lg:pl-56 print:!pl-0">
+        {/*
+          Sur téléphone, pas de barre d'en-tête : la page commence directement par son titre, et la recherche et les
+          réglages tiennent en deux icônes en haut à droite (le titre des pages leur laisse la place).
+        */}
+        <div className="absolute top-[calc(env(safe-area-inset-top)+0.625rem)] right-2 z-20 flex items-center lg:hidden print:hidden" data-testid="mobile-corner">
+          <button type="button" onClick={() => setSearching(true)} aria-label={t("Rechercher")} className="flex size-10 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/30">
+            <Search className="size-5" aria-hidden />
           </button>
-          <Link href="/reglages" aria-label="Réglages" className="flex size-9 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent">
-            <Settings className="size-[18px]" aria-hidden />
+          <Link href="/reglages" aria-label={t("Réglages")} className="flex size-10 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/30">
+            <Settings className="size-5" aria-hidden />
           </Link>
-        </span>
-      </header>
-
-      <div className="lg:pl-56 print:!pl-0">
-        <main className="mx-auto w-full max-w-[92rem] px-4 pt-4 pb-nav lg:px-8 lg:pt-6 lg:pb-10 print:!m-0 print:!max-w-none print:!p-0">{children}</main>
+        </div>
+        <main className="mx-auto w-full max-w-[92rem] px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-nav lg:px-8 lg:pt-6 lg:pb-10 print:!m-0 print:!max-w-none print:!p-0">{children}</main>
       </div>
 
       {/*
@@ -174,7 +174,7 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
           "fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-30 mx-auto grid grid-cols-5 items-center rounded-full border border-border/70 bg-background/80 shadow-[0_8px_30px_-6px_rgb(0_0_0/0.18)] backdrop-blur-xl backdrop-saturate-150 motion-safe:transition-all motion-safe:duration-300 motion-safe:ease-out lg:hidden print:hidden",
           navCompact ? "h-12 max-w-64 px-1" : "h-16 max-w-md px-1.5",
         )}
-        aria-label="Navigation principale"
+        aria-label={t("Navigation principale")}
         data-testid="mobile-nav"
         data-compact={navCompact || undefined}
       >
@@ -194,7 +194,7 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
               )}>
                 <item.icon className={cn("transition-all duration-300 motion-reduce:transition-none group-aria-[current=page]:stroke-[2.25]", navCompact ? "size-[18px]" : "size-5")} aria-hidden />
               </span>
-              <span className={cn("overflow-hidden leading-none transition-all duration-300 motion-reduce:transition-none", navCompact ? "max-h-0 opacity-0" : "max-h-4 opacity-100")}>{item.short ?? item.label}</span>
+              <span className={cn("overflow-hidden leading-none transition-all duration-300 motion-reduce:transition-none", navCompact ? "max-h-0 opacity-0" : "max-h-4 opacity-100")}>{t(item.short ?? item.label)}</span>
             </Link>
         ))}
       </nav>

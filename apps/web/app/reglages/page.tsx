@@ -1,3 +1,5 @@
+"use client";
+
 import { Archive, BellRing, BookOpen, Boxes, ChevronRight, CircleUserRound, Mail, Megaphone, Printer, ScanLine, Sparkles, Store, Tags, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { ExportStockRow } from "@/components/export-stock";

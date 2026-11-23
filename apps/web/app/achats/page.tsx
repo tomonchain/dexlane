@@ -464,7 +464,7 @@ export default function PurchasesPage() {
         actions={<Button variant="outline" onClick={refresh} disabled={refreshing}>{refreshing ? <Spinner /> : <RefreshCw />} Actualiser les prix</Button>}
       />
       {error && <Alert variant="destructive">{error}</Alert>}
-      <div className="overflow-x-auto">
+      <div>
         <SegmentedTabs
           label="Vue"
           value={tab}

@@ -12,12 +12,39 @@ import { Field } from "@/components/ui/input";
 import { BackLink, Page, PageHeader, Spinner } from "@/components/ui/misc";
 import { api } from "@/lib/api";
 import { authMessage } from "@/lib/auth-messages";
+import { switchLocale } from "@/components/i18n-provider";
+import { LOCALES, getLocale, t } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 
 export default function AccountPage() {
   return (
     <Page width="narrow" className="mx-auto w-full">
       <PageHeader back={<BackLink href="/reglages">Réglages</BackLink>} title="Compte" description="Accès à l'application et préférences de cet appareil." />
       <ChangePassword />
+
+      <Card>
+        <CardContent className="flex flex-wrap items-center justify-between gap-4">
+          <div className="grid gap-1">
+            <CardTitle>{t("Langue de l'interface")}</CardTitle>
+            <CardDescription>{t("Français ou anglais. Propre à cet appareil ; les annonces gardent leur propre modèle.")}</CardDescription>
+          </div>
+          <div role="radiogroup" aria-label={t("Langue de l'interface")} className="inline-flex rounded-lg border bg-muted/60 p-0.5" data-testid="locale-switch">
+            {LOCALES.map((l) => (
+              <button
+                key={l.value}
+                type="button"
+                role="radio"
+                aria-checked={getLocale() === l.value}
+                lang={l.value}
+                onClick={() => getLocale() !== l.value && switchLocale(l.value)}
+                className={cn("h-8 rounded-md px-3 text-sm font-medium text-muted-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30", getLocale() === l.value && "bg-card text-foreground shadow-xs")}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="flex flex-wrap items-center justify-between gap-4">

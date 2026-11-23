@@ -74,7 +74,7 @@ export default function SalesPage() {
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      <div>
         <SegmentedTabs
           label="Étape"
           value={stage}

@@ -266,9 +266,9 @@ function Preparation() {
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-lg border bg-muted/40 p-4 print:overflow-visible print:rounded-none print:border-0 print:bg-white print:p-0">
+          <div className="rounded-lg border bg-muted/40 p-2 sm:p-4 print:overflow-visible print:rounded-none print:border-0 print:bg-white print:p-0">
             <div
-              className="mx-auto bg-white font-sans text-black shadow-sm ring-1 ring-black/10 print:mx-0 print:shadow-none print:ring-0 [&_.sheet]:break-after-page [&_.sheet:last-child]:break-after-auto print:[&_.sheet]:border-0"
+              className="mx-auto max-w-full bg-white font-sans text-black shadow-sm print:max-w-none ring-1 ring-black/10 print:mx-0 print:shadow-none print:ring-0 [&_.sheet]:break-after-page [&_.sheet:last-child]:break-after-auto print:[&_.sheet]:border-0"
               style={{ width: spec.width }}
               data-testid="run-document"
             >
