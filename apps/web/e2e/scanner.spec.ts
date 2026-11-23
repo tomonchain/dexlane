@@ -51,6 +51,16 @@ async function chooseLocation(page: Page, code: string) {
   await expect(field).toContainText(code);
 }
 
+/** Ouvre la fiche d'une carte du stock (sur téléphone, dans une feuille) à partir de sa référence d'offre. */
+async function openStockCard(page: Page, offerSku: string) {
+  await page.goto("/stock");
+  await page.getByLabel("Rechercher dans le stock").fill(offerSku);
+  await page.getByTestId(`stock-${offerSku}`).click();
+  const panel = page.getByTestId("stock-inspector");
+  await expect(panel).toBeVisible();
+  return panel;
+}
+
 const confirm = (page: Page) => page.getByTestId("confirm");
 const onHand = (page: Page) => page.getByTestId("on-hand");
 /** Bandeau d'erreur de l'application (Next ajoute son propre role="alert" pour l'annonce des pages). */
@@ -515,22 +525,28 @@ test("lot scanné : cartes reçues dans l'ordre du scanner, revue conservée apr
   await expect(page.getByText("BOITE-07").first()).toBeVisible();
 });
 
-test("annonces : modèle de titre, fond des photos, composition du visuel à partir du scan", async ({ page }) => {
+test("annonces : modèle de titre, fond des photos, composition du visuel à partir du scan, depuis la fiche du stock", async ({ page }) => {
   await login(page);
   // Une carte scannée puis entrée en stock par l'API : l'offre a son scan.
   const scanned = (await (await page.request.post("/api/scans?language=fr", { data: png(CLEAR), headers: { "Content-Type": "image/png" } })).json()) as {
     suggestedVariantId: string; photo: { id: string };
   };
   await page.request.post("/api/locations", { data: { code: "BOX-AN" } });
-  await page.request.post("/api/inventory/receive", {
+  const received = (await (await page.request.post("/api/inventory/receive", {
     data: { variantId: scanned.suggestedVariantId, condition: "MT", quantity: 1, locationCode: "BOX-AN", unitCostCents: 0, photoIds: [scanned.photo.id] },
     headers: { "Idempotency-Key": `e2e-annonce-${Date.now()}` },
-  });
+  })).json()) as { offer: { id: string } };
+  const listingPhotos = async () => {
+    const { photos } = (await (await page.request.get(`/api/stock/${received.offer.id}`)).json()) as { photos: { id: string; kind: string; url: string }[] };
+    return photos.filter((p) => p.kind === "LISTING");
+  };
 
+  // L'ancienne page Annonces mène au stock : tout se fait depuis la fiche d'une carte.
   await page.goto("/annonces");
-  const listing = page.getByTestId("listing-OF-SWSH3-136-FR-R-MT");
-  await expect(listing.getByTestId("listing-title")).toHaveText("Fouinar 136/189 Ténèbres Embrasées Reverse FR MT Carte Pokémon");
-  await expect(listing).toContainText("Photos à composer");
+  await page.waitForURL(/\/stock\?statut=READY$/);
+  let panel = await openStockCard(page, "OF-SWSH3-136-FR-R-MT");
+  await expect(panel.getByTestId("stock-listing-title")).toHaveText("Fouinar 136/189 Ténèbres Embrasées Reverse FR MT Carte Pokémon");
+  await expect(panel.getByRole("button", { name: "Composer les photos d'annonce" })).toBeVisible();
 
   // Modèle : l'aperçu suit la saisie, une variable s'insère d'un clic, le titre des offres change après enregistrement.
   await page.goto("/reglages/annonces");
@@ -549,24 +565,31 @@ test("annonces : modèle de titre, fond des photos, composition du visuel à par
   await page.getByRole("button", { name: "Enregistrer le style" }).click();
   await expect(page.getByText("Style des photos enregistré")).toBeVisible();
 
-  // Offres : le nouveau titre s'applique, le visuel est composé à partir du scan au format carré choisi.
-  await page.goto("/annonces");
-  await expect(listing.getByTestId("listing-title")).toHaveText("Pokémon Fouinar 136/189 - Mint");
-  await page.getByRole("button", { name: /Composer les photos manquantes/ }).click();
-  await expect(listing).toContainText("1 photo d'annonce");
-  const composed = listing.getByRole("img", { name: "Photo d'annonce" });
-  await expect(composed).toHaveJSProperty("naturalWidth", 1600);
-  await expect(composed).toHaveJSProperty("naturalHeight", 1600);
-  // Recomposer remplace le visuel au lieu d'en ajouter un.
-  const listingPhotoIds = async () => {
-    const { items } = (await (await page.request.get("/api/listings/offers?q=OF-SWSH3-136-FR-R-MT")).json()) as { items: { photos: { id: string; kind: string }[] }[] };
-    return items[0]!.photos.filter((p) => p.kind === "LISTING").map((p) => p.id);
-  };
-  const [before] = await listingPhotoIds();
-  await listing.getByRole("button", { name: /Recomposer les photos/ }).click();
-  await expect.poll(listingPhotoIds).not.toContain(before);
-  expect(await listingPhotoIds()).toHaveLength(1);
-  await expect(listing.getByRole("img", { name: "Photo d'annonce" })).toHaveCount(1);
+  // Fiche : le nouveau titre s'applique, le visuel est composé à partir du scan au format carré choisi.
+  panel = await openStockCard(page, "OF-SWSH3-136-FR-R-MT");
+  await expect(panel.getByTestId("stock-listing-title")).toHaveText("Pokémon Fouinar 136/189 - Mint");
+  await panel.getByRole("button", { name: "Composer les photos d'annonce" }).click();
+  await expect(page.getByText("1 photo d'annonce composée")).toBeVisible();
+  await expect.poll(async () => (await listingPhotos()).length).toBe(1);
+  const size = await page.evaluate(async (url) => {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    return [img.naturalWidth, img.naturalHeight];
+  }, (await listingPhotos())[0]!.url);
+  expect(size).toEqual([1600, 1600]);
+
+  // Recomposer remplace le visuel au lieu d'en ajouter un ; le style peut aussi s'appliquer à tout le stock d'un coup.
+  const [before] = (await listingPhotos()).map((p) => p.id);
+  await panel.getByRole("button", { name: "Recomposer les photos d'annonce" }).click();
+  await expect.poll(async () => (await listingPhotos()).map((p) => p.id)).not.toContain(before);
+  expect(await listingPhotos()).toHaveLength(1);
+  await page.goto("/reglages/annonces");
+  await page.getByRole("tab", { name: "Photos" }).click();
+  const [second] = (await listingPhotos()).map((p) => p.id);
+  await page.getByRole("button", { name: "Tout recomposer" }).click();
+  await expect(page.getByText(/photos? d'annonce recomposées?/)).toBeVisible();
+  await expect.poll(async () => (await listingPhotos()).map((p) => p.id)).not.toContain(second);
 });
 
 test("canaux : simulation eBay — publication, achat simulé qui arrive dans les ventes, quantité annoncée à jour, retrait", async ({ page }) => {
@@ -581,10 +604,9 @@ test("canaux : simulation eBay — publication, achat simulé qui arrive dans le
     headers: { "Idempotency-Key": `e2e-canal-${Date.now()}` },
   });
 
-  await page.goto("/annonces");
-  const listing = page.getByTestId("listing-OF-SWSH3-136-FR-R-LP");
-  await expect(listing).toBeVisible();
-  await expect(listing.getByTestId("channel-ebay")).toHaveCount(0);
+  // Aucun canal actif : la fiche n'en propose aucun.
+  let panel = await openStockCard(page, "OF-SWSH3-136-FR-R-LP");
+  await expect(panel.getByTestId("stock-channel-ebay")).toHaveCount(0);
 
   // Canaux : le mode réel est indisponible sans connecteur, la simulation s'active d'un clic.
   await page.goto("/reglages/canaux");
@@ -594,16 +616,15 @@ test("canaux : simulation eBay — publication, achat simulé qui arrive dans le
   await ebay.getByRole("radio", { name: "Simulation" }).click();
   await expect(page.getByText("eBay : simulation")).toBeVisible();
 
-  await page.goto("/annonces");
-  const channel = listing.getByTestId("channel-ebay");
-  await channel.getByRole("button", { name: "Publier sur eBay" }).click();
-  await expect(channel).toContainText("En ligne");
-  await expect(channel).toContainText("2 annoncées");
+  panel = await openStockCard(page, "OF-SWSH3-136-FR-R-LP");
+  const channel = panel.getByTestId("stock-channel-ebay");
+  await channel.getByRole("button", { name: "Publier" }).click();
+  await expect(channel).toContainText("en ligne · 2 ×");
 
   // Un acheteur fictif commande : la commande arrive dans Ventes, la quantité annoncée baisse.
   await channel.getByRole("button", { name: "Simuler un achat" }).click();
   await expect(page.getByText(/Commande SIM-\d{6} reçue/)).toBeVisible();
-  await expect(channel).toContainText("1 annoncée");
+  await expect(channel).toContainText("en ligne · 1 ×");
 
   await page.goto("/ventes");
   const order = page.getByRole("link", { name: /SIM-\d{6}/ });
@@ -613,9 +634,9 @@ test("canaux : simulation eBay — publication, achat simulé qui arrive dans le
   await expect(page.getByTestId("order-stage")).toHaveText("À préparer");
 
   // Retrait de l'annonce.
-  await page.goto("/annonces");
-  await channel.getByRole("button", { name: "Retirer" }).click();
-  await expect(channel.getByRole("button", { name: "Publier sur eBay" })).toBeVisible();
+  panel = await openStockCard(page, "OF-SWSH3-136-FR-R-LP");
+  await panel.getByTestId("stock-channel-ebay").getByRole("button", { name: "Retirer l'annonce eBay" }).click();
+  await expect(panel.getByTestId("stock-channel-ebay").getByRole("button", { name: "Publier" })).toBeVisible();
 });
 
 test("statistiques : chiffres clés, variation de cote d'une carte en stock, seuil d'alerte réglable, relevé des cotes", async ({ page }) => {
@@ -672,6 +693,20 @@ test("stock : une ligne par carte, prix accepté d'un clic ou saisi sur place, f
   await expect(page.getByTestId("stock-totals")).toContainText("carte");
   await page.getByLabel("Rechercher dans le stock").fill("BOX"); // ne correspond à aucune carte : la recherche porte sur les cartes
   await expect(page.getByText("Aucune carte ne correspond.")).toBeVisible();
+  await page.getByLabel("Rechercher dans le stock").fill("");
+
+  // Filtres : la boîte réduit la liste à son contenu ; les compteurs suivent ; un clic efface tout.
+  const filters = page.getByTestId("stock-filters");
+  await filters.getByLabel("Boîte").selectOption("BOX-SK");
+  await expect(page.getByTestId("stock-OF-SWSH3-136-FR-N-PO")).toBeVisible();
+  await expect(page.getByTestId("stock-OF-SWSH3-136-FR-R-PO")).toBeVisible();
+  await expect(page.locator('tbody tr[data-testid^="stock-"]')).toHaveCount(2);
+  await filters.getByLabel("État").selectOption("PO");
+  await filters.getByLabel("Prix").selectOption("gte200");
+  await expect(page.getByText("Aucune carte ne correspond.")).toBeVisible();
+  await filters.getByRole("button", { name: "Effacer les filtres" }).click();
+  await expect(filters.getByLabel("Boîte")).toHaveValue("");
+
   await page.getByLabel("Rechercher dans le stock").fill("fouinar");
 
   // Prix saisi sur place : clic, saisie, Entrée.
@@ -891,7 +926,7 @@ test("sans scanner : le téléphone photographie recto puis verso, les cartes en
   await expect(capture).toHaveText("Recto · carte 4");
 });
 
-test("annonce bloquée faute de photo : la photo s'ajoute après coup depuis Annonces et débloque la publication", async ({ page }) => {
+test("annonce bloquée faute de photo : la photo s'ajoute après coup depuis la fiche du stock et débloque la publication", async ({ page }) => {
   await login(page);
   await page.request.put("/api/channels/ebay", { data: { mode: "SIMULATION" } });
   await page.request.post("/api/locations", { data: { code: "BOX-PH" } });
@@ -902,27 +937,24 @@ test("annonce bloquée faute de photo : la photo s'ajoute après coup depuis Ann
     headers: { "Idempotency-Key": `e2e-photo-${Date.now()}` },
   });
 
-  await page.goto("/annonces");
-  await page.getByLabel("Rechercher une offre").fill("OF-SWSH3-136-FR-N-MT");
-  const listing = page.getByTestId("listing-OF-SWSH3-136-FR-N-MT");
-  const publish = listing.getByRole("button", { name: "Publier sur eBay" });
-  await expect(listing).toContainText("Photo manquante");
-  await expect(listing).toContainText("Une annonce a besoin d'au moins une photo");
+  const panel = await openStockCard(page, "OF-SWSH3-136-FR-N-MT");
+  const publish = panel.getByTestId("stock-channel-ebay").getByRole("button", { name: "Publier" });
+  await expect(panel).toContainText("il manque une photo");
   await expect(publish).toBeDisabled();
 
   // La photo est ajoutée sur place : l'annonce devient publiable.
-  await listing.getByTestId("offer-photo-input").setInputFiles({ name: "recto.png", mimeType: "image/png", buffer: png(40, 56) });
+  await panel.getByTestId("offer-photo-input").setInputFiles({ name: "recto.png", mimeType: "image/png", buffer: png(40, 56) });
   await expect(page.getByText("Photo ajoutée")).toBeVisible();
-  await expect(listing.getByTestId("offer-photos").getByRole("img", { name: "Recto" })).toBeVisible();
-  await expect(listing).not.toContainText("Photo manquante");
-  await expect(listing.getByRole("button", { name: "Ajouter le verso" })).toBeVisible();
+  await expect(panel.getByTestId("offer-photos").getByRole("img", { name: "Recto" })).toBeVisible();
+  await expect(panel).not.toContainText("il manque une photo");
+  await expect(panel.getByRole("button", { name: "Ajouter le verso" })).toBeVisible();
   await publish.click();
-  await expect(listing.getByTestId("channel-ebay")).toContainText("En ligne");
+  await expect(panel.getByTestId("stock-channel-ebay")).toContainText("en ligne");
 
   // Une photo ratée se retire, et se remplace.
-  await listing.getByRole("button", { name: "Retirer la photo du recto" }).click();
+  await panel.getByRole("button", { name: "Retirer la photo du recto" }).click();
   await expect(page.getByText("Photo retirée")).toBeVisible();
-  await expect(listing.getByRole("button", { name: "Ajouter une photo" })).toBeVisible();
+  await expect(panel.getByRole("button", { name: "Ajouter une photo" })).toBeVisible();
 });
 
 test("lot sans temps mort : variante appliquée en masse, corrections enchaînées, photos d'annonce prêtes, planification directe", async ({ page }) => {

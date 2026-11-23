@@ -62,8 +62,21 @@ export interface StockQuery {
   /** value : enjeu (prix × quantité) ; recent : dernière entrée d'abord ; name : alphabétique. */
   sort?: "value" | "recent" | "name";
   offerId?: string;
+  /** Filtres : série, boîte (et ce qu'elle contient), état, fourchette de prix (prix fixé, sinon suggéré). */
+  setId?: string;
+  location?: string;
+  condition?: string;
+  minCents?: number;
+  maxCents?: number;
   limit?: number;
   offset?: number;
+}
+
+/** Valeurs proposées par les filtres : ce que contient réellement le stock. */
+export interface StockFacets {
+  sets: { id: string; name: string; cards: number }[];
+  locations: { code: string; cards: number }[];
+  conditions: { code: string; cards: number }[];
 }
 
 export interface StockPage {
@@ -120,6 +133,14 @@ export async function listStock(sql: Db, query: StockQuery = {}): Promise<StockP
         ) s on s.on_hand > 0
        where true
          ${query.offerId ? sql`and o.id = ${query.offerId}` : sql``}
+         ${query.setId ? sql`and c.set_id = ${query.setId}` : sql``}
+         ${query.condition ? sql`and o.condition = ${query.condition}` : sql``}
+         ${query.location ? sql`and exists (
+             select 1 from stock_items fi join locations fl on fl.id = fi.location_id
+              where fi.offer_id = o.id and fi.lifecycle <> 'ARCHIVED' and fi.on_hand > 0
+                and (fl.code = ${query.location} or fl.code like ${likeEscape(query.location)} || '/%'))` : sql``}
+         ${query.minCents !== undefined ? sql`and coalesce(o.target_price_cents, o.suggested_price_cents) >= ${query.minCents}` : sql``}
+         ${query.maxCents !== undefined ? sql`and coalesce(o.target_price_cents, o.suggested_price_cents) < ${query.maxCents}` : sql``}
          ${q ? sql`and (upper(o.offer_sku) like '%' || upper(${likeEscape(q)}) || '%'
                     or f_unaccent(lower(c.name)) like '%' || f_unaccent(lower(${likeEscape(q)})) || '%'
                     or f_unaccent(lower(coalesce(st.name, ''))) like '%' || f_unaccent(lower(${likeEscape(q)})) || '%')` : sql``}
@@ -169,4 +190,28 @@ export async function getStockDetail(sql: Db, offerId: string): Promise<StockDet
   ]);
   const text = buildListingText({ ...row, serieName: set?.serieName ?? null, officialCount: set?.officialCount ?? null }, settings);
   return { ...row, text, photos, positions, missing: listingBlockers({ targetPriceCents: row.targetPriceCents, photos, variantIncomplete: row.variantIncomplete }) };
+}
+
+/** Ce que proposent les filtres du stock : séries, boîtes et états présents, avec le nombre d'exemplaires. */
+export async function stockFacets(sql: Db): Promise<StockFacets> {
+  const rows = await sql<{ kind: "set" | "location" | "condition"; key: string; label: string; cards: number }[]>`
+    with present as (
+      select i.on_hand, o.condition::text as condition, c.set_id, coalesce(st.name, c.set_id) as set_name, l.code
+        from stock_items i
+        join offers o on o.id = i.offer_id
+        join card_variants v on v.id = o.variant_id
+        join catalog_cards c on c.id = v.catalog_card_id
+        left join catalog_sets st on st.id = c.set_id and st.language = c.language
+        join locations l on l.id = i.location_id
+       where i.lifecycle <> 'ARCHIVED' and i.on_hand > 0)
+    select 'set' as kind, set_id as key, min(set_name) as label, sum(on_hand)::int as cards from present group by set_id
+    union all select 'location', code, code, sum(on_hand)::int from present group by code
+    union all select 'condition', condition, condition, sum(on_hand)::int from present group by condition`;
+  const of = (kind: string) => rows.filter((r) => r.kind === kind);
+  const ORDER = ["MT", "NM", "EX", "GD", "LP", "PL", "PO"];
+  return {
+    sets: of("set").map((r) => ({ id: r.key, name: r.label, cards: r.cards })).sort((a, b) => a.name.localeCompare(b.name, "fr")),
+    locations: of("location").map((r) => ({ code: r.key, cards: r.cards })).sort((a, b) => a.code.localeCompare(b.code, "fr", { numeric: true })),
+    conditions: of("condition").map((r) => ({ code: r.key, cards: r.cards })).sort((a, b) => ORDER.indexOf(a.code) - ORDER.indexOf(b.code)),
+  };
 }

@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, Eyebrow } from "@/components/ui/card";
 import { Field, Input, Textarea } from "@/components/ui/input";
-import { Code, EmptyState, Loading, Spinner } from "@/components/ui/misc";
+import { Code, EmptyState, Spinner } from "@/components/ui/misc";
 import { Modal } from "@/components/ui/modal";
 import type { ApiError } from "@/lib/api";
 import { api } from "@/lib/api";
@@ -18,6 +18,7 @@ import { formatDateTime, formatEuros, parseEuros, variantLabel } from "@/lib/for
 import { SHIPPING_LABEL, STAGE_LABEL, STAGE_VARIANT, needsTracking, salesMessage } from "@/lib/sales";
 import type { OrderDetail } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { OrderSkeleton } from "@/components/skeletons";
 
 type Allocation = OrderDetail["lines"][number]["allocations"][number];
 const STEPS = ["Réservée", "Prélevée", "Emballée", "Remise"];
@@ -58,7 +59,7 @@ export default function SalePage() {
     </Button>
   );
   if (notFound) return <div className="grid gap-5">{back}<EmptyState icon={<CircleSlash />} title="Vente introuvable" /></div>;
-  if (!order) return error ? <Alert variant="destructive">{error}</Alert> : <Loading />;
+  if (!order) return error ? <Alert variant="destructive">{error}</Alert> : <OrderSkeleton />;
 
   const allocations = order.lines.flatMap((l) => l.allocations.map((a) => ({ ...a, line: l })));
   const allPicked = allocations.length > 0 && allocations.every((a) => a.status !== "RESERVED");

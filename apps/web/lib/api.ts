@@ -2,7 +2,7 @@ import type {
   AcquisitionLot, Activity, AlertSettings, AppSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, PriceMoves, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
   Location, Photo, PositionDetail, Received,
   OfferPricing, OrderDetail, PriceHistory, OrderList, OrderStage, PricingSettings, ShippingRun, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
-  PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockPage, StockStatus, StoredPhoto, VariantQuote,
+  PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockFacets, StockPage, StockStatus, StoredPhoto, VariantQuote,
 } from "./types";
 
 export class ApiError extends Error {
@@ -142,8 +142,11 @@ export const api = {
     request<ScanItem>("PATCH", `/scan-items/${itemId}`, { json: change }),
   receiveScanBatch: (id: string) => request<{ received: number; firstSku: string | null; lastSku: string | null; batch: ScanBatch }>("POST", `/scan-batches/${id}/receive`),
 
-  stock: (q: { q?: string; status?: StockStatus | "ALL"; sort?: "value" | "recent" | "name"; limit?: number; offset?: number }) =>
-    request<StockPage>("GET", "/stock", { query: q }),
+  stock: (q: {
+    q?: string; status?: StockStatus | "ALL"; sort?: "value" | "recent" | "name"; limit?: number; offset?: number;
+    setId?: string; location?: string; condition?: string; minCents?: number; maxCents?: number;
+  }) => request<StockPage>("GET", "/stock", { query: q }),
+  stockFacets: () => request<StockFacets>("GET", "/stock/facets"),
   stockDetail: (offerId: string) => request<StockDetail>("GET", `/stock/${offerId}`),
 
   dashboard: () => request<Dashboard>("GET", "/stats/dashboard"),

@@ -9,7 +9,8 @@ import { composeListingPhoto, loadBitmap } from "./compose";
 export async function composeMissingVisuals(
   offerIds: (string | null | undefined)[],
   onProgress?: (done: number, total: number) => void,
-  opts: { force?: boolean } = {},
+  /** force : même si la composition automatique est coupée ; all : recompose aussi les visuels existants (nouveau style). */
+  opts: { force?: boolean; all?: boolean } = {},
 ): Promise<number> {
   const ids = [...new Set(offerIds.filter((id): id is string => !!id))];
   if (ids.length === 0) return 0;
@@ -24,7 +25,7 @@ export async function composeMissingVisuals(
     // Une carte vendue entre-temps, ou une photo illisible, ne doit pas arrêter les autres.
     try {
       const { photos } = await api.stockDetail(offerId);
-      const done = new Set(photos.filter((p) => p.kind === "LISTING").map((p) => p.sourcePhotoId));
+      const done = new Set(opts.all ? [] : photos.filter((p) => p.kind === "LISTING").map((p) => p.sourcePhotoId));
       for (const scan of photos.filter((p) => (p.kind === "SCAN_FRONT" || p.kind === "SCAN_BACK") && !done.has(p.id))) {
         const card = await loadBitmap(api.photoContentUrl(scan.id));
         await api.uploadListingPhoto(await composeListingPhoto(card, settings.photo, background), scan.id);

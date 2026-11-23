@@ -8,13 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Field, Input, Select } from "@/components/ui/input";
-import { Code, EmptyState, Loading, PageHeader, Spinner } from "@/components/ui/misc";
+import { Code, EmptyState, PageHeader, Spinner } from "@/components/ui/misc";
 import { Pagination, SegmentedTabs, paginate } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { CATALOG_LANGUAGES, catalogMessage, fold, importedLabel } from "@/lib/catalog";
 import { formatDateTime } from "@/lib/format";
 import { useStored } from "@/lib/storage";
 import type { CatalogSet, SetSyncReport } from "@/lib/types";
+import { ListSkeleton } from "@/components/skeletons";
 
 const PAGE_SIZE = 12;
 const NO_BLOCK = "__none__";
@@ -170,7 +171,7 @@ export default function CatalogPage() {
       </div>
 
       {error && <Alert variant="destructive">{error}</Alert>}
-      {!sets && !error && <Loading />}
+      {!sets && !error && <ListSkeleton count={6} label="Chargement des séries" />}
       {sets?.length === 0 && !refreshing && (
         <EmptyState icon={<BookOpen />} title="Aucune série connue pour cette langue" action={<Button size="sm" onClick={refresh}><CloudDownload /> Charger la liste</Button>}>
           Chargez la liste des séries, puis importez celles que vous possédez.

@@ -17,13 +17,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, Eyebrow } from "@/components/ui/card";
 import { Field, Textarea } from "@/components/ui/input";
-import { Code, EmptyState, Loading } from "@/components/ui/misc";
+import { Code, EmptyState } from "@/components/ui/misc";
 import { Modal } from "@/components/ui/modal";
 import { ApiError, api, createKeyring } from "@/lib/api";
 import { LIFECYCLE, formatDateTime, formatEuros, movementLabel, positionSubtitle, positionTitle } from "@/lib/format";
 import { CATEGORY_LABEL, CATEGORY_VARIANT, reasonLabel, type Category } from "@/lib/pricing";
 import type { Movement, PositionDetail } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { PageSkeleton } from "@/components/skeletons";
 
 const KIND: Record<string, string> = { UNIQUE: "Exemplaire unique", FUNGIBLE: "Interchangeable", BULK: "Vrac" };
 const PHOTO_KIND: Record<string, string> = { SCAN_FRONT: "Recto", SCAN_BACK: "Verso", LISTING: "Annonce" };
@@ -114,7 +115,7 @@ export default function PositionPage() {
       </div>
     );
   }
-  if (!position) return error ? <Alert variant="destructive">{error}</Alert> : <Loading />;
+  if (!position) return error ? <Alert variant="destructive">{error}</Alert> : <PageSkeleton label="Chargement de la position" />;
 
   const p = position;
   async function run(action: () => Promise<PositionDetail>, done: string) {

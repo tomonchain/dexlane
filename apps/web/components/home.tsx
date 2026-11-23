@@ -10,7 +10,8 @@ import { CardThumb } from "./card-chooser";
 import { DailyColumns } from "./charts";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { Code, Spinner } from "./ui/misc";
+import { Code } from "./ui/misc";
+import { HomeSkeleton } from "./skeletons";
 
 interface Data {
   stock: StockPage;
@@ -110,7 +111,7 @@ export function Home() {
   if (!data) {
     return error
       ? <p role="alert" className="text-sm text-destructive">{error}</p>
-      : <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status"><Spinner /> Chargement…</p>;
+      : <HomeSkeleton />;
   }
 
   const { stock, schedule, orders, moves, activity } = data;

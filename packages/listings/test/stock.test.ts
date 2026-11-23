@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { useTestDb } from "@dexlane/db/testing";
 import { attachPhotos, createLocation, receiveCard, recordPhoto } from "@dexlane/inventory";
-import { getStockDetail, listStock, publishListing, setChannelMode } from "../src";
+import { getStockDetail, listStock, publishListing, setChannelMode, stockFacets } from "../src";
 
 const sql = useTestDb("listings");
 const ACTOR = "test";
@@ -44,6 +44,33 @@ describe("the stock, one line per card to sell", () => {
     expect([ready.total, ready.items.map((r) => r.name), ready.counts.ALL]).toEqual([1, ["Prête"], 4]);
     expect((await listStock(sql, { q: "sans" })).items.map((r) => r.name)).toEqual(["Sans prix"]);
     expect((await listStock(sql, { sort: "value" })).items[0]!.name).toBe("En ligne");
+  });
+
+  it("filters by set, box (with what it contains), condition and price range, and offers only what the stock holds", async () => {
+    await sql`insert into catalog_sets (id, language, name) values ('swsh3', 'fr', 'Ténèbres Embrasées') on conflict do nothing`;
+    await card("Dracaufeu", { price: 40000, location: "BOX-01/ROW-02" });
+    await card("Pikachu", { price: 250, quantity: 3, location: "BOX-02" });
+    const other = await card("Fouinar", { price: 1200, location: "BOX-01" });
+    await sql`update catalog_cards c set set_id = 'swsh3' from card_variants v where v.catalog_card_id = c.id and v.id = ${other.variantId}`;
+    await sql`update offers set condition = 'EX' where id = ${other.offer.id}`;
+    const names = async (q: Parameters<typeof listStock>[1]) => (await listStock(sql, { sort: "name", ...q })).items.map((r) => r.name);
+
+    expect(await names({ setId: "swsh3" })).toEqual(["Fouinar"]);
+    expect(await names({ location: "BOX-01" })).toEqual(["Dracaufeu", "Fouinar"]); // la boîte et ses rangées
+    expect(await names({ location: "BOX-01/ROW-02" })).toEqual(["Dracaufeu"]);
+    expect(await names({ location: "BOX-0" })).toEqual([]); // un préfixe de nom n'est pas une boîte
+    expect(await names({ condition: "EX" })).toEqual(["Fouinar"]);
+    expect(await names({ minCents: 1000 })).toEqual(["Dracaufeu", "Fouinar"]);
+    expect(await names({ minCents: 1000, maxCents: 5000 })).toEqual(["Fouinar"]);
+    expect(await names({ maxCents: 1000, location: "BOX-02" })).toEqual(["Pikachu"]);
+    // Les compteurs suivent les filtres.
+    expect((await listStock(sql, { minCents: 1000 })).counts.ALL).toBe(2);
+
+    expect(await stockFacets(sql)).toEqual({
+      sets: [{ id: "base1", name: "Set de Base", cards: 4 }, { id: "swsh3", name: "Ténèbres Embrasées", cards: 1 }],
+      locations: [{ code: "BOX-01", cards: 1 }, { code: "BOX-01/ROW-02", cards: 1 }, { code: "BOX-02", cards: 3 }],
+      conditions: [{ code: "NM", cards: 4 }, { code: "EX", cards: 1 }],
+    });
   });
 
   it("merges the positions of one card across locations", async () => {

@@ -6,7 +6,7 @@ import type {
 } from "@dexlane/inventory";
 import type {
   Activity as ActivityRow, ChannelId, ChannelMode, ChannelState as ChannelStateRow, ListingBlocker, ListingOffer as ListingOfferRow, ListingSettings,
-  ListingState as ListingStateRow, PhotoStyle, PlanResult, Schedule as ScheduleRow, StockDetail as StockDetailRow, StockPage as StockPageRow, StockRow as StockRowRaw, StockStatus,
+  ListingState as ListingStateRow, PhotoStyle, PlanResult, Schedule as ScheduleRow, StockDetail as StockDetailRow, StockFacets, StockPage as StockPageRow, StockRow as StockRowRaw, StockStatus,
 } from "@dexlane/listings";
 import type {
   AlertSettings, Dashboard as DashboardRow, OfferPricing as PricingRow, PriceMove as PriceMoveRow, PriceMoves as PriceMovesRow, PricingSettings,
@@ -101,6 +101,7 @@ export type PriceMoves = Json<PriceMovesRow>;
 export type { StockStatus };
 export type StockRow = Json<StockRowRaw>;
 export type StockPage = Json<StockPageRow>;
+export type { StockFacets };
 export type StockDetail = Json<StockDetailRow>;
 
 export type ScanBatch = Json<ScanBatchRow>;

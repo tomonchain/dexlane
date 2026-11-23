@@ -8,12 +8,13 @@ import { toast } from "sonner";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
-import { EmptyState, Loading, PageHeader } from "@/components/ui/misc";
+import { EmptyState, PageHeader } from "@/components/ui/misc";
 import { SwitchRow } from "@/components/ui/switch";
 import { api } from "@/lib/api";
 import { formatEuros, variantLabel } from "@/lib/format";
 import { SHIPPING_LABEL } from "@/lib/sales";
 import type { OrderDetail, Seller, ShippingRun, SlipPaper } from "@/lib/types";
+import { PreparationSkeleton } from "@/components/skeletons";
 
 /** Papier : largeur du document à l'écran et à l'impression, et règle de page envoyée à l'imprimante. */
 const PAPERS: Record<SlipPaper, { label: string; width: string; page: string }> = {
@@ -218,8 +219,10 @@ function Preparation() {
           actions={<Button onClick={() => window.print()} disabled={orders.length === 0 || !Object.values(parts).some(Boolean)} data-testid="print-run"><Printer /> Imprimer {orders.length > 0 ? `${orders.length} commande${orders.length > 1 ? "s" : ""}` : ""}</Button>}
         />
         {error && <Alert variant="destructive">{error}</Alert>}
-        {!run && !error && <Loading />}
+
       </div>
+
+      {!run && !error && <PreparationSkeleton />}
 
       {run && run.orders.length === 0 && (
         <div className="print:hidden"><EmptyState icon={<Check />} title="Rien à préparer">Aucune commande n'attend d'être emballée.</EmptyState></div>
@@ -282,5 +285,5 @@ function Preparation() {
 }
 
 export default function PreparationPage() {
-  return <Suspense fallback={<Loading />}><Preparation /></Suspense>;
+  return <Suspense fallback={<PreparationSkeleton />}><Preparation /></Suspense>;
 }
