@@ -1398,3 +1398,25 @@ test("fiche d'une carte : variantes et prix, tous les exemplaires regroupés que
   await copies.getByTestId(`card-offer-${reverse.offer.offerSku}`).getByRole("link", { name: "Ouvrir dans le stock" }).click();
   await expect(page.getByTestId("stock-inspector")).toContainText("Fouinar");
 });
+
+test("langue : l'interface passe en anglais depuis le compte, montants et dates suivent, puis revient en français", async ({ page }) => {
+  await login(page);
+  await page.goto("/compte");
+  await expect(page.getByRole("heading", { name: "Compte", level: 1 })).toBeVisible();
+  await page.getByTestId("locale-switch").getByRole("radio", { name: "English" }).click();
+  await expect(page.getByRole("heading", { name: "Account", level: 1 })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  const tabs = page.getByTestId("mobile-nav");
+  for (const name of ["Home", "Stock", "Buying", "Sales", "Stats"]) await expect(tabs.getByRole("link", { name })).toBeVisible();
+
+  await tabs.getByRole("link", { name: "Stock" }).click();
+  await expect(page.getByRole("heading", { name: "Stock", level: 1 })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /^To price/ })).toBeVisible();
+  // Montants au format anglais : le symbole avant le nombre, le point décimal.
+  await expect(page.getByTestId("stock-totals")).toContainText(/€\d[\d,]*\.\d\d/);
+
+  await page.goto("/compte");
+  await page.getByTestId("locale-switch").getByRole("radio", { name: "Français" }).click();
+  await expect(page.getByRole("heading", { name: "Compte", level: 1 })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "fr");
+});

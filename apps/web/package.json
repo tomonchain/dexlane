@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "e2e": "playwright test",
     "build:vercel": "pnpm --filter @dexlane/db migrate --skip-if-unconfigured --not-on-preview && NEXT_TELEMETRY_DISABLED=1 next build",
-    "i18n": "tsx scripts/i18n-check.ts"
+    "i18n": "tsx scripts/i18n-check.ts",
+    "test": "tsx scripts/i18n-check.ts"
   },
   "dependencies": {
     "@dexlane/api": "workspace:*",
