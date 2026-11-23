@@ -228,6 +228,15 @@ Ce qui reste une action de votre part, et pourquoi :
 - **La mise en ligne est simulée** tant que les connecteurs eBay et CardTrader ne sont pas branchés.
 - Si l'onglet du lot est fermé avant la fin, ce qui est en file est publié par la tâche quotidienne.
 
+## Fiche d'une carte
+
+`/carte/{id}` regroupe tout ce qui concerne une carte du catalogue (par exemple « Dracaufeu, Set de Base 4, FR ») :
+ses variantes avec leurs prix sur chaque plateforme et leur suivi, la courbe de prix par variante, chaque exemplaire en
+stock regroupé par offre (variante × état) avec sa boîte, son rang dans la pile scannée, son coût et ses réservations,
+les annonces en ligne, et les ventes. On y arrive depuis le nom de la carte dans la fiche du stock, la page Achats, le
+catalogue, la fiche d'une position et l'accueil ; « Ouvrir dans le stock » mène à l'offre (`/stock?offre={offerId}`).
+`GET /api/cards/{id}`.
+
 ## Achats — cartes suivies et bonnes affaires
 
 - **Cartes suivies** (`/achats`) : une variante précise du catalogue, avec un prix cible d'achat facultatif. Pour chacune : estimation d'après les ventes réussies et annonce la moins chère sur Cardmarket, prix du marché TCGplayer (en dollars, marché américain, jamais converti ni mélangé aux cotes en euros), variation sur la fenêtre des alertes, courbe d'évolution, liens de recherche Cardmarket et eBay. Alertes : l'annonce la moins chère passe sous le prix cible, ou le prix bouge au-delà des seuils d'alerte du tableau de bord ; elles remontent en tête de liste et sur l'accueil. `GET`, `POST /api/watchlist`, `PATCH` et `DELETE /api/watchlist/{id}`.

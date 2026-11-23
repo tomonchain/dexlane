@@ -12,7 +12,7 @@ import {
   searchInventory, searchSellableOffers, shipOrder, updateLocationDescription,
 } from "@dexlane/inventory";
 import {
-  estimateVariants, findDeals, listWatched, trendingCards, unwatchCard, updateWatched, watchCard, getPricingSettings, priceHistory, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice, getAlertSettings, getDashboard, listPriceMoves, saveAlertSettings,
+  estimateVariants, findDeals, listWatched, platformPrices, trendingCards, unwatchCard, updateWatched, watchCard, getPricingSettings, priceHistory, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice, getAlertSettings, getDashboard, listPriceMoves, saveAlertSettings,
 } from "@dexlane/pricing";
 import {
   MAX_IMAGE_BYTES, RecognitionError, assertSupportedImage, identifyCard, type CardImage, type CardRecognizer, type ImageMediaType, addItem, createBatch, findItem, getBatch, listBatches, listItems, receiveBatch, receiveReady, setItemBack, updateBatch, updateItem,
@@ -21,7 +21,7 @@ import { DomainError } from "@dexlane/shared";
 import { changePassword, passwordStatus, setPassword, verifyPassword } from "./auth";
 import { HttpError, errorBody, idempotent, parse, parseJsonBody, secretEquals, statusOfDomainError } from "./http";
 import {
-  cancelPublications, endListing, getActivity, getListingSettings, getSchedule, getStockDetail, listChannels, listStock, stockFacets, planPublications, queuePublications, runDuePublications, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
+  cancelPublications, endListing, getActivity, getCardDetail, getListingSettings, getSchedule, getStockDetail, listChannels, listStock, stockFacets, planPublications, queuePublications, runDuePublications, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
   syncChannels, syncQuantities, type ChannelAdapters,
 } from "@dexlane/listings";
 import { readPhoto, type PhotoStore } from "./photos";
@@ -428,6 +428,23 @@ export function createApp(deps: AppDeps) {
 
   /** Les cartes les plus demandées du moment (vendues la veille, prix de vente en hausse), pour proposer quoi suivre. */
   app.get("/api/purchases/trending", async (c) => c.json({ cards: await trendingCards(sql, parse(s.topCardsQuery, c.req.query())) }));
+
+  /**
+   * Fiche d'une carte du catalogue : variantes avec leurs prix sur chaque plateforme et leur suivi, offres, exemplaires
+   * en stock, ventes.
+   */
+  app.get("/api/cards/:id", async (c) => {
+    const detail = await getCardDetail(sql, parse(s.catalogCardId, c.req.param("id")));
+    const ids = detail.variants.map((v) => v.id);
+    const [prices, watched] = await Promise.all([
+      platformPrices(sql, ids),
+      ids.length ? sql<{ variantId: string; id: string; targetCents: number | null }[]>`select variant_id, id, target_cents from watched_cards where variant_id in ${sql(ids)}` : [],
+    ]);
+    return c.json({
+      ...detail,
+      variants: detail.variants.map((v) => ({ ...v, prices: prices.get(v.id)!, watched: watched.find((w) => w.variantId === v.id) ?? null })),
+    });
+  });
 
   /** Bonnes affaires : cartes au-dessus d'une valeur, annoncées nettement sous leur prix de vente. */
   app.get("/api/deals", async (c) => c.json(await findDeals(sql, parse(s.dealsQuery, c.req.query()))));

@@ -37,7 +37,7 @@ function CardTile({ card }: { card: CatalogSetCard }) {
       </div>
       <div className="grid gap-2 p-3">
         <div className="grid gap-0.5">
-          <p className="truncate text-sm font-semibold" title={card.name}>{card.name}</p>
+          <Link href={`/carte/${card.id}`} className="truncate text-sm font-semibold underline-offset-2 outline-none hover:underline focus-visible:underline" title={card.name}>{card.name}</Link>
           <p className="truncate text-xs text-muted-foreground"><Code>n° {card.localNumber}</Code>{card.rarity ? ` · ${card.rarity}` : ""}</p>
         </div>
         <ul className="grid gap-1 border-t pt-2 text-xs">

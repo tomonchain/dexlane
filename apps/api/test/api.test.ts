@@ -434,6 +434,13 @@ describe("purchases", () => {
     expect(trending[0]).toMatchObject({ card: { name: "Dracaufeu" }, trendPercent: 11 });
     expect(trending.map((t: { card: { name: string } }) => t.card.name)).not.toContain("Mew-ex"); // moins de 10 €
 
+    // Fiche de la carte : variantes avec leurs prix sur chaque plateforme et leur suivi.
+    const page = (await call("GET", `/api/cards/${mew.catalogCardId}`)).json;
+    expect(page.card).toMatchObject({ name: "Mew-ex", setName: "151", localNumber: "151" });
+    expect(page.variants).toMatchObject([{ id: variantId, prices: { cardmarket: { sales: { cents: 760 }, lowCents: 298 }, tcgplayer: { marketCents: 679 } }, watched: { id: watched.json.id } }]);
+    expect(page).toMatchObject({ offers: [], copies: [], sales: [], totals: { copies: 0 } });
+    expect((await call("GET", `/api/cards/${crypto.randomUUID()}`)).status).toBe(404);
+
     expect((await call("DELETE", `/api/watchlist/${watched.json.id}`, { key: null })).status).toBe(200);
     expect((await call("DELETE", `/api/watchlist/${watched.json.id}`, { key: null })).status).toBe(404);
   });

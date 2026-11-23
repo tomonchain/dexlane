@@ -23,6 +23,7 @@ export interface Activity {
   listings: {
     id: string;
     offerId: string;
+    catalogCardId: string;
     channel: ChannelId;
     priceCents: number;
     url: string | null;
@@ -68,7 +69,7 @@ export async function getActivity(sql: Db, opts: { today?: string; limit?: numbe
        limit ${limit}`,
     sql<Activity["listings"]>`
       select l.id, l.offer_id, l.channel, l.price_cents, l.url, l.simulated, l.created_at as listed_at,
-             c.name, c.set_id, st.name as set_name, c.local_number, v.finish, v.edition, o.condition, c.image_url
+             c.id as catalog_card_id, c.name, c.set_id, st.name as set_name, c.local_number, v.finish, v.edition, o.condition, c.image_url
         from listings l
         join offers o on o.id = l.offer_id
         join card_variants v on v.id = o.variant_id

@@ -171,7 +171,8 @@ export default function StockPage() {
 
 function Stock() {
   // L'accueil renvoie ici avec un filtre déjà posé (« ?statut=TO_PRICE »).
-  const requested = useSearchParams().get("statut") as Filter | null;
+  const params = useSearchParams();
+  const requested = params.get("statut") as Filter | null;
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>(requested && FILTERS.includes(requested) ? requested : "ALL");
   const [sort, setSort] = useState<Sort>("recent");
@@ -180,7 +181,8 @@ function Stock() {
   const [page, setPage] = useState(1);
   const [data, setData] = useState<StockPage | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  // La fiche d'une carte renvoie ici sur une offre précise (« ?offre=… ») : son panneau s'ouvre d'emblée.
+  const [selected, setSelected] = useState<string | null>(params.get("offre"));
   const [version, setVersion] = useState(0);
   const [channels, setChannels] = useState<ChannelState[]>([]);
   const [accepting, setAccepting] = useState(false);
@@ -577,7 +579,9 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
           ? <img src={picture} alt="" onError={d.photoUrl ? undefined : catalogPicture.onError} className={cn("w-24 shrink-0 rounded-md bg-muted object-cover ring-1 ring-border", d.photoUrl?.includes("/annonces/") ? "aspect-square" : "aspect-[63/88]")} />
           : <CardThumb imageUrl={null} size="lg" />}
         <div className="grid min-w-0 flex-1 content-start gap-1">
-          <h2 className="text-base leading-snug font-semibold [overflow-wrap:anywhere]">{d.name}</h2>
+          <h2 className="text-base leading-snug font-semibold [overflow-wrap:anywhere]">
+            <Link href={`/carte/${d.catalogCardId}`} className="underline-offset-2 outline-none hover:underline focus-visible:underline" title="Fiche de la carte : toutes ses variantes et tous ses exemplaires">{d.name}</Link>
+          </h2>
           <p className="text-[13px] text-muted-foreground">{subtitle(d)} · {d.condition}</p>
           <div className="mt-1"><StatusMark status={d.status} /></div>
         </div>

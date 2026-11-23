@@ -1288,3 +1288,53 @@ test("achats : suivre une carte avec un prix cible, ses prix sur Cardmarket et T
   await draco.getByRole("button", { name: "Ne plus suivre Dracaufeu" }).click();
   await expect(page.getByText("Dracaufeu n'est plus suivie")).toBeVisible();
 });
+
+test("fiche d'une carte : variantes et prix, tous les exemplaires regroupés quels que soient l'état et la boîte, ventes", async ({ page }) => {
+  await login(page);
+  // Trois exemplaires du même Fouinar : deux normaux « Mint » dans une boîte, un reverse « Excellent » dans une autre ; un vendu.
+  const { candidates } = (await (await page.request.get("/api/catalog/cards?name=fouinar")).json()) as {
+    candidates: { catalogCardId: string; variants: { id: string; finish: string }[] }[];
+  };
+  const fouinar = candidates[0]!;
+  for (const code of ["BOITE-F1", "BOITE-F2"]) await page.request.post("/api/locations", { data: { code } });
+  const receive = async (finish: string, condition: string, quantity: number, locationCode: string) =>
+    (await (await page.request.post("/api/inventory/receive", {
+      data: { variantId: fouinar.variants.find((v) => v.finish === finish)!.id, condition, quantity, locationCode, unitCostCents: 3 },
+      headers: { "Idempotency-Key": `e2e-fiche-${finish}-${Date.now()}` },
+    })).json()) as { offer: { id: string; offerSku: string }; stockItem: { unitSku: string } };
+  const normal = await receive("normal", "MT", 2, "BOITE-F1");
+  const reverse = await receive("reverse", "EX", 1, "BOITE-F2");
+  const sale = (await (await page.request.post("/api/orders", {
+    data: { lines: [{ offerId: normal.offer.id, qty: 1, unitPriceCents: 90 }], shippingMode: "HAND_DELIVERY" },
+    headers: { "Idempotency-Key": `e2e-fiche-vente-${Date.now()}` },
+  })).json()) as { externalId: string };
+
+  // Depuis le stock : le nom de la carte mène à sa fiche.
+  const panel = await openStockCard(page, normal.offer.offerSku);
+  await panel.getByRole("link", { name: "Fouinar" }).click();
+  await page.waitForURL(new RegExp(`/carte/${fouinar.catalogCardId}$`));
+  await expect(page.getByTestId("card-name")).toHaveText("Fouinar");
+
+  // Les variantes, chacune avec ses prix sur chaque plateforme.
+  const variants = page.getByTestId("card-variant");
+  await expect(variants).toHaveCount(2);
+  await expect(variants.filter({ hasText: "Reverse" })).toContainText("0,35 €");
+  await expect(page.getByTestId("price-history")).toBeVisible();
+
+  // Tous les exemplaires regroupés par offre (variante × état), avec leur boîte.
+  const copies = page.getByTestId("card-copies");
+  await expect(copies.getByTestId(`card-offer-${normal.offer.offerSku}`)).toContainText("BOITE-F1");
+  await expect(copies.getByTestId(`card-offer-${normal.offer.offerSku}`)).toContainText("1 réservée");
+  await expect(copies.getByTestId(`card-offer-${reverse.offer.offerSku}`)).toContainText("BOITE-F2");
+  await expect(copies.getByTestId(`card-offer-${reverse.offer.offerSku}`)).toContainText(reverse.stockItem.unitSku);
+  await expect(page.getByTestId("card-sales")).toContainText(sale.externalId);
+
+  // Suivre une variante depuis la fiche ; ouvrir une offre dans le stock.
+  const reverseRow = variants.filter({ hasText: "Reverse" });
+  if (await reverseRow.getByRole("button", { name: /^Suivre/ }).count()) {
+    await reverseRow.getByRole("button", { name: /^Suivre/ }).click();
+    await expect(reverseRow.getByRole("link", { name: "Suivie" })).toBeVisible();
+  }
+  await copies.getByTestId(`card-offer-${reverse.offer.offerSku}`).getByRole("link", { name: "Ouvrir dans le stock" }).click();
+  await expect(page.getByTestId("stock-inspector")).toContainText("Fouinar");
+});

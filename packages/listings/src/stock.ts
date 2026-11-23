@@ -13,6 +13,8 @@ export const STOCK_STATUSES: StockStatus[] = ["TO_PRICE", "READY", "LISTED", "DR
 
 /** Une ligne du stock : une carte dans un état donné (une offre), toutes positions confondues. */
 export interface StockRow {
+  /** La carte du catalogue : sa fiche regroupe toutes ses offres. */
+  catalogCardId: string;
   offerId: string;
   offerSku: string;
   status: StockStatus;
@@ -62,6 +64,8 @@ export interface StockQuery {
   /** value : enjeu (prix × quantité) ; recent : dernière entrée d'abord ; name : alphabétique. */
   sort?: "value" | "recent" | "name";
   offerId?: string;
+  /** Toutes les offres d'une carte du catalogue (toutes variantes, tous états). */
+  cardId?: string;
   /** Filtres : série, boîte (et ce qu'elle contient), état, fourchette de prix (prix fixé, sinon suggéré). */
   setId?: string;
   location?: string;
@@ -99,7 +103,7 @@ export async function listStock(sql: Db, query: StockQuery = {}): Promise<StockP
   const stock = sql`
     with stock as (
       select o.id as offer_id, o.offer_sku, o.condition, o.is_unique, o.category::text as category,
-             c.name, c.set_id, st.name as set_name, c.local_number, c.language, c.rarity, c.image_url,
+             c.id as catalog_card_id, c.name, c.set_id, st.name as set_name, c.local_number, c.language, c.rarity, c.image_url,
              v.id as variant_id, v.finish, v.edition, v.subtype, v.stamp, v.incomplete as variant_incomplete,
              s.on_hand, s.available, s.reserved, s.draft, s.locations, s.average_cost_cents, s.received_at,
              o.target_price_cents, o.floor_price_cents, o.suggested_price_cents, o.price_reasons,
@@ -133,6 +137,7 @@ export async function listStock(sql: Db, query: StockQuery = {}): Promise<StockP
         ) s on s.on_hand > 0
        where true
          ${query.offerId ? sql`and o.id = ${query.offerId}` : sql``}
+         ${query.cardId ? sql`and c.id = ${query.cardId}` : sql``}
          ${query.setId ? sql`and c.set_id = ${query.setId}` : sql``}
          ${query.condition ? sql`and o.condition = ${query.condition}` : sql``}
          ${query.location ? sql`and exists (

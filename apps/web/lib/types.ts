@@ -5,7 +5,7 @@ import type {
   ShippingMode, ShippingCosts,
 } from "@dexlane/inventory";
 import type {
-  Activity as ActivityRow, ChannelId, ChannelMode, ChannelState as ChannelStateRow, ListingBlocker, ListingOffer as ListingOfferRow, ListingSettings,
+  Activity as ActivityRow, CardDetail as CardDetailRow, ChannelId, ChannelMode, ChannelState as ChannelStateRow, ListingBlocker, ListingOffer as ListingOfferRow, ListingSettings,
   ListingState as ListingStateRow, PhotoStyle, PlanResult, Schedule as ScheduleRow, StockDetail as StockDetailRow, StockFacets, StockPage as StockPageRow, StockRow as StockRowRaw, StockStatus,
 } from "@dexlane/listings";
 import type {
@@ -116,6 +116,13 @@ export type ScanItem = Json<ScanItemRow>;
 export type { PlanResult };
 export type Schedule = Json<ScheduleRow>;
 export type Activity = Json<ActivityRow>;
+/** Fiche d'une carte : chaque variante avec ses prix sur chaque plateforme et son suivi éventuel. */
+export type CardPage = Omit<Json<CardDetailRow>, "variants"> & {
+  variants: (Json<CardDetailRow>["variants"][number] & {
+    prices: Pick<WatchedCard, "cardmarket" | "tcgplayer">;
+    watched: { id: string; targetCents: number | null } | null;
+  })[];
+};
 
 /** Papier des bons de livraison et reçus. */
 export type SlipPaper = "ROLL_80" | "ROLL_58" | "LABEL_100X150" | "A4";

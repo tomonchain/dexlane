@@ -1,6 +1,7 @@
 "use client";
 
 import { BellRing, ChartLine, Check, ExternalLink, Plus, RefreshCw, Search, Star, TrendingDown, TrendingUp, X } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import { CardThumb } from "@/components/card-chooser";
@@ -43,7 +44,7 @@ function CardLabel({ card, owned, children }: { card: Card; owned: number; child
       <CardThumb imageUrl={card.imageUrl} size="sm" className="w-9 rounded-[3px]" />
       <span className="grid min-w-0 gap-0.5">
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="truncate text-sm font-medium">{card.name}</span>
+          <Link href={`/carte/${card.catalogCardId}`} className="truncate text-sm font-medium underline-offset-2 outline-none hover:underline focus-visible:underline">{card.name}</Link>
           {owned > 0 && <Badge variant="outline">{owned} en stock</Badge>}
           {children}
         </span>
