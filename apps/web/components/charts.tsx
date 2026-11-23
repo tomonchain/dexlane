@@ -177,7 +177,7 @@ export function HorizontalBars({ data, format }: { data: { key: string; label: s
   return (
     <dl className="grid gap-2.5">
       {data.map((d) => (
-        <div key={d.key} className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-3 text-sm">
+        <div key={d.key} className="grid grid-cols-[minmax(0,8.5rem)_minmax(0,1fr)] items-center gap-3 text-sm">
           <dt className="truncate text-muted-foreground">{d.label}</dt>
           <dd className="flex items-center gap-2">
             <span className="h-3 rounded-r bg-chart-1" style={{ width: `${(d.value / max) * 55}%`, minWidth: d.value > 0 ? 2 : 0 }} aria-hidden />

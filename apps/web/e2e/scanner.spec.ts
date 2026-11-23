@@ -577,9 +577,9 @@ test("annonces : modèle de titre, fond des photos, composition du visuel à par
     return photos.filter((p) => p.kind === "LISTING");
   };
 
-  // L'ancienne page Annonces mène au stock : tout se fait depuis la fiche d'une carte.
+  // L'ancienne page Annonces mène au planning des mises en ligne ; l'annonce se règle depuis la fiche d'une carte.
   await page.goto("/annonces");
-  await page.waitForURL(/\/stock\?statut=READY$/);
+  await page.waitForURL(/\/mises-en-ligne$/);
   let panel = await openStockCard(page, "OF-SWSH3-136-FR-R-MT");
   await expect(panel.getByTestId("stock-listing-title")).toHaveText("Fouinar 136/189 Ténèbres Embrasées Reverse FR MT Carte Pokémon");
   await expect(panel.getByRole("button", { name: "Composer les photos d'annonce" })).toBeVisible();
@@ -679,13 +679,24 @@ test("statistiques : chiffres clés, variation de cote d'une carte en stock, seu
   await login(page);
   const { candidates } = (await (await page.request.get("/api/catalog/cards?name=fouinar")).json()) as { candidates: { variants: { id: string; finish: string }[] }[] };
   await page.request.post("/api/locations", { data: { code: "BOX-ST" } });
-  await page.request.post("/api/inventory/receive", {
+  const received = (await (await page.request.post("/api/inventory/receive", {
     data: { variantId: candidates[0]!.variants.find((v) => v.finish === "reverse")!.id, condition: "NM", quantity: 2, locationCode: "BOX-ST", unitCostCents: 5 },
     headers: { "Idempotency-Key": `e2e-stats-${Date.now()}` },
+  })).json()) as { offer: { id: string } };
+  // Une vente, pour que l'onglet des ventes ait de quoi montrer même si ce parcours est lancé seul.
+  await page.request.post("/api/orders", {
+    data: { lines: [{ offerId: received.offer.id, qty: 1, unitPriceCents: 150 }], shippingMode: "HAND_DELIVERY" },
+    headers: { "Idempotency-Key": `e2e-stats-sale-${Date.now()}` },
   });
 
   await page.goto("/statistiques");
-  await expect(page.getByRole("heading", { name: "Tableau de bord", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Statistiques", level: 1 })).toBeVisible();
+  // Par défaut : ce qui se vend. Les parcours précédents ont enregistré des ventes.
+  await expect(page.getByTestId("sales-insights")).toBeVisible();
+  await expect(page.getByTestId("sales-cards")).not.toHaveText("0");
+  await expect(page.getByTestId("sales-by-set")).toContainText("Ténèbres Embrasées");
+  await expect(page.getByTestId("sales-top-cards")).toContainText("Fouinar");
+  await page.getByRole("tab", { name: "Stock et cotes" }).click();
   await expect(page.getByTestId("stat-value")).toContainText("€");
   await expect(page.getByRole("heading", { name: "Valeur du stock par catégorie" })).toBeVisible();
 
@@ -731,8 +742,11 @@ test("stock : une ligne par carte, prix accepté d'un clic ou saisi sur place, f
   await expect(page.getByText("Aucune carte ne correspond.")).toBeVisible();
   await page.getByLabel("Rechercher dans le stock").fill("");
 
-  // Filtres : la boîte réduit la liste à son contenu ; les compteurs suivent ; un clic efface tout.
-  const filters = page.getByTestId("stock-filters");
+  // Filtres, regroupés derrière un bouton : la boîte réduit la liste à son contenu ; les filtres posés restent visibles
+  // en puces sous la recherche, et un clic les efface tous.
+  const filtersButton = page.getByTestId("stock-filters-button");
+  await filtersButton.click();
+  const filters = page.getByRole("dialog", { name: "Filtres du stock" });
   await filters.getByLabel("Boîte").selectOption("BOX-SK");
   await expect(page.getByTestId("stock-OF-SWSH3-136-FR-N-PO")).toBeVisible();
   await expect(page.getByTestId("stock-OF-SWSH3-136-FR-R-PO")).toBeVisible();
@@ -740,8 +754,14 @@ test("stock : une ligne par carte, prix accepté d'un clic ou saisi sur place, f
   await filters.getByLabel("État").selectOption("PO");
   await filters.getByLabel("Prix").selectOption("gte200");
   await expect(page.getByText("Aucune carte ne correspond.")).toBeVisible();
-  await filters.getByRole("button", { name: "Effacer les filtres" }).click();
-  await expect(filters.getByLabel("Boîte")).toHaveValue("");
+  await filters.getByRole("button", { name: "Voir les cartes" }).click();
+  await expect(filters).toHaveCount(0);
+  const chips = page.getByTestId("stock-filters");
+  await expect(chips).toContainText("Boîte : BOX-SK");
+  await expect(chips).toContainText("Prix : 200 € et plus");
+  await expect(filtersButton).toHaveAccessibleName("Filtres, 3 actifs");
+  await chips.getByRole("button", { name: "Tout effacer" }).click();
+  await expect(chips).toHaveCount(0);
 
   await page.getByLabel("Rechercher dans le stock").fill("fouinar");
 
@@ -758,6 +778,13 @@ test("stock : une ligne par carte, prix accepté d'un clic ou saisi sur place, f
   await reverse.click();
   const panel = page.getByTestId("stock-inspector");
   await expect(panel.getByTestId("stock-listing-title")).toContainText("Fouinar 136/189");
+  // La photo de l'exemplaire s'agrandit dans une visionneuse.
+  await panel.getByTestId("photo-stack").click();
+  const viewer = page.getByTestId("photo-viewer");
+  await expect(viewer.getByRole("img", { name: /Recto/ })).toBeVisible();
+  await viewer.getByRole("button", { name: "Fermer" }).click();
+  await expect(viewer).toHaveCount(0);
+  await expect(panel).toBeVisible();
 
   // Évolution du prix : les ventes réussies et l'annonce la moins chère, relevé après relevé (le plus ancien, dix jours plus tôt, valait moitié moins).
   const chart = panel.getByTestId("price-history");
@@ -897,7 +924,10 @@ test("mise en ligne planifiée : image de fin d'annonce, sélection de cartes, r
   await page.getByLabel("Rechercher dans le stock").fill("OF-SWSH3-136-FR-N-");
   await page.getByTestId("stock-OF-SWSH3-136-FR-N-LP").getByRole("checkbox").check();
   await page.getByTestId("stock-OF-SWSH3-136-FR-N-PL").getByRole("checkbox").check();
-  await page.getByRole("button", { name: "Planifier la mise en ligne (2)" }).click();
+  // La sélection fait apparaître sa barre d'actions ; sur téléphone, elles sont regroupées dans un menu.
+  await expect(page.getByTestId("action-bar")).toContainText("2 cartes sélectionnées");
+  await page.getByRole("button", { name: "Actions" }).click();
+  await page.getByRole("menuitem", { name: "Mettre en ligne" }).click();
   const dialog = page.getByRole("dialog", { name: "Planifier la mise en ligne" });
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date());
   await dialog.getByLabel("À partir du").fill(today);
@@ -905,11 +935,13 @@ test("mise en ligne planifiée : image de fin d'annonce, sélection de cartes, r
   await expect(dialog.getByTestId("plan-summary")).toContainText("2 cartes sur 2 jours");
   await dialog.getByRole("button", { name: "Planifier", exact: true }).click();
   await expect(page.getByText("2 cartes planifiées sur 2 jours")).toBeVisible();
+  await expect(page.getByTestId("action-bar")).toHaveCount(0);
 
+  // Le planning a sa page, ouverte depuis l'en-tête du stock.
+  await page.getByRole("link", { name: /^Mises en ligne/ }).click();
+  await page.waitForURL(/\/mises-en-ligne$/);
   const schedule = page.getByTestId("schedule");
   await expect(schedule).toContainText("2 mises en ligne planifiées sur 2 jours");
-  const lp = page.getByTestId("stock-OF-SWSH3-136-FR-N-LP");
-  const pl = page.getByTestId("stock-OF-SWSH3-136-FR-N-PL");
 
   // La carte du jour part tout de suite ; l'image promo est la dernière photo envoyée au canal.
   await schedule.getByRole("button", { name: "Publier maintenant les 1 du jour" }).click();
@@ -918,8 +950,6 @@ test("mise en ligne planifiée : image de fin d'annonce, sélection de cartes, r
   const stock = (await (await page.request.get("/api/stock?q=OF-SWSH3-136-FR-N-")).json()) as { items: { offerSku: string; status: string; planned: unknown }[] };
   expect(stock.items.find((r) => r.offerSku.endsWith("N-LP"))).toMatchObject({ status: "LISTED", planned: null });
   expect(stock.items.find((r) => r.offerSku.endsWith("N-PL"))).toMatchObject({ status: "READY", planned: { channel: "ebay" } });
-  await expect(lp).toBeVisible();
-  await expect(pl).toBeVisible();
 
   // Le reste du planning s'annule d'un clic.
   await schedule.getByRole("button", { name: /^Annuler les mises en ligne du/ }).click();

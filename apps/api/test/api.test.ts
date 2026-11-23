@@ -369,6 +369,36 @@ describe("scan batches", () => {
   });
 });
 
+describe("stock bulk actions", () => {
+  it("validates drafts, moves every position and accepts suggested prices for a selection, leaving the rest alone", async () => {
+    for (const code of ["BOX-01", "BOX-02"]) await call("POST", "/api/locations", { body: { code } });
+    const fouinar = await fouinarReverse();
+    const dracaufeu = (await call("GET", "/api/catalog/cards?name=dracaufeu")).json.candidates[0].variants[0].id as string;
+    const draft = await call("POST", "/api/inventory/receive", { body: { variantId: fouinar, condition: "EX", quantity: 1, locationCode: "BOX-01", unitCostCents: 0, draft: true } });
+    const active = await call("POST", "/api/inventory/receive", { body: { variantId: dracaufeu, condition: "NM", quantity: 2, locationCode: "BOX-01", unitCostCents: 0 } });
+    const offerIds = [draft.json.offer.id, active.json.offer.id] as string[];
+    const bulk = (body: unknown) => call("POST", "/api/stock/bulk", { body });
+
+    expect((await bulk({ action: "ACTIVATE", offerIds })).json).toEqual({ affected: 1 });
+    expect((await bulk({ action: "ACTIVATE", offerIds })).json).toEqual({ affected: 0 });
+
+    expect((await bulk({ action: "MOVE", offerIds, locationCode: "BOX-02" })).json).toEqual({ affected: 2 });
+    expect((await bulk({ action: "MOVE", offerIds, locationCode: "BOX-02" })).json).toEqual({ affected: 0 });
+    const stock = (await call("GET", "/api/stock")).json.items as { locations: string[]; draft: number }[];
+    expect(stock.map((r) => [r.locations, r.draft])).toEqual([[["BOX-02"], 0], [["BOX-02"], 0]]);
+
+    await sql`update offers set target_price_cents = null where id in ${sql(offerIds)}`;
+    const suggested = await sql<{ n: number }[]>`select count(*)::int as n from offers where id in ${sql(offerIds)} and suggested_price_cents is not null`;
+    expect((await bulk({ action: "ACCEPT_PRICE", offerIds })).json).toEqual({ affected: suggested[0]!.n });
+    const priced = await sql<{ target: number | null; suggested: number | null }[]>`
+      select target_price_cents as target, suggested_price_cents as suggested from offers where id in ${sql(offerIds)}`;
+    for (const o of priced) expect(o.target).toBe(o.suggested);
+
+    expect((await bulk({ action: "MOVE", offerIds })).status).toBe(400);
+    expect((await bulk({ action: "MOVE", offerIds, locationCode: "NOWHERE" })).status).toBe(404);
+  });
+});
+
 describe("photos added after the fact", () => {
   it("lets a card that entered stock without a photo get one later, which unblocks its listing, and removes it again", async () => {
     await call("POST", "/api/locations", { body: { code: "BOX-01" } });
@@ -520,6 +550,43 @@ describe("statistics and price alerts", () => {
     expect(dashboard.json).toMatchObject({ stock: { cards: 2, costCents: 20 }, openOrders: 0, byChannel: [] });
     expect(dashboard.json.months).toHaveLength(6);
     expect(dashboard.json.topOffers[0]).toMatchObject({ cardName: "Fouinar", quantity: 2 });
+  });
+});
+
+describe("what sells", () => {
+  it("breaks recent sales down by set, price band, condition, delay and top cards, without cancelled sales", async () => {
+    await call("POST", "/api/locations", { body: { code: "BOX-01" } });
+    const fouinar = await fouinarReverse();
+    const dracaufeu = (await call("GET", "/api/catalog/cards?name=dracaufeu")).json.candidates[0].variants[0].id as string;
+    const receive = async (variantId: string, quantity: number, unitCostCents: number) =>
+      (await call("POST", "/api/inventory/receive", { body: { variantId, condition: "NM", quantity, locationCode: "BOX-01", unitCostCents } })).json.offer.id as string;
+    const cheap = await receive(fouinar, 3, 20);
+    const rare = await receive(dracaufeu, 2, 5000);
+    const sell = (offerId: string, qty: number, unitPriceCents: number) =>
+      call("POST", "/api/orders", { body: { lines: [{ offerId, qty, unitPriceCents }], shippingMode: "HAND_DELIVERY" } });
+    await sell(cheap, 2, 80);
+    await sell(rare, 1, 12000);
+    const cancelled = (await sell(cheap, 1, 80)).json.id as string;
+    await call("POST", `/api/orders/${cancelled}/cancel`, { body: { reason: "Acheteur absent" } });
+
+    const { status, json } = await call("GET", "/api/stats/sales?days=30");
+    expect(status).toBe(200);
+    expect(json.days).toBe(30);
+    expect(json.totals).toMatchObject({
+      orders: 2, cards: 3, revenueCents: 12160, marginCents: 12160 - 40 - 5000, averageCardCents: 4053, averageOrderCents: 6080, medianDaysToSell: 0,
+    });
+    // 3 vendues, 1 Fouinar et 1 Dracaufeu encore en stock (l'annulée est revenue) : 3 / 5.
+    expect(json.totals.sellThroughPercent).toBe(60);
+    expect(json.byPriceBand.map((b: { key: string; cards: number }) => [b.key, b.cards])).toEqual([["lt1", 2], ["1-5", 0], ["5-10", 0], ["10-20", 0], ["20-50", 0], ["gte50", 1]]);
+    expect(json.byCondition).toEqual([{ key: "NM", label: "Near Mint", cards: 3, revenueCents: 12160 }]);
+    expect(json.bySet.map((x: { key: string; cards: number; inStock: number }) => [x.key, x.cards, x.inStock])).toEqual([["swsh3", 2, 1], ["base1", 1, 1]]);
+    expect(json.topCards[0]).toMatchObject({ name: "Fouinar", cards: 2, averageCents: 80 });
+    expect(json.daysToSell[0]).toMatchObject({ key: "lt7", cards: 3 });
+    expect(json.byWeekday).toHaveLength(7);
+    expect(json.months).toHaveLength(12);
+    expect(json.months.at(-1)).toMatchObject({ cards: 3, revenueCents: 12160 });
+    expect(json.previous).toEqual({ orders: 0, cards: 0, revenueCents: 0 });
+    expect((await call("GET", "/api/stats/sales?days=3")).status).toBe(400);
   });
 });
 

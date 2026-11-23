@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Camera, Check, FolderUp, ScanLine, Search, type LucideIcon } from "lucide-react";
+import { ArrowRight, Check, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Logo } from "@/components/app-shell";
 import { Channels } from "@/components/listings";
@@ -10,19 +10,14 @@ import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/misc";
 import { api } from "@/lib/api";
+import { INTAKE, type IntakeMode } from "@/lib/intake";
 import { authMessage } from "@/lib/auth-messages";
 import { LANGUAGES } from "@/lib/scan";
 import type { AppSettings, CatalogSet, ChannelState, PricingSettings } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const STEPS = ["Compte", "Scan", "Séries", "Emplacements", "Prix", "Canaux"] as const;
-type IntakeMode = NonNullable<AppSettings["intakeMode"]>;
 
-const INTAKE: { value: IntakeMode; label: string; hint: string; icon: LucideIcon }[] = [
-  { value: "SCANNER", label: "Scanner à défilement", hint: "Les cartes passent une à une, les images arrivent seules depuis le dossier du scanner.", icon: ScanLine },
-  { value: "CAMERA", label: "Appareil photo du téléphone", hint: "Vous photographiez recto puis verso au téléphone ; la revue se fait sur l'ordinateur.", icon: Camera },
-  { value: "FILES", label: "Envoi de fichiers", hint: "Les photos existent déjà : vous les déposez par lot.", icon: FolderUp },
-];
 
 function Step({ title, description, children, footer }: { title: string; description: string; children: ReactNode; footer: ReactNode }) {
   return (

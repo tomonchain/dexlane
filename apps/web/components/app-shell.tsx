@@ -1,9 +1,8 @@
 "use client";
 
-import { ChartColumn, CircleUserRound, House, Images, Layers, Package, ShoppingBasket, Plus, Receipt, ScanLine, Search, Settings, type LucideIcon } from "lucide-react";
+import { CalendarClock, ChartColumn, CircleUserRound, House, Package, Receipt, Search, Settings, ShoppingBasket, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { DropdownMenu } from "radix-ui";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -11,30 +10,21 @@ import { CommandMenu } from "./command-menu";
 import { ThemeSwitch } from "./theme";
 
 /** Les quatre destinations. Tout le reste se trouve dans le parcours (ajout, fiche d'une carte) ou dans Réglages. */
-const NAV: { href: string; label: string; icon: LucideIcon; match: string[] }[] = [
+const NAV: { href: string; label: string; short?: string; icon: LucideIcon; match: string[] }[] = [
   { href: "/", label: "Accueil", icon: House, match: [] },
   { href: "/stock", label: "Stock", icon: Package, match: ["/stock", "/inventaire"] },
+  { href: "/mises-en-ligne", label: "Mises en ligne", icon: CalendarClock, match: ["/mises-en-ligne"] },
   { href: "/achats", label: "Achats", icon: ShoppingBasket, match: ["/achats"] },
   { href: "/ventes", label: "Ventes", icon: Receipt, match: ["/ventes"] },
-  { href: "/statistiques", label: "Tableau de bord", icon: ChartColumn, match: ["/statistiques"] },
+  { href: "/statistiques", label: "Statistiques", short: "Stats", icon: ChartColumn, match: ["/statistiques"] },
   { href: "/reglages", label: "Réglages", icon: Settings, match: ["/reglages", "/prix", "/rangement", "/catalogue", "/compte"] },
 ];
-/** Sur téléphone, quatre onglets autour du bouton d'ajout ; Réglages est dans l'en-tête. */
-const MOBILE_NAV = [NAV[0]!, NAV[1]!, null, NAV[2]!, NAV[3]!]; // Accueil, Stock, +, Achats, Ventes
+/**
+ * Sur téléphone, cinq onglets ; Réglages et la recherche sont dans l'en-tête, les mises en ligne depuis le stock.
+ * L'ajout de cartes se fait depuis l'accueil et le stock.
+ */
+const MOBILE_NAV = ["/", "/stock", "/achats", "/ventes", "/statistiques"].map((href) => NAV.find((n) => n.href === href)!);
 const NO_SHELL = ["/login", "/bienvenue"];
-type IntakeMode = "SCANNER" | "CAMERA" | "FILES" | null;
-/** Le lot se présente selon le matériel choisi dans l'assistant de démarrage. */
-const LOT: Record<"SCANNER" | "CAMERA" | "FILES", { label: string; hint: string }> = {
-  SCANNER: { label: "Un lot scanné", hint: "Images du scanner à défilement" },
-  CAMERA: { label: "Un lot photographié", hint: "Au téléphone, recto puis verso" },
-  FILES: { label: "Un lot d'images", hint: "Photos déjà prises, déposées ensemble" },
-};
-const ADD: { href: string; label: string; hint: string; icon: LucideIcon }[] = [
-  { href: "/scanner/lot", label: "Un lot d'images", hint: "Fichiers du scanner à défilement", icon: Images },
-  { href: "/ajouter", label: "Une carte", hint: "Photo ou recherche dans le catalogue", icon: ScanLine },
-  { href: "/vrac", label: "Du vrac", hint: "Un lot compté, sans détail", icon: Layers },
-];
-
 const isCurrent = (pathname: string, item: (typeof NAV)[number]) =>
   item.href === "/" ? pathname === "/" : item.match.some((m) => pathname.startsWith(m));
 
@@ -47,44 +37,6 @@ export function Logo({ className }: { className?: string }) {
       </span>
       <span className="text-base font-semibold tracking-tight">dexlane</span>
     </span>
-  );
-}
-
-/** Bouton d'ajout : une seule entrée pour faire entrer des cartes, trois façons de le faire. */
-/** `compact` : bouton rond de la barre d'onglets ; `shrunk` : la barre est réduite pendant le défilement. */
-function AddMenu({ compact, shrunk, intake }: { compact?: boolean; shrunk?: boolean; intake: IntakeMode }) {
-  const items = ADD.map((item) => (item.href === "/scanner/lot" && intake ? { ...item, ...LOT[intake] } : item));
-  return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger
-        className={cn(
-          "flex items-center justify-center gap-2 rounded-md bg-primary text-sm font-medium text-primary-foreground shadow-xs transition-colors outline-none hover:bg-primary/90 focus-visible:ring-[3px] focus-visible:ring-ring/30",
-          compact ? cn("rounded-full shadow-md motion-safe:transition-all motion-safe:duration-300 [&_svg]:transition-all [&_svg]:duration-300", shrunk ? "size-9 [&_svg]:size-4" : "size-12 [&_svg]:size-5") : "h-10 w-full px-3",
-        )}
-        aria-label={compact ? "Ajouter des cartes" : undefined}
-      >
-        <Plus className="size-4" aria-hidden /> {!compact && "Ajouter des cartes"}
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content
-          align={compact ? "center" : "start"}
-          sideOffset={6}
-          className="z-50 w-64 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
-        >
-          {items.map((item) => (
-            <DropdownMenu.Item key={item.href} asChild>
-              <Link href={item.href} className="flex items-center gap-3 rounded-md px-2.5 py-2 outline-none data-[highlighted]:bg-accent">
-                <item.icon className="size-4 text-muted-foreground" aria-hidden />
-                <span className="grid">
-                  <span className="text-sm font-medium">{item.label}</span>
-                  <span className="text-xs text-muted-foreground">{item.hint}</span>
-                </span>
-              </Link>
-            </DropdownMenu.Item>
-          ))}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
   );
 }
 
@@ -130,7 +82,6 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
   const router = useRouter();
   // Sans session, la racine est la page de présentation publique : pas de navigation d'application autour.
   const bare = NO_SHELL.includes(pathname) || (pathname === "/" && !signedIn);
-  const [intake, setIntake] = useState<IntakeMode>(null);
   const navCompact = useCompactOnScroll(pathname);
 
   // Première utilisation : tant que l'assistant de démarrage n'a pas été terminé ou passé, il s'ouvre de lui-même.
@@ -140,7 +91,6 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
     api.appSettings()
       .then((s) => {
         if (cancelled) return;
-        setIntake(s.intakeMode);
         if (!s.onboardingDone) router.replace("/bienvenue");
       })
       .catch(() => undefined);
@@ -157,7 +107,6 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-56 flex-col border-r bg-sidebar lg:flex print:!hidden">
         <Link href="/" className="flex h-14 items-center px-4 outline-none"><Logo /></Link>
         <div className="grid gap-2 px-3">
-          <AddMenu intake={intake} />
           <button
             type="button"
             onClick={() => setSearching(true)}
@@ -229,10 +178,7 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
         data-testid="mobile-nav"
         data-compact={navCompact || undefined}
       >
-        {MOBILE_NAV.map((item) =>
-          item === null ? (
-            <span key="add" className="flex justify-center"><AddMenu compact shrunk={navCompact} intake={intake} /></span>
-          ) : (
+        {MOBILE_NAV.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -248,10 +194,9 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
               )}>
                 <item.icon className={cn("transition-all duration-300 motion-reduce:transition-none group-aria-[current=page]:stroke-[2.25]", navCompact ? "size-[18px]" : "size-5")} aria-hidden />
               </span>
-              <span className={cn("overflow-hidden leading-none transition-all duration-300 motion-reduce:transition-none", navCompact ? "max-h-0 opacity-0" : "max-h-4 opacity-100")}>{item.label}</span>
+              <span className={cn("overflow-hidden leading-none transition-all duration-300 motion-reduce:transition-none", navCompact ? "max-h-0 opacity-0" : "max-h-4 opacity-100")}>{item.short ?? item.label}</span>
             </Link>
-          ),
-        )}
+        ))}
       </nav>
 
       <CommandMenu open={searching} onOpenChange={setSearching} />

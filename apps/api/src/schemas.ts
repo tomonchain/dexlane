@@ -60,6 +60,12 @@ export const extractBody = z
   .refine(oneLocation, oneLocationMessage);
 
 export const moveBody = z.strictObject(location).refine(oneLocation, oneLocationMessage);
+/** Actions groupées sur des cartes du stock : accepter le prix suggéré, valider les brouillons, ranger ailleurs. */
+export const stockBulkBody = z.discriminatedUnion("action", [
+  z.strictObject({ action: z.literal("ACCEPT_PRICE"), offerIds: z.array(z.uuid()).min(1).max(500) }),
+  z.strictObject({ action: z.literal("ACTIVATE"), offerIds: z.array(z.uuid()).min(1).max(500) }),
+  z.strictObject({ action: z.literal("MOVE"), offerIds: z.array(z.uuid()).min(1).max(500), ...location }).refine(oneLocation, oneLocationMessage),
+]);
 
 export const adjustBody = z.strictObject({
   countedOnHand: z.number().int().min(0).max(1_000_000),
@@ -304,3 +310,4 @@ export const dealsQuery = z.object({
 export const slipsPrintedBody = z.strictObject({ orderIds: z.array(z.uuid()).min(1).max(200) });
 
 export const offerPhotoQuery = z.object({ kind: z.enum(["SCAN_FRONT", "SCAN_BACK"]).default("SCAN_FRONT") });
+export const salesInsightsQuery = z.object({ days: z.coerce.number().int().min(7).max(730).optional() });

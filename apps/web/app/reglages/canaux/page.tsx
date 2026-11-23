@@ -15,7 +15,7 @@ export default function ChannelSettingsPage() {
   }, []);
 
   return (
-    <Page>
+    <Page className="mx-auto w-full max-w-5xl">
       <PageHeader back={<BackLink href="/reglages">Réglages</BackLink>} title="Canaux de vente" description="Pour chaque marketplace : désactivé, en simulation pour tout essayer sans rien publier, ou réel." />
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <Channels channels={channels} onChange={setChannels} />

@@ -12,7 +12,7 @@ import {
   searchInventory, searchSellableOffers, shipOrder, updateLocationDescription,
 } from "@dexlane/inventory";
 import {
-  estimateVariants, findDeals, listWatched, platformPrices, trendingCards, unwatchCard, updateWatched, watchCard, getPricingSettings, priceHistory, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice, getAlertSettings, getDashboard, listPriceMoves, saveAlertSettings,
+  estimateVariants, findDeals, listWatched, platformPrices, trendingCards, unwatchCard, updateWatched, watchCard, getPricingSettings, priceHistory, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice, getAlertSettings, getDashboard, listPriceMoves, saveAlertSettings, salesInsights,
 } from "@dexlane/pricing";
 import {
   MAX_IMAGE_BYTES, RecognitionError, assertSupportedImage, identifyCard, type CardImage, type CardRecognizer, type ImageMediaType, addItem, createBatch, findItem, getBatch, listBatches, listItems, receiveBatch, receiveReady, setItemBack, updateBatch, updateItem,
@@ -346,6 +346,35 @@ export function createApp(deps: AppDeps) {
   /** Valeurs proposées par les filtres du stock : séries, boîtes et états présents. */
   app.get("/api/stock/facets", async (c) => c.json(await stockFacets(sql)));
 
+  /**
+   * Actions groupées sur la sélection du stock. Chaque carte passe par la même règle qu'à l'unité ; celles que l'action
+   * ne concerne pas (déjà tarifée, déjà validée, déjà dans la boîte) sont laissées telles quelles.
+   */
+  app.post("/api/stock/bulk", async (c) => {
+    const body = await parseJsonBody(c, s.stockBulkBody);
+    const actor = c.var.actor;
+    if (body.action === "ACCEPT_PRICE") {
+      const offers = await sql<{ id: string; suggestedPriceCents: number }[]>`
+        select id, suggested_price_cents from offers
+         where id in ${sql(body.offerIds)} and target_price_cents is null and suggested_price_cents is not null`;
+      for (const o of offers) await setOfferPrice(sql, { offerId: o.id, targetPriceCents: o.suggestedPriceCents, actor });
+      return c.json({ affected: offers.length });
+    }
+    if (body.action === "ACTIVATE") {
+      const items = await sql<{ id: string }[]>`
+        select id from stock_items where offer_id in ${sql(body.offerIds)} and lifecycle = 'DRAFT' and on_hand > 0 order by created_at`;
+      for (const item of items) await activateStock(sql, item.id, actor);
+      return c.json({ affected: items.length });
+    }
+    const location = await resolveLocation(sql, s.toLocationRef(body));
+    const items = await sql<{ id: string }[]>`
+      select id from stock_items
+       where offer_id in ${sql(body.offerIds)} and lifecycle <> 'ARCHIVED' and on_hand > 0 and location_id <> ${location.id}
+       order by created_at`;
+    for (const item of items) await moveStock(sql, item.id, location.id, actor);
+    return c.json({ affected: items.length });
+  });
+
   /** Photo ajoutée après coup à une carte déjà en stock (entrée sans scan, ou scan à refaire). */
   app.post("/api/stock/:offerId/photos", scanBody(), async (c) => {
     const offerId = parse(s.offerId, c.req.param("offerId"));
@@ -379,6 +408,9 @@ export function createApp(deps: AppDeps) {
 
   /** Activité récente pour l'accueil : ventes jour par jour sur 30 jours, dernières ventes, dernières mises en ligne. */
   app.get("/api/stats/activity", async (c) => c.json(await getActivity(sql)));
+
+  /** Ce qui se vend : séries, tranches de prix, états, raretés, délai de vente, sur une période (90 jours par défaut). */
+  app.get("/api/stats/sales", async (c) => c.json(await salesInsights(sql, parse(s.salesInsightsQuery, c.req.query()))));
 
   /** Variations de cote des cartes en stock ; `alerts=true` : seulement celles qui dépassent les seuils. */
   app.get("/api/stats/price-moves", async (c) => {

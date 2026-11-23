@@ -1,20 +1,30 @@
-import { Archive, BookOpen, Mail, Boxes, ChartColumn, ChevronRight, CircleUserRound, Megaphone, Sparkles, Store, Tags, type LucideIcon } from "lucide-react";
+import { Archive, BellRing, BookOpen, Boxes, ChevronRight, CircleUserRound, Mail, Megaphone, Printer, ScanLine, Sparkles, Store, Tags, type LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
+import { ExportStockRow } from "@/components/export-stock";
 import Link from "next/link";
 import { Page, PageHeader } from "@/components/ui/misc";
 
-const SECTIONS: { title: string; items: { href: string; label: string; hint: string; icon: LucideIcon }[] }[] = [
+const SECTIONS: { title: string; items: { href: string; label: string; hint: string; icon: LucideIcon }[]; extra?: ReactNode }[] = [
   {
     title: "Vendre",
     items: [
       { href: "/prix", label: "Règles de prix", hint: "Seuils de catégorie, arrondis, coefficients d'état, file de revue", icon: Tags },
       { href: "/reglages/annonces", label: "Modèle d'annonce et photos", hint: "Titre, description, fond des photos, image de fin d'annonce", icon: Megaphone },
       { href: "/reglages/canaux", label: "Canaux de vente", hint: "eBay et CardTrader : désactivé, simulation ou réel", icon: Store },
+      { href: "/reglages/alertes", label: "Alertes de prix", hint: "À partir de quelle variation de cote une carte vous est signalée", icon: BellRing },
+    ],
+  },
+  {
+    title: "Expédier",
+    items: [
+      { href: "/reglages/boutique", label: "Boutique et documents", hint: "Nom, adresse et mention légale des bons et reçus, format de l'imprimante", icon: Printer },
       { href: "/reglages/envois", label: "Frais d'envoi", hint: "Affranchissement, sleeve, top-loader, enveloppe : déduits de la marge", icon: Mail },
     ],
   },
   {
     title: "Ranger",
     items: [
+      { href: "/reglages/saisie", label: "Saisie des cartes", hint: "Scanner à défilement, appareil photo ou fichiers", icon: ScanLine },
       { href: "/rangement", label: "Emplacements", hint: "Boîtes, classeurs, lots d'acquisition", icon: Archive },
       { href: "/inventaire", label: "Positions physiques", hint: "Chaque position par code, pour retrouver ou corriger un exemplaire", icon: Boxes },
     ],
@@ -23,16 +33,16 @@ const SECTIONS: { title: string; items: { href: string; label: string; hint: str
     title: "Application",
     items: [
       { href: "/catalogue", label: "Catalogue", hint: "Séries importées et cotations", icon: BookOpen },
-      { href: "/statistiques", label: "Tableau de bord", hint: "Valeur du stock, ventes, variations de prix", icon: ChartColumn },
       { href: "/bienvenue", label: "Assistant de démarrage", hint: "Revoir les étapes : mode de scan, séries, emplacements, prix, canaux", icon: Sparkles },
       { href: "/compte", label: "Compte", hint: "Mot de passe, thème, déconnexion", icon: CircleUserRound },
     ],
+    extra: <ExportStockRow />,
   },
 ];
 
 export default function SettingsPage() {
   return (
-    <Page width="narrow" className="gap-6">
+    <Page width="narrow" className="mx-auto w-full gap-6">
       <PageHeader title="Réglages" />
       {SECTIONS.map((section) => (
         <section key={section.title} className="grid gap-2">
@@ -48,6 +58,7 @@ export default function SettingsPage() {
                 <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
               </Link>
             ))}
+            {section.extra}
           </div>
         </section>
       ))}

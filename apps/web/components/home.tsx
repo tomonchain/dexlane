@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { formatDateTime, formatEuros, variantLabel } from "@/lib/format";
 import type { Activity, WatchedCard, OrderList, PriceMoves, ScanBatch, Schedule, StockPage } from "@/lib/types";
+import { AddMenu } from "./add-menu";
 import { CardThumb } from "./card-chooser";
 import { DailyColumns } from "./charts";
 import { Badge } from "./ui/badge";
@@ -139,18 +140,18 @@ export function Home() {
     )),
     stock.counts.DRAFT > 0 && <Task key="draft" count={stock.counts.DRAFT} label={stock.counts.DRAFT > 1 ? "brouillons à valider" : "brouillon à valider"} hint="En stock, mais pas encore vendables" href="/stock?statut=DRAFT" action="Valider" />,
     stock.counts.TO_PRICE > 0 && <Task key="price" count={stock.counts.TO_PRICE} label={stock.counts.TO_PRICE > 1 ? "cartes à tarifer" : "carte à tarifer"} hint="Sans prix : la cote manque ou demande une vérification" href="/stock?statut=TO_PRICE" action="Fixer les prix" />,
-    unplanned > 0 && <Task key="plan" count={unplanned} label={unplanned > 1 ? "cartes prêtes, pas encore en ligne" : "carte prête, pas encore en ligne"} hint="Prix fixé, à publier ou à planifier" href="/stock?statut=READY" action="Planifier la mise en ligne" />,
-    dueToday > 0 && <Task key="due" count={dueToday} label={dueToday > 1 ? "mises en ligne prévues aujourd'hui" : "mise en ligne prévue aujourd'hui"} hint="Publiées par la tâche du matin, ou tout de suite depuis le planning" href="/stock" action="Voir le planning" />,
-    schedule.failed.length > 0 && <Task key="failed" count={schedule.failed.length} label={schedule.failed.length > 1 ? "mises en ligne en échec" : "mise en ligne en échec"} hint="Prix, photo ou stock manquant au moment de publier" href="/stock" action="Corriger" />,
+    unplanned > 0 && <Task key="plan" count={unplanned} label={unplanned > 1 ? "cartes prêtes, pas encore en ligne" : "carte prête, pas encore en ligne"} hint="Prix fixé, à publier ou à planifier" href="/mises-en-ligne" action="Planifier la mise en ligne" />,
+    dueToday > 0 && <Task key="due" count={dueToday} label={dueToday > 1 ? "mises en ligne prévues aujourd'hui" : "mise en ligne prévue aujourd'hui"} hint="Publiées par la tâche du matin, ou tout de suite depuis le planning" href="/mises-en-ligne" action="Voir le planning" />,
+    schedule.failed.length > 0 && <Task key="failed" count={schedule.failed.length} label={schedule.failed.length > 1 ? "mises en ligne en échec" : "mise en ligne en échec"} hint="Prix, photo ou stock manquant au moment de publier" href="/mises-en-ligne" action="Corriger" />,
     orders.counts.TO_PREPARE > 0 && <Task key="prepare" count={orders.counts.TO_PREPARE} label={orders.counts.TO_PREPARE > 1 ? "ventes à préparer" : "vente à préparer"} hint="Cartes réservées, à sortir de leur boîte" href="/ventes" action="Préparer" />,
     orders.counts.PACKED > 0 && <Task key="packed" count={orders.counts.PACKED} label={orders.counts.PACKED > 1 ? "colis à remettre" : "colis à remettre"} hint="Emballés, en attente de dépôt ou de remise" href="/ventes" action="Remettre" />,
     data.watched && data.watched.alerts > 0 && <Task key="watched" count={data.watched.alerts} label={data.watched.alerts > 1 ? "cartes suivies à regarder" : "carte suivie à regarder"} hint="Prix cible atteint ou variation au-delà de vos seuils" href="/achats" action="Voir les achats" />,
-    moves && moves.alerts > 0 && <Task key="alerts" count={moves.alerts} label={moves.alerts > 1 ? "cartes dont la cote a bougé" : "carte dont la cote a bougé"} hint={`Au-delà de ${moves.settings.percent} % sur ${moves.settings.windowDays} jours`} href="/statistiques" action="Voir les variations" />,
+    moves && moves.alerts > 0 && <Task key="alerts" count={moves.alerts} label={moves.alerts > 1 ? "cartes dont la cote a bougé" : "carte dont la cote a bougé"} hint={`Au-delà de ${moves.settings.percent} % sur ${moves.settings.windowDays} jours`} href="/statistiques?vue=cotes" action="Voir les variations" />,
   ].filter(Boolean);
 
   return (
     <Page className="gap-6">
-      <PageHeader title="Aujourd'hui" description={capitalize(today.format(new Date()))} />
+      <PageHeader title="Aujourd'hui" description={capitalize(today.format(new Date()))} actions={<AddMenu />} />
 
       <section className="grid gap-2" aria-label="À faire">
         <h2 className="px-1 text-xs font-medium text-muted-foreground">À faire</h2>

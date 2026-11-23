@@ -12,9 +12,11 @@ import { Button } from "./ui/button";
  * Photos de l'exemplaire d'une carte en stock : les voir, en retirer une, en ajouter une après coup
  * (carte entrée sans scan, ou photo à refaire). La première photo est le recto, la suivante le verso.
  */
-export function OfferPhotos({ offerId, photos, run, disabled }: {
+export function OfferPhotos({ offerId, photos, run, disabled, onOpen }: {
   offerId: string;
   photos: Photo[];
+  /** Ouvre la photo en grand ; sans lui, la photo s'ouvre dans un nouvel onglet. */
+  onOpen?: (photo: Photo) => void;
   /** Exécute l'action, affiche son message de succès et recharge la carte. */
   run: (action: () => Promise<string>) => void;
   disabled?: boolean;
@@ -27,9 +29,15 @@ export function OfferPhotos({ offerId, photos, run, disabled }: {
     <div className="flex flex-wrap items-center gap-2" data-testid="offer-photos">
       {scans.map((photo) => (
         <span key={photo.id} className="relative">
-          <a href={photo.url} target="_blank" rel="noreferrer" className="block rounded outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30">
-            <img src={photo.url} alt={photo.kind === "SCAN_BACK" ? "Verso" : "Recto"} loading="lazy" className="aspect-[63/88] w-12 rounded bg-muted object-cover ring-1 ring-border" />
-          </a>
+          {onOpen ? (
+            <button type="button" onClick={() => onOpen(photo)} title="Agrandir" className="block rounded outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30">
+              <img src={photo.url} alt={photo.kind === "SCAN_BACK" ? "Verso" : "Recto"} loading="lazy" className="aspect-[63/88] w-12 rounded bg-muted object-cover ring-1 ring-border" />
+            </button>
+          ) : (
+            <a href={photo.url} target="_blank" rel="noreferrer" className="block rounded outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30">
+              <img src={photo.url} alt={photo.kind === "SCAN_BACK" ? "Verso" : "Recto"} loading="lazy" className="aspect-[63/88] w-12 rounded bg-muted object-cover ring-1 ring-border" />
+            </a>
+          )}
           <button
             type="button"
             disabled={disabled}
