@@ -114,6 +114,11 @@ export const api = {
     request<{ items: ListingOffer[]; total: number }>("GET", "/listings/offers", { query: q }),
 
   appSettings: () => request<AppSettings>("GET", "/app-settings"),
+  notifications: () => request<{ publicKey: string; devices: number; preferences: { sales: boolean; watched: boolean; publications: boolean } }>("GET", "/notifications"),
+  subscribePush: (subscription: { endpoint: string; keys: { p256dh: string; auth: string }; locale: "fr" | "en" }) =>
+    request<{ devices: number }>("POST", "/notifications/subscriptions", { json: subscription }),
+  unsubscribePush: (endpoint: string) => request<{ devices: number }>("POST", "/notifications/subscriptions/remove", { json: { endpoint } }),
+  testPush: () => request<{ sent: number; removed: number; failed: number }>("POST", "/notifications/test"),
   saveAppSettings: (change: Partial<AppSettings>) => request<AppSettings>("PUT", "/app-settings", { json: change }),
 
   schedule: () => request<Schedule>("GET", "/publications"),

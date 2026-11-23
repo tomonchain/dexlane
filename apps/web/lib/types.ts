@@ -133,6 +133,7 @@ export interface AppSettings {
   intakeMode: "SCANNER" | "CAMERA" | "FILES" | null;
   slipPaper: SlipPaper;
   seller: Seller;
+  notifications: { sales: boolean; watched: boolean; publications: boolean };
 }
 /** Préparation des envois : les commandes à préparer et ce qu'il faut pour imprimer leurs bons. */
 export interface ShippingRun { orders: OrderDetail[]; seller: Seller; slipPaper: SlipPaper }

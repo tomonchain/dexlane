@@ -1483,3 +1483,18 @@ test("cache : en revenant sur un écran, ses dernières données s'affichent tou
   await page.waitForURL(/\/login/);
   expect(await page.evaluate(() => localStorage.getItem("dexlane-cache-v1"))).toBeNull();
 });
+
+test("notifications : réglage par appareil et choix de ce qui est signalé", async ({ page }) => {
+  await login(page);
+  await page.goto("/reglages");
+  await page.getByRole("link", { name: /^Notifications/ }).click();
+  await expect(page.getByRole("heading", { name: "Notifications", level: 1 })).toBeVisible();
+  await expect(page.getByTestId("push-device")).toContainText(/appareils? abonnés? en tout/);
+  const watched = page.getByRole("switch", { name: "Cartes suivies" });
+  await expect(watched).toBeChecked();
+  await watched.click();
+  await expect(watched).not.toBeChecked();
+  await expect.poll(async () => ((await (await page.request.get("/api/notifications")).json()) as { preferences: { watched: boolean } }).preferences.watched).toBe(false);
+  await watched.click();
+  await expect.poll(async () => ((await (await page.request.get("/api/notifications")).json()) as { preferences: { watched: boolean } }).preferences.watched).toBe(true);
+});

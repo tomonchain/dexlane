@@ -287,7 +287,14 @@ export const appSettingsBody = z.strictObject({
   intakeMode: z.enum(["SCANNER", "CAMERA", "FILES"]).nullable().optional(),
   slipPaper: z.enum(["ROLL_80", "ROLL_58", "LABEL_100X150", "A4"]).optional(),
   seller: z.strictObject({ name: z.string().trim().max(80), address: z.string().trim().max(300), legal: z.string().trim().max(300) }).optional(),
+  notifications: z.strictObject({ sales: z.boolean(), watched: z.boolean(), publications: z.boolean() }).optional(),
 });
+export const pushSubscriptionBody = z.strictObject({
+  endpoint: z.url().max(1000),
+  keys: z.strictObject({ p256dh: z.string().min(1).max(200), auth: z.string().min(1).max(100) }),
+  locale: z.enum(["fr", "en"]).default("fr"),
+});
+export const pushEndpointBody = z.strictObject({ endpoint: z.url().max(1000) });
 const postage = z.number().int().min(0).max(100_000).nullable();
 export const shippingCostsBody = z.strictObject({
   postage: z.strictObject({ LETTER_UNTRACKED: postage, LETTER_TRACKED: postage, PARCEL_TRACKED: postage }),

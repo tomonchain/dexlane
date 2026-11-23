@@ -7,7 +7,8 @@ export const maxDuration = 300;
 
 /**
  * Tâche quotidienne (Vercel Cron, voir vercel.json) : relève les cotations des cartes en stock,
- * publie les annonces planifiées pour aujourd'hui, puis synchronise les canaux de vente. Vercel présente `CRON_SECRET` en jeton porteur ; sans lui, rien ne s'exécute.
+ * publie les annonces planifiées pour aujourd'hui, synchronise les canaux de vente, puis envoie le résumé du matin
+ * sur les téléphones abonnés. Vercel présente `CRON_SECRET` en jeton porteur ; sans lui, rien ne s'exécute.
  */
 export async function GET(req: NextRequest): Promise<Response> {
   const secret = process.env.CRON_SECRET ?? "";
@@ -28,6 +29,8 @@ export async function GET(req: NextRequest): Promise<Response> {
   const prices = await run("/api/prices/refresh");
   const publications = await run("/api/publications/run");
   const channels = await run("/api/channels/sync");
-  const ok = [prices, publications, channels].every((r) => r.status === 200);
-  return Response.json({ prices, publications, channels }, { status: ok ? 200 : 502 });
+  // En dernier : le résumé envoyé sur le téléphone compte ce que les étapes précédentes viennent de faire.
+  const notifications = await run("/api/notifications/digest");
+  const ok = [prices, publications, channels, notifications].every((r) => r.status === 200);
+  return Response.json({ prices, publications, channels, notifications }, { status: ok ? 200 : 502 });
 }

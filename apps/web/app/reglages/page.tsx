@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, BellRing, BookOpen, Boxes, ChevronRight, CircleUserRound, Mail, Megaphone, Printer, ScanLine, Sparkles, Store, Tags, type LucideIcon } from "lucide-react";
+import { Archive, BellDot, BellRing, BookOpen, Boxes, ChevronRight, CircleUserRound, Mail, Megaphone, Printer, ScanLine, Sparkles, Store, Tags, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { ExportStockRow } from "@/components/export-stock";
 import Link from "next/link";
@@ -37,6 +37,7 @@ const SECTIONS: { title: string; items: { href: string; label: string; hint: str
     items: [
       { href: "/catalogue", label: "Catalogue", hint: "Séries importées et cotations", icon: BookOpen },
       { href: "/bienvenue", label: "Assistant de démarrage", hint: "Revoir les étapes : mode de scan, séries, emplacements, prix, canaux", icon: Sparkles },
+      { href: "/reglages/notifications", label: "Notifications", hint: "Résumé du matin sur votre téléphone : ventes, cartes suivies, mises en ligne", icon: BellDot },
       { href: "/compte", label: "Compte", hint: "Mot de passe, thème, déconnexion", icon: CircleUserRound },
     ],
     extra: <ExportStockRow />,

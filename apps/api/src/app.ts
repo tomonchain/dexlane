@@ -26,6 +26,9 @@ import {
 } from "@dexlane/listings";
 import { readPhoto, type PhotoStore } from "./photos";
 import { getAppSettings, saveAppSettings } from "./settings";
+import {
+  broadcast, countSubscriptions, removeSubscription, saveSubscription, sendDigest, testMessage, vapidKeys, webPushSender, type PushSender,
+} from "./notifications";
 import * as s from "./schemas";
 
 export interface AppDeps {
@@ -40,6 +43,8 @@ export interface AppDeps {
   channels?: ChannelAdapters;
   /** Source du catalogue (TCGdex par défaut) ; remplaçable dans les tests. */
   tcgdex?: () => TcgdexClient;
+  /** Envoi des notifications sur le téléphone (Web Push par défaut) ; remplaçable dans les tests. */
+  push?: PushSender;
   onError?: (err: unknown) => void;
 }
 
@@ -234,6 +239,29 @@ export function createApp(deps: AppDeps) {
 
   app.get("/api/app-settings", async (c) => c.json(await getAppSettings(sql)));
   app.put("/api/app-settings", async (c) => c.json(await saveAppSettings(sql, await parseJsonBody(c, s.appSettingsBody))));
+
+  // ───────────────────────── Notifications sur le téléphone ─────────────────────────
+
+  const push = deps.push ?? webPushSender;
+  /** Clé publique pour abonner un appareil, nombre d'appareils abonnés, et ce qui est notifié. */
+  app.get("/api/notifications", async (c) => c.json({
+    publicKey: (await vapidKeys(sql)).publicKey,
+    devices: await countSubscriptions(sql),
+    preferences: (await getAppSettings(sql)).notifications,
+  }));
+  app.post("/api/notifications/subscriptions", async (c) => {
+    const body = await parseJsonBody(c, s.pushSubscriptionBody);
+    await saveSubscription(sql, { ...body, userAgent: c.req.header("User-Agent")?.slice(0, 300) });
+    return c.json({ devices: await countSubscriptions(sql) }, 201);
+  });
+  app.post("/api/notifications/subscriptions/remove", async (c) => {
+    await removeSubscription(sql, (await parseJsonBody(c, s.pushEndpointBody)).endpoint);
+    return c.json({ devices: await countSubscriptions(sql) });
+  });
+  /** Une notification d'essai sur chaque appareil abonné. */
+  app.post("/api/notifications/test", async (c) => c.json(await broadcast(sql, push, testMessage)));
+  /** Résumé du matin (tâche quotidienne, après la synchronisation des canaux) : envoyé s'il y a du nouveau. */
+  app.post("/api/notifications/digest", async (c) => c.json(await sendDigest(sql, push, (await getAppSettings(sql)).notifications)));
 
   // ───────────────────────── Mise en ligne planifiée ─────────────────────────
 
