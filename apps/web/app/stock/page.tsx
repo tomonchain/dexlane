@@ -31,7 +31,6 @@ import { composeMissingVisuals } from "@/lib/visuals";
 import { exportStockCsv } from "@/lib/export";
 import { InspectorSkeleton, StockRowsSkeleton } from "@/components/skeletons";
 import { useCachedState } from "@/lib/cache";
-import { PriceGauge, PriceGaugeLegend } from "@/components/price-gauge";
 import { StockTabs, stockCategory } from "@/components/stock-tabs";
 import { SuppliesView } from "@/components/supplies";
 import { MovementsView, RecentMovements } from "@/components/stock-movements";
@@ -323,30 +322,30 @@ export default function StockPage() {
 /** Le stock en trois rubriques : les cartes, les fournitures d'expédition, et le journal des mouvements. */
 function StockSections() {
   const params = useSearchParams();
-  const category = stockCategory(params.get("categorie"));
+  const category = stockCategory(params.get("section"));
   const [toReorder, setToReorder] = useState(0);
   useEffect(() => {
     api.supplies().then((d) => setToReorder(d.toReorder)).catch(() => undefined);
   }, [category]);
-  const tabs = <StockTabs current={category} badges={{ fournitures: toReorder }} />;
-  if (category === "fournitures") {
+  const tabs = <StockTabs current={category} badges={{ supplies: toReorder }} />;
+  if (category === "supplies") {
     return (
       <Page className="gap-4">
         <SuppliesView header={(meta, actions, badge) => (
           <>
             <PageHeader title={t("Stock")} meta={meta} actions={actions} />
-            <StockTabs current="fournitures" badges={{ fournitures: badge }} />
+            <StockTabs current="supplies" badges={{ supplies: badge }} />
           </>
         )} />
       </Page>
     );
   }
-  if (category === "mouvements") {
+  if (category === "movements") {
     return (
       <Page className="gap-4">
         <PageHeader title={t("Stock")} description={t("Tout ce qui entre, sort, est corrigé ou déplacé, cartes et fournitures.")} />
         {tabs}
-        <MovementsView initialCategory={params.get("rubrique") === "SUPPLY" ? "SUPPLY" : undefined} />
+        <MovementsView initialCategory={params.get("category") === "SUPPLY" ? "SUPPLY" : undefined} />
       </Page>
     );
   }
@@ -354,9 +353,9 @@ function StockSections() {
 }
 
 function Stock({ tabs }: { tabs: ReactNode }) {
-  // L'accueil renvoie ici avec un filtre déjà posé (« ?statut=TO_PRICE »).
+  // L'accueil renvoie ici avec un filtre déjà posé (« ?status=TO_PRICE »).
   const params = useSearchParams();
-  const requested = params.get("statut") as Filter | null;
+  const requested = params.get("status") as Filter | null;
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>(requested && FILTERS.includes(requested) ? requested : "ALL");
   const [sort, setSort] = useState<Sort>("recent");
@@ -365,8 +364,8 @@ function Stock({ tabs }: { tabs: ReactNode }) {
   const [page, setPage] = useState(1);
   const [data, setData] = useCachedState<StockPage>(`stock:${JSON.stringify([query.trim(), filter, sort, page, filters])}`, { keepPrevious: true });
   const [error, setError] = useState<string | null>(null);
-  // La fiche d'une carte renvoie ici sur une offre précise (« ?offre=… ») : son panneau s'ouvre d'emblée.
-  const [selected, setSelected] = useState<string | null>(params.get("offre"));
+  // La fiche d'une carte renvoie ici sur une offre précise (« ?offer=… ») : son panneau s'ouvre d'emblée.
+  const [selected, setSelected] = useState<string | null>(params.get("offer"));
   const [version, setVersion] = useState(0);
   const [channels, setChannels] = useState<ChannelState[]>([]);
   const [accepting, setAccepting] = useState(false);
@@ -504,7 +503,7 @@ function Stock({ tabs }: { tabs: ReactNode }) {
         )}
         actions={<>
           <Button asChild variant="outline">
-            <Link href="/mises-en-ligne">
+            <Link href="/listings">
               <CalendarClock /> {t("Mises en ligne")}
               {scheduled > 0 && <span className="tabular rounded-full bg-muted px-1.5 text-[11px] font-semibold text-muted-foreground">{scheduled}</span>}
             </Link>
@@ -523,8 +522,8 @@ function Stock({ tabs }: { tabs: ReactNode }) {
             <p className="max-w-sm text-sm text-muted-foreground">{t("Faites entrer vos cartes : elles sont identifiées, estimées, puis prêtes à vendre.")}</p>
           </div>
           <div className="flex flex-wrap justify-center gap-2">
-            <Button asChild><Link href="/scanner/lot"><Images /> {t("Importer un lot d'images")}</Link></Button>
-            <Button asChild variant="outline"><Link href="/ajouter"><ScanLine /> {t("Ajouter une carte")}</Link></Button>
+            <Button asChild><Link href="/scanner/batch"><Images /> {t("Importer un lot d'images")}</Link></Button>
+            <Button asChild variant="outline"><Link href="/add"><ScanLine /> {t("Ajouter une carte")}</Link></Button>
           </div>
         </div>
       ) : (
@@ -598,7 +597,6 @@ function Stock({ tabs }: { tabs: ReactNode }) {
             </div>
           )}
 
-          <PriceGaugeLegend className="-mb-2 justify-end" />
           <div className={cn("grid items-start gap-4", selected && desktop && "lg:grid-cols-[minmax(0,1fr)_25rem]")}>
             <div className="overflow-hidden rounded-lg border bg-card">
               <table className="w-full border-collapse text-left text-sm">
@@ -618,6 +616,7 @@ function Stock({ tabs }: { tabs: ReactNode }) {
                       />
                     </th>
                     <th className="h-9 px-3 font-medium">{t("Carte")}</th>
+                    <th className="hidden px-3 font-medium sm:table-cell">{t("Extension")}</th>
                     <th className="hidden px-3 font-medium sm:table-cell">{t("État")}</th>
                     <th className="px-3 text-right font-medium">{t("Qté")}</th>
                     <th className="hidden px-3 font-medium md:table-cell">{t("Emplacement")}</th>
@@ -650,10 +649,11 @@ function Stock({ tabs }: { tabs: ReactNode }) {
                             : <CardThumb imageUrl={row.imageUrl} size="sm" className="w-8 rounded-[3px]" />}
                           <span className="grid min-w-0">
                             <span className="truncate font-medium">{row.name}</span>
-                            <span className="truncate text-xs text-muted-foreground"><span className="sm:hidden">{row.condition} · </span>{subtitle(row)}</span>
+                            <span className="truncate text-xs text-muted-foreground"><span className="sm:hidden">{row.condition} · {row.setCode} · </span>{subtitle(row)}</span>
                           </span>
                         </span>
                       </td>
+                      <td className="hidden px-3 sm:table-cell" title={row.setName ?? undefined}><Code className="text-xs font-medium" data-testid="stock-set-code">{row.setCode}</Code></td>
                       <td className="hidden px-3 font-mono text-xs sm:table-cell">{row.condition}</td>
                       <td className="tabular px-3 text-right whitespace-nowrap">
                         {row.onHand}
@@ -668,9 +668,8 @@ function Stock({ tabs }: { tabs: ReactNode }) {
                         : t("Aucune vente récente : {quote} des annonces Cardmarket, relevée {age}", { quote: quoteLabel(row.reference.quoteType).toLowerCase(), age: age(row.reference.observedAt) })) : undefined}>
                         {row.reference ? `${row.sales ? "" : "≈ "}${formatEuros(row.reference.amountCents)}` : "—"}
                       </td>
-                      <td className="px-3 py-1 text-right" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-3 text-right" onClick={(e) => e.stopPropagation()}>
                         <PriceCell row={row} onSaved={changed} />
-                        <PriceGauge priceCents={row.targetPriceCents} costCents={row.averageCostCents} quoteCents={row.reference?.amountCents ?? null} className="mt-0.5 ml-auto w-20 sm:w-24" />
                       </td>
                       <td className="hidden px-3 sm:table-cell"><StatusMark status={row.status} plannedOn={row.planned?.plannedOn} /></td>
                     </tr>
@@ -838,9 +837,9 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
         {viewing !== null && <PhotoViewer photos={views} start={viewing} title={`${d.name} · ${d.condition}`} onClose={() => setViewing(null)} />}
         <div className="grid min-w-0 flex-1 content-start gap-1">
           <h2 className="text-base leading-snug font-semibold [overflow-wrap:anywhere]">
-            <Link href={`/carte/${d.catalogCardId}`} className="underline-offset-2 outline-none hover:underline focus-visible:underline" title={t("Fiche de la carte : toutes ses variantes et tous ses exemplaires")}>{d.name}</Link>
+            <Link href={`/card/${d.catalogCardId}`} className="underline-offset-2 outline-none hover:underline focus-visible:underline" title={t("Fiche de la carte : toutes ses variantes et tous ses exemplaires")}>{d.name}</Link>
           </h2>
-          <p className="text-[13px] text-muted-foreground">{subtitle(d)} · {d.condition}</p>
+          <p className="text-[13px] text-muted-foreground"><Code className="font-medium text-foreground/80">{d.setCode}</Code> · {subtitle(d)} · {d.condition}</p>
           <div className="mt-1"><StatusMark status={d.status} /></div>
         </div>
         <button type="button" onClick={onClose} aria-label={t("Fermer la fiche")} className="hidden size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/30 lg:flex">
@@ -858,19 +857,6 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
           <span data-testid="stock-margin">{d.targetPriceCents === null ? "—" : formatEuros(d.targetPriceCents - d.averageCostCents - supplies)}</span>
         </Figure>
       </dl>
-      <div className="grid gap-1.5 px-4 pb-3">
-        <PriceGauge size="lg" priceCents={d.targetPriceCents} costCents={d.averageCostCents} quoteCents={d.reference?.amountCents ?? null} />
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-          <PriceGaugeLegend />
-          {d.reference && d.targetPriceCents !== null && (
-            <span className="tabular text-[11px] text-muted-foreground" data-testid="stock-vs-quote">
-              {d.targetPriceCents >= d.reference.amountCents
-                ? t("{percent} % au-dessus de la cote", { percent: Math.round(((d.targetPriceCents - d.reference.amountCents) / Math.max(d.reference.amountCents, 1)) * 100) })
-                : t("{percent} % sous la cote", { percent: Math.round(((d.reference.amountCents - d.targetPriceCents) / Math.max(d.reference.amountCents, 1)) * 100) })}
-            </span>
-          )}
-        </div>
-      </div>
 
       <Section title={t("Prix")}>
         <form
@@ -914,7 +900,7 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
         <PriceHistory variantId={d.variantId} />
       </section>
 
-      <Section title={t("Annonce")} aside={<Link href="/reglages/annonces" className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">{t("Modèle et photos")}</Link>}>
+      <Section title={t("Annonce")} aside={<Link href="/settings/listing" className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">{t("Modèle et photos")}</Link>}>
         <div className="flex items-start gap-2">
           <p className="flex-1 text-sm leading-snug [overflow-wrap:anywhere]" data-testid="stock-listing-title">{d.text.title}</p>
           <Button variant="ghost" size="icon-sm" onClick={() => copy(d.text.title, t("Titre copié"))} aria-label={t("Copier le titre")}><Copy /></Button>
@@ -983,7 +969,7 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
         <ul className="grid gap-1">
           {d.positions.map((p) => (
             <li key={p.id} className="flex items-center gap-3 text-[13px]">
-              <Link href={`/inventaire/${p.unitSku}`} className="font-mono text-xs font-medium underline-offset-2 outline-none hover:underline focus-visible:underline">{p.unitSku}</Link>
+              <Link href={`/inventory/${p.unitSku}`} className="font-mono text-xs font-medium underline-offset-2 outline-none hover:underline focus-visible:underline">{p.unitSku}</Link>
               <Code className="text-xs text-muted-foreground">{p.locationCode}</Code>
               <span className="tabular ml-auto">× {p.onHand}</span>
               {p.lifecycle === "DRAFT" && (

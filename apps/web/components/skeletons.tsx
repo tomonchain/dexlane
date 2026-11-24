@@ -117,6 +117,7 @@ export function StockRowsSkeleton({ count = 8, wideSales = true }: { count?: num
               </span>
             </span>
           </td>
+          <td className="hidden px-3 sm:table-cell"><Bone className="h-3.5 w-10" /></td>
           <td className="hidden px-3 sm:table-cell"><Bone className="h-3.5 w-6" /></td>
           <td className="px-3"><Bone className="ml-auto h-3.5 w-5" /></td>
           <td className="hidden px-3 md:table-cell"><Bone className="h-3.5 w-16" /></td>

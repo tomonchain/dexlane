@@ -24,10 +24,13 @@ export interface AppSettings {
   seller: Seller;
   /** Ce qui mérite une notification sur le téléphone. */
   notifications: NotificationPreferences;
+  /** Message de demande d'avis, avec {acheteur} et {boutique} ; vide : le message par défaut. */
+  reviewMessage: string;
 }
 
 const DEFAULTS: AppSettings = {
   onboardingDone: false, intakeMode: null, slipPaper: "ROLL_80", seller: { name: "", address: "", legal: "" }, notifications: DEFAULT_NOTIFICATION_PREFERENCES,
+  reviewMessage: "",
 };
 
 export async function getAppSettings(sql: Db): Promise<AppSettings> {

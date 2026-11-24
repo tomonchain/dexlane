@@ -119,7 +119,7 @@ export function SetCombobox({ language, value, onChange }: { language: string; v
           {options.length === 0 && (
             <p className="px-2.5 py-3 text-sm text-muted-foreground">
               {sets.length === 0 ? t("Aucune série importée pour cette langue.") : t("Aucune série importée ne correspond.")}{" "}
-              <Link href="/catalogue" className="font-medium text-primary underline-offset-2 hover:underline" onMouseDown={(e) => e.preventDefault()}>{t("Ouvrir le catalogue")}</Link>
+              <Link href="/catalog" className="font-medium text-primary underline-offset-2 hover:underline" onMouseDown={(e) => e.preventDefault()}>{t("Ouvrir le catalogue")}</Link>
             </p>
           )}
         </div>

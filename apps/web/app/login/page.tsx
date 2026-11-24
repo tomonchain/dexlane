@@ -47,7 +47,7 @@ export default function LoginPage() {
     api.authStatus()
       .then((s) => {
         // Aucun compte encore : l'assistant de démarrage s'en charge.
-        if (!s.passwordSet) window.location.replace("/bienvenue");
+        if (!s.passwordSet) window.location.replace("/welcome");
         else setMode("login");
       })
       .catch((e) => {

@@ -42,8 +42,10 @@ export interface NotificationPreferences {
   publications: boolean;
   /** Fournitures passées sous leur seuil de commande. */
   supplies: boolean;
+  /** Avis à demander, 24 h après la livraison d'une vente. */
+  reviews: boolean;
 }
-export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = { sales: true, watched: true, publications: true, supplies: true };
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = { sales: true, watched: true, publications: true, supplies: true, reviews: true };
 
 /** Envoi réel par les services de notification des navigateurs (Apple, Google, Mozilla). */
 export const webPushSender: PushSender = async (subscription, message, keys) => {
@@ -189,7 +191,7 @@ export function digestMessage(d: Digest, locale: PushLocale): PushMessage | null
   if (d.newOrders === 0 && d.toPrepare > 0) {
     lines.push(locale === "en" ? `${d.toPrepare} ${plural(d.toPrepare, locale, ["", ""], ["sale", "sales"])} waiting to be prepared` : `${d.toPrepare} ${plural(d.toPrepare, locale, ["vente attend", "ventes attendent"], ["", ""])} d'être préparée${d.toPrepare > 1 ? "s" : ""}`);
   }
-  const url = d.newOrders > 0 ? "/ventes" : d.targets.length > 0 ? "/achats" : "/mises-en-ligne";
+  const url = d.newOrders > 0 ? "/sales" : d.targets.length > 0 ? "/buying" : "/listings";
   return { title: "Dexlane", body: lines.join(" · "), url, tag: "digest" };
 }
 
@@ -206,7 +208,7 @@ export async function sendDigest(sql: Db, send: PushSender, preferences: Notific
 
 /** Fournitures passées sous leur seuil de commande : une notification par passage sous le seuil. */
 export function suppliesMessage(items: { name: string; onHand: number }[], locale: PushLocale): PushMessage {
-  const url = "/stock?categorie=fournitures";
+  const url = "/stock?section=supplies";
   if (items.length === 1) {
     const [x] = items;
     const body = x!.onHand === 0
@@ -223,6 +225,26 @@ export function suppliesMessage(items: { name: string; onHand: number }[], local
   };
 }
 
+/** Avis à demander : les ventes livrées depuis 24 h, une notification pour toutes. */
+export function reviewsMessage(items: { orderId: string; externalId: string; buyerName: string | null }[], locale: PushLocale): PushMessage {
+  if (items.length === 1) {
+    const [x] = items;
+    const who = x!.buyerName ?? x!.externalId;
+    return {
+      title: locale === "en" ? "Ask for a review" : "Demander un avis",
+      body: locale === "en" ? `${who} received their order yesterday: time to ask for a review.` : `${who} a reçu sa commande hier : c'est le moment de demander un avis.`,
+      url: `/sales/${x!.orderId}`,
+      tag: "reviews",
+    };
+  }
+  return {
+    title: locale === "en" ? "Ask for reviews" : "Demander des avis",
+    body: locale === "en" ? `${items.length} orders were delivered yesterday: time to ask for reviews.` : `${items.length} commandes livrées hier : c'est le moment de demander des avis.`,
+    url: "/sales?review=due",
+    tag: "reviews",
+  };
+}
+
 export const testMessage = (locale: PushLocale): PushMessage => locale === "en"
-  ? { title: "Dexlane", body: "Notifications are on for this device.", url: "/reglages/notifications", tag: "test" }
-  : { title: "Dexlane", body: "Les notifications sont activées sur cet appareil.", url: "/reglages/notifications", tag: "test" };
+  ? { title: "Dexlane", body: "Notifications are on for this device.", url: "/settings/notifications", tag: "test" }
+  : { title: "Dexlane", body: "Les notifications sont activées sur cet appareil.", url: "/settings/notifications", tag: "test" };

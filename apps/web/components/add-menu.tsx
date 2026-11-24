@@ -16,9 +16,9 @@ const LOT: Record<IntakeMode, { label: string; hint: string }> = {
   FILES: { label: "Un lot d'images", hint: "Photos déjà prises, déposées ensemble" },
 };
 const ADD: { href: string; label: string; hint: string; icon: LucideIcon }[] = [
-  { href: "/scanner/lot", label: "Un lot d'images", hint: "Fichiers du scanner à défilement", icon: Images },
-  { href: "/ajouter", label: "Une carte", hint: "Photo ou recherche dans le catalogue", icon: ScanLine },
-  { href: "/vrac", label: "Du vrac", hint: "Un lot compté, sans détail", icon: Layers },
+  { href: "/scanner/batch", label: "Un lot d'images", hint: "Fichiers du scanner à défilement", icon: Images },
+  { href: "/add", label: "Une carte", hint: "Photo ou recherche dans le catalogue", icon: ScanLine },
+  { href: "/bulk", label: "Du vrac", hint: "Un lot compté, sans détail", icon: Layers },
 ];
 
 /** Bouton d'ajout : une seule entrée pour faire entrer des cartes, trois façons de le faire. */
@@ -27,7 +27,7 @@ export function AddMenu({ className }: { className?: string }) {
   useEffect(() => {
     api.appSettings().then((s) => setIntake(s.intakeMode)).catch(() => undefined);
   }, []);
-  const items = ADD.map((item) => (item.href === "/scanner/lot" && intake ? { ...item, ...LOT[intake] } : item));
+  const items = ADD.map((item) => (item.href === "/scanner/batch" && intake ? { ...item, ...LOT[intake] } : item));
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger

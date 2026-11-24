@@ -1,7 +1,7 @@
 import type { Candidate, CandidateVariant, CatalogHit as CatalogHitRow, CatalogSetCard as SetCard, CatalogSetDetail as SetDetail, CatalogSetSummary, SyncStats } from "@dexlane/catalog";
 import type {
   AcquisitionLotRow, CardCondition, InventoryRow, InventorySummary, LocationSummary, MovementRow, OrderDetail as OrderDetailRow, PhotoKind, PhotoRow,
-  OrderStage, OrderSummary as OrderSummaryRow, ReceivedBulk, ReceivedPosition, SalesTotals, SellableOffer as SellableOfferRow,
+  OrderStage, OrderSummary as OrderSummaryRow, Carrier, ReceivedBulk, ReceivedPosition, SalesTotals, SellableOffer as SellableOfferRow,
   ShippingMode, ShippingCosts, StockSupplyCost, Supply as SupplyRow, SupplyMovement as SupplyMovementRow, SupplyUsage, SupplyList as SupplyListRow, MovementPage as MovementPageRow, MovementKind, MovementCategory,
 } from "@dexlane/inventory";
 import type {
@@ -84,13 +84,13 @@ export const CONDITIONS: { code: CardCondition; label: string }[] = [
   { code: "PO", label: "Poor" },
 ];
 
-export type { OrderStage, SalesTotals, ShippingMode };
+export type { OrderStage, SalesTotals, ShippingMode, Carrier };
 export type OrderSummary = Json<OrderSummaryRow>;
 export type OrderDetail = Json<OrderDetailRow>;
 export type SellableOffer = Json<SellableOfferRow>;
 export interface OrderList {
   items: OrderSummary[];
-  counts: Record<OrderStage, number>;
+  counts: Record<OrderStage, number> & { REVIEW_DUE: number };
   last30Days: SalesTotals;
 }
 
@@ -133,7 +133,9 @@ export interface AppSettings {
   intakeMode: "SCANNER" | "CAMERA" | "FILES" | null;
   slipPaper: SlipPaper;
   seller: Seller;
-  notifications: { sales: boolean; watched: boolean; publications: boolean };
+  notifications: { sales: boolean; watched: boolean; publications: boolean; supplies: boolean; reviews: boolean };
+  /** Message de demande d'avis, avec {acheteur} et {boutique} ; vide : le message par défaut. */
+  reviewMessage: string;
 }
 /** Préparation des envois : les commandes à préparer et ce qu'il faut pour imprimer leurs bons. */
 export interface ShippingRun { orders: OrderDetail[]; seller: Seller; slipPaper: SlipPaper }

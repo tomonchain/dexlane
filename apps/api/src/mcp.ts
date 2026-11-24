@@ -76,7 +76,7 @@ export function createMcpServer(call: InternalCall): McpServer {
 
   server.registerTool("search_stock", {
     title: "Search stock",
-    description: "Cards in stock, one line per offer, with price, suggested price, market price, status and location. Filter by text (card name, number, set), status, set, condition.",
+    description: "Cards in stock, one line per offer, with set code (e.g. EB03, EV03.5), price, suggested price, market price, status and location. Filter by text (card name, number, set name or set code), status, set, condition.",
     inputSchema: {
       query: z.string().max(100).optional().describe("Card name, number or set"),
       status: z.enum(["ALL", "TO_PRICE", "READY", "LISTED", "DRAFT"]).optional(),

@@ -62,9 +62,9 @@ function Delta({ m }: { m: StockMovement }) {
 
 function MovementRow({ m, compact }: { m: StockMovement; compact?: boolean }) {
   const Icon = KIND_ICON[m.kind];
-  const link: { href: string; text: string } | null = m.orderId ? { href: `/ventes/${m.orderId}`, text: t("Voir la vente") }
-    : m.unitSku && !compact ? { href: `/inventaire/${m.unitSku}`, text: m.unitSku }
-    : m.supplyId && !compact ? { href: `/stock?categorie=fournitures&article=${m.supplyId}`, text: t("Voir la fourniture") }
+  const link: { href: string; text: string } | null = m.orderId ? { href: `/sales/${m.orderId}`, text: t("Voir la vente") }
+    : m.unitSku && !compact ? { href: `/inventory/${m.unitSku}`, text: m.unitSku }
+    : m.supplyId && !compact ? { href: `/stock?section=supplies&item=${m.supplyId}`, text: t("Voir la fourniture") }
     : null;
   return (
     <li className="flex items-start gap-3 py-2.5" data-testid="stock-movement">
@@ -103,7 +103,7 @@ export function RecentMovements({ offerId, supplyId, version }: { offerId?: stri
   }, [offerId, supplyId, version]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!data) return <Loading />;
   if (data.movements.length === 0) return <p className="text-[13px] text-muted-foreground">{t("Aucun mouvement pour l'instant.")}</p>;
-  const href = offerId ? "/stock?categorie=mouvements" : "/stock?categorie=mouvements&rubrique=SUPPLY";
+  const href = offerId ? "/stock?section=movements" : "/stock?section=movements&category=SUPPLY";
   return (
     <div className="grid gap-1">
       <ul className="divide-y" data-testid="recent-movements">{data.movements.map((m) => <MovementRow key={m.id} m={m} compact />)}</ul>
