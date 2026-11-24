@@ -10,7 +10,7 @@ import {
   deleteLocation, extractCardFromBulk, getInventorySummary, getOrderDetail, getShippingCosts, saveShippingCosts, listPreparation, markSlipsPrinted, getStockItemDetail, listAcquisitionLots,
   listLocations, listOrders, moveStock, packOrder, pickAllocation, receiveBulk, receiveCard, recordPhoto, resolveLocation,
   searchInventory, searchSellableOffers, shipOrder, updateLocationDescription,
-  archiveSupply, countSupply, createSupply, getSupply, listSupplies, markSupplyOrdered, receiveSupply, takeSupplyAlerts, updateSupply, listStockMovements,
+  stockSupplyCosts, stockSuppliesSummary, archiveSupply, countSupply, createSupply, getSupply, listSupplies, markSupplyOrdered, receiveSupply, takeSupplyAlerts, updateSupply, listStockMovements,
 } from "@dexlane/inventory";
 import {
   estimateVariants, findDeals, listWatched, platformPrices, trendingCards, unwatchCard, updateWatched, watchCard, getPricingSettings, priceHistory, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice, getAlertSettings, getDashboard, listPriceMoves, saveAlertSettings, salesInsights,
@@ -692,7 +692,11 @@ export function createApp(deps: AppDeps) {
   });
 
   /** Frais d'envoi : affranchissement habituel par mode, sleeve, top-loader et enveloppe. */
-  app.get("/api/shipping-costs", async (c) => c.json(await getShippingCosts(sql)));
+  /** `stock` : le coût des fournitures d'après le stock quand leurs prix d'achat sont renseignés (il prime alors). */
+  app.get("/api/shipping-costs", async (c) => {
+    const stock = await stockSupplyCosts(sql);
+    return c.json({ ...(await getShippingCosts(sql)), stock: stock && stockSuppliesSummary(stock) });
+  });
   app.put("/api/shipping-costs", async (c) => c.json(await saveShippingCosts(sql, await parseJsonBody(c, s.shippingCostsBody), c.var.actor)));
 
   // ───────────────────────── Agents (serveur MCP) ─────────────────────────

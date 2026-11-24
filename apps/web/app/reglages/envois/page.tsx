@@ -1,6 +1,7 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { Check, PackageOpen } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { ListSkeleton } from "@/components/skeletons";
@@ -15,7 +16,8 @@ import { formatEuros, parseEuros } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { eurosInput } from "@/lib/pricing";
 import { SHIPPING_LABEL } from "@/lib/sales";
-import type { ShippingCosts } from "@/lib/types";
+import type { ShippingCosts, ShippingCostsView } from "@/lib/types";
+import { SHIPPING_MODES } from "@/lib/sales";
 
 type PostalMode = keyof ShippingCosts["postage"];
 const POSTAL: PostalMode[] = ["LETTER_UNTRACKED", "LETTER_TRACKED", "PARCEL_TRACKED"];
@@ -32,10 +34,12 @@ export default function ShippingCostsPage() {
   const [saved, setSaved] = useState<Form | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [stock, setStock] = useState<ShippingCostsView["stock"]>(null);
 
   useEffect(() => {
     api.shippingCosts()
       .then((c) => {
+        setStock(c.stock);
         const loaded: Form = {
           postage: Object.fromEntries(POSTAL.map((m) => [m, c.postage[m] === null ? "" : eurosInput(c.postage[m]!)])) as Record<PostalMode, string>,
           supplies: Object.fromEntries(SUPPLIES.map(([k]) => [k, eurosInput(c.supplies[k])])) as Record<keyof ShippingCosts["supplies"], string>,
@@ -100,17 +104,45 @@ export default function ShippingCostsPage() {
             <CardContent className="grid gap-4">
               <div className="grid gap-1">
                 <CardTitle>{t("Fournitures")}</CardTitle>
-                <CardDescription>{t("Sleeve et top-loader pour chaque carte vendue, une enveloppe par envoi postal (pas pour une remise en main propre).")}</CardDescription>
+                <CardDescription>
+                  {stock
+                    ? t("Calculées d'après les prix d'achat des fournitures du stock, pour les envois qui les utilisent. Changez-les dans Stock › Fournitures.")
+                    : t("Sleeve et top-loader pour chaque carte vendue, une enveloppe par envoi postal (pas pour une remise en main propre).")}
+                </CardDescription>
               </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                {SUPPLIES.map(([k, label, hint]) => (
-                  <Field key={k} label={t(label)} hint={t(hint)}>
-                    <Input inputMode="decimal" value={form.supplies[k]} aria-invalid={parsed!.supplies[k] === null}
-                      onChange={(e) => setForm({ ...form, supplies: { ...form.supplies, [k]: e.target.value } })} className="tabular" />
-                  </Field>
-                ))}
-              </div>
-              {perCard !== null && <p className="text-xs text-muted-foreground" data-testid="supplies-per-card">{t("Soit {amount} de fournitures par carte, plus l'enveloppe par envoi.", { amount: formatEuros(perCard) })}</p>}
+              {stock ? (
+                <div className="grid gap-3" data-testid="supplies-from-stock">
+                  <ul className="divide-y rounded-lg border text-sm">
+                    {stock.items.map((x) => (
+                      <li key={x.name} className="flex items-baseline gap-3 px-3 py-2">
+                        <span className="min-w-0 flex-1 truncate font-medium">{x.name}</span>
+                        <span className="text-xs text-muted-foreground">{x.usage === "PER_CARD" ? t("par carte") : t("par envoi")}{x.perUse > 1 ? ` × ${x.perUse}` : ""}</span>
+                        <span className={x.unitCostCents === null ? "tabular text-xs text-warning" : "tabular"}>{x.unitCostCents === null ? t("sans prix") : formatEuros(x.unitCostCents)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-muted-foreground" data-testid="supplies-per-card">
+                    {t("Soit {amount} de fournitures par carte, plus par envoi : {modes}.", {
+                      amount: formatEuros(stock.perCardCents),
+                      modes: SHIPPING_MODES.map((m) => `${t(SHIPPING_LABEL[m]).toLowerCase()} ${formatEuros(stock.perShipmentCents[m])}`).join(", "),
+                    })}
+                  </p>
+                  <Button asChild variant="outline" size="sm" className="justify-self-start"><Link href="/stock?categorie=fournitures"><PackageOpen /> {t("Gérer les fournitures")}</Link></Button>
+                </div>
+              ) : (
+                <>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {SUPPLIES.map(([k, label, hint]) => (
+                      <Field key={k} label={t(label)} hint={t(hint)}>
+                        <Input inputMode="decimal" value={form.supplies[k]} aria-invalid={parsed!.supplies[k] === null}
+                          onChange={(e) => setForm({ ...form, supplies: { ...form.supplies, [k]: e.target.value } })} className="tabular" />
+                      </Field>
+                    ))}
+                  </div>
+                  {perCard !== null && <p className="text-xs text-muted-foreground" data-testid="supplies-per-card">{t("Soit {amount} de fournitures par carte, plus l'enveloppe par envoi.", { amount: formatEuros(perCard) })}</p>}
+                  <p className="text-xs text-muted-foreground">{t("Renseignez le prix d'achat de vos fournitures dans Stock › Fournitures : il remplacera ces montants, envoi par envoi.")}</p>
+                </>
+              )}
             </CardContent>
           </Card>
           {JSON.stringify(form) !== JSON.stringify(saved) && (

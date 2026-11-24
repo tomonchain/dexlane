@@ -434,7 +434,7 @@ function SupplyForm({ supply, preset, onClose, onSaved }: { supply: Supply | nul
         )}
         <div className="grid grid-cols-2 gap-3">
           {!supply && <Field label={t("En stock")}><Input inputMode="numeric" value={onHand} onChange={digits(setOnHand)} /></Field>}
-          <Field label={t("Prix d'achat unitaire (€)")}><Input inputMode="decimal" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} placeholder="0,05" aria-invalid={unitCost.trim() !== "" && cost === null} /></Field>
+          <Field label={t("Prix d'achat unitaire (€)")} hint={t("Compté dans la marge des ventes")}><Input inputMode="decimal" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} placeholder="0,05" aria-invalid={unitCost.trim() !== "" && cost === null} /></Field>
           <Field label={t("Seuil de commande")} hint={t("Alerte à ce niveau")}><Input inputMode="numeric" value={reorderPoint} onChange={digits(setReorderPoint)} /></Field>
           <Field label={t("Quantité commandée")} hint={t("Proposée à l'entrée")}><Input inputMode="numeric" value={reorderQuantity} onChange={digits(setReorderQuantity)} /></Field>
         </div>

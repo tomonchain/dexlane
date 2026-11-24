@@ -1,6 +1,6 @@
 import type { Db } from "@dexlane/db";
 import { DomainError } from "@dexlane/shared";
-import type { ShippingMode } from "./shipping";
+import { SHIPPING_MODES, type ShippingMode } from "./shipping";
 
 /** Modes d'envoi qui passent par la poste (la remise en main propre n'a ni affranchissement ni enveloppe). */
 export type PostalMode = Exclude<ShippingMode, "HAND_DELIVERY">;
@@ -49,4 +49,48 @@ export function suppliesFor(costs: ShippingCosts, mode: ShippingMode, cards: num
 /** Affranchissement habituel d'un mode ; 0 pour une remise en main propre ou un mode non renseigné. */
 export function postageFor(costs: ShippingCosts, mode: ShippingMode): number {
   return mode === "HAND_DELIVERY" ? 0 : (costs.postage[mode] ?? 0);
+}
+
+/** Une fourniture du stock décomptée à chaque envoi, avec son prix d'achat. */
+export interface StockSupplyCost {
+  name: string;
+  usage: "PER_CARD" | "PER_SHIPMENT";
+  perUse: number;
+  modes: ShippingMode[];
+  /** null : prix d'achat non renseigné, compté 0. */
+  unitCostCents: number | null;
+}
+
+/**
+ * Le coût des fournitures tel que le stock le donne : dès qu'une fourniture décomptée automatiquement a un prix
+ * d'achat, ce sont les fournitures du stock qui comptent (chacune pour les modes d'envoi qui l'utilisent), et non plus
+ * les montants des frais d'envoi. null : aucune fourniture avec un prix, les frais d'envoi font foi.
+ */
+export async function stockSupplyCosts(sql: Db): Promise<StockSupplyCost[] | null> {
+  const rows = await sql<StockSupplyCost[]>`
+    select name, usage, per_use, modes, unit_cost_cents from supplies
+     where archived_at is null and usage <> 'MANUAL' order by name`;
+  return rows.some((r) => r.unitCostCents !== null) ? rows : null;
+}
+
+/** Fournitures d'un envoi d'après le stock : par carte ou une fois par envoi, pour les fournitures de ce mode. */
+export function stockSuppliesFor(items: StockSupplyCost[], mode: ShippingMode, cards: number): number {
+  return items
+    .filter((x) => x.modes.includes(mode))
+    .reduce((sum, x) => sum + (x.unitCostCents ?? 0) * x.perUse * (x.usage === "PER_CARD" ? cards : 1), 0);
+}
+
+/** Coût des fournitures d'un envoi : le stock s'il a des prix, sinon les frais d'envoi réglés. */
+export async function suppliesCostFor(sql: Db, mode: ShippingMode, cards: number): Promise<number> {
+  const stock = await stockSupplyCosts(sql);
+  return stock ? stockSuppliesFor(stock, mode, cards) : suppliesFor(await getShippingCosts(sql), mode, cards);
+}
+
+/** Ce que coûtent les fournitures d'après le stock : par carte, et par envoi selon le mode (pour une carte). */
+export function stockSuppliesSummary(items: StockSupplyCost[]) {
+  return {
+    items,
+    perCardCents: Math.max(0, ...SHIPPING_MODES.map((m) => stockSuppliesFor(items.filter((x) => x.usage === "PER_CARD"), m, 1))),
+    perShipmentCents: Object.fromEntries(SHIPPING_MODES.map((m) => [m, stockSuppliesFor(items.filter((x) => x.usage === "PER_SHIPMENT"), m, 1)])) as Record<ShippingMode, number>,
+  };
 }
