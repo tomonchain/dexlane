@@ -34,7 +34,7 @@ export async function prepareLogo(file: File): Promise<Blob> {
   return blob;
 }
 
-export async function prepareImage(file: File): Promise<Blob> {
+export async function prepareImage(file: Blob): Promise<Blob> {
   let bitmap: ImageBitmap;
   try {
     bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
