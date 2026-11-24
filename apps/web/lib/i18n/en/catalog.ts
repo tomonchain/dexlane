@@ -259,4 +259,15 @@ export const CATALOG: Record<string, string> = {
   "Prix estimés d'après les ventes réussies sur Cardmarket, toutes langues et tous états confondus ; « ≈ » quand rien ne s'est vendu récemment.":
     "Prices estimated from completed sales on Cardmarket, across all languages and conditions; “≈” when nothing has sold recently.",
   "Aucune carte ne correspond": "No matching cards",
+
+  // Import du catalogue complet
+  "Le scan et la recherche trouvent les cartes des séries importées ; le catalogue français s'importe en entier, peu à peu. Réimporter une série met à jour ses cartes et ajoute les cotations du jour.": "Scanning and search find the cards of imported sets; the French catalog imports in full, little by little. Re-importing a set updates its cards and adds today's quotes.",
+  "Catalogue français complet": "French catalog complete",
+  "Catalogue français : {imported} séries sur {total}": "French catalog: {imported} of {total} sets",
+  "le reste s'importe chaque nuit, les séries récentes d'abord": "the rest imports every night, newest sets first",
+  "Tout importer maintenant": "Import everything now",
+  "Import en cours, série par série ; gardez cette page ouverte.": "Importing set by set; keep this page open.",
+  "Dernières : {names}.": "Latest: {names}.",
+  "{n} série sans carte, retentée la semaine prochaine": "{n} set without cards, retried next week",
+  "{n} séries sans carte, retentées la semaine prochaine": "{n} sets without cards, retried next week",
 };

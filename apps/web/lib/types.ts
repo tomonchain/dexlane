@@ -172,3 +172,6 @@ export interface AgentToken {
   lastUsedAt: string | null;
   createdAt: string;
 }
+
+/** Où en est l'import du catalogue complet d'une langue. */
+export interface CatalogImportStatus { language: string; total: number; imported: number; remaining: number; skipped: number; cards: number; listComplete: boolean }

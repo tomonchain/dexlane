@@ -55,13 +55,13 @@ export async function syncSet(
 /** Synchronise les métadonnées de toutes les séries (sans les cartes). */
 export async function syncSetList(sql: Db, client: TcgdexClient, language: string): Promise<number> {
   const sets = await client.listSets(language);
-  for (const s of sets) {
+  for (const [position, s] of sets.entries()) {
     await sql`
-      insert into catalog_sets (id, language, name, card_count_official, card_count_total, logo_url, symbol_url)
+      insert into catalog_sets (id, language, name, card_count_official, card_count_total, logo_url, symbol_url, list_position)
       values (${s.id}, ${language}, ${s.name}, ${s.cardCount?.official ?? null}, ${s.cardCount?.total ?? null},
-              ${s.logo ?? null}, ${s.symbol ?? null})
+              ${s.logo ?? null}, ${s.symbol ?? null}, ${position})
       on conflict (id, language) do update set
-        name = excluded.name,
+        name = excluded.name, list_position = excluded.list_position,
         -- La liste est un résumé : un champ absent ne doit pas effacer ce qu'un import complet de la série a appris.
         card_count_official = coalesce(excluded.card_count_official, catalog_sets.card_count_official),
         card_count_total = coalesce(excluded.card_count_total, catalog_sets.card_count_total),
@@ -353,4 +353,83 @@ export async function setSetCode(sql: Db, language: string, setId: string, code:
     returning set_code(id, language, code_override, abbreviation) as code, code_override`;
   if (!row) throw new DomainError("SET_NOT_FOUND", "this set is not in the catalog");
   return row;
+}
+
+// ───────────────────────── Import du catalogue complet ─────────────────────────
+
+export interface CatalogImportStatus {
+  language: string;
+  /** Séries connues dans cette langue. */
+  total: number;
+  /** Séries dont les cartes sont importées. */
+  imported: number;
+  /** Séries encore à importer (hors séries tentées sans succès cette semaine). */
+  remaining: number;
+  /** Séries tentées sans succès (aucune carte dans cette langue, source indisponible), retentées dans une semaine. */
+  skipped: number;
+  cards: number;
+  /** La liste complète des séries a été lue (sinon, des séries manquent au décompte). */
+  listComplete: boolean;
+}
+
+export async function catalogImportStatus(sql: Db, language: string): Promise<CatalogImportStatus> {
+  const [row] = await sql<Omit<CatalogImportStatus, "language">[]>`
+    with sets as (
+      select s.id, s.import_attempted_at,
+             exists (select 1 from catalog_cards c where c.set_id = s.id and c.language = s.language) as imported
+        from catalog_sets s where s.language = ${language})
+    select count(*)::int as total,
+           count(*) filter (where imported)::int as imported,
+           count(*) filter (where not imported and (import_attempted_at is null or import_attempted_at < now() - interval '7 days'))::int as remaining,
+           count(*) filter (where not imported and import_attempted_at >= now() - interval '7 days')::int as skipped,
+           (select count(*)::int from catalog_cards where language = ${language}) as cards,
+           count(*) > 0 and bool_and(list_position is not null) as list_complete
+      from (select sets.*, s2.list_position from sets join catalog_sets s2 on s2.id = sets.id and s2.language = ${language}) sets`;
+  return { language, ...row! };
+}
+
+/**
+ * Importe les séries pas encore importées d'une langue, les plus récentes d'abord, tant que le budget de temps le
+ * permet (une série commencée va à son terme). La liste des séries est rafraîchie si elle est vide ou vieille d'une
+ * semaine. Pensé pour la tâche de nuit et pour le bouton « Tout importer », appelé de lot en lot.
+ */
+export async function importNextSets(
+  sql: Db,
+  client: TcgdexClient,
+  language: string,
+  opts: { budgetMs: number; now?: () => number },
+): Promise<{ imported: { setId: string; name: string; cards: number; errorCount: number }[]; status: CatalogImportStatus }> {
+  const now = opts.now ?? Date.now;
+  const start = now();
+  // La liste des séries vient de TCGdex : rafraîchie si elle n'a jamais été lue en entier (une série importée seule n'a
+  // pas de rang dans la liste) ou si elle date de plus d'une semaine.
+  const [list] = await sql<{ complete: boolean; fresh: boolean }[]>`
+    select count(*) > 0 and bool_and(list_position is not null) as complete,
+           coalesce(max(synced_at) filter (where list_position is not null) > now() - interval '7 days', false) as fresh
+      from catalog_sets where language = ${language}`;
+  if (!list!.complete || !list!.fresh) await syncSetList(sql, client, language);
+
+  const imported: { setId: string; name: string; cards: number; errorCount: number }[] = [];
+  // Une série prend jusqu'à une minute : on n'en commence pas une nouvelle dans la dernière part du budget.
+  const reserve = Math.min(60_000, opts.budgetMs / 3);
+  while (imported.length === 0 || now() - start < opts.budgetMs - reserve) {
+    const [next] = await sql<{ id: string; name: string }[]>`
+      update catalog_sets set import_attempted_at = now()
+       where (id, language) = (
+         select s.id, s.language from catalog_sets s
+          where s.language = ${language}
+            and not exists (select 1 from catalog_cards c where c.set_id = s.id and c.language = s.language)
+            and (s.import_attempted_at is null or s.import_attempted_at < now() - interval '7 days')
+          order by s.list_position desc nulls last, s.id desc
+          limit 1)
+       returning id, name`;
+    if (!next) break;
+    try {
+      const stats = await syncSet(sql, client, language, next.id);
+      imported.push({ setId: next.id, name: next.name, cards: stats.cards, errorCount: stats.errors.length });
+    } catch {
+      imported.push({ setId: next.id, name: next.name, cards: 0, errorCount: 1 });
+    }
+  }
+  return { imported, status: await catalogImportStatus(sql, language) };
 }

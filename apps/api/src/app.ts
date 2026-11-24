@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import {
-  createTcgdexClient, findCandidates, getSetDetail, setSetCode, listSets, syncSet, syncSetList, type TcgdexClient, refreshTrackedPrices, searchCatalog,
+  createTcgdexClient, findCandidates, getSetDetail, setSetCode, catalogImportStatus, importNextSets, listSets, syncSet, syncSetList, type TcgdexClient, refreshTrackedPrices, searchCatalog,
 } from "@dexlane/catalog";
 import type { Db } from "@dexlane/db";
 import {
@@ -621,6 +621,17 @@ export function createApp(deps: AppDeps) {
   app.post("/api/catalog/sets/refresh", async (c) => {
     const { language } = await parseJsonBody(c, s.languageBody);
     return c.json({ count: await syncSetList(sql, catalogSource(), language) });
+  });
+
+  /** Où en est l'import du catalogue complet d'une langue. */
+  app.get("/api/catalog/import", async (c) => {
+    const { language } = parse(s.languageQuery, c.req.query());
+    return c.json(await catalogImportStatus(sql, language));
+  });
+  /** Importe les prochaines séries manquantes (les plus récentes d'abord) dans le budget de temps donné. */
+  app.post("/api/catalog/import/next", async (c) => {
+    const { language, budgetSeconds } = await parseJsonBody(c, s.catalogImportBody);
+    return c.json(await importNextSets(sql, catalogSource(), language, { budgetMs: budgetSeconds * 1000 }));
   });
 
   /** Importe les cartes, variantes et cotations d'une série. Rejouable sans doublon ; peut durer plus d'une minute. */
