@@ -175,3 +175,18 @@ export interface AgentToken {
 
 /** Où en est l'import du catalogue complet d'une langue. */
 export interface CatalogImportStatus { language: string; total: number; imported: number; remaining: number; skipped: number; cards: number; listComplete: boolean }
+
+/** Calendrier des mises en ligne : prévues (par canal), publiées et en échec, jour par jour. */
+export interface PublicationCalendar {
+  from: string;
+  to: string;
+  days: { date: string; planned: Partial<Record<ChannelId, number>>; published: number; failed: number }[];
+}
+/** Un jour du calendrier, carte par carte. */
+export interface PublicationDay {
+  date: string;
+  entries: {
+    id: string | null; offerId: string; offerSku: string; cardName: string; setCode: string; condition: string;
+    priceCents: number | null; photoUrl: string | null; channel: ChannelId; status: "PENDING" | "DONE" | "FAILED" | "PUBLISHED"; errorCode: string | null;
+  }[];
+}

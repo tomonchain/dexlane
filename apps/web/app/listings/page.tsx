@@ -4,11 +4,13 @@ import { CalendarClock, CircleCheck, Globe, Plug } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { PlanModal } from "@/components/plan-modal";
+import { PublicationCalendarView } from "@/components/publication-calendar";
 import { SchedulePanel } from "@/components/schedule-panel";
 import { ListSkeleton } from "@/components/skeletons";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { EmptyState, Page, PageHeader } from "@/components/ui/misc";
+import { SegmentedTabs } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { formatNumber } from "@/lib/format";
 import { t, tn } from "@/lib/i18n";
@@ -25,6 +27,8 @@ export default function PublicationsPage() {
   const [channels, setChannels] = useCachedState<ChannelState[]>("schedule:channels");
   const [error, setError] = useState<string | null>(null);
   const [planning, setPlanning] = useState(false);
+  const [view, setView] = useState<"calendar" | "list">("calendar");
+  const [calendarVersion, setCalendarVersion] = useState(0);
 
   const load = useCallback(() => {
     Promise.all([api.schedule(), api.stock({ limit: 1 }), api.channels()])
@@ -67,7 +71,21 @@ export default function PublicationsPage() {
             <Figure icon={<Globe />} label={t("En ligne")} value={stock.counts.LISTED} href="/stock?status=LISTED" />
           </div>
 
-          {schedule.pending > 0 || schedule.failed.length > 0 ? (
+          <div>
+            <SegmentedTabs
+              label={t("Affichage du planning")}
+              value={view}
+              onChange={setView}
+              tabs={[
+                { value: "calendar", label: t("Calendrier") },
+                { value: "list", label: t("Liste"), count: schedule.pending + schedule.failed.length },
+              ]}
+            />
+          </div>
+
+          {view === "calendar" ? (
+            <PublicationCalendarView key={calendarVersion} channels={channels} onChanged={load} />
+          ) : schedule.pending > 0 || schedule.failed.length > 0 ? (
             <SchedulePanel schedule={schedule} channels={channels} onChanged={load} />
           ) : (
             <EmptyState
@@ -89,6 +107,7 @@ export default function PublicationsPage() {
           onClose={() => setPlanning(false)}
           onPlanned={() => {
             setPlanning(false);
+            setCalendarVersion((v) => v + 1);
             load();
           }}
         />

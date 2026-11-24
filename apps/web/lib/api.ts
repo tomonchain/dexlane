@@ -2,7 +2,7 @@ import type {
   AcquisitionLot, Activity, CardPage, CatalogHit, Deal, DealList, TopCard, WatchedCard, AlertSettings, AppSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, SalesInsights, PriceMoves, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
   Location, Photo, PositionDetail, Received,
   OfferPricing, OrderDetail, PriceHistory, OrderList, OrderStage, PricingSettings, ShippingCosts, ShippingRun, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
-  PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockFacets, StockPage, StockStatus, StoredPhoto, VariantQuote, SupplyDetail, SupplyInput, SupplyList, ShippingCostsView, CatalogImportStatus, AgentToken, Carrier, MovementPage, MovementKind, MovementCategory,
+  PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockFacets, StockPage, StockStatus, StoredPhoto, VariantQuote, SupplyDetail, SupplyInput, SupplyList, ShippingCostsView, CatalogImportStatus, PublicationCalendar, PublicationDay, AgentToken, Carrier, MovementPage, MovementKind, MovementCategory,
 } from "./types";
 import { clearCache } from "./cache";
 import { t } from "./i18n";
@@ -127,6 +127,9 @@ export const api = {
   cancelPublications: (filter: { plannedOn?: string; channel?: ChannelId; offerId?: string }) =>
     request<{ cancelled: number }>("POST", "/publications/cancel", { json: filter }),
   runPublications: () => request<{ published: number; failed: number }>("POST", "/publications/run"),
+  publicationCalendar: (from: string, to: string) => request<PublicationCalendar>("GET", "/publications/calendar", { query: { from, to } }),
+  publicationDay: (date: string) => request<PublicationDay>("GET", `/publications/day/${date}`),
+  reschedulePublication: (id: string, plannedOn: string) => request<{ ok: true }>("PATCH", `/publications/${id}`, { json: { plannedOn } }),
 
   scanBatches: () => request<{ batches: ScanBatch[] }>("GET", "/scan-batches"),
   createScanBatch: (input: {

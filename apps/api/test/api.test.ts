@@ -936,6 +936,50 @@ describe("scheduled publications", () => {
   });
 });
 
+describe("publication calendar", () => {
+  it("shows planned, published and failed publications day by day, card by card, and moves or replans one", async () => {
+    await call("POST", "/api/locations", { body: { code: "BOX-01" } });
+    const offers: string[] = [];
+    for (const condition of ["NM", "EX"]) {
+      const scanned = await scan();
+      offers.push((await call("POST", "/api/inventory/receive", {
+        body: { variantId: scanned.json.suggestedVariantId, condition, quantity: 1, locationCode: "BOX-01", unitCostCents: 0, photoIds: [scanned.json.photo.id] },
+      })).json.offer.id);
+    }
+    await call("PUT", "/api/channels/ebay", { body: { mode: "SIMULATION" } });
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date());
+    const plus = (n: number) => { const d = new Date(`${today}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+    expect((await call("POST", "/api/publications/plan", { body: { channel: "ebay", startOn: today, perDay: 1 } })).json).toMatchObject({ planned: 2, days: 2 });
+
+    const calendar = async () => (await call("GET", `/api/publications/calendar?from=${today}&to=${plus(7)}`)).json.days;
+    expect(await calendar()).toEqual([
+      { date: today, planned: { ebay: 1 }, published: 0, failed: 0 },
+      { date: plus(1), planned: { ebay: 1 }, published: 0, failed: 0 },
+    ]);
+    const tomorrow = (await call("GET", `/api/publications/day/${plus(1)}`)).json;
+    expect(tomorrow.entries).toEqual([expect.objectContaining({ status: "PENDING", channel: "ebay", cardName: "Fouinar", setCode: "EB03", priceCents: expect.any(Number), photoUrl: expect.any(String) })]);
+
+    // Avancée à aujourd'hui ; une date passée est refusée.
+    const id = tomorrow.entries[0].id as string;
+    expect((await call("PATCH", `/api/publications/${id}`, { body: { plannedOn: "2020-01-01" } })).status).toBe(422);
+    expect((await call("PATCH", `/api/publications/${id}`, { body: { plannedOn: today } })).json).toEqual({ ok: true });
+    expect(await calendar()).toEqual([{ date: today, planned: { ebay: 2 }, published: 0, failed: 0 }]);
+
+    // Publiées : le jour les montre publiées ; un échec se replanifie.
+    expect((await call("POST", "/api/publications/run")).json).toEqual({ published: 2, failed: 0 });
+    expect(await calendar()).toEqual([{ date: today, planned: {}, published: 2, failed: 0 }]);
+    expect((await call("GET", `/api/publications/day/${today}`)).json.entries.map((e: { status: string }) => e.status)).toEqual(["DONE", "DONE"]);
+    expect((await call("PATCH", `/api/publications/${id}`, { body: { plannedOn: plus(2) } })).json.error.code).toBe("PUBLICATION_DONE");
+    const [failed] = await sql<{ id: string }[]>`
+      insert into scheduled_publications (offer_id, channel, planned_on, status, error_code, done_at)
+      values (${offers[0]!}, 'ebay', ${today}, 'FAILED', 'LISTING_NOT_READY', now()) returning id`;
+    expect((await calendar())[0]).toMatchObject({ failed: 1 });
+    await call("PATCH", `/api/publications/${failed!.id}`, { body: { plannedOn: plus(3) } });
+    expect((await calendar()).find((d: { date: string }) => d.date === plus(3))).toMatchObject({ planned: { ebay: 1 } });
+    expect((await call("GET", `/api/publications/calendar?from=${plus(1)}&to=${today}`)).status).toBe(400);
+  });
+});
+
 describe("statistics and price alerts", () => {
   it("refreshes the quotes of owned cards, exposes the dashboard and the price moves, and saves alert thresholds", async () => {
     await call("POST", "/api/locations", { body: { code: "BOX-01" } });

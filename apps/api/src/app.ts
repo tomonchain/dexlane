@@ -27,7 +27,7 @@ import { createMcpServer, type InternalCall } from "./mcp";
 import { trackingFromEnv, type TrackingAdapters } from "./tracking";
 import { HttpError, errorBody, idempotent, parse, parseJsonBody, secretEquals, statusOfDomainError } from "./http";
 import {
-  cancelPublications, endListing, getActivity, getCardDetail, getListingSettings, getSchedule, getStockDetail, listChannels, listStock, stockFacets, planPublications, queuePublications, runDuePublications, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
+  cancelPublications, getPublicationCalendar, getPublicationDay, reschedulePublication, endListing, getActivity, getCardDetail, getListingSettings, getSchedule, getStockDetail, listChannels, listStock, stockFacets, planPublications, queuePublications, runDuePublications, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
   syncChannels, syncQuantities, type ChannelAdapters,
 } from "@dexlane/listings";
 import { readPhoto, type PhotoStore } from "./photos";
@@ -297,6 +297,20 @@ export function createApp(deps: AppDeps) {
   app.post("/api/publications/plan", async (c) => {
     const body = await parseJsonBody(c, s.planBody);
     return c.json(await planPublications(sql, { ...body, actor: c.var.actor }));
+  });
+
+  /** Calendrier des mises en ligne : prévues, publiées et en échec, jour par jour (`from` et `to` inclus, 93 jours au plus). */
+  app.get("/api/publications/calendar", async (c) => {
+    const { from, to } = parse(s.calendarQuery, c.req.query());
+    return c.json(await getPublicationCalendar(sql, from, to));
+  });
+  /** Un jour du calendrier, carte par carte. */
+  app.get("/api/publications/day/:date", async (c) => c.json(await getPublicationDay(sql, parse(s.calendarDate, c.req.param("date")))));
+  /** Déplace une publication à un autre jour (ou replanifie une publication en échec). */
+  app.patch("/api/publications/:id", async (c) => {
+    const id = parse(s.publicationId, c.req.param("id"));
+    await reschedulePublication(sql, id, (await parseJsonBody(c, s.rescheduleBody)).plannedOn);
+    return c.json({ ok: true });
   });
 
   app.post("/api/publications/cancel", async (c) => c.json({ cancelled: await cancelPublications(sql, await parseJsonBody(c, s.cancelPlanBody)) }));
