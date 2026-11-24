@@ -1,5 +1,6 @@
 "use client";
 
+import { SetLogo } from "@/components/set-logo";
 import { BookOpen, Check, CircleSlash, PackageCheck, Pencil, RefreshCw, Search, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -146,7 +147,11 @@ export default function CatalogSetPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="grid gap-2">
-          <h1 className="text-xl leading-tight font-semibold tracking-tight sm:text-2xl">{set.name}</h1>
+          {set.logoUrl && <SetLogo url={set.logoUrl} name={set.name} className="h-16 w-40 justify-start sm:h-20 sm:w-52" />}
+          <h1 className="flex items-center gap-2 text-xl leading-tight font-semibold tracking-tight sm:text-2xl">
+            {set.symbolUrl && <SetLogo url={set.symbolUrl} name="" symbol className="size-6" />}
+            {set.name}
+          </h1>
           <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
             {codeDraft === null ? (
               <button type="button" onClick={() => setCodeDraft(set.codeOverride ?? set.code)} data-testid="set-code"

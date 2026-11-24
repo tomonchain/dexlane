@@ -1,7 +1,10 @@
+"use client";
+
 import { ArrowLeft, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 import { t } from "@/lib/i18n";
+import { setPageActionsSlot } from "@/lib/page-actions";
 import { cn } from "@/lib/utils";
 
 export function Skeleton({ className, ...props }: ComponentProps<"div">) {
@@ -66,15 +69,19 @@ export function PageHeader({ title, description, actions, back, meta, testId }: 
 }) {
   return (
     <div className="grid gap-3">
-      {/* Sur téléphone, la première ligne laisse la place aux icônes de recherche et de réglages, en haut à droite. */}
+      {/* Sur téléphone, la première ligne laisse la place à l'icône de recherche, en haut à droite. */}
       {back && <div className="flex max-lg:pr-20">{back}</div>}
-      <div className={cn("flex flex-wrap items-end justify-between gap-x-6 gap-y-3", !back && "max-lg:[&>div:first-child]:pr-20")}>
-        <div className="grid min-w-0 gap-1">
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div className={cn("grid min-w-0 flex-1 basis-64 gap-1", !back && "max-lg:pr-12")}>
           <h1 className="text-xl leading-tight font-semibold tracking-tight sm:text-2xl" data-testid={testId}>{title}</h1>
           {meta && <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-muted-foreground">{meta}</div>}
           {description && <p className="max-w-2xl text-sm text-pretty text-muted-foreground">{description}</p>}
         </div>
-        {actions && <div className="flex flex-wrap items-center gap-2 max-lg:w-full">{actions}</div>}
+        {/* Toutes les actions de la page, en haut à droite : celles de l'en-tête, puis celles des barres d'action. */}
+        <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2 empty:hidden" data-testid="page-actions">
+          {actions}
+          <div ref={setPageActionsSlot} className="contents" />
+        </div>
       </div>
     </div>
   );

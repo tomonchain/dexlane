@@ -1026,18 +1026,28 @@ test("annonce bloquée faute de photo : la photo s'ajoute après coup depuis la 
   await expect(publish).toBeDisabled();
 
   // La photo est ajoutée sur place : l'annonce devient publiable.
-  await panel.getByTestId("offer-photo-input").setInputFiles({ name: "recto.png", mimeType: "image/png", buffer: png(40, 56) });
-  await expect(page.getByText("Photo ajoutée")).toBeVisible();
+  const choose = async (button: string, name: string) => {
+    const [chooser] = await Promise.all([page.waitForEvent("filechooser"), panel.getByRole("button", { name: button }).click()]);
+    await chooser.setFiles({ name, mimeType: "image/png", buffer: png(40, 56) });
+  };
+  await choose("Ajouter le recto", "recto.png");
+  await expect(page.getByText("Recto ajouté")).toBeVisible();
   await expect(panel.getByTestId("offer-photos").getByRole("img", { name: "Recto" })).toBeVisible();
   await expect(panel).not.toContainText("il manque une photo");
-  await expect(panel.getByRole("button", { name: "Ajouter le verso" })).toBeVisible();
   await publish.click();
   await expect(panel.getByTestId("stock-channel-ebay")).toContainText("en ligne");
 
-  // Une photo ratée se retire, et se remplace.
+  // Le verso s'ajoute dans son propre emplacement ; une photo se remplace ou se retire.
+  await choose("Ajouter le verso", "verso.png");
+  await expect(page.getByText("Verso ajouté")).toBeVisible();
+  await expect(panel.getByTestId("offer-photos").getByRole("img", { name: "Verso" })).toBeVisible();
+  await choose("Remplacer le recto", "recto-2.png");
+  await expect(page.getByText("Recto remplacé")).toBeVisible();
+  await expect(panel.getByTestId("offer-photos").getByRole("img")).toHaveCount(2);
   await panel.getByRole("button", { name: "Retirer la photo du recto" }).click();
   await expect(page.getByText("Photo retirée")).toBeVisible();
-  await expect(panel.getByRole("button", { name: "Ajouter une photo" })).toBeVisible();
+  await expect(panel.getByRole("button", { name: "Ajouter le recto" })).toBeVisible();
+  await expect(panel.getByTestId("offer-photos").getByRole("img", { name: "Verso" })).toBeVisible();
 });
 
 test("lot sans temps mort : variante appliquée en masse, corrections enchaînées, photos d'annonce prêtes, planification directe", async ({ page }) => {

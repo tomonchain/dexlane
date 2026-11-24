@@ -1,5 +1,6 @@
 "use client";
 
+import { SetLogo } from "@/components/set-logo";
 import { BookOpen, ChevronRight, CloudDownload, RefreshCw, Search } from "lucide-react";
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
@@ -207,6 +208,7 @@ export default function CatalogPage() {
                   <>
                     <span className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium">{s.name}</span>
+                      <Code className="shrink-0 text-[11px] font-semibold text-muted-foreground">{s.code}</Code>
                       {isImported && <Badge variant="success">{tn(s.cardsSynced, "{n} carte", "{n} cartes")}</Badge>}
                     </span>
                     <span className="mt-0.5 block truncate text-xs text-muted-foreground">
@@ -226,6 +228,7 @@ export default function CatalogPage() {
                   )}
                   <div className="grid gap-2.5 px-4 py-3 sm:px-5" data-testid={`set-${s.id}`}>
                     <div className="flex items-center gap-3">
+                      <SetLogo url={s.logoUrl} name={s.name} className="h-9 w-14 sm:w-20" />
                       {isImported ? (
                         <Link href={`/catalog/${encodeURIComponent(s.id)}?language=${language}`} className="group flex min-w-0 flex-1 items-center gap-2 rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30" aria-label={t("Voir la série {name}", { name: s.name })}>
                           <span className="min-w-0 flex-1 group-hover:[&>span:first-child>span:first-child]:underline">{meta}</span>
