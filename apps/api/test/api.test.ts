@@ -668,8 +668,15 @@ describe("what sells", () => {
     expect(json.daysToSell[0]).toMatchObject({ key: "lt7", cards: 3 });
     expect(json.byWeekday).toHaveLength(7);
     expect(json.months).toHaveLength(12);
-    expect(json.months.at(-1)).toMatchObject({ cards: 3, revenueCents: 12160 });
-    expect(json.previous).toEqual({ orders: 0, cards: 0, revenueCents: 0 });
+    // Jamais passées en ligne mais vendues en direct : les deux positions comptent comme mises en vente (3 + 2).
+    expect(json.totals.listed).toBe(5);
+    expect(json.months.at(-1)).toMatchObject({ cards: 3, revenueCents: 12160, listed: 5 });
+    expect(json.previous).toEqual({ orders: 0, cards: 0, revenueCents: 0, listed: 0 });
+    // Une carte reçue puis mise en ligne compte à sa mise en ligne ; une carte seulement en stock, pas encore.
+    const listedLater = await receive(fouinar, 4, 20);
+    await call("POST", "/api/inventory/receive", { body: { variantId: dracaufeu, condition: "LP", quantity: 1, locationCode: "BOX-01", unitCostCents: 100 } });
+    await sql`insert into listings (offer_id, channel, price_cents, status) values (${listedLater}, 'ebay', 100, 'ACTIVE')`;
+    expect((await call("GET", "/api/stats/sales?days=30")).json.totals.listed).toBe(9);
     expect((await call("GET", "/api/stats/sales?days=3")).status).toBe(400);
   });
 });

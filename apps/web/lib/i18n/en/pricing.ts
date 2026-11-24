@@ -301,4 +301,22 @@ export const PRICING: Record<string, string> = {
   "du {from} au {to}": "from {from} to {to}",
   "Votre prix : {price}": "Your price: {price}",
   "revoir": "review",
+
+  // Mises en vente et ventes
+  "Mises en vente et ventes": "Listed vs sold",
+  "Le but : un rapport équilibré, avec des mises en vente et des ventes qui progressent ensemble.": "The goal: a balanced ratio, with listings and sales growing together.",
+  "Mises en vente": "Listed",
+  "Vendues ÷ mises en vente": "Sold ÷ listed",
+  "{ratio} la période précédente": "{ratio} the previous period",
+  "Équilibré et en croissance": "Balanced and growing",
+  "Le stock s'accumule": "Stock is piling up",
+  "Le stock se vide": "Stock is running low",
+  "Vous mettez en vente à peu près ce que vous vendez, et les deux progressent : c'est le bon rythme.": "You list roughly what you sell, and both are growing: that's the right pace.",
+  "Mises en vente et ventes s'équilibrent, mais reculent toutes les deux par rapport à la période précédente.": "Listings and sales are balanced, but both are down on the previous period.",
+  "Vous mettez en vente à peu près ce que vous vendez. Pour grandir, augmentez les deux ensemble.": "You list roughly what you sell. To grow, increase both together.",
+  "Vous mettez en vente plus que vous ne vendez : ralentissez les mises en ligne ou revoyez les prix de ce qui ne part pas.": "You list more than you sell: slow down listings or review the prices of what isn't selling.",
+  "Vous vendez plus que vous ne mettez en vente : remettez des cartes en ligne pour ne pas manquer de stock.": "You sell more than you list: list more cards so you don't run out of stock.",
+  "Aucune carte mise en vente ni vendue sur la période.": "No cards listed or sold over the period.",
+  "Mises en vente et ventes par mois": "Listed and sold per month",
+  "Une carte compte comme mise en vente à sa première mise en ligne, ou le jour de sa vente si elle part en direct sans être passée en ligne.": "A card counts as listed when it is first published, or on the day it sells if it sells directly without ever being listed.",
 };
