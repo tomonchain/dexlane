@@ -14,7 +14,13 @@ import { useCallback, useEffect, useRef, useState, type SetStateAction } from "r
 const store = new Map<string, unknown>();
 const MAX_ENTRIES = 200;
 
-const STORAGE_KEY = "dexlane-cache-v1";
+/**
+ * Version de la mémoire gardée sur l'appareil : à augmenter dès que la forme d'une donnée gardée change (champ ajouté
+ * dont un écran a besoin), pour que les données d'une version précédente soient ignorées au lieu de faire planter un
+ * écran. Les versions précédentes sont effacées au chargement.
+ */
+const STORAGE_KEY = "dexlane-cache-v2";
+const OLD_KEYS = ["dexlane-cache-v1"];
 /**
  * Ce qui est gardé sur l'appareil : les entrées les plus récentes de moins d'une semaine, dans un budget total
  * (le stockage du navigateur est limité à quelques mégaoctets) ; une entrée trop lourde reste en mémoire seulement.
@@ -31,6 +37,7 @@ function readSaved(): Saved {
   if (saved) return saved;
   saved = {};
   try {
+    if (typeof localStorage !== "undefined") for (const key of OLD_KEYS) localStorage.removeItem(key);
     const raw = typeof localStorage === "undefined" ? null : localStorage.getItem(STORAGE_KEY);
     const parsed = raw ? (JSON.parse(raw) as Saved) : {};
     const now = Date.now();

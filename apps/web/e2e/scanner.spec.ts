@@ -1477,7 +1477,7 @@ test("cache : en revenant sur un écran, ses dernières données s'affichent tou
   await expect(page.getByTestId("skeleton")).toHaveCount(0);
 
   // Les données restent sur l'appareil : en rouvrant l'application, toujours sans réponse du serveur, le stock revient.
-  await expect.poll(() => page.evaluate(() => localStorage.getItem("dexlane-cache-v1")?.length ?? 0)).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("dexlane-cache-v2")?.length ?? 0)).toBeGreaterThan(0);
   await page.reload();
   await expect(rows.first()).toBeVisible();
 
@@ -1486,7 +1486,7 @@ test("cache : en revenant sur un écran, ses dernières données s'affichent tou
   await page.goto("/account");
   await page.getByRole("button", { name: "Se déconnecter" }).click();
   await page.waitForURL(/\/login/);
-  expect(await page.evaluate(() => localStorage.getItem("dexlane-cache-v1"))).toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem("dexlane-cache-v2"))).toBeNull();
 });
 
 test("notifications : réglage par appareil et choix de ce qui est signalé", async ({ page }) => {
@@ -1717,4 +1717,26 @@ test("ventes : suivi du colis, livraison notée et demande d'avis ; extension da
   await page.goto("/reglages/envois");
   await expect(page).toHaveURL(/\/settings\/shipping$/);
   await expect(page.getByTestId("tracking-carriers")).toContainText("Non relié");
+});
+
+test("mémoire de l'appareil : des données gardées par une version précédente ne font pas planter l'écran", async ({ page }) => {
+  await login(page);
+  // Format du premier écran Fournitures : ni totaux, ni prix, ni emplacement.
+  const old = { supplies: [{ id: "00000000-0000-4000-8000-000000000001", name: "Sleeves", usage: "PER_CARD", perUse: 1, modes: ["HAND_DELIVERY"], onHand: 3, reorderPoint: 10, reorderQuantity: null, supplierUrl: null, orderedAt: null, createdAt: new Date().toISOString(), used30Days: 0, daysLeft: null, status: "LOW" }], toReorder: 1 };
+  await page.addInitScript((value) => {
+    if (!sessionStorage.getItem("seeded")) {
+      // Sous l'ancienne clé (ignorée et effacée) et sous la clé courante (l'écran doit tenir quand même).
+      localStorage.setItem("dexlane-cache-v1", JSON.stringify({ supplies: { at: Date.now(), value } }));
+      localStorage.setItem("dexlane-cache-v2", JSON.stringify({ supplies: { at: Date.now(), value } }));
+      sessionStorage.setItem("seeded", "1");
+    }
+  }, old);
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto("/stock?section=supplies");
+  await expect(page.getByRole("heading", { name: "Stock", level: 1 })).toBeVisible();
+  await expect(page.getByTestId("stock-tabs")).toBeVisible();
+  await expect(page.getByTestId("supply-Sleeves").or(page.getByText("Aucune fourniture suivie"))).toBeVisible();
+  expect(errors).toEqual([]);
+  expect(await page.evaluate(() => localStorage.getItem("dexlane-cache-v1"))).toBeNull();
 });

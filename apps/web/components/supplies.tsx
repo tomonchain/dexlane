@@ -130,7 +130,9 @@ export function SuppliesView({ header }: { header: (meta: ReactNode, actions: Re
     }
   }
 
-  const supplies = data?.supplies ?? [];
+  // Données d'une version précédente (sans totaux) : traitées comme absentes, l'écran attend le rechargement.
+  const valid = data && data.totals && Array.isArray(data.supplies) ? data : null;
+  const supplies = valid?.supplies ?? [];
   const needle = query.trim().toLowerCase();
   const rows = supplies
     .filter((s) => filter === "ALL" || (filter === "REORDER" ? s.status !== "OK" && !s.orderedAt : s.orderedAt))
@@ -150,18 +152,18 @@ export function SuppliesView({ header }: { header: (meta: ReactNode, actions: Re
   return (
     <>
       {header(
-        data && data.supplies.length > 0 && (
+        valid && valid.supplies.length > 0 && (
           <span className="tabular" data-testid="supplies-totals">
-            {tn(data.totals.items, "{n} article", "{n} articles")} · {tn(data.totals.units, "{n} unité", "{n} unités")}
-            {data.totals.valueCents > 0 && ` · ${formatEuros(data.totals.valueCents)}`}
+            {tn(valid.totals.items, "{n} article", "{n} articles")} · {tn(valid.totals.units, "{n} unité", "{n} unités")}
+            {valid.totals.valueCents > 0 && ` · ${formatEuros(valid.totals.valueCents)}`}
           </span>
         ),
         <Button onClick={() => setDialog({ kind: "edit", supply: null })} data-testid="supply-add"><Plus /> {t("Ajouter une fourniture")}</Button>,
-        data?.toReorder ?? 0,
+        valid?.toReorder ?? 0,
       )}
       {error && <Alert variant="destructive">{error}</Alert>}
-      {!data && !error && <Loading />}
-      {data && supplies.length === 0 && (
+      {!valid && !error && <Loading />}
+      {valid && supplies.length === 0 && (
         <EmptyState icon={<PackageOpen />} title={t("Aucune fourniture suivie")}
           action={
             <div className="flex flex-wrap justify-center gap-2">
@@ -173,18 +175,18 @@ export function SuppliesView({ header }: { header: (meta: ReactNode, actions: Re
           {t("Ajoutez ce que vous utilisez pour expédier ; chaque envoi remis en décompte automatiquement sa part.")}
         </EmptyState>
       )}
-      {data && supplies.length > 0 && (
+      {valid && supplies.length > 0 && (
         <>
-          {data.toReorder > 0 && (
+          {valid.toReorder > 0 && (
             <Alert variant="warning" data-testid="supplies-to-reorder">
-              {tn(data.toReorder, "{n} fourniture à commander.", "{n} fournitures à commander.")} {t("Une fois la commande passée, marquez-la « commandée » : l'alerte se tait jusqu'à la réception.")}
+              {tn(valid.toReorder, "{n} fourniture à commander.", "{n} fournitures à commander.")} {t("Une fois la commande passée, marquez-la « commandée » : l'alerte se tait jusqu'à la réception.")}
             </Alert>
           )}
           <div className="grid gap-3">
             <SegmentedTabs label={t("Statut")} value={filter} onChange={setFilter} tabs={[
               { value: "ALL", label: t("Tout"), count: supplies.length },
-              { value: "REORDER", label: t("À commander"), count: data.toReorder },
-              { value: "ORDERED", label: t("Commandées"), count: data.ordered },
+              { value: "REORDER", label: t("À commander"), count: valid.toReorder },
+              { value: "ORDERED", label: t("Commandées"), count: valid.ordered },
             ]} />
             <div className="relative sm:max-w-md" role="search">
               <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
