@@ -3,7 +3,7 @@ import { DomainError } from "@dexlane/shared";
 import type { AllocationStatus, CardCondition } from "./internal";
 import { likePrefix } from "./locations";
 import { allocateOrder, importOrder, releaseAllocation } from "./orders";
-import { getShippingCosts, postageFor, suppliesFor } from "./costs";
+import { getShippingCosts, postageFor, suppliesCostFor } from "./costs";
 import { confirmHandover, createShipment, needsTracking, type ShippingMode } from "./shipping";
 
 /** Canal des ventes saisies à la main (salon, particulier, groupe) : même cycle qu'une commande de marketplace. */
@@ -284,7 +284,7 @@ export async function getOrderDetail(sql: Db, orderId: string): Promise<OrderDet
   const costs = shipped ? null : await getShippingCosts(sql);
   const cards = lines.reduce((sum, l) => sum + l.qty, 0);
   const postageCents = shipment?.postageCostCents ?? (costs && shipment ? postageFor(costs, shipment.mode) : 0);
-  const suppliesCents = shipment?.suppliesCostCents ?? (costs && shipment ? suppliesFor(costs, shipment.mode, cards) : 0);
+  const suppliesCents = shipment?.suppliesCostCents ?? (costs && shipment ? await suppliesCostFor(sql, shipment.mode, cards) : 0);
   return {
     ...summary,
     note: extra?.note ?? null,
@@ -353,14 +353,15 @@ export function shipOrder(sql: Db, input: ShipOrderInput) {
     if (needsTracking(shipment.mode) && !tracking) {
       throw new DomainError("TRACKING_REQUIRED", "a tracked shipment needs a tracking number before handover");
     }
-    // Affranchissement saisi, sinon celui déjà noté, sinon l'habituel du mode ; fournitures au tarif du jour.
+    // Affranchissement saisi, sinon celui déjà noté, sinon l'habituel du mode ; fournitures au tarif du jour
+    // (prix d'achat des fournitures du stock s'ils sont renseignés, sinon les frais d'envoi).
     const costs = await getShippingCosts(tx);
     const [count] = await tx<{ cards: number }[]>`select coalesce(sum(qty), 0)::int as cards from order_lines where order_id = ${input.orderId}`;
     const cards = count?.cards ?? 0;
     await tx`
       update shipments set tracking = coalesce(${tracking}, tracking),
                            postage_cost_cents = coalesce(${input.postageCostCents ?? null}, postage_cost_cents, ${postageFor(costs, shipment.mode)}),
-                           supplies_cost_cents = ${suppliesFor(costs, shipment.mode, cards)},
+                           supplies_cost_cents = ${await suppliesCostFor(tx, shipment.mode, cards)},
                            updated_at = now()
        where id = ${shipment.id}`;
     return confirmHandover(tx, shipment.id, input.actor);

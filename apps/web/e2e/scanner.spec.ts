@@ -1605,6 +1605,12 @@ test("stock › fournitures : ajout depuis une suggestion, alerte « à commande
   await expect(journal).toContainText("commande 42");
   await expect(journal.getByTestId("journal-summary")).toContainText("+530"); // stock initial (30) et entrée (500)
 
+  // Son prix d'achat fixe désormais le coût des fournitures dans la marge : les frais d'envoi l'affichent.
+  await page.goto("/reglages/envois");
+  await expect(page.getByTestId("supplies-from-stock")).toContainText("Sleeves");
+  await expect(page.getByTestId("supplies-per-card")).toContainText("0,05 €");
+  await expect(page.getByLabel("Sleeve (€)")).toHaveCount(0);
+
   // Retirée pour ne pas peser sur les autres parcours.
   await page.goto("/stock?categorie=fournitures");
   await row.click();

@@ -2,7 +2,7 @@ import type {
   AcquisitionLot, Activity, CardPage, CatalogHit, Deal, DealList, TopCard, WatchedCard, AlertSettings, AppSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, SalesInsights, PriceMoves, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
   Location, Photo, PositionDetail, Received,
   OfferPricing, OrderDetail, PriceHistory, OrderList, OrderStage, PricingSettings, ShippingCosts, ShippingRun, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
-  PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockFacets, StockPage, StockStatus, StoredPhoto, VariantQuote, SupplyDetail, SupplyInput, SupplyList, AgentToken, MovementPage, MovementKind, MovementCategory,
+  PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockFacets, StockPage, StockStatus, StoredPhoto, VariantQuote, SupplyDetail, SupplyInput, SupplyList, ShippingCostsView, AgentToken, MovementPage, MovementKind, MovementCategory,
 } from "./types";
 import { clearCache } from "./cache";
 import { t } from "./i18n";
@@ -193,7 +193,7 @@ export const api = {
   sellableOffers: (q?: string) => request<{ offers: SellableOffer[] }>("GET", "/offers/sellable", { query: { q } }),
   orders: (stage?: OrderStage) => request<OrderList>("GET", "/orders", { query: { stage } }),
   order: (id: string) => request<OrderDetail>("GET", `/orders/${id}`),
-  shippingCosts: () => request<ShippingCosts>("GET", "/shipping-costs"),
+  shippingCosts: () => request<ShippingCostsView>("GET", "/shipping-costs"),
   saveShippingCosts: (costs: ShippingCosts) => request<ShippingCosts>("PUT", "/shipping-costs", { json: costs }),
   shippingRun: () => request<ShippingRun>("GET", "/orders/preparation"),
 

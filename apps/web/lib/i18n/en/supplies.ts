@@ -141,4 +141,14 @@ export const SUPPLIES: Record<string, string> = {
   "{n} articles": "{n} items",
   "{n} unité": "{n} unit",
   "{n} unités": "{n} units",
+
+  // Coût des fournitures dans la marge
+  "Calculées d'après les prix d'achat des fournitures du stock, pour les envois qui les utilisent. Changez-les dans Stock › Fournitures.": "Computed from the unit costs of the supplies in stock, for the shipments that use them. Change them in Stock › Supplies.",
+  "par carte": "per card",
+  "par envoi": "per shipment",
+  "Soit {amount} de fournitures par carte, plus par envoi : {modes}.": "That is {amount} of supplies per card, plus per shipment: {modes}.",
+  "Gérer les fournitures": "Manage supplies",
+  "Renseignez le prix d'achat de vos fournitures dans Stock › Fournitures : il remplacera ces montants, envoi par envoi.": "Enter the unit cost of your supplies in Stock › Supplies: it will replace these amounts, shipment by shipment.",
+  "Prix − coût d'achat − fournitures par carte ({price})": "Price − purchase cost − supplies per card ({price})",
+  "Compté dans la marge des ventes": "Counted in the margin of sales",
 };

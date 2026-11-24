@@ -190,6 +190,45 @@ describe("supplies", () => {
   });
 });
 
+describe("supply costs in the margin", () => {
+  it("counts supplies at their stock unit cost once one is priced, per card or per shipment for the modes that use them", async () => {
+    await call("PUT", "/api/shipping-costs", { body: { postage: { LETTER_UNTRACKED: 100, LETTER_TRACKED: null, PARCEL_TRACKED: null }, supplies: { sleeveCents: 10, toploaderCents: 10, envelopeCents: 10 } } });
+    await call("POST", "/api/locations", { body: { code: "BOX-01" } });
+    const variantId = await fouinarReverse();
+    const offerId = (await call("POST", "/api/inventory/receive", { body: { variantId, condition: "NM", quantity: 6, locationCode: "BOX-01", unitCostCents: 20 } })).json.offer.id as string;
+    const sale = async (qty: number, shippingMode: string) =>
+      (await call("POST", "/api/orders", { body: { lines: [{ offerId, qty, unitPriceCents: 100 }], shippingMode } })).json;
+
+    // Sans prix dans le stock : les frais d'envoi (2 × 20 + 10).
+    expect((await call("GET", "/api/shipping-costs")).json.stock).toBeNull();
+    expect((await sale(2, "LETTER_UNTRACKED")).totals).toMatchObject({ suppliesCents: 50, estimated: true });
+
+    // Un prix dans le stock : les fournitures du stock, chacune pour ses modes ; une fourniture sans prix compte 0.
+    await call("POST", "/api/supplies", { body: { name: "Sleeves", usage: "PER_CARD", unitCostCents: 3 }, key: null });
+    await call("POST", "/api/supplies", { body: { name: "Top-loaders", usage: "PER_CARD" }, key: null });
+    await call("POST", "/api/supplies", { body: { name: "Enveloppes", usage: "PER_SHIPMENT", modes: ["LETTER_UNTRACKED", "LETTER_TRACKED"], unitCostCents: 20 }, key: null });
+    await call("POST", "/api/supplies", { body: { name: "Scotch", usage: "MANUAL", unitCostCents: 500 }, key: null });
+    const costs = (await call("GET", "/api/shipping-costs")).json;
+    expect(costs.stock).toMatchObject({ perCardCents: 3, perShipmentCents: { LETTER_UNTRACKED: 20, HAND_DELIVERY: 0, PARCEL_TRACKED: 0 } });
+    expect(costs.stock.items.map((x: { name: string }) => x.name)).toEqual(["Enveloppes", "Sleeves", "Top-loaders"]);
+
+    const letter = await sale(2, "LETTER_UNTRACKED");
+    expect(letter.totals.suppliesCents).toBe(2 * 3 + 20);
+    const hand = await sale(1, "HAND_DELIVERY");
+    expect(hand.totals.suppliesCents).toBe(3);
+
+    // Figé à la remise : changer le prix ensuite ne réécrit pas la vente.
+    const allocation = hand.lines[0].allocations[0];
+    await call("POST", `/api/orders/${hand.id}/pick`, { body: { allocationId: allocation.id, unitSku: allocation.unitSku }, key: null });
+    await call("POST", `/api/orders/${hand.id}/pack`, { key: null });
+    expect((await call("POST", `/api/orders/${hand.id}/handover`, { body: {}, key: null })).json.totals).toMatchObject({ suppliesCents: 3, estimated: false });
+    const sleeves = (await call("GET", "/api/supplies")).json.supplies.find((x: { name: string }) => x.name === "Sleeves");
+    await call("PATCH", `/api/supplies/${sleeves.id}`, { body: { unitCostCents: 9 } });
+    expect((await call("GET", `/api/orders/${hand.id}`)).json.totals.suppliesCents).toBe(3);
+    expect((await call("GET", `/api/orders/${letter.id}`)).json.totals.suppliesCents).toBe(2 * 9 + 20);
+  });
+});
+
 describe("stock journal", () => {
   it("lists card and supply movements together, newest first, with filters, pages and a summary", async () => {
     await call("POST", "/api/locations", { body: { code: "BOX-01" } });

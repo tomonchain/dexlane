@@ -768,7 +768,8 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
   const loadedFor = useRef<string | null>(null);
   // Sleeve et top-loader : ce que coûte chaque carte vendue, en plus de son prix d'achat.
   useEffect(() => {
-    api.shippingCosts().then((c) => setSupplies(c.supplies.sleeveCents + c.supplies.toploaderCents)).catch(() => setSupplies(0));
+    // Fournitures par carte : d'après les prix du stock s'ils sont renseignés, sinon les frais d'envoi.
+    api.shippingCosts().then((c) => setSupplies(c.stock ? c.stock.perCardCents : c.supplies.sleeveCents + c.supplies.toploaderCents)).catch(() => setSupplies(0));
   }, []);
 
   useEffect(() => {
@@ -849,7 +850,7 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
         <Figure label={t("Vendable")}>{d.available}</Figure>
         <Figure label={t("Coût")}>{formatEuros(d.averageCostCents)}</Figure>
         <Figure label={t("Marge")} hint={t("{formula}. L'affranchissement et l'enveloppe se comptent sur la vente, en face du port facturé.", {
-          formula: supplies > 0 ? t("Prix − coût d'achat − sleeve et top-loader ({price})", { price: formatEuros(supplies) }) : t("Prix − coût d'achat"),
+          formula: supplies > 0 ? t("Prix − coût d'achat − fournitures par carte ({price})", { price: formatEuros(supplies) }) : t("Prix − coût d'achat"),
         })}>
           <span data-testid="stock-margin">{d.targetPriceCents === null ? "—" : formatEuros(d.targetPriceCents - d.averageCostCents - supplies)}</span>
         </Figure>

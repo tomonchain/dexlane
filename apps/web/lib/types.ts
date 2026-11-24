@@ -2,7 +2,7 @@ import type { Candidate, CandidateVariant, CatalogHit as CatalogHitRow, CatalogS
 import type {
   AcquisitionLotRow, CardCondition, InventoryRow, InventorySummary, LocationSummary, MovementRow, OrderDetail as OrderDetailRow, PhotoKind, PhotoRow,
   OrderStage, OrderSummary as OrderSummaryRow, ReceivedBulk, ReceivedPosition, SalesTotals, SellableOffer as SellableOfferRow,
-  ShippingMode, ShippingCosts, Supply as SupplyRow, SupplyMovement as SupplyMovementRow, SupplyUsage, SupplyList as SupplyListRow, MovementPage as MovementPageRow, MovementKind, MovementCategory,
+  ShippingMode, ShippingCosts, StockSupplyCost, Supply as SupplyRow, SupplyMovement as SupplyMovementRow, SupplyUsage, SupplyList as SupplyListRow, MovementPage as MovementPageRow, MovementKind, MovementCategory,
 } from "@dexlane/inventory";
 import type {
   Activity as ActivityRow, CardDetail as CardDetailRow, ChannelId, ChannelMode, ChannelState as ChannelStateRow, ListingBlocker, ListingOffer as ListingOfferRow, ListingSettings,
@@ -139,6 +139,10 @@ export interface AppSettings {
 export interface ShippingRun { orders: OrderDetail[]; seller: Seller; slipPaper: SlipPaper }
 
 export type { ShippingCosts, SupplyUsage };
+/** Frais d'envoi, avec le coût des fournitures d'après le stock quand leurs prix d'achat sont renseignés (il prime). */
+export type ShippingCostsView = ShippingCosts & {
+  stock: { items: StockSupplyCost[]; perCardCents: number; perShipmentCents: Record<ShippingMode, number> } | null;
+};
 export type Supply = Json<SupplyRow>;
 export type SupplyDetail = Supply & { movements: Json<SupplyMovementRow>[] };
 export type SupplyList = Json<SupplyListRow>;
