@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
+import { OfferPhotos } from "@/components/offer-photos";
 import { PriceHistory } from "@/components/price-history";
 import { PageSkeleton } from "@/components/skeletons";
 import { Alert } from "@/components/ui/alert";
@@ -112,8 +113,20 @@ function VariantRow({ variant, selected, onChart, onWatch }: { variant: Variant;
 }
 
 /** Une offre (variante × état) et ses exemplaires, regroupés. */
-function OfferGroup({ offer, copies, variant }: { offer: Offer; copies: CardPage["copies"]; variant: Variant | undefined }) {
+function OfferGroup({ offer, copies, variant, onChanged }: { offer: Offer; copies: CardPage["copies"]; variant: Variant | undefined; onChanged: () => void }) {
   const status = STATUS[offer.status] ?? STATUS.READY!;
+  const [busy, setBusy] = useState(false);
+  async function run(action: () => Promise<string>) {
+    setBusy(true);
+    try {
+      toast.success(await action());
+      onChanged();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   const price = offer.targetPriceCents ?? offer.suggestedPriceCents;
   return (
     <li className="grid gap-2 px-4 py-3" data-testid={`card-offer-${offer.offerSku}`}>
@@ -129,6 +142,7 @@ function OfferGroup({ offer, copies, variant }: { offer: Offer; copies: CardPage
         </span>
         <Button asChild variant="outline" size="sm"><Link href={`/stock?offer=${offer.offerId}`}>{t("Ouvrir dans le stock")}</Link></Button>
       </div>
+      <OfferPhotos offerId={offer.offerId} photos={offer.photos ?? []} run={(action) => void run(action)} disabled={busy} />
       <ul className="grid gap-1.5">
         {copies.map((copy) => (
           <li key={copy.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-muted/50 px-3 py-2 text-[13px]" data-testid="card-copy">
@@ -248,7 +262,7 @@ export default function CardDetailPage() {
             ) : (
               <ul className="divide-y overflow-hidden rounded-lg border bg-card">
                 {offers.map((offer) => (
-                  <OfferGroup key={offer.offerId} offer={offer} copies={copies.filter((c) => c.offerId === offer.offerId)} variant={variants.find((v) => v.id === offer.variantId)} />
+                  <OfferGroup key={offer.offerId} offer={offer} copies={copies.filter((c) => c.offerId === offer.offerId)} variant={variants.find((v) => v.id === offer.variantId)} onChanged={load} />
                 ))}
               </ul>
             )}

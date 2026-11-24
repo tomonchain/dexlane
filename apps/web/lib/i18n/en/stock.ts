@@ -236,4 +236,13 @@ export const STOCK: Record<string, string> = {
   "Aperçu": "Preview",
   "Photo introuvable dans le stockage.": "Photo not found in storage.",
   "Impossible de composer la photo.": "Couldn't create the photo.",
+
+  // Photos recto / verso
+  "Ajouter le recto": "Add front",
+  "Remplacer": "Replace",
+  "Remplacer le verso": "Replace back",
+  "Remplacer le recto": "Replace front",
+  "Verso remplacé": "Back replaced",
+  "Recto remplacé": "Front replaced",
+  "Recto ajouté": "Front added",
 };

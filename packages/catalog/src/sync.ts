@@ -199,6 +199,10 @@ export interface CatalogSetSummary {
   cardCountOfficial: number | null;
   cardCountTotal: number | null;
   logoUrl: string | null;
+  /** Symbole de la série (le petit pictogramme imprimé sur les cartes). */
+  symbolUrl: string | null;
+  /** Code d'extension usuel (« EB03 », « ME02.5 »). */
+  code: string;
   /** Cartes de cette série présentes dans le catalogue local (0 = série non synchronisée). */
   cardsSynced: number;
   cardsSyncedAt: Date | null;
@@ -208,7 +212,8 @@ export interface CatalogSetSummary {
 export function listSets(sql: Db, language: string): Promise<CatalogSetSummary[]> {
   return sql<CatalogSetSummary[]>`
     select s.id, s.name, s.serie_id, s.serie_name, s.serie_position, s.release_date::text as release_date,
-           s.card_count_official, s.card_count_total, s.logo_url, count(c.id)::int as cards_synced,
+           s.card_count_official, s.card_count_total, s.logo_url, s.symbol_url,
+           set_code(s.id, s.language, s.code_override, s.abbreviation) as code, count(c.id)::int as cards_synced,
            max(c.synced_at) as cards_synced_at
       from catalog_sets s
       left join catalog_cards c on c.set_id = s.id and c.language = s.language
@@ -253,7 +258,7 @@ export interface CatalogSetDetail {
 export async function getSetDetail(sql: Db, language: string, setId: string): Promise<CatalogSetDetail | null> {
   const [set] = await sql<CatalogSetDetail["set"][]>`
     select s.id, s.name, s.serie_id, s.serie_name, s.serie_position, s.release_date::text as release_date,
-           s.card_count_official, s.card_count_total, s.logo_url, s.abbreviation, s.abbreviation_localized, s.synced_at,
+           s.card_count_official, s.card_count_total, s.logo_url, s.symbol_url, s.abbreviation, s.abbreviation_localized, s.synced_at,
            set_code(s.id, s.language, s.code_override, s.abbreviation) as code, s.code_override,
            (select count(*)::int from catalog_cards c where c.set_id = s.id and c.language = s.language) as cards_synced,
            (select max(c.synced_at) from catalog_cards c where c.set_id = s.id and c.language = s.language) as cards_synced_at

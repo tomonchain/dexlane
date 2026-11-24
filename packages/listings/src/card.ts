@@ -1,5 +1,6 @@
 import type { Db } from "@dexlane/db";
 import { DomainError } from "@dexlane/shared";
+import { listPhotos, type PhotoRow } from "@dexlane/inventory";
 import { listStock, type StockRow } from "./stock";
 
 export interface CardVariantRow {
@@ -52,7 +53,8 @@ export interface CardDetail {
   };
   variants: CardVariantRow[];
   /** Une ligne par offre (variante × état) : prix, statut, annonces. */
-  offers: StockRow[];
+  /** Offres en stock, avec les photos (recto, verso) de leur exemplaire. */
+  offers: (StockRow & { photos: PhotoRow[] })[];
   copies: CardCopy[];
   sales: CardSale[];
   totals: { copies: number; valueCents: number; costCents: number; soldCards: number; soldCents: number };
@@ -101,8 +103,10 @@ export async function getCardDetail(sql: Db, cardId: string): Promise<CardDetail
        order by ord.ordered_at desc
        limit 50`,
   ]);
+  const photos = offers.length ? await listPhotos(sql, { offerIds: offers.map((o) => o.offerId) }) : [];
+  const withPhotos = offers.map((o) => ({ ...o, photos: photos.filter((p) => p.offerId === o.offerId && (p.kind === "SCAN_FRONT" || p.kind === "SCAN_BACK")) }));
   return {
-    card, variants, offers, copies, sales,
+    card, variants, offers: withPhotos, copies, sales,
     totals: {
       copies: copies.reduce((sum, c) => sum + c.onHand, 0),
       valueCents: offers.reduce((sum, o) => sum + o.onHand * (o.targetPriceCents ?? o.suggestedPriceCents ?? 0), 0),

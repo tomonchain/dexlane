@@ -1,11 +1,17 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { t } from "@/lib/i18n";
+import { usePageActionsSlot } from "@/lib/page-actions";
 import { cn } from "@/lib/utils";
+import { Button } from "./button";
 
 /**
- * Barre d'action collante, en bas de l'écran (au-dessus des onglets sur téléphone) : l'action principale de la page reste
- * à portée sans défiler, avec à gauche ce qu'il faut savoir avant de la lancer. Une seule par page.
- * `tone="unsaved"` : modifications non enregistrées, la barre se détache (formulaires de réglages).
+ * Actions principales d'une page, avec ce qu'il faut savoir avant de les lancer. Elles se placent en haut à droite du
+ * contenu, dans l'en-tête de la page, avec ses autres boutons : toutes les actions au même endroit. Une page sans
+ * en-tête les garde dans une barre collante en bas de l'écran (au-dessus des onglets sur téléphone).
+ * `tone="unsaved"` : modifications non enregistrées (formulaires de réglages).
  */
 export function ActionBar({ message, children, tone = "default", className }: {
   message?: ReactNode;
@@ -13,6 +19,21 @@ export function ActionBar({ message, children, tone = "default", className }: {
   tone?: "default" | "unsaved";
   className?: string;
 }) {
+  const slot = usePageActionsSlot();
+  if (slot) {
+    return createPortal(
+      <div role="region" aria-label={t("Action principale")} data-testid="action-bar"
+        className={cn("flex max-w-full flex-wrap items-center justify-end gap-x-3 gap-y-1.5", className)}>
+        {message && (
+          <div data-slot="message" className={cn("min-w-0 text-right text-[13px] max-sm:basis-full", tone === "unsaved" ? "inline-flex items-center justify-end gap-1.5 font-medium text-warning" : "text-muted-foreground")} role="status">
+            {tone === "unsaved" && <span className="size-2 shrink-0 rounded-full bg-warning" aria-hidden />}{message}
+          </div>
+        )}
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">{children}</div>
+      </div>,
+      slot,
+    );
+  }
   return (
     <>
       {/* Réserve la hauteur de la barre : le bas de la page n'est jamais masqué. */}
@@ -47,8 +68,24 @@ export function SaveBar({ message, saveLabel, saving, disabled, onSave, onDiscar
   onDiscard: () => void;
   submit?: boolean;
 }) {
+  // Les boutons vivent dans l'en-tête, hors du formulaire : « Enregistrer » soumet le formulaire où la barre est déclarée.
+  const anchor = useRef<HTMLSpanElement>(null);
+  const inHeader = usePageActionsSlot() !== null;
+  const save = submit ? () => anchor.current?.closest("form")?.requestSubmit() : onSave;
   return (
+    <>
+    <span ref={anchor} hidden />
     <ActionBar tone="unsaved" message={message ?? t("Modifications non enregistrées")}>
+      {inHeader ? (
+        <>
+          <Button type="button" variant="ghost" onClick={onDiscard} disabled={saving}>{t("Annuler")}</Button>
+          <Button type="button" onClick={save} disabled={saving || disabled}>
+            {saving && <span className="size-3.5 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" aria-hidden />}
+            {saveLabel}
+          </Button>
+        </>
+      ) : (
+        <>
       <button
         type="button"
         onClick={onDiscard}
@@ -58,14 +95,17 @@ export function SaveBar({ message, saveLabel, saving, disabled, onSave, onDiscar
         {t("Annuler")}
       </button>
       <button
-        type={submit ? "submit" : "button"}
-        onClick={submit ? undefined : onSave}
+        type="button"
+        onClick={save}
         disabled={saving || disabled}
         className="inline-flex h-9 items-center gap-2 rounded-md bg-background px-4 text-sm font-medium text-foreground outline-none hover:bg-background/90 focus-visible:ring-2 focus-visible:ring-background/40 disabled:opacity-50"
       >
         {saving && <span className="size-3.5 animate-spin rounded-full border-2 border-foreground/30 border-t-foreground" aria-hidden />}
         {saveLabel}
       </button>
+        </>
+      )}
     </ActionBar>
+    </>
   );
 }
