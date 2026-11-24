@@ -229,6 +229,101 @@ describe("supply costs in the margin", () => {
   });
 });
 
+describe("delivery tracking and reviews", () => {
+  it("follows shipments with the carrier, notes deliveries, and reminds once to ask for a review 24 h after delivery", async () => {
+    const sent: { body: string; url: string }[] = [];
+    const answers = new Map<string, { status: "IN_TRANSIT" | "DELIVERED"; event: string; eventAt: Date | null; deliveredAt: Date | null } | null>();
+    const asked: string[] = [];
+    const trackApp = createApp({
+      sql, token: TOKEN, recognizer: () => ({ recognize: (image) => recognize(image) }), photos: createMemoryPhotoStore(), tcgdex: () => tcgdex, onError: (e) => errors.push(e),
+      push: async (_s, message) => { sent.push({ body: message.body.replace(/[\u00a0\u202f]/g, " "), url: message.url }); return "sent"; },
+      tracking: { LA_POSTE: async (sh) => { asked.push(sh.tracking); return answers.get(sh.tracking) ?? null; } },
+    });
+    const tcall = async (method: string, path: string, body?: unknown) => {
+      const res = await trackApp.request(path, { method, headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() }, body: body === undefined ? undefined : JSON.stringify(body) });
+      return { status: res.status, json: (await res.json()) as any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+    };
+    await tcall("POST", "/api/notifications/subscriptions", { endpoint: "https://push.example/phone", keys: { p256dh: "p".repeat(87), auth: "a".repeat(22) }, locale: "fr" });
+    expect((await tcall("GET", "/api/shipments/tracking")).json).toEqual({ carriers: { LA_POSTE: true, MONDIAL_RELAY: false } });
+
+    await call("POST", "/api/locations", { body: { code: "BOX-01" } });
+    const variantId = await fouinarReverse();
+    const received = (await call("POST", "/api/inventory/receive", { body: { variantId, condition: "NM", quantity: 5, locationCode: "BOX-01", unitCostCents: 20 } })).json;
+    const sell = async (shippingMode: string, buyerName: string, handover: Record<string, string>) => {
+      const order = (await tcall("POST", "/api/orders", { lines: [{ offerId: received.offer.id, qty: 1, unitPriceCents: 100 }], shippingMode, buyerName })).json;
+      await tcall("POST", `/api/orders/${order.id}/pick`, { allocationId: order.lines[0].allocations[0].id, unitSku: order.lines[0].allocations[0].unitSku });
+      await tcall("POST", `/api/orders/${order.id}/pack`);
+      return (await tcall("POST", `/api/orders/${order.id}/handover`, handover)).json;
+    };
+
+    // Lettre suivie : le transporteur se déduit du numéro, saisi avec des espaces.
+    const letter = await sell("LETTER_TRACKED", "Léa", { tracking: "6a 1234 5678 901" });
+    expect(letter.delivery).toMatchObject({ carrier: "LA_POSTE", tracking: "6A12345678901", status: "HANDED_OVER", deliveredAt: null, reviewDue: false });
+    // Remise en main propre : livrée sur-le-champ, avis dû 24 h plus tard.
+    const hand = await sell("HAND_DELIVERY", "Hugo", {});
+    expect(hand.delivery).toMatchObject({ status: "DELIVERED", reviewDue: false });
+    expect(hand.delivery.deliveredAt).toEqual(expect.any(String));
+
+    // Pas encore connu du transporteur, puis en route, puis livré il y a deux jours.
+    expect((await tcall("POST", "/api/shipments/tracking/refresh")).json).toEqual({ checked: 1, delivered: 0, failed: 0 });
+    expect((await tcall("POST", "/api/shipments/tracking/refresh")).json.checked).toBe(0); // vu il y a moins de 3 h
+    answers.set("6A12345678901", { status: "IN_TRANSIT", event: "Votre colis est en cours d'acheminement.", eventAt: new Date(), deliveredAt: null });
+    await tcall("POST", "/api/shipments/tracking/refresh?force=true");
+    expect((await tcall("GET", `/api/orders/${letter.id}`)).json.shipment).toMatchObject({ status: "IN_TRANSIT", trackingEvent: "Votre colis est en cours d'acheminement." });
+    const twoDaysAgo = new Date(Date.now() - 48 * 3600 * 1000);
+    answers.set("6A12345678901", { status: "DELIVERED", event: "Votre colis est livré.", eventAt: twoDaysAgo, deliveredAt: twoDaysAgo });
+    expect((await tcall("POST", "/api/shipments/tracking/refresh?force=true")).json).toEqual({ checked: 1, delivered: 1, failed: 0 });
+    expect(asked).toEqual(["6A12345678901", "6A12345678901", "6A12345678901"]);
+    expect((await tcall("POST", "/api/shipments/tracking/refresh?force=true")).json.checked).toBe(0); // livré : plus suivi
+
+    // Livrée depuis plus de 24 h : avis à demander, rappelé une seule fois ; la remise en main propre d'il y a une heure, pas encore.
+    const due = (await tcall("GET", "/api/orders?review=DUE")).json;
+    expect(due.items.map((o: { buyerName: string }) => o.buyerName)).toEqual(["Léa"]);
+    expect(due.counts.REVIEW_DUE).toBe(1);
+    expect((await tcall("POST", "/api/sales/reviews/remind")).json).toEqual({ reminded: 1, sent: 1 });
+    expect(sent.at(-1)).toEqual({ body: "Léa a reçu sa commande hier : c'est le moment de demander un avis.", url: `/sales/${letter.id}` });
+    expect((await tcall("POST", "/api/sales/reviews/remind")).json).toEqual({ reminded: 0, sent: 0 });
+
+    // Demande faite : la vente sort de la liste ; annulée : elle y revient (sans nouveau rappel).
+    expect((await tcall("POST", `/api/orders/${letter.id}/review`, { requested: true })).json.delivery).toMatchObject({ reviewDue: false, reviewRequestedAt: expect.any(String) });
+    expect((await tcall("GET", "/api/orders?review=DUE")).json.items).toHaveLength(0);
+    await tcall("POST", `/api/orders/${letter.id}/review`, { requested: false });
+    expect((await tcall("GET", "/api/orders?review=DUE")).json.items).toHaveLength(1);
+
+    // Lettre sans suivi automatique (Mondial Relay non configuré) : numéro corrigé, puis livraison notée à la main.
+    const relay = await sell("PARCEL_TRACKED", "Inès", { tracking: "12345678" });
+    expect(relay.delivery).toMatchObject({ carrier: "MONDIAL_RELAY" });
+    expect((await tcall("PATCH", `/api/orders/${relay.id}/tracking`, { tracking: "LA123456789FR" })).json.delivery).toMatchObject({ carrier: "LA_POSTE", tracking: "LA123456789FR" });
+    expect((await tcall("POST", `/api/orders/${relay.id}/delivered`)).json.delivery).toMatchObject({ status: "DELIVERED" });
+    const pending = (await tcall("POST", "/api/orders", { lines: [{ offerId: received.offer.id, qty: 1, unitPriceCents: 100 }], shippingMode: "LETTER_TRACKED" })).json;
+    expect((await tcall("POST", `/api/orders/${pending.id}/delivered`)).json.error.code).toBe("NOT_SHIPPED");
+  });
+});
+
+describe("set codes", () => {
+  it("shows the usual set code in the stock, finds cards by it however it is typed, and lets it be corrected per set", async () => {
+    await call("POST", "/api/locations", { body: { code: "BOX-01" } });
+    const variantId = await fouinarReverse();
+    await call("POST", "/api/inventory/receive", { body: { variantId, condition: "NM", quantity: 1, locationCode: "BOX-01", unitCostCents: 20 } });
+    const search = async (q: string) => (await call("GET", `/api/stock?q=${encodeURIComponent(q)}`)).json.items.map((r: { setCode: string }) => r.setCode);
+
+    // swsh3 en français : Épée et Bouclier 3 → « EB03 ».
+    expect(await search("")).toEqual(["EB03"]);
+    expect(await search("eb 3")).toEqual(["EB03"]);
+    expect(await search("EB03")).toEqual(["EB03"]);
+    expect(await search("ev03")).toEqual([]);
+    expect((await call("GET", "/api/stock/facets")).json.sets[0].name).toBe("EB03 · Ténèbres Embrasées");
+    expect((await call("GET", "/api/catalog/sets/swsh3?language=fr")).json.set).toMatchObject({ code: "EB03", codeOverride: null });
+
+    // Corrigé à la main pour la série, puis rendu au code déduit.
+    expect((await call("PUT", "/api/catalog/sets/swsh3/code", { body: { language: "fr", code: "teb" } })).json).toEqual({ code: "TEB", codeOverride: "TEB" });
+    expect(await search("teb")).toEqual(["TEB"]);
+    expect((await call("PUT", "/api/catalog/sets/swsh3/code", { body: { language: "fr", code: "pas ça !" } })).status).toBe(422);
+    expect((await call("PUT", "/api/catalog/sets/inconnue/code", { body: { language: "fr", code: "X1" } })).status).toBe(404);
+    expect((await call("PUT", "/api/catalog/sets/swsh3/code", { body: { language: "fr", code: null } })).json).toEqual({ code: "EB03", codeOverride: null });
+  });
+});
+
 describe("stock journal", () => {
   it("lists card and supply movements together, newest first, with filters, pages and a summary", async () => {
     await call("POST", "/api/locations", { body: { code: "BOX-01" } });

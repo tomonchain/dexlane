@@ -9,9 +9,10 @@ import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { BackLink, Loading, Page, PageHeader } from "@/components/ui/misc";
 import { api } from "@/lib/api";
 import { t } from "@/lib/i18n";
+import { reviewMessage } from "@/lib/sales";
 import type { AppSettings } from "@/lib/types";
 
-type Form = Pick<AppSettings, "seller" | "slipPaper">;
+type Form = Pick<AppSettings, "seller" | "slipPaper" | "reviewMessage">;
 const PAPERS: { value: AppSettings["slipPaper"]; label: string }[] = [
   { value: "ROLL_80", label: "Rouleau thermique 80 mm" },
   { value: "ROLL_58", label: "Rouleau thermique 58 mm" },
@@ -28,7 +29,7 @@ export default function ShopSettingsPage() {
   useEffect(() => {
     api.appSettings()
       .then((s) => {
-        const f = { seller: s.seller, slipPaper: s.slipPaper };
+        const f = { seller: s.seller, slipPaper: s.slipPaper, reviewMessage: s.reviewMessage ?? "" };
         setSaved(f);
         setForm(f);
       })
@@ -41,8 +42,8 @@ export default function ShopSettingsPage() {
     setSaving(true);
     setError(null);
     try {
-      const s = await api.saveAppSettings({ seller: form.seller, slipPaper: form.slipPaper });
-      const f = { seller: s.seller, slipPaper: s.slipPaper };
+      const s = await api.saveAppSettings({ seller: form.seller, slipPaper: form.slipPaper, reviewMessage: form.reviewMessage });
+      const f = { seller: s.seller, slipPaper: s.slipPaper, reviewMessage: s.reviewMessage ?? "" };
       setSaved(f);
       setForm(f);
       toast.success(t("Boutique enregistrée"));
@@ -91,6 +92,18 @@ export default function ShopSettingsPage() {
                 <Select value={form.slipPaper} onChange={(e) => setForm({ ...form, slipPaper: e.target.value as Form["slipPaper"] })}>
                   {PAPERS.map((p) => <option key={p.value} value={p.value}>{t(p.label)}</option>)}
                 </Select>
+              </Field>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="grid gap-4">
+              <div className="grid gap-1">
+                <CardTitle>{t("Demande d'avis")}</CardTitle>
+                <CardDescription>{t("Proposé dans chaque vente 24 h après la livraison, à copier dans la messagerie du canal ou un e-mail. {acheteur} et {boutique} sont remplacés.")}</CardDescription>
+              </div>
+              <Field label={t("Message")} hint={t("Laissez vide pour le message par défaut.")}>
+                <Textarea value={form.reviewMessage} onChange={(e) => setForm({ ...form, reviewMessage: e.target.value })} maxLength={1000} className="min-h-32"
+                  placeholder={reviewMessage("", "{acheteur}", "{boutique}")} data-testid="review-template" />
               </Field>
             </CardContent>
           </Card>

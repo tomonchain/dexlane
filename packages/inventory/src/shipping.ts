@@ -75,7 +75,10 @@ export function confirmHandover(sql: Db, shipmentId: string, actor: string): Pro
     // Une position vide est archivée (les nouvelles entrées créent de nouvelles positions).
     await tx`update stock_items set lifecycle = 'ARCHIVED', updated_at = now()
               where id in ${tx(stockIds)} and on_hand = 0`;
-    await tx`update shipments set status = 'HANDED_OVER', handover_confirmed_at = now(),
+    // Remise en main propre : l'acheteur a ses cartes, la vente est livrée sur-le-champ.
+    const delivered = shipment.mode === "HAND_DELIVERY";
+    await tx`update shipments set status = ${delivered ? "DELIVERED" : "HANDED_OVER"}, handover_confirmed_at = now(),
+                                  delivered_at = ${delivered ? tx`now()` : null},
                                   handover_confirmed_by = ${actor}, updated_at = now()
               where id = ${shipmentId}`;
     await tx`update orders set fulfillment_status = 'SHIPPED', updated_at = now() where id = ${shipment.orderId}`;

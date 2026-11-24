@@ -1,3 +1,4 @@
+import { DomainError } from "@dexlane/shared";
 import { withTx, type Db } from "@dexlane/db";
 import type { TcgdexClient } from "./tcgdex/client";
 import { mapTcgdexCard, type MappedCardWithVariants, type MappedVariant } from "./tcgdex/map";
@@ -240,7 +241,11 @@ export interface CatalogSetCard {
 }
 
 export interface CatalogSetDetail {
-  set: CatalogSetSummary & { abbreviation: string | null; abbreviationLocalized: string | null; syncedAt: Date };
+  set: CatalogSetSummary & {
+    abbreviation: string | null; abbreviationLocalized: string | null; syncedAt: Date;
+    /** Code d'extension usuel (« EB03 », « ME02.5 »), déduit ou saisi ; `codeOverride` : celui saisi à la main. */
+    code: string; codeOverride: string | null;
+  };
   cards: CatalogSetCard[];
 }
 
@@ -249,6 +254,7 @@ export async function getSetDetail(sql: Db, language: string, setId: string): Pr
   const [set] = await sql<CatalogSetDetail["set"][]>`
     select s.id, s.name, s.serie_id, s.serie_name, s.serie_position, s.release_date::text as release_date,
            s.card_count_official, s.card_count_total, s.logo_url, s.abbreviation, s.abbreviation_localized, s.synced_at,
+           set_code(s.id, s.language, s.code_override, s.abbreviation) as code, s.code_override,
            (select count(*)::int from catalog_cards c where c.set_id = s.id and c.language = s.language) as cards_synced,
            (select max(c.synced_at) from catalog_cards c where c.set_id = s.id and c.language = s.language) as cards_synced_at
       from catalog_sets s
@@ -329,4 +335,17 @@ export async function refreshTrackedPrices(
   };
   await Promise.all(Array.from({ length: opts.concurrency ?? 8 }, worker));
   return stats;
+}
+
+/** Code d'extension saisi à la main pour une série (null : revenir au code déduit). */
+export async function setSetCode(sql: Db, language: string, setId: string, code: string | null): Promise<{ code: string; codeOverride: string | null }> {
+  const value = code?.trim().toUpperCase() || null;
+  if (value !== null && (value.length > 20 || !/^[A-Z0-9][A-Z0-9 .\-]*$/.test(value))) {
+    throw new DomainError("INVALID_SET_CODE", "a set code is 1 to 20 letters, digits, spaces, dots or dashes");
+  }
+  const [row] = await sql<{ code: string; codeOverride: string | null }[]>`
+    update catalog_sets set code_override = ${value} where id = ${setId} and language = ${language}
+    returning set_code(id, language, code_override, abbreviation) as code, code_override`;
+  if (!row) throw new DomainError("SET_NOT_FOUND", "this set is not in the catalog");
+  return row;
 }

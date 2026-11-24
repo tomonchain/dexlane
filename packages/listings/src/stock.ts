@@ -24,6 +24,8 @@ export interface StockRow {
   name: string;
   setId: string;
   setName: string | null;
+  /** Code d'extension usuel (« EB03 », « EV03.5 », « ME02.5 »), voir la fonction SQL `set_code`. */
+  setCode: string;
   localNumber: string;
   language: string;
   rarity: string | null;
@@ -104,6 +106,7 @@ export async function listStock(sql: Db, query: StockQuery = {}): Promise<StockP
     with stock as (
       select o.id as offer_id, o.offer_sku, o.condition, o.is_unique, o.category::text as category,
              c.id as catalog_card_id, c.name, c.set_id, st.name as set_name, c.local_number, c.language, c.rarity, c.image_url,
+             set_code(c.set_id, c.language, st.code_override, st.abbreviation) as set_code,
              v.id as variant_id, v.finish, v.edition, v.subtype, v.stamp, v.incomplete as variant_incomplete,
              s.on_hand, s.available, s.reserved, s.draft, s.locations, s.average_cost_cents, s.received_at,
              o.target_price_cents, o.floor_price_cents, o.suggested_price_cents, o.price_reasons,
@@ -148,7 +151,9 @@ export async function listStock(sql: Db, query: StockQuery = {}): Promise<StockP
          ${query.maxCents !== undefined ? sql`and coalesce(o.target_price_cents, o.suggested_price_cents) < ${query.maxCents}` : sql``}
          ${q ? sql`and (upper(o.offer_sku) like '%' || upper(${likeEscape(q)}) || '%'
                     or f_unaccent(lower(c.name)) like '%' || f_unaccent(lower(${likeEscape(q)})) || '%'
-                    or f_unaccent(lower(coalesce(st.name, ''))) like '%' || f_unaccent(lower(${likeEscape(q)})) || '%')` : sql``}
+                    or f_unaccent(lower(coalesce(st.name, ''))) like '%' || f_unaccent(lower(${likeEscape(q)})) || '%'
+                    or (length(set_code_key(${q})) >= 2
+                        and set_code_key(set_code(c.set_id, c.language, st.code_override, st.abbreviation)) like set_code_key(${likeEscape(q)}) || '%'))` : sql``}
     )`;
   const [rows, counts] = await Promise.all([
     sql<Omit<StockRow, "listings">[]>`
@@ -201,7 +206,8 @@ export async function getStockDetail(sql: Db, offerId: string): Promise<StockDet
 export async function stockFacets(sql: Db): Promise<StockFacets> {
   const rows = await sql<{ kind: "set" | "location" | "condition"; key: string; label: string; cards: number }[]>`
     with present as (
-      select i.on_hand, o.condition::text as condition, c.set_id, coalesce(st.name, c.set_id) as set_name, l.code
+      select i.on_hand, o.condition::text as condition, c.set_id,
+             set_code(c.set_id, c.language, st.code_override, st.abbreviation) || ' · ' || coalesce(st.name, c.set_id) as set_name, l.code
         from stock_items i
         join offers o on o.id = i.offer_id
         join card_variants v on v.id = o.variant_id

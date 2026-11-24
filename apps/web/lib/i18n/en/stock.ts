@@ -236,15 +236,4 @@ export const STOCK: Record<string, string> = {
   "Aperçu": "Preview",
   "Photo introuvable dans le stockage.": "Photo not found in storage.",
   "Impossible de composer la photo.": "Couldn't create the photo.",
-
-  // Jauge de prix
-  "{percent} % au-dessus de la cote": "{percent}% above market price",
-  "{percent} % sous la cote": "{percent}% below market price",
-  "Pas de prix de vente": "No sale price",
-  "Prix de vente {price}": "Sale price {price}",
-  "revient {price}": "cost {price}",
-  "pas de cote": "no market price",
-  "cote {price}": "market price {price}",
-  "marge {price}": "margin {price}",
-  "Prix de revient": "Cost price",
 };

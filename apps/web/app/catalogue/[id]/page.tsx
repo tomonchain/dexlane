@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, CircleSlash, PackageCheck, RefreshCw, Search } from "lucide-react";
+import { BookOpen, Check, CircleSlash, PackageCheck, Pencil, RefreshCw, Search, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -71,6 +71,19 @@ export default function CatalogSetPage() {
   const [ownedOnly, setOwnedOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [syncing, setSyncing] = useState(false);
+  const [codeDraft, setCodeDraft] = useState<string | null>(null);
+
+  async function saveCode(code: string | null) {
+    if (!detail || !language) return;
+    try {
+      const saved = await api.setSetCode(detail.set.id, language, code);
+      setDetail({ ...detail, set: { ...detail.set, ...saved } });
+      setCodeDraft(null);
+      toast.success(t("Code d'extension enregistré"));
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
 
   useEffect(() => {
     setLanguage(new URLSearchParams(window.location.search).get("langue") ?? "fr");
@@ -135,6 +148,20 @@ export default function CatalogSetPage() {
         <div className="grid gap-2">
           <h1 className="text-xl leading-tight font-semibold tracking-tight sm:text-2xl">{set.name}</h1>
           <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+            {codeDraft === null ? (
+              <button type="button" onClick={() => setCodeDraft(set.codeOverride ?? set.code)} data-testid="set-code"
+                title={t("Code d'extension utilisé dans le stock et la recherche ; cliquez pour le corriger")}
+                className="inline-flex h-6 items-center gap-1 rounded-md border bg-card px-2 font-mono text-xs font-semibold text-foreground outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/30">
+                {set.code} <Pencil className="size-3 text-muted-foreground" aria-hidden />
+              </button>
+            ) : (
+              <form className="inline-flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); void saveCode(codeDraft.trim() || null); }}>
+                <Input autoFocus value={codeDraft} onChange={(e) => setCodeDraft(e.target.value)} maxLength={20} aria-label={t("Code d'extension")} className="h-7 w-28 font-mono text-xs uppercase md:h-7" data-testid="set-code-input" />
+                <Button type="submit" size="icon-sm" variant="outline" aria-label={t("Enregistrer le code")}><Check /></Button>
+                <Button type="button" size="icon-sm" variant="ghost" aria-label={t("Annuler")} onClick={() => setCodeDraft(null)}><X /></Button>
+                {set.codeOverride && <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => void saveCode(null)}>{t("Code déduit")}</Button>}
+              </form>
+            )}
             <Badge variant="neutral"><Code>{set.id}</Code></Badge>
             {set.serieName && <Badge variant="outline">{set.serieName}</Badge>}
             {(set.abbreviationLocalized ?? set.abbreviation) && <Badge variant="outline">{t("Code imprimé {code}", { code: (set.abbreviationLocalized ?? set.abbreviation)! })}</Badge>}

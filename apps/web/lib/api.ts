@@ -2,7 +2,7 @@ import type {
   AcquisitionLot, Activity, CardPage, CatalogHit, Deal, DealList, TopCard, WatchedCard, AlertSettings, AppSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, SalesInsights, PriceMoves, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
   Location, Photo, PositionDetail, Received,
   OfferPricing, OrderDetail, PriceHistory, OrderList, OrderStage, PricingSettings, ShippingCosts, ShippingRun, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
-  PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockFacets, StockPage, StockStatus, StoredPhoto, VariantQuote, SupplyDetail, SupplyInput, SupplyList, ShippingCostsView, AgentToken, MovementPage, MovementKind, MovementCategory,
+  PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockFacets, StockPage, StockStatus, StoredPhoto, VariantQuote, SupplyDetail, SupplyInput, SupplyList, ShippingCostsView, AgentToken, Carrier, MovementPage, MovementKind, MovementCategory,
 } from "./types";
 import { clearCache } from "./cache";
 import { t } from "./i18n";
@@ -114,7 +114,7 @@ export const api = {
     request<{ items: ListingOffer[]; total: number }>("GET", "/listings/offers", { query: q }),
 
   appSettings: () => request<AppSettings>("GET", "/app-settings"),
-  notifications: () => request<{ publicKey: string; devices: number; preferences: { sales: boolean; watched: boolean; publications: boolean; supplies: boolean } }>("GET", "/notifications"),
+  notifications: () => request<{ publicKey: string; devices: number; preferences: AppSettings["notifications"] }>("GET", "/notifications"),
   subscribePush: (subscription: { endpoint: string; keys: { p256dh: string; auth: string }; locale: "fr" | "en" }) =>
     request<{ devices: number }>("POST", "/notifications/subscriptions", { json: subscription }),
   unsubscribePush: (endpoint: string) => request<{ devices: number }>("POST", "/notifications/subscriptions/remove", { json: { endpoint } }),
@@ -191,7 +191,12 @@ export const api = {
     request<SetSyncReport>("POST", `/catalog/sets/${encodeURIComponent(setId)}/sync`, { json: { language } }),
 
   sellableOffers: (q?: string) => request<{ offers: SellableOffer[] }>("GET", "/offers/sellable", { query: { q } }),
-  orders: (stage?: OrderStage) => request<OrderList>("GET", "/orders", { query: { stage } }),
+  orders: (stage?: OrderStage, review?: "DUE") => request<OrderList>("GET", "/orders", { query: { stage, review } }),
+  trackingStatus: () => request<{ carriers: Record<"LA_POSTE" | "MONDIAL_RELAY", boolean> }>("GET", "/shipments/tracking"),
+  refreshTracking: () => request<{ checked: number; delivered: number; failed: number }>("POST", "/shipments/tracking/refresh", { query: { force: "true" } }),
+  updateTracking: (orderId: string, input: { carrier?: Carrier | null; tracking?: string | null }) => request<OrderDetail>("PATCH", `/orders/${orderId}/tracking`, { json: input }),
+  markDelivered: (orderId: string) => request<OrderDetail>("POST", `/orders/${orderId}/delivered`),
+  markReviewRequested: (orderId: string, requested: boolean) => request<OrderDetail>("POST", `/orders/${orderId}/review`, { json: { requested } }),
   order: (id: string) => request<OrderDetail>("GET", `/orders/${id}`),
   shippingCosts: () => request<ShippingCostsView>("GET", "/shipping-costs"),
   saveShippingCosts: (costs: ShippingCosts) => request<ShippingCosts>("PUT", "/shipping-costs", { json: costs }),
@@ -219,7 +224,7 @@ export const api = {
   pickAllocation: (orderId: string, allocationId: string, unitSku: string) =>
     request<OrderDetail>("POST", `/orders/${orderId}/pick`, { json: { allocationId, unitSku } }),
   packOrder: (orderId: string) => request<OrderDetail>("POST", `/orders/${orderId}/pack`),
-  handOver: (orderId: string, input: { tracking?: string; postageCostCents?: number }) =>
+  handOver: (orderId: string, input: { tracking?: string; carrier?: Carrier; postageCostCents?: number }) =>
     request<OrderDetail>("POST", `/orders/${orderId}/handover`, { json: input }),
   cancelOrder: (orderId: string, reason: string) => request<OrderDetail>("POST", `/orders/${orderId}/cancel`, { json: { reason } }),
 
@@ -235,6 +240,8 @@ export const api = {
     request<OfferPricing>("POST", `/pricing/offers/${offerId}/price`, { json: input }),
   recomputePricing: () => request<{ repriced: number }>("POST", "/pricing/recompute"),
 
+  setSetCode: (setId: string, language: string, code: string | null) =>
+    request<{ code: string; codeOverride: string | null }>("PUT", `/catalog/sets/${encodeURIComponent(setId)}/code`, { json: { language, code } }),
   catalogSet: (setId: string, language: string) =>
     request<CatalogSetDetail>("GET", `/catalog/sets/${encodeURIComponent(setId)}`, { query: { language } }),
 

@@ -1,8 +1,9 @@
 "use client";
 
-import { ChevronRight, CircleDollarSign, Plus, Printer, Receipt, ShoppingBag, TrendingUp } from "lucide-react";
+import { ChevronRight, CircleDollarSign, MessageSquareHeart, Plus, Printer, Receipt, ShoppingBag, TrendingUp, Truck } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,12 +13,14 @@ import { SegmentedTabs } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { formatDateTime, formatEuros } from "@/lib/format";
 import { t, tn } from "@/lib/i18n";
-import { SHIPPING_LABEL } from "@/lib/sales";
+import { CARRIER_LABEL, DELIVERY_LABEL, DELIVERY_VARIANT, SHIPPING_LABEL } from "@/lib/sales";
 import type { OrderList, OrderStage } from "@/lib/types";
 import { SalesSkeleton, SalesTotalsSkeleton } from "@/components/skeletons";
 import { useCachedState } from "@/lib/cache";
 
-const EMPTY: Record<OrderStage, [string, string]> = {
+type Tab = OrderStage | "REVIEW";
+const EMPTY: Record<Tab, [string, string]> = {
+  REVIEW: ["Aucun avis à demander", "Les ventes livrées depuis 24 h, dont l'avis n'est pas encore demandé, s'affichent ici."],
   TO_PREPARE: ["Rien à préparer", "Les ventes enregistrées apparaissent ici tant que les cartes ne sont pas emballées."],
   PACKED: ["Aucune vente emballée", "Une vente emballée attend d'être déposée ou remise à l'acheteur."],
   SHIPPED: ["Aucune vente remise", "Les ventes déposées ou remises en main propre s'affichent ici."],
@@ -40,14 +43,19 @@ function Stat({ icon, label, value, hint }: { icon: ReactNode; label: string; va
 const CHANNEL_LABEL: Record<string, string> = { ebay: "eBay", cardtrader: "CardTrader" };
 
 export default function SalesPage() {
-  const [stage, setStage] = useState<OrderStage>("TO_PREPARE");
+  return <Suspense><Sales /></Suspense>;
+}
+
+function Sales() {
+  const params = useSearchParams();
+  const [stage, setStage] = useState<Tab>(params.get("review") === "due" ? "REVIEW" : "TO_PREPARE");
   const [data, setData] = useCachedState<OrderList>(`orders:${stage}`, { keepPrevious: true });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let current = true;
     setData((d) => (d ? { ...d, items: [] } : d));
-    api.orders(stage)
+    (stage === "REVIEW" ? api.orders(undefined, "DUE") : api.orders(stage))
       .then((r) => current && (setData(r), setError(null)))
       .catch((e: Error) => current && setError(e.message));
     return () => {
@@ -86,13 +94,14 @@ export default function SalesPage() {
             { value: "PACKED", label: t("Emballées"), count: data?.counts.PACKED },
             { value: "SHIPPED", label: t("Remises"), count: data?.counts.SHIPPED },
             { value: "CANCELLED", label: t("Annulées"), count: data?.counts.CANCELLED },
+            ...(data && data.counts.REVIEW_DUE > 0 || stage === "REVIEW" ? [{ value: "REVIEW" as const, label: t("Avis à demander"), count: data?.counts.REVIEW_DUE }] : []),
           ]}
         />
       </div>
 
       {error && <Alert variant="destructive">{error}</Alert>}
       {!data && !error && <SalesSkeleton />}
-      {data && data.items.length === 0 && data.counts[stage] === 0 && (
+      {data && data.items.length === 0 && (stage === "REVIEW" ? data.counts.REVIEW_DUE : data.counts[stage]) === 0 && (
         <EmptyState icon={<Receipt />} title={t(EMPTY[stage][0])} action={stage === "TO_PREPARE" && <Button asChild size="sm"><Link href="/ventes/nouvelle">{t("Enregistrer une vente")}</Link></Button>}>
           {EMPTY[stage][1] ? t(EMPTY[stage][1]) : undefined}
         </EmptyState>
@@ -113,6 +122,14 @@ export default function SalesPage() {
                 <span className="mt-0.5 block truncate text-[13px] text-muted-foreground">
                   {o.cardNames.join(", ")}{o.cards > o.cardNames.length ? "…" : ""} · {tn(o.cards, "{n} carte", "{n} cartes")} · {formatDateTime(o.orderedAt)}
                 </span>
+                {o.delivery && (
+                  <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground" data-testid="order-delivery">
+                    <Badge variant={DELIVERY_VARIANT[o.delivery.status] ?? "outline"}>{t(DELIVERY_LABEL[o.delivery.status] ?? o.delivery.status)}</Badge>
+                    {o.delivery.tracking && <span className="inline-flex items-center gap-1"><Truck className="size-3" aria-hidden /><Code>{o.delivery.tracking}</Code>{o.delivery.carrier && o.delivery.carrier !== "OTHER" && <span>· {t(CARRIER_LABEL[o.delivery.carrier])}</span>}</span>}
+                    {o.delivery.reviewDue && <Badge variant="warning"><MessageSquareHeart className="size-3" aria-hidden /> {t("Avis à demander")}</Badge>}
+                    {o.delivery.reviewRequestedAt && <span>{t("Avis demandé")}</span>}
+                  </span>
+                )}
               </span>
               <span className="tabular text-sm font-semibold">{formatEuros(o.grossCents)}</span>
               <ChevronRight className="size-4 text-muted-foreground" aria-hidden />

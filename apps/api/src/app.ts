@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import {
-  createTcgdexClient, findCandidates, getSetDetail, listSets, syncSet, syncSetList, type TcgdexClient, refreshTrackedPrices, searchCatalog,
+  createTcgdexClient, findCandidates, getSetDetail, setSetCode, listSets, syncSet, syncSetList, type TcgdexClient, refreshTrackedPrices, searchCatalog,
 } from "@dexlane/catalog";
 import type { Db } from "@dexlane/db";
 import {
@@ -10,7 +10,7 @@ import {
   deleteLocation, extractCardFromBulk, getInventorySummary, getOrderDetail, getShippingCosts, saveShippingCosts, listPreparation, markSlipsPrinted, getStockItemDetail, listAcquisitionLots,
   listLocations, listOrders, moveStock, packOrder, pickAllocation, receiveBulk, receiveCard, recordPhoto, resolveLocation,
   searchInventory, searchSellableOffers, shipOrder, updateLocationDescription,
-  stockSupplyCosts, stockSuppliesSummary, archiveSupply, countSupply, createSupply, getSupply, listSupplies, markSupplyOrdered, receiveSupply, takeSupplyAlerts, updateSupply, listStockMovements,
+  stockSupplyCosts, stockSuppliesSummary, shipmentsToTrack, recordTracking, markDelivered, updateTracking, markReviewRequested, takeReviewReminders, type Carrier, archiveSupply, countSupply, createSupply, getSupply, listSupplies, markSupplyOrdered, receiveSupply, takeSupplyAlerts, updateSupply, listStockMovements,
 } from "@dexlane/inventory";
 import {
   estimateVariants, findDeals, listWatched, platformPrices, trendingCards, unwatchCard, updateWatched, watchCard, getPricingSettings, priceHistory, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice, getAlertSettings, getDashboard, listPriceMoves, saveAlertSettings, salesInsights,
@@ -24,6 +24,7 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { AGENT_TOKEN_PREFIX, createAgentToken, listAgentTokens, revokeAgentToken, verifyAgentToken } from "./agents";
 import { changePassword, passwordStatus, setPassword, verifyPassword } from "./auth";
 import { createMcpServer, type InternalCall } from "./mcp";
+import { trackingFromEnv, type TrackingAdapters } from "./tracking";
 import { HttpError, errorBody, idempotent, parse, parseJsonBody, secretEquals, statusOfDomainError } from "./http";
 import {
   cancelPublications, endListing, getActivity, getCardDetail, getListingSettings, getSchedule, getStockDetail, listChannels, listStock, stockFacets, planPublications, queuePublications, runDuePublications, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
@@ -32,7 +33,7 @@ import {
 import { readPhoto, type PhotoStore } from "./photos";
 import { getAppSettings, saveAppSettings } from "./settings";
 import {
-  broadcast, countSubscriptions, removeSubscription, saveSubscription, sendDigest, suppliesMessage, testMessage, vapidKeys, webPushSender, type PushSender,
+  broadcast, countSubscriptions, removeSubscription, reviewsMessage, saveSubscription, sendDigest, suppliesMessage, testMessage, vapidKeys, webPushSender, type PushSender,
 } from "./notifications";
 import * as s from "./schemas";
 
@@ -50,6 +51,8 @@ export interface AppDeps {
   tcgdex?: () => TcgdexClient;
   /** Envoi des notifications sur le téléphone (Web Push par défaut) ; remplaçable dans les tests. */
   push?: PushSender;
+  /** Suivi des colis chez les transporteurs (d'après l'environnement par défaut) ; remplaçable dans les tests. */
+  tracking?: TrackingAdapters;
   onError?: (err: unknown) => void;
 }
 
@@ -594,6 +597,13 @@ export function createApp(deps: AppDeps) {
     return c.json({ sets: await listSets(sql, language) });
   });
 
+  /** Code d'extension saisi à la main pour une série (« ME02.5 ») ; null : revenir au code déduit. */
+  app.put("/api/catalog/sets/:id/code", async (c) => {
+    const setId = parse(s.setId, c.req.param("id"));
+    const body = await parseJsonBody(c, s.setCodeBody);
+    return c.json(await setSetCode(sql, body.language, setId, body.code));
+  });
+
   /** Contenu importé d'une série : cartes, variantes, prix estimé d'après les ventes, exemplaires en stock. */
   app.get("/api/catalog/sets/:id", async (c) => {
     const setId = parse(s.setId, c.req.param("id"));
@@ -788,6 +798,53 @@ export function createApp(deps: AppDeps) {
     const orderId = parse(s.orderId, c.req.param("id"));
     const body = await parseJsonBody(c, s.handoverBody);
     await shipOrder(sql, { ...body, orderId, actor: c.var.actor });
+    return c.json(await getOrderDetail(sql, orderId));
+  });
+
+  // ───────────────────────── Livraison et avis ─────────────────────────
+
+  const carriers = deps.tracking ?? trackingFromEnv(process.env);
+  /** Transporteurs suivis automatiquement (identifiants configurés). */
+  app.get("/api/shipments/tracking", async (c) => c.json({
+    carriers: { LA_POSTE: Boolean(carriers.LA_POSTE), MONDIAL_RELAY: Boolean(carriers.MONDIAL_RELAY) },
+  }));
+  /** Interroge les transporteurs pour les envois en route (tâche quotidienne, ou à la demande avec `force`). */
+  app.post("/api/shipments/tracking/refresh", async (c) => {
+    const force = c.req.query("force") === "true";
+    const list = await shipmentsToTrack(sql, { carriers: (Object.keys(carriers) as Carrier[]), staleHours: force ? 0 : 3 });
+    let delivered = 0, failed = 0;
+    for (const shipment of list) {
+      try {
+        const result = await carriers[shipment.carrier]!(shipment);
+        await recordTracking(sql, shipment.id, result);
+        if (result?.status === "DELIVERED") delivered++;
+      } catch (e) {
+        failed++;
+        (deps.onError ?? console.error)(e);
+      }
+    }
+    return c.json({ checked: list.length, delivered, failed });
+  });
+  /** Rappel des avis à demander : une notification pour les ventes livrées depuis 24 h, une seule fois chacune. */
+  app.post("/api/sales/reviews/remind", async (c) => {
+    if (!(await getAppSettings(sql)).notifications.reviews) return c.json({ reminded: 0, sent: 0 });
+    const due = await takeReviewReminders(sql);
+    const result = due.length > 0 ? await broadcast(sql, push, (locale) => reviewsMessage(due, locale)) : { sent: 0 };
+    return c.json({ reminded: due.length, sent: result.sent });
+  });
+  app.patch("/api/orders/:id/tracking", async (c) => {
+    const orderId = parse(s.orderId, c.req.param("id"));
+    await updateTracking(sql, orderId, await parseJsonBody(c, s.trackingBody));
+    return c.json(await getOrderDetail(sql, orderId));
+  });
+  app.post("/api/orders/:id/delivered", async (c) => {
+    const orderId = parse(s.orderId, c.req.param("id"));
+    await markDelivered(sql, orderId, c.var.actor);
+    return c.json(await getOrderDetail(sql, orderId));
+  });
+  app.post("/api/orders/:id/review", async (c) => {
+    const orderId = parse(s.orderId, c.req.param("id"));
+    await markReviewRequested(sql, orderId, (await parseJsonBody(c, s.reviewBody)).requested);
     return c.json(await getOrderDetail(sql, orderId));
   });
 

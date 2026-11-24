@@ -31,7 +31,6 @@ import { composeMissingVisuals } from "@/lib/visuals";
 import { exportStockCsv } from "@/lib/export";
 import { InspectorSkeleton, StockRowsSkeleton } from "@/components/skeletons";
 import { useCachedState } from "@/lib/cache";
-import { PriceGauge, PriceGaugeLegend } from "@/components/price-gauge";
 import { StockTabs, stockCategory } from "@/components/stock-tabs";
 import { SuppliesView } from "@/components/supplies";
 import { MovementsView, RecentMovements } from "@/components/stock-movements";
@@ -598,7 +597,6 @@ function Stock({ tabs }: { tabs: ReactNode }) {
             </div>
           )}
 
-          <PriceGaugeLegend className="-mb-2 justify-end" />
           <div className={cn("grid items-start gap-4", selected && desktop && "lg:grid-cols-[minmax(0,1fr)_25rem]")}>
             <div className="overflow-hidden rounded-lg border bg-card">
               <table className="w-full border-collapse text-left text-sm">
@@ -618,6 +616,7 @@ function Stock({ tabs }: { tabs: ReactNode }) {
                       />
                     </th>
                     <th className="h-9 px-3 font-medium">{t("Carte")}</th>
+                    <th className="hidden px-3 font-medium sm:table-cell">{t("Extension")}</th>
                     <th className="hidden px-3 font-medium sm:table-cell">{t("État")}</th>
                     <th className="px-3 text-right font-medium">{t("Qté")}</th>
                     <th className="hidden px-3 font-medium md:table-cell">{t("Emplacement")}</th>
@@ -650,10 +649,11 @@ function Stock({ tabs }: { tabs: ReactNode }) {
                             : <CardThumb imageUrl={row.imageUrl} size="sm" className="w-8 rounded-[3px]" />}
                           <span className="grid min-w-0">
                             <span className="truncate font-medium">{row.name}</span>
-                            <span className="truncate text-xs text-muted-foreground"><span className="sm:hidden">{row.condition} · </span>{subtitle(row)}</span>
+                            <span className="truncate text-xs text-muted-foreground"><span className="sm:hidden">{row.condition} · {row.setCode} · </span>{subtitle(row)}</span>
                           </span>
                         </span>
                       </td>
+                      <td className="hidden px-3 sm:table-cell" title={row.setName ?? undefined}><Code className="text-xs font-medium" data-testid="stock-set-code">{row.setCode}</Code></td>
                       <td className="hidden px-3 font-mono text-xs sm:table-cell">{row.condition}</td>
                       <td className="tabular px-3 text-right whitespace-nowrap">
                         {row.onHand}
@@ -668,9 +668,8 @@ function Stock({ tabs }: { tabs: ReactNode }) {
                         : t("Aucune vente récente : {quote} des annonces Cardmarket, relevée {age}", { quote: quoteLabel(row.reference.quoteType).toLowerCase(), age: age(row.reference.observedAt) })) : undefined}>
                         {row.reference ? `${row.sales ? "" : "≈ "}${formatEuros(row.reference.amountCents)}` : "—"}
                       </td>
-                      <td className="px-3 py-1 text-right" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-3 text-right" onClick={(e) => e.stopPropagation()}>
                         <PriceCell row={row} onSaved={changed} />
-                        <PriceGauge priceCents={row.targetPriceCents} costCents={row.averageCostCents} quoteCents={row.reference?.amountCents ?? null} className="mt-0.5 ml-auto w-20 sm:w-24" />
                       </td>
                       <td className="hidden px-3 sm:table-cell"><StatusMark status={row.status} plannedOn={row.planned?.plannedOn} /></td>
                     </tr>
@@ -840,7 +839,7 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
           <h2 className="text-base leading-snug font-semibold [overflow-wrap:anywhere]">
             <Link href={`/carte/${d.catalogCardId}`} className="underline-offset-2 outline-none hover:underline focus-visible:underline" title={t("Fiche de la carte : toutes ses variantes et tous ses exemplaires")}>{d.name}</Link>
           </h2>
-          <p className="text-[13px] text-muted-foreground">{subtitle(d)} · {d.condition}</p>
+          <p className="text-[13px] text-muted-foreground"><Code className="font-medium text-foreground/80">{d.setCode}</Code> · {subtitle(d)} · {d.condition}</p>
           <div className="mt-1"><StatusMark status={d.status} /></div>
         </div>
         <button type="button" onClick={onClose} aria-label={t("Fermer la fiche")} className="hidden size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/30 lg:flex">
@@ -858,19 +857,6 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
           <span data-testid="stock-margin">{d.targetPriceCents === null ? "—" : formatEuros(d.targetPriceCents - d.averageCostCents - supplies)}</span>
         </Figure>
       </dl>
-      <div className="grid gap-1.5 px-4 pb-3">
-        <PriceGauge size="lg" priceCents={d.targetPriceCents} costCents={d.averageCostCents} quoteCents={d.reference?.amountCents ?? null} />
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-          <PriceGaugeLegend />
-          {d.reference && d.targetPriceCents !== null && (
-            <span className="tabular text-[11px] text-muted-foreground" data-testid="stock-vs-quote">
-              {d.targetPriceCents >= d.reference.amountCents
-                ? t("{percent} % au-dessus de la cote", { percent: Math.round(((d.targetPriceCents - d.reference.amountCents) / Math.max(d.reference.amountCents, 1)) * 100) })
-                : t("{percent} % sous la cote", { percent: Math.round(((d.reference.amountCents - d.targetPriceCents) / Math.max(d.reference.amountCents, 1)) * 100) })}
-            </span>
-          )}
-        </div>
-      </div>
 
       <Section title={t("Prix")}>
         <form

@@ -10,14 +10,15 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/input";
-import { BackLink, Page, PageHeader, Spinner } from "@/components/ui/misc";
+import { BackLink, Code, Page, PageHeader, Spinner } from "@/components/ui/misc";
+import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 import { formatEuros, parseEuros } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { eurosInput } from "@/lib/pricing";
 import { SHIPPING_LABEL } from "@/lib/sales";
 import type { ShippingCosts, ShippingCostsView } from "@/lib/types";
-import { SHIPPING_MODES } from "@/lib/sales";
+import { CARRIER_LABEL, SHIPPING_MODES } from "@/lib/sales";
 
 type PostalMode = keyof ShippingCosts["postage"];
 const POSTAL: PostalMode[] = ["LETTER_UNTRACKED", "LETTER_TRACKED", "PARCEL_TRACKED"];
@@ -35,6 +36,10 @@ export default function ShippingCostsPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [stock, setStock] = useState<ShippingCostsView["stock"]>(null);
+  const [carriers, setCarriers] = useState<Record<"LA_POSTE" | "MONDIAL_RELAY", boolean> | null>(null);
+  useEffect(() => {
+    api.trackingStatus().then((r) => setCarriers(r.carriers)).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     api.shippingCosts()
@@ -143,6 +148,26 @@ export default function ShippingCostsPage() {
                   <p className="text-xs text-muted-foreground">{t("Renseignez le prix d'achat de vos fournitures dans Stock › Fournitures : il remplacera ces montants, envoi par envoi.")}</p>
                 </>
               )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="grid gap-3" data-testid="tracking-carriers">
+              <div className="grid gap-1">
+                <CardTitle>{t("Suivi des colis")}</CardTitle>
+                <CardDescription>{t("Chaque matin, les colis en route sont suivis chez le transporteur ; une vente livrée depuis 24 h passe en « avis à demander ». Sans transporteur relié, la livraison se note à la main dans la vente.")}</CardDescription>
+              </div>
+              <ul className="divide-y rounded-lg border text-sm">
+                {([["LA_POSTE", "LAPOSTE_OKAPI_KEY", "Clé « Suivi » gratuite sur developer.laposte.fr"], ["MONDIAL_RELAY", "MONDIAL_RELAY_ENSEIGNE, MONDIAL_RELAY_PRIVATE_KEY", "Code enseigne et clé privée du compte Mondial Relay"]] as const).map(([carrier, env, hint]) => (
+                  <li key={carrier} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5">
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-medium">{t(CARRIER_LABEL[carrier])}</span>
+                      {!carriers?.[carrier] && <span className="block text-xs text-muted-foreground">{t(hint)} · <Code className="text-[11px]">{env}</Code></span>}
+                    </span>
+                    {carriers && <Badge variant={carriers[carrier] ? "success" : "outline"}>{carriers[carrier] ? t("Relié") : t("Non relié")}</Badge>}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-muted-foreground">{t("Les identifiants se renseignent dans les variables d'environnement du déploiement (Vercel), jamais dans l'application.")}</p>
             </CardContent>
           </Card>
           {JSON.stringify(form) !== JSON.stringify(saved) && (

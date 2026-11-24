@@ -1630,12 +1630,7 @@ test("stock › cartes : les derniers mouvements d'une carte dans sa fiche, et l
   })).json()) as { offer: { id: string; offerSku: string }; stockItem: { id: string } };
   await page.request.post(`/api/inventory/${received.stockItem.id}/adjust`, { data: { countedOnHand: 3, reason: "abîmée" }, headers: { "Idempotency-Key": `e2e-mv-adj-${Date.now()}` } });
 
-  await page.request.post(`/api/pricing/offers/${received.offer.id}/price`, { data: { targetPriceCents: 3 } });
   await openStockCard(page, received.offer.offerSku);
-  // Jauge de prix : sous le prix de revient, la barre est rouge ; le détail est lisible au survol et à la lecture d'écran.
-  const gauge = page.getByTestId("stock-inspector").getByTestId("price-gauge");
-  await expect(gauge).toHaveAttribute("aria-label", /^Prix de vente 0,03\s€ · revient 0,0\d\s€ · .*marge -0,0\d\s€$/);
-  await expect(gauge.getByTestId("price-gauge-price")).toHaveClass(/bg-destructive/);
   const recent = page.getByTestId("recent-movements");
   // La correction en premier, puis l'entrée (d'autres parcours ont pu faire bouger la même carte avant).
   await expect(recent.getByTestId("stock-movement").first()).toContainText("abîmée");

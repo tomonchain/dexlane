@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CARD_CONDITIONS, SHIPPING_MODES, SUPPLY_USAGES, type LocationRef } from "@dexlane/inventory";
+import { CARD_CONDITIONS, CARRIERS, SHIPPING_MODES, SUPPLY_USAGES, type LocationRef } from "@dexlane/inventory";
 
 const cents = z.number().int().min(0).max(2_000_000_000);
 const location = {
@@ -171,6 +171,7 @@ export const createSaleBody = z.strictObject({
 });
 export const ordersQuery = z.object({
   stage: z.enum(["TO_PREPARE", "PACKED", "SHIPPED", "CANCELLED"]).optional(),
+  review: z.enum(["DUE"]).optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
   offset: z.coerce.number().int().min(0).optional(),
 });
@@ -179,6 +180,7 @@ export const supplyId = z.uuid();
 export const pickBody = z.strictObject({ allocationId: z.uuid(), unitSku: z.string().trim().min(1).max(40) });
 export const handoverBody = z.strictObject({
   tracking: z.string().trim().min(1).max(80).optional(),
+  carrier: z.enum(CARRIERS).optional(),
   postageCostCents: cents.optional(),
 });
 export const cancelOrderBody = z.strictObject({ reason: z.string().trim().min(1).max(300) });
@@ -288,7 +290,8 @@ export const appSettingsBody = z.strictObject({
   intakeMode: z.enum(["SCANNER", "CAMERA", "FILES"]).nullable().optional(),
   slipPaper: z.enum(["ROLL_80", "ROLL_58", "LABEL_100X150", "A4"]).optional(),
   seller: z.strictObject({ name: z.string().trim().max(80), address: z.string().trim().max(300), legal: z.string().trim().max(300) }).optional(),
-  notifications: z.strictObject({ sales: z.boolean(), watched: z.boolean(), publications: z.boolean(), supplies: z.boolean().default(true) }).optional(),
+  notifications: z.strictObject({ sales: z.boolean(), watched: z.boolean(), publications: z.boolean(), supplies: z.boolean().default(true), reviews: z.boolean().default(true) }).optional(),
+  reviewMessage: z.string().trim().max(1000).optional(),
 });
 export const pushSubscriptionBody = z.strictObject({
   endpoint: z.url().max(1000),
@@ -367,3 +370,7 @@ export const supplyOrderedBody = z.strictObject({ ordered: z.boolean() });
 
 export const agentTokenBody = z.strictObject({ name: z.string().trim().min(1).max(60) });
 export const agentTokenId = z.uuid();
+
+export const setCodeBody = z.strictObject({ language: z.string().regex(/^[a-z]{2}(-[a-z]{2})?$/), code: z.string().trim().max(20).nullable() });
+export const trackingBody = z.strictObject({ carrier: z.enum(CARRIERS).nullable().optional(), tracking: z.string().trim().max(80).nullable().optional() });
+export const reviewBody = z.strictObject({ requested: z.boolean() });

@@ -9,7 +9,7 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, Eyebrow } from "@/components/ui/card";
-import { Field, Input, Textarea } from "@/components/ui/input";
+import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { BackLink, Code, EmptyState, PageHeader, Spinner } from "@/components/ui/misc";
 import { Modal } from "@/components/ui/modal";
 import { ActionBar } from "@/components/ui/action-bar";
@@ -18,10 +18,11 @@ import { api } from "@/lib/api";
 import { formatDateTime, formatEuros, parseEuros, variantLabel } from "@/lib/format";
 import { t, tn } from "@/lib/i18n";
 import { eurosInput } from "@/lib/pricing";
-import { SHIPPING_LABEL, STAGE_LABEL, STAGE_VARIANT, needsTracking, salesMessage } from "@/lib/sales";
-import type { OrderDetail } from "@/lib/types";
+import { CARRIERS, CARRIER_LABEL, SHIPPING_LABEL, STAGE_LABEL, STAGE_VARIANT, detectCarrier, needsTracking, salesMessage } from "@/lib/sales";
+import type { Carrier, OrderDetail } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { OrderSkeleton } from "@/components/skeletons";
+import { DeliveryCard } from "@/components/delivery-card";
 import { useCachedState } from "@/lib/cache";
 
 type Allocation = OrderDetail["lines"][number]["allocations"][number];
@@ -142,11 +143,11 @@ export default function SalePage() {
                 {t("Affranchissement et fournitures d'après vos")} <Link href="/reglages/envois" className="underline underline-offset-2 hover:text-foreground">{t("frais d'envoi")}</Link>{t(" ; figés à la remise.")}
               </p>
             )}
-            {order.shipment?.tracking && <p className="text-xs text-muted-foreground">{t("Suivi :")} <Code>{order.shipment.tracking}</Code></p>}
-            {order.shipment?.handoverConfirmedAt && <p className="text-xs text-muted-foreground">{t("Remise le {date}", { date: formatDateTime(order.shipment.handoverConfirmedAt) })}</p>}
           </CardContent>
         </Card>
       </div>
+
+      {order.stage === "SHIPPED" && order.shipment && <DeliveryCard order={order} onChange={setOrder} />}
 
       {order.stage === "TO_PREPARE" && (
         <ActionBar message={allPicked ? t("Toutes les cartes sont prélevées : la vente peut être emballée.") : tn(remaining, "Prélevez {n} carte pour pouvoir emballer.", "Prélevez {n} cartes pour pouvoir emballer.")}>
@@ -224,11 +225,12 @@ function HandoverModal({ order, busy, onClose, onSubmit }: {
   order: OrderDetail;
   busy: boolean;
   onClose: () => void;
-  onSubmit: (input: { tracking?: string; postageCostCents?: number }) => void;
+  onSubmit: (input: { tracking?: string; carrier?: Carrier; postageCostCents?: number }) => void;
 }) {
   const mode = order.shipment!.mode;
   const inPerson = mode === "HAND_DELIVERY";
   const [tracking, setTracking] = useState("");
+  const [carrier, setCarrier] = useState<Carrier | "">("");
   // Préremplie avec l'affranchissement habituel de ce mode (Réglages → Frais d'envoi), à corriger au besoin.
   const [postage, setPostage] = useState(eurosInput(order.totals.postageCents));
   const postageCents = parseEuros(postage);
@@ -243,13 +245,21 @@ function HandoverModal({ order, busy, onClose, onSubmit }: {
         className="grid gap-4"
         onSubmit={(e) => {
           e.preventDefault();
-          if (postageCents !== null) onSubmit({ tracking: tracking.trim() || undefined, postageCostCents: inPerson ? undefined : postageCents });
+          if (postageCents !== null) onSubmit({ tracking: tracking.trim() || undefined, carrier: carrier || undefined, postageCostCents: inPerson ? undefined : postageCents });
         }}
       >
         {needsTracking(mode) && (
-          <Field label={t("Numéro de suivi")}>
-            <Input value={tracking} onChange={(e) => setTracking(e.target.value)} autoCapitalize="characters" autoCorrect="off" required autoFocus className="font-mono" />
-          </Field>
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem]">
+            <Field label={t("Numéro de suivi")}>
+              <Input value={tracking} onChange={(e) => { setTracking(e.target.value); const d = detectCarrier(e.target.value); if (d) setCarrier(d); }} autoCapitalize="characters" autoCorrect="off" required autoFocus className="font-mono" />
+            </Field>
+            <Field label={t("Transporteur")}>
+              <Select value={carrier} onChange={(e) => setCarrier(e.target.value as Carrier | "")} data-testid="handover-carrier">
+                <option value="">{t("Inconnu")}</option>
+                {CARRIERS.map((c) => <option key={c} value={c}>{t(CARRIER_LABEL[c])}</option>)}
+              </Select>
+            </Field>
+          </div>
         )}
         {!inPerson && (
           <Field label={t("Affranchissement payé (€)")} hint={t("Déduit de la marge, avec les fournitures.")}>

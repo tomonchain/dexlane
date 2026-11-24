@@ -4,6 +4,7 @@ import type { AllocationStatus, CardCondition } from "./internal";
 import { likePrefix } from "./locations";
 import { allocateOrder, importOrder, releaseAllocation } from "./orders";
 import { getShippingCosts, postageFor, suppliesCostFor } from "./costs";
+import { REVIEW_DUE, detectCarrier, type Carrier } from "./delivery";
 import { confirmHandover, createShipment, needsTracking, type ShippingMode } from "./shipping";
 
 /** Canal des ventes saisies à la main (salon, particulier, groupe) : même cycle qu'une commande de marketplace. */
@@ -135,6 +136,19 @@ export interface OrderSummary {
   /** Noms des premières cartes, pour reconnaître la vente dans une liste. */
   cardNames: string[];
   shippingMode: ShippingMode | null;
+  /** Suivi de l'envoi une fois remis : transporteur, numéro, état, livraison et demande d'avis. */
+  delivery: OrderDelivery | null;
+}
+
+export interface OrderDelivery {
+  carrier: Carrier | null;
+  tracking: string | null;
+  /** État de l'envoi : HANDED_OVER (déposé), IN_TRANSIT, DELIVERED, RETURNED, LOST. */
+  status: string;
+  deliveredAt: Date | null;
+  /** Livrée depuis 24 h et avis pas encore demandé. */
+  reviewDue: boolean;
+  reviewRequestedAt: Date | null;
 }
 
 export interface SalesTotals {
@@ -149,15 +163,22 @@ export interface SalesTotals {
   marginCents: number;
 }
 
+/** Colonnes de suivi d'un envoi (alias `sh`), en un objet `delivery` une fois la vente remise. */
+const DELIVERY = (sql: Db) => sql`
+  case when sh.handover_confirmed_at is null then null else jsonb_build_object(
+    'carrier', sh.carrier, 'tracking', sh.tracking, 'status', sh.status, 'deliveredAt', sh.delivered_at,
+    'reviewDue', ${REVIEW_DUE(sql)}, 'reviewRequestedAt', sh.review_requested_at) end`;
+
 export async function listOrders(
   sql: Db,
-  opts: { stage?: OrderStage; limit?: number; offset?: number } = {},
-): Promise<{ items: OrderSummary[]; counts: Record<OrderStage, number>; last30Days: SalesTotals }> {
+  opts: { stage?: OrderStage; review?: "DUE"; limit?: number; offset?: number } = {},
+): Promise<{ items: OrderSummary[]; counts: Record<OrderStage, number> & { REVIEW_DUE: number }; last30Days: SalesTotals }> {
   const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200);
   const rows = await sql<(Omit<OrderSummary, "stage"> & { fulfillmentStatus: string })[]>`
     select o.id, o.channel, o.external_id, o.fulfillment_status, o.oversold, o.gross_cents, o.ordered_at,
            o.shipping_address->>'name' as buyer_name,
-           coalesce(l.cards, 0)::int as cards, coalesce(l.card_names, '{}') as card_names, sh.mode as shipping_mode
+           coalesce(l.cards, 0)::int as cards, coalesce(l.card_names, '{}') as card_names, sh.mode as shipping_mode,
+           ${DELIVERY(sql)} as delivery
       from orders o
       left join lateral (
         select sum(ol.qty) as cards, (array_agg(c.name order by ol.external_line_id))[1:3] as card_names
@@ -166,15 +187,18 @@ export async function listOrders(
           join card_variants v on v.id = f.variant_id
           join catalog_cards c on c.id = v.catalog_card_id
          where ol.order_id = o.id) l on true
-      left join lateral (select mode from shipments where order_id = o.id order by created_at desc limit 1) sh on true
+      left join lateral (select * from shipments where order_id = o.id order by created_at desc limit 1) sh on true
      where ${opts.stage ? sql`o.fulfillment_status = ${STAGE_STATUS[opts.stage]}` : sql`true`}
+       ${opts.review === "DUE" ? sql`and coalesce(${REVIEW_DUE(sql)}, false)` : sql``}
      order by o.ordered_at desc, o.id
      limit ${limit} offset ${Math.max(opts.offset ?? 0, 0)}`;
 
   const statusCounts = await sql<{ fulfillmentStatus: string; n: number }[]>`
     select fulfillment_status, count(*)::int as n from orders group by fulfillment_status`;
-  const counts: Record<OrderStage, number> = { TO_PREPARE: 0, PACKED: 0, SHIPPED: 0, CANCELLED: 0 };
+  const counts: Record<OrderStage, number> & { REVIEW_DUE: number } = { TO_PREPARE: 0, PACKED: 0, SHIPPED: 0, CANCELLED: 0, REVIEW_DUE: 0 };
   for (const c of statusCounts) counts[stageOf(c.fulfillmentStatus)] += c.n;
+  const [due] = await sql<{ n: number }[]>`select count(*)::int as n from shipments sh where ${REVIEW_DUE(sql)}`;
+  counts.REVIEW_DUE = due!.n;
 
   const [totals] = await sql<{ orders: number; grossCents: string; costCents: string; postageCents: string; suppliesCents: string }[]>`
     select count(*)::int as orders, coalesce(sum(o.gross_cents), 0)::text as gross_cents,
@@ -231,9 +255,15 @@ export interface OrderDetail extends OrderSummary {
     mode: ShippingMode;
     status: string;
     tracking: string | null;
+    carrier: Carrier | null;
     postageCostCents: number | null;
     suppliesCostCents: number | null;
     handoverConfirmedAt: Date | null;
+    deliveredAt: Date | null;
+    trackingEvent: string | null;
+    trackingEventAt: Date | null;
+    trackingCheckedAt: Date | null;
+    reviewRequestedAt: Date | null;
   } | null;
   totals: {
     grossCents: number; itemsCents: number; shippingChargedCents: number; costCents: number; postageCents: number; suppliesCents: number; marginCents: number;
@@ -274,7 +304,8 @@ export async function getOrderDetail(sql: Db, orderId: string): Promise<OrderDet
      where ol.order_id = ${orderId}
      order by ol.external_line_id`;
   const [shipment] = await sql<NonNullable<OrderDetail["shipment"]>[]>`
-    select id, mode, status, tracking, postage_cost_cents, supplies_cost_cents, handover_confirmed_at
+    select id, mode, status, tracking, carrier, postage_cost_cents, supplies_cost_cents, handover_confirmed_at,
+           delivered_at, tracking_event, tracking_event_at, tracking_checked_at, review_requested_at
       from shipments where order_id = ${orderId} order by created_at desc limit 1`;
 
   const itemsCents = lines.reduce((sum, l) => sum + l.qty * l.unitPriceCents, 0);
@@ -302,8 +333,11 @@ export async function getOrderDetail(sql: Db, orderId: string): Promise<OrderDet
 
 async function listOrdersById(sql: Db, orderId: string) {
   const all = await sql<(Omit<OrderSummary, "stage" | "cards" | "cardNames" | "shippingMode"> & { fulfillmentStatus: string })[]>`
-    select id, channel, external_id, fulfillment_status, oversold, gross_cents, ordered_at, shipping_address->>'name' as buyer_name
-      from orders where id = ${orderId}`;
+    select o.id, o.channel, o.external_id, o.fulfillment_status, o.oversold, o.gross_cents, o.ordered_at, o.shipping_address->>'name' as buyer_name,
+           ${DELIVERY(sql)} as delivery
+      from orders o
+      left join lateral (select * from shipments where order_id = o.id order by created_at desc limit 1) sh on true
+     where o.id = ${orderId}`;
   const [agg] = await sql<{ cards: number; cardNames: string[]; shippingMode: ShippingMode | null }[]>`
     select coalesce(sum(ol.qty), 0)::int as cards,
            coalesce((array_agg(c.name order by ol.external_line_id))[1:3], '{}') as card_names,
@@ -338,6 +372,8 @@ export async function markSlipsPrinted(sql: Db, orderIds: string[]): Promise<num
 export interface ShipOrderInput {
   orderId: string;
   tracking?: string;
+  /** Transporteur ; déduit du numéro de suivi s'il n'est pas donné. */
+  carrier?: Carrier;
   /** Affranchissement réellement payé, pour la marge. */
   postageCostCents?: number;
   actor: string;
@@ -349,7 +385,8 @@ export function shipOrder(sql: Db, input: ShipOrderInput) {
     const [shipment] = await tx<{ id: string; mode: ShippingMode }[]>`
       select id, mode from shipments where order_id = ${input.orderId} order by created_at desc limit 1 for update`;
     if (!shipment) throw new DomainError("SHIPMENT_NOT_FOUND", "this order has no shipment");
-    const tracking = input.tracking?.trim() || null;
+    const tracking = input.tracking?.replace(/\s+/g, "").toUpperCase() || null;
+    const carrier = input.carrier ?? detectCarrier(tracking);
     if (needsTracking(shipment.mode) && !tracking) {
       throw new DomainError("TRACKING_REQUIRED", "a tracked shipment needs a tracking number before handover");
     }
@@ -359,7 +396,7 @@ export function shipOrder(sql: Db, input: ShipOrderInput) {
     const [count] = await tx<{ cards: number }[]>`select coalesce(sum(qty), 0)::int as cards from order_lines where order_id = ${input.orderId}`;
     const cards = count?.cards ?? 0;
     await tx`
-      update shipments set tracking = coalesce(${tracking}, tracking),
+      update shipments set tracking = coalesce(${tracking}, tracking), carrier = coalesce(${carrier}, carrier),
                            postage_cost_cents = coalesce(${input.postageCostCents ?? null}, postage_cost_cents, ${postageFor(costs, shipment.mode)}),
                            supplies_cost_cents = ${await suppliesCostFor(tx, shipment.mode, cards)},
                            updated_at = now()
