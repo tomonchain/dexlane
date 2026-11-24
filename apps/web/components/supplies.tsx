@@ -99,7 +99,7 @@ export function SuppliesView({ header }: { header: (meta: ReactNode, actions: Re
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("ALL");
   const [query, setQuery] = useState("");
-  const [selected, setSelectedState] = useState<string | null>(params.get("article"));
+  const [selected, setSelectedState] = useState<string | null>(params.get("item"));
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
@@ -111,7 +111,7 @@ export function SuppliesView({ header }: { header: (meta: ReactNode, actions: Re
 
   const setSelected = (id: string | null) => {
     setSelectedState(id);
-    router.replace(id ? `/stock?categorie=fournitures&article=${id}` : "/stock?categorie=fournitures", { scroll: false });
+    router.replace(id ? `/stock?section=supplies&item=${id}` : "/stock?section=supplies", { scroll: false });
   };
 
   async function run(key: string, action: () => Promise<unknown>, done?: string) {

@@ -5,16 +5,16 @@ import Link from "next/link";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-export type StockCategory = "cartes" | "fournitures" | "mouvements";
+export type StockCategory = "cards" | "supplies" | "movements";
 
 const TABS: { value: StockCategory; label: string; icon: LucideIcon; href: string }[] = [
-  { value: "cartes", label: "Cartes", icon: Layers, href: "/stock" },
-  { value: "fournitures", label: "Fournitures", icon: PackageOpen, href: "/stock?categorie=fournitures" },
-  { value: "mouvements", label: "Mouvements", icon: History, href: "/stock?categorie=mouvements" },
+  { value: "cards", label: "Cartes", icon: Layers, href: "/stock" },
+  { value: "supplies", label: "Fournitures", icon: PackageOpen, href: "/stock?section=supplies" },
+  { value: "movements", label: "Mouvements", icon: History, href: "/stock?section=movements" },
 ];
 
 export const stockCategory = (value: string | null): StockCategory =>
-  value === "fournitures" || value === "mouvements" ? value : "cartes";
+  value === "supplies" || value === "movements" ? value : "cards";
 
 /**
  * Les rubriques du stock : les cartes, les fournitures d'expédition, et le journal de tout ce qui entre et sort.

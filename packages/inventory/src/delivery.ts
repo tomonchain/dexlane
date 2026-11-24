@@ -90,9 +90,9 @@ export async function markDelivered(sql: Db, orderId: string, actor: string): Pr
     throw new DomainError("NOT_SHIPPED", "the order must be handed over before it can be delivered");
   }
   await sql`
-    update shipments set status = 'DELIVERED', delivered_at = coalesce(delivered_at, now()),
-                         tracking_event = coalesce(tracking_event, ${`delivered (noted by ${actor})`}), updated_at = now()
+    update shipments set status = 'DELIVERED', delivered_at = coalesce(delivered_at, now()), updated_at = now()
      where id = ${shipment.id}`;
+  await sql`insert into audit_events (actor, action, entity, entity_id) values (${actor}, 'delivery_noted', 'shipment', ${shipment.id})`;
 }
 
 /** Corrige le transporteur ou le numéro de suivi d'un envoi. */

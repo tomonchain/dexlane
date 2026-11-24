@@ -67,7 +67,7 @@ describe("the stock, one line per card to sell", () => {
     expect((await listStock(sql, { minCents: 1000 })).counts.ALL).toBe(2);
 
     expect(await stockFacets(sql)).toEqual({
-      sets: [{ id: "base1", name: "Set de Base", cards: 4 }, { id: "swsh3", name: "Ténèbres Embrasées", cards: 1 }],
+      sets: [{ id: "base1", name: "BASE1 · Set de Base", cards: 4 }, { id: "swsh3", name: "EB03 · Ténèbres Embrasées", cards: 1 }],
       locations: [{ code: "BOX-01", cards: 1 }, { code: "BOX-01/ROW-02", cards: 1 }, { code: "BOX-02", cards: 3 }],
       conditions: [{ code: "NM", cards: 4 }, { code: "EX", cards: 1 }],
     });

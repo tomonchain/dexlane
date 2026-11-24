@@ -14,19 +14,19 @@ import { ThemeSwitch } from "./theme";
 /** Les quatre destinations. Tout le reste se trouve dans le parcours (ajout, fiche d'une carte) ou dans Réglages. */
 const NAV: { href: string; label: string; short?: string; icon: LucideIcon; match: string[] }[] = [
   { href: "/", label: "Accueil", icon: House, match: [] },
-  { href: "/stock", label: "Stock", icon: Package, match: ["/stock", "/inventaire", "/fournitures"] },
-  { href: "/mises-en-ligne", label: "Mises en ligne", icon: CalendarClock, match: ["/mises-en-ligne"] },
-  { href: "/achats", label: "Achats", icon: ShoppingBasket, match: ["/achats"] },
-  { href: "/ventes", label: "Ventes", icon: Receipt, match: ["/ventes"] },
-  { href: "/statistiques", label: "Statistiques", short: "Stats", icon: ChartColumn, match: ["/statistiques"] },
-  { href: "/reglages", label: "Réglages", icon: Settings, match: ["/reglages", "/prix", "/rangement", "/catalogue", "/compte"] },
+  { href: "/stock", label: "Stock", icon: Package, match: ["/stock", "/inventory"] },
+  { href: "/listings", label: "Mises en ligne", icon: CalendarClock, match: ["/listings"] },
+  { href: "/buying", label: "Achats", icon: ShoppingBasket, match: ["/buying"] },
+  { href: "/sales", label: "Ventes", icon: Receipt, match: ["/sales"] },
+  { href: "/stats", label: "Statistiques", short: "Stats", icon: ChartColumn, match: ["/stats"] },
+  { href: "/settings", label: "Réglages", icon: Settings, match: ["/settings", "/pricing", "/locations", "/catalog", "/account"] },
 ];
 /**
  * Sur téléphone, quatre onglets et « Plus » (achats, statistiques, réglages et le reste) ; la recherche est en haut
  * à droite. L'ajout de cartes se fait depuis l'accueil et le stock.
  */
-const MOBILE_NAV = ["/", "/stock", "/mises-en-ligne", "/ventes"].map((href) => NAV.find((n) => n.href === href)!);
-const NO_SHELL = ["/login", "/bienvenue"];
+const MOBILE_NAV = ["/", "/stock", "/listings", "/sales"].map((href) => NAV.find((n) => n.href === href)!);
+const NO_SHELL = ["/login", "/welcome"];
 const isCurrent = (pathname: string, item: (typeof NAV)[number]) =>
   item.href === "/" ? pathname === "/" : item.match.some((m) => pathname.startsWith(m));
 
@@ -94,7 +94,7 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
     api.appSettings()
       .then((s) => {
         if (cancelled) return;
-        if (!s.onboardingDone) router.replace("/bienvenue");
+        if (!s.onboardingDone) router.replace("/welcome");
       })
       .catch(() => undefined);
     return () => {
@@ -142,7 +142,7 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
         <div className="flex items-center justify-between gap-2 border-t p-3">
           <ThemeSwitch />
           <Link
-            href="/compte"
+            href="/account"
             aria-label={t("Compte")}
             className="flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/30"
           >

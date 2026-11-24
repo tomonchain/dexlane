@@ -142,21 +142,21 @@ export function Home() {
           ? tn(b.counts.toReview, "carte à corriger dans « {name} »", "cartes à corriger dans « {name} »", { name: b.name })
           : tn(b.counts.items, "carte prête à entrer en stock, « {name} »", "cartes prêtes à entrer en stock, « {name} »", { name: b.name })}
         hint={t("Boîte {code} · {count}", { code: b.locationCode, count: tn(b.counts.items, "{n} carte scannée", "{n} cartes scannées") })}
-        href={`/scanner/lot/${b.id}`}
+        href={`/scanner/batch/${b.id}`}
         action={b.counts.toReview > 0 ? t("Revoir le lot") : t("Entrer en stock")}
       />
     )),
-    stock.counts.DRAFT > 0 && <Task key="draft" count={stock.counts.DRAFT} label={tn(stock.counts.DRAFT, "brouillon à valider", "brouillons à valider")} hint={t("En stock, mais pas encore vendables")} href="/stock?statut=DRAFT" action={t("Valider")} />,
-    stock.counts.TO_PRICE > 0 && <Task key="price" count={stock.counts.TO_PRICE} label={tn(stock.counts.TO_PRICE, "carte à tarifer", "cartes à tarifer")} hint={t("Sans prix : la cote manque ou demande une vérification")} href="/stock?statut=TO_PRICE" action={t("Fixer les prix")} />,
-    unplanned > 0 && <Task key="plan" count={unplanned} label={tn(unplanned, "carte prête, pas encore en ligne", "cartes prêtes, pas encore en ligne")} hint={t("Prix fixé, à publier ou à planifier")} href="/mises-en-ligne" action={t("Planifier la mise en ligne")} />,
-    dueToday > 0 && <Task key="due" count={dueToday} label={tn(dueToday, "mise en ligne prévue aujourd'hui", "mises en ligne prévues aujourd'hui")} hint={t("Publiées par la tâche du matin, ou tout de suite depuis le planning")} href="/mises-en-ligne" action={t("Voir le planning")} />,
-    schedule.failed.length > 0 && <Task key="failed" count={schedule.failed.length} label={tn(schedule.failed.length, "mise en ligne en échec", "mises en ligne en échec")} hint={t("Prix, photo ou stock manquant au moment de publier")} href="/mises-en-ligne" action={t("Corriger")} />,
-    orders.counts.TO_PREPARE > 0 && <Task key="prepare" count={orders.counts.TO_PREPARE} label={tn(orders.counts.TO_PREPARE, "vente à préparer", "ventes à préparer")} hint={t("Cartes réservées, à sortir de leur boîte")} href="/ventes" action={t("Préparer")} />,
-    orders.counts.PACKED > 0 && <Task key="packed" count={orders.counts.PACKED} label={t("colis à remettre")} hint={t("Emballés, en attente de dépôt ou de remise")} href="/ventes" action={t("Remettre")} />,
-    data.watched && data.watched.alerts > 0 && <Task key="watched" count={data.watched.alerts} label={tn(data.watched.alerts, "carte suivie à regarder", "cartes suivies à regarder")} hint={t("Prix cible atteint ou variation au-delà de vos seuils")} href="/achats" action={t("Voir les achats")} />,
-    orders.counts.REVIEW_DUE > 0 && <Task key="reviews" count={orders.counts.REVIEW_DUE} label={tn(orders.counts.REVIEW_DUE, "avis à demander", "avis à demander")} hint={t("Ventes livrées depuis 24 h : un message prêt à copier vous attend")} href="/ventes?review=due" action={t("Demander")} />,
-    data.supplies && data.supplies.toReorder > 0 && <Task key="supplies" count={data.supplies.toReorder} label={tn(data.supplies.toReorder, "fourniture à commander", "fournitures à commander")} hint={data.supplies.names.join(", ")} href="/stock?categorie=fournitures" action={t("Voir les fournitures")} />,
-    moves && moves.alerts > 0 && <Task key="alerts" count={moves.alerts} label={tn(moves.alerts, "carte dont la cote a bougé", "cartes dont la cote a bougé")} hint={t("Au-delà de {percent} % sur {days} jours", { percent: moves.settings.percent, days: moves.settings.windowDays })} href="/statistiques?vue=cotes" action={t("Voir les variations")} />,
+    stock.counts.DRAFT > 0 && <Task key="draft" count={stock.counts.DRAFT} label={tn(stock.counts.DRAFT, "brouillon à valider", "brouillons à valider")} hint={t("En stock, mais pas encore vendables")} href="/stock?status=DRAFT" action={t("Valider")} />,
+    stock.counts.TO_PRICE > 0 && <Task key="price" count={stock.counts.TO_PRICE} label={tn(stock.counts.TO_PRICE, "carte à tarifer", "cartes à tarifer")} hint={t("Sans prix : la cote manque ou demande une vérification")} href="/stock?status=TO_PRICE" action={t("Fixer les prix")} />,
+    unplanned > 0 && <Task key="plan" count={unplanned} label={tn(unplanned, "carte prête, pas encore en ligne", "cartes prêtes, pas encore en ligne")} hint={t("Prix fixé, à publier ou à planifier")} href="/listings" action={t("Planifier la mise en ligne")} />,
+    dueToday > 0 && <Task key="due" count={dueToday} label={tn(dueToday, "mise en ligne prévue aujourd'hui", "mises en ligne prévues aujourd'hui")} hint={t("Publiées par la tâche du matin, ou tout de suite depuis le planning")} href="/listings" action={t("Voir le planning")} />,
+    schedule.failed.length > 0 && <Task key="failed" count={schedule.failed.length} label={tn(schedule.failed.length, "mise en ligne en échec", "mises en ligne en échec")} hint={t("Prix, photo ou stock manquant au moment de publier")} href="/listings" action={t("Corriger")} />,
+    orders.counts.TO_PREPARE > 0 && <Task key="prepare" count={orders.counts.TO_PREPARE} label={tn(orders.counts.TO_PREPARE, "vente à préparer", "ventes à préparer")} hint={t("Cartes réservées, à sortir de leur boîte")} href="/sales" action={t("Préparer")} />,
+    orders.counts.PACKED > 0 && <Task key="packed" count={orders.counts.PACKED} label={t("colis à remettre")} hint={t("Emballés, en attente de dépôt ou de remise")} href="/sales" action={t("Remettre")} />,
+    data.watched && data.watched.alerts > 0 && <Task key="watched" count={data.watched.alerts} label={tn(data.watched.alerts, "carte suivie à regarder", "cartes suivies à regarder")} hint={t("Prix cible atteint ou variation au-delà de vos seuils")} href="/buying" action={t("Voir les achats")} />,
+    orders.counts.REVIEW_DUE > 0 && <Task key="reviews" count={orders.counts.REVIEW_DUE} label={tn(orders.counts.REVIEW_DUE, "avis à demander", "avis à demander")} hint={t("Ventes livrées depuis 24 h : un message prêt à copier vous attend")} href="/sales?review=due" action={t("Demander")} />,
+    data.supplies && data.supplies.toReorder > 0 && <Task key="supplies" count={data.supplies.toReorder} label={tn(data.supplies.toReorder, "fourniture à commander", "fournitures à commander")} hint={data.supplies.names.join(", ")} href="/stock?section=supplies" action={t("Voir les fournitures")} />,
+    moves && moves.alerts > 0 && <Task key="alerts" count={moves.alerts} label={tn(moves.alerts, "carte dont la cote a bougé", "cartes dont la cote a bougé")} hint={t("Au-delà de {percent} % sur {days} jours", { percent: moves.settings.percent, days: moves.settings.windowDays })} href="/stats?view=prices" action={t("Voir les variations")} />,
   ].filter(Boolean);
 
   return (
@@ -173,7 +173,7 @@ export function Home() {
             <p className="mx-auto mt-1 max-w-sm text-[13px] text-muted-foreground">
               {empty ? t("Scannez ou photographiez un premier lot : les cartes sont reconnues, tarifées, puis prêtes à mettre en ligne.") : t("Tout est tarifé, planifié et préparé. Ajoutez un lot pour continuer.")}
             </p>
-            <Button asChild className="mt-4"><Link href="/scanner/lot"><Plus /> {t("Ajouter des cartes")}</Link></Button>
+            <Button asChild className="mt-4"><Link href="/scanner/batch"><Plus /> {t("Ajouter des cartes")}</Link></Button>
           </div>
         )}
       </section>
@@ -203,9 +203,9 @@ export function Home() {
 
       {active && (
         <div className="grid gap-6 lg:grid-cols-2">
-          <Recent title={t("Dernières ventes")} href="/ventes" all={t("Toutes les ventes")} empty={t("Aucune vente pour l'instant.")}>
+          <Recent title={t("Dernières ventes")} href="/sales" all={t("Toutes les ventes")} empty={t("Aucune vente pour l'instant.")}>
             {activity.sales.map((sale) => (
-              <Link key={sale.id} href={`/ventes/${sale.id}`} data-testid="home-sale" className="flex items-center gap-3 px-4 py-2.5 outline-none transition-colors hover:bg-accent/60 focus-visible:bg-accent">
+              <Link key={sale.id} href={`/sales/${sale.id}`} data-testid="home-sale" className="flex items-center gap-3 px-4 py-2.5 outline-none transition-colors hover:bg-accent/60 focus-visible:bg-accent">
                 <span className="grid min-w-0 flex-1 gap-0.5">
                   <span className="flex flex-wrap items-center gap-x-2">
                     <Code className="text-[13px] font-semibold">{sale.externalId}</Code>
@@ -219,9 +219,9 @@ export function Home() {
               </Link>
             ))}
           </Recent>
-          <Recent title={t("Dernières mises en ligne")} href="/stock?statut=LISTED" all={t("Tout ce qui est en ligne")} empty={t("Aucune annonce en ligne pour l'instant.")}>
+          <Recent title={t("Dernières mises en ligne")} href="/stock?status=LISTED" all={t("Tout ce qui est en ligne")} empty={t("Aucune annonce en ligne pour l'instant.")}>
             {activity.listings.map((listing) => (
-              <Link key={listing.id} href={`/carte/${listing.catalogCardId}`} data-testid="home-listing" className="flex items-center gap-3 px-4 py-2.5 outline-none transition-colors hover:bg-accent/60 focus-visible:bg-accent">
+              <Link key={listing.id} href={`/card/${listing.catalogCardId}`} data-testid="home-listing" className="flex items-center gap-3 px-4 py-2.5 outline-none transition-colors hover:bg-accent/60 focus-visible:bg-accent">
                 <CardThumb imageUrl={listing.imageUrl} size="sm" className="w-7 rounded-[3px]" />
                 <span className="grid min-w-0 flex-1 gap-0.5">
                   <span className="truncate text-sm font-medium">{listing.name}</span>
@@ -244,7 +244,7 @@ export function Home() {
           <Figure label={t("En ligne")} value={stock.counts.LISTED} hint={tn(schedule.pending, "{n} planifiée", "{n} planifiées")} />
           <Figure label={t("Marge sur 30 jours")} value={formatEuros(orders.last30Days.marginCents)} hint={t("{sales}, après cartes, port et fournitures", { sales: tn(orders.last30Days.orders, "{n} vente remise", "{n} ventes remises") })} />
         </dl>
-        <Link href="/statistiques" className="flex items-center gap-1 justify-self-start px-1 text-[13px] font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:underline">
+        <Link href="/stats" className="flex items-center gap-1 justify-self-start px-1 text-[13px] font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:underline">
           {t("Toutes les statistiques")} <ArrowRight className="size-3.5" aria-hidden />
         </Link>
       </section>

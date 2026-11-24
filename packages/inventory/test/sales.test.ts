@@ -45,7 +45,7 @@ describe("direct sale", () => {
       qty: 2, unitPriceCents: 500, card: { name: "Pikachu" },
       allocations: [{ status: "RESERVED", qty: 2, unitSku: pika.stockItem.unitSku, locationCode: "BOX-01/ROW-02" }],
     });
-    expect((await listOrders(sql)).counts).toEqual({ TO_PREPARE: 1, PACKED: 0, SHIPPED: 0, CANCELLED: 0 });
+    expect((await listOrders(sql)).counts).toEqual({ TO_PREPARE: 1, PACKED: 0, SHIPPED: 0, CANCELLED: 0, REVIEW_DUE: 0 });
   });
 
   it("lists what to prepare for the daily shipping run, oldest first, and remembers what was printed", async () => {

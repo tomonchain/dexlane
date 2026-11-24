@@ -14,21 +14,21 @@ import { Code, Spinner } from "./ui/misc";
 export const PAGES = [
   { href: "/", label: "Accueil", hint: "Ce qu'il y a à faire aujourd'hui", icon: House },
   { href: "/stock", label: "Stock", hint: "Toutes les cartes à vendre : prix, annonce, statut", icon: Package },
-  { href: "/ajouter", label: "Ajouter une carte", hint: "Photo ou recherche, puis entrée en stock", icon: ScanLine },
-  { href: "/scanner/lot", label: "Ajouter un lot d'images", hint: "Importer les images d'un scanner à défilement", icon: Images },
-  { href: "/vrac", label: "Ajouter du vrac", hint: "Enregistrer un lot agrégé", icon: Layers },
-  { href: "/achats", label: "Achats", hint: "Cartes suivies, prix cibles, bonnes affaires", icon: ShoppingBasket },
-  { href: "/ventes", label: "Ventes", hint: "Vendre, préparer, remettre", icon: Receipt },
-  { href: "/reglages/envois", label: "Frais d'envoi", hint: "Affranchissement, sleeve, top-loader, enveloppe", icon: Receipt },
-  { href: "/statistiques", label: "Statistiques", hint: "Ce qui se vend, valeur du stock, variations de cote", icon: ChartColumn },
-  { href: "/mises-en-ligne", label: "Mises en ligne", hint: "Planning de publication sur eBay et CardTrader", icon: Megaphone },
-  { href: "/inventaire", label: "Positions", hint: "Chaque position physique, par code et emplacement", icon: Boxes },
-  { href: "/prix", label: "Règles de prix", hint: "File de revue et règles de calcul", icon: Tags },
-  { href: "/reglages/annonces", label: "Modèle d'annonce et photos", hint: "Titre, description, fond des photos, image de fin", icon: Megaphone },
-  { href: "/reglages/canaux", label: "Canaux de vente", hint: "eBay, CardTrader : simulation ou réel", icon: Megaphone },
-  { href: "/rangement", label: "Emplacements", hint: "Boîtes, classeurs et lots d'acquisition", icon: Archive },
-  { href: "/catalogue", label: "Catalogue", hint: "Séries importées", icon: BookOpen },
-  { href: "/reglages", label: "Réglages", hint: "Prix, annonces, emplacements, catalogue, compte", icon: Settings },
+  { href: "/add", label: "Ajouter une carte", hint: "Photo ou recherche, puis entrée en stock", icon: ScanLine },
+  { href: "/scanner/batch", label: "Ajouter un lot d'images", hint: "Importer les images d'un scanner à défilement", icon: Images },
+  { href: "/bulk", label: "Ajouter du vrac", hint: "Enregistrer un lot agrégé", icon: Layers },
+  { href: "/buying", label: "Achats", hint: "Cartes suivies, prix cibles, bonnes affaires", icon: ShoppingBasket },
+  { href: "/sales", label: "Ventes", hint: "Vendre, préparer, remettre", icon: Receipt },
+  { href: "/settings/shipping", label: "Frais d'envoi", hint: "Affranchissement, sleeve, top-loader, enveloppe", icon: Receipt },
+  { href: "/stats", label: "Statistiques", hint: "Ce qui se vend, valeur du stock, variations de cote", icon: ChartColumn },
+  { href: "/listings", label: "Mises en ligne", hint: "Planning de publication sur eBay et CardTrader", icon: Megaphone },
+  { href: "/inventory", label: "Positions", hint: "Chaque position physique, par code et emplacement", icon: Boxes },
+  { href: "/pricing", label: "Règles de prix", hint: "File de revue et règles de calcul", icon: Tags },
+  { href: "/settings/listing", label: "Modèle d'annonce et photos", hint: "Titre, description, fond des photos, image de fin", icon: Megaphone },
+  { href: "/settings/channels", label: "Canaux de vente", hint: "eBay, CardTrader : simulation ou réel", icon: Megaphone },
+  { href: "/locations", label: "Emplacements", hint: "Boîtes, classeurs et lots d'acquisition", icon: Archive },
+  { href: "/catalog", label: "Catalogue", hint: "Séries importées", icon: BookOpen },
+  { href: "/settings", label: "Réglages", hint: "Prix, annonces, emplacements, catalogue, compte", icon: Settings },
 ] as const;
 
 const item =
@@ -110,7 +110,7 @@ export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChang
               {results.length > 0 && (
                 <Command.Group heading={t("Inventaire")} className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:uppercase">
                   {results.map((p) => (
-                    <Command.Item key={p.id} value={p.id} onSelect={() => go(`/inventaire/${p.unitSku}`)} className={item}>
+                    <Command.Item key={p.id} value={p.id} onSelect={() => go(`/inventory/${p.unitSku}`)} className={item}>
                       <Package className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium">{positionTitle(p)}</span>

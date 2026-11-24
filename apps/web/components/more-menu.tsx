@@ -17,30 +17,30 @@ const SECTIONS: { title: string; items: { href: string; label: string; icon: Luc
   {
     title: "Acheter et analyser",
     items: [
-      { href: "/achats", label: "Achats", icon: ShoppingBasket },
-      { href: "/statistiques", label: "Statistiques", icon: ChartColumn },
+      { href: "/buying", label: "Achats", icon: ShoppingBasket },
+      { href: "/stats", label: "Statistiques", icon: ChartColumn },
     ],
   },
   {
     title: "Gérer",
     items: [
-      { href: "/catalogue", label: "Catalogue", icon: BookOpen },
-      { href: "/rangement", label: "Emplacements", icon: Archive },
-      { href: "/inventaire", label: "Positions", icon: Boxes },
-      { href: "/prix", label: "Règles de prix", icon: Tags },
+      { href: "/catalog", label: "Catalogue", icon: BookOpen },
+      { href: "/locations", label: "Emplacements", icon: Archive },
+      { href: "/inventory", label: "Positions", icon: Boxes },
+      { href: "/pricing", label: "Règles de prix", icon: Tags },
     ],
   },
   {
     title: "Application",
     items: [
-      { href: "/reglages", label: "Réglages", icon: Settings },
-      { href: "/compte", label: "Compte", icon: CircleUserRound },
+      { href: "/settings", label: "Réglages", icon: Settings },
+      { href: "/account", label: "Compte", icon: CircleUserRound },
     ],
   },
 ];
 
 /** Préfixes des écrans de « Plus » : l'onglet est surligné quand l'un d'eux est ouvert. */
-export const MORE_PATHS = ["/achats", "/statistiques", "/catalogue", "/rangement", "/inventaire", "/prix", "/reglages", "/compte"];
+export const MORE_PATHS = ["/buying", "/stats", "/catalog", "/locations", "/inventory", "/pricing", "/settings", "/account"];
 
 const THEMES = [
   { value: "light", label: "Clair", icon: Sun },
@@ -87,7 +87,7 @@ export function MoreSheet({ open, onClose }: { open: boolean; onClose: () => voi
             </Dialog.Close>
           </div>
 
-          <Link href="/statistiques" onClick={onClose} className="mt-4 flex items-center rounded-2xl p-2 -mx-2 outline-none hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/30">
+          <Link href="/stats" onClick={onClose} className="mt-4 flex items-center rounded-2xl p-2 -mx-2 outline-none hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/30">
             <span className="grid min-w-0">
               <span className="text-[15px] font-medium">{t("Ventes et chiffre d'affaires")}</span>
               <span className="tabular truncate text-sm text-muted-foreground">

@@ -108,7 +108,7 @@ describe("phone notifications", () => {
     vanished.add(laptop.endpoint);
     const digest = (await pcall("POST", "/api/notifications/digest")).json;
     expect(digest).toMatchObject({ sent: 1, removed: 1, digest: { targets: [{ name: "Mew-ex", cents: 298 }] } });
-    expect(sent).toEqual([{ endpoint: phone.endpoint, body: "Mew-ex est sous votre prix cible (2,98 €)", url: "/achats" }]);
+    expect(sent).toEqual([{ endpoint: phone.endpoint, body: "Mew-ex est sous votre prix cible (2,98 €)", url: "/buying" }]);
     expect((await pcall("GET", "/api/notifications")).json.devices).toBe(1);
     sent.length = 0;
     expect((await pcall("POST", "/api/notifications/digest")).json).toMatchObject({ sent: 0 });
@@ -166,7 +166,7 @@ describe("supplies", () => {
     const list = (await pcall("GET", "/api/supplies")).json;
     expect(list.toReorder).toBe(1);
     expect(list.supplies[0]).toMatchObject({ name: "Sleeves", onHand: 2, status: "LOW" });
-    expect(sent).toEqual([{ body: "Sleeves : plus que 2. Pensez à recommander.", url: "/stock?categorie=fournitures" }]);
+    expect(sent).toEqual([{ body: "Sleeves : plus que 2. Pensez à recommander.", url: "/stock?section=supplies" }]);
 
     // Plus de sleeves que le stock : il reste à zéro, sans bloquer la remise, et l'alerte n'est pas répétée.
     expect((await sell(2, "HAND_DELIVERY")).json.stage).toBe("SHIPPED");
@@ -183,7 +183,7 @@ describe("supplies", () => {
 
     // Seuil relevé par modification ; puis retirée de la liste.
     expect((await pcall("PATCH", `/api/supplies/${envelopes.id}`, { reorderPoint: 9, supplierUrl: "https://shop.example/enveloppes" })).json).toMatchObject({ status: "LOW", supplierUrl: "https://shop.example/enveloppes" });
-    expect(sent.at(-1)).toEqual({ body: "Enveloppes : plus que 9. Pensez à recommander.", url: "/stock?categorie=fournitures" });
+    expect(sent.at(-1)).toEqual({ body: "Enveloppes : plus que 9. Pensez à recommander.", url: "/stock?section=supplies" });
     expect((await pcall("DELETE", `/api/supplies/${envelopes.id}`)).status).toBe(204);
     expect((await pcall("GET", "/api/supplies")).json.supplies.map((x: { name: string }) => x.name)).toEqual(["Sleeves"]);
     expect((await pcall("POST", "/api/notifications/digest")).json.digest.suppliesToReorder).toBe(1);
@@ -870,7 +870,7 @@ describe("purchases", () => {
 
 describe("application settings", () => {
   it("remembers the onboarding progress and the way cards come in", async () => {
-    const blank = { slipPaper: "ROLL_80", seller: { name: "", address: "", legal: "" }, notifications: { sales: true, watched: true, publications: true, supplies: true } };
+    const blank = { slipPaper: "ROLL_80", seller: { name: "", address: "", legal: "" }, notifications: { sales: true, watched: true, publications: true, supplies: true, reviews: true }, reviewMessage: "" };
     expect((await call("GET", "/api/app-settings")).json).toEqual({ onboardingDone: false, intakeMode: null, ...blank });
     expect((await call("PUT", "/api/app-settings", { body: { intakeMode: "CAMERA" } })).json).toEqual({ onboardingDone: false, intakeMode: "CAMERA", ...blank });
     expect((await call("PUT", "/api/app-settings", { body: { onboardingDone: true } })).json).toEqual({ onboardingDone: true, intakeMode: "CAMERA", ...blank });

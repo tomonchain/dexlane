@@ -68,8 +68,8 @@ const errorBanner = (page: Page) => page.locator('[data-slot="alert"][data-varia
 
 test("première utilisation : l'assistant crée le compte, règle le scan, importe une série, crée les emplacements, la stratégie de prix et un canal", async ({ page }) => {
   test.setTimeout(60_000);
-  await page.goto("/inventaire");
-  await page.waitForURL(/\/bienvenue$/);
+  await page.goto("/inventory");
+  await page.waitForURL(/\/welcome$/);
   await expect(page.getByRole("heading", { name: "Créez votre compte" })).toBeVisible();
 
   // 1. Compte : un mauvais jeton est refusé, le bon crée le compte.
@@ -131,7 +131,7 @@ test("première utilisation : l'assistant crée le compte, règle le scan, impor
   expect(((await json("/api/channels")).channels as { id: string; mode: string }[]).find((c) => c.id === "ebay")!.mode).toBe("SIMULATION");
   await page.request.put("/api/channels/ebay", { data: { mode: "OFF" } });
   await page.request.put("/api/pricing/settings", { data: { ...(await json("/api/pricing/settings")), strategy: "BALANCED" } });
-  await page.goto("/inventaire");
+  await page.goto("/inventory");
   await expect(page.getByRole("heading", { name: "Inventaire" })).toBeVisible();
 
   // Déconnexion depuis le compte, puis retour par le seul mot de passe.
@@ -157,7 +157,7 @@ test("première utilisation : l'assistant crée le compte, règle le scan, impor
 
 test("photo lisible : la carte entre en stock et se retrouve dans l'inventaire", async ({ page }) => {
   await login(page);
-  await page.goto("/ajouter");
+  await page.goto("/add");
   await chooseLocation(page, "BOX-A/ROW-01");
 
   await takePhoto(page, CLEAR);
@@ -191,7 +191,7 @@ test("photo lisible : la carte entre en stock et se retrouve dans l'inventaire",
   expect(sku).toMatch(/^SI-\d{6}$/);
   await expect(page.getByText("OF-SWSH3-136-FR-R-NM")).toBeVisible();
 
-  await page.goto("/inventaire?emplacement=BOX-A");
+  await page.goto("/inventory?location=BOX-A");
   await expect(page.getByRole("status").filter({ hasText: "position" })).toHaveText("1 position");
   await page.getByRole("link", { name: /Fouinar/ }).click();
   await expect(onHand(page)).toHaveText("2");
@@ -203,7 +203,7 @@ test("photo lisible : la carte entre en stock et se retrouve dans l'inventaire",
 
 test("lecture incertaine : rien n'est présélectionné, le brouillon se valide depuis la fiche", async ({ page }) => {
   await login(page);
-  await page.goto("/ajouter");
+  await page.goto("/add");
   await chooseLocation(page, "BOX-B");
 
   await takePhoto(page, PARTIAL_NAME);
@@ -229,7 +229,7 @@ test("lecture incertaine : rien n'est présélectionné, le brouillon se valide 
 
 test("panne de lecture : recherche manuelle et exemplaire unique", async ({ page }) => {
   await login(page);
-  await page.goto("/ajouter");
+  await page.goto("/add");
   await chooseLocation(page, "BOX-C");
 
   await takePhoto(page, OUTAGE);
@@ -251,7 +251,7 @@ test("panne de lecture : recherche manuelle et exemplaire unique", async ({ page
 
 test("vrac : entrée du lot, correction après comptage, extraction d'une carte", async ({ page }) => {
   await login(page);
-  await page.goto("/vrac");
+  await page.goto("/bulk");
   await page.getByRole("radio", { name: "peu communes" }).click();
   await page.getByLabel("Nombre de cartes").fill("1000");
   await page.getByLabel("Coût total du lot (€)").fill("20");
@@ -287,7 +287,7 @@ test("vrac : entrée du lot, correction après comptage, extraction d'une carte"
 
 test("catalogue : onglets, import d'une série, détail, puis recherche par autocomplétion de série", async ({ page }) => {
   await login(page);
-  await page.goto("/catalogue");
+  await page.goto("/catalog");
   await expect(page.getByRole("tab", { name: /^Importées/ })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("tab", { name: /^Importées/ })).toContainText("2");
   await page.getByRole("button", { name: "Actualiser la liste" }).click();
@@ -322,7 +322,7 @@ test("catalogue : onglets, import d'une série, détail, puis recherche par auto
   await expect(page.getByText("Aucune carte ne correspond")).toBeVisible();
 
   // Dans le scanner, la série se choisit par son nom et suffit à retrouver ses cartes.
-  await page.goto("/ajouter");
+  await page.goto("/add");
   await page.getByRole("button", { name: "Rechercher sans photo" }).click();
   const serie = page.getByRole("combobox", { name: "Série" });
   await serie.fill("15");
@@ -334,7 +334,7 @@ test("catalogue : onglets, import d'une série, détail, puis recherche par auto
 
 test("emplacements : création en série, description, suppression d'un emplacement inutilisé", async ({ page }) => {
   await login(page);
-  await page.goto("/rangement");
+  await page.goto("/locations");
   await expect(page.getByRole("heading", { name: "Bien organiser ses emplacements" })).toBeVisible();
 
   await page.getByRole("button", { name: "Nouvel emplacement" }).click();
@@ -367,7 +367,7 @@ test("emplacements : création en série, description, suppression d'un emplacem
 
 test("prix : estimation à la saisie, prix posé à l'entrée, décision manuelle et règles", async ({ page }) => {
   await login(page);
-  await page.goto("/ajouter");
+  await page.goto("/add");
   await chooseLocation(page, "BOX-P");
   await takePhoto(page, CLEAR);
   const estimate = page.getByTestId("price-estimate");
@@ -385,7 +385,7 @@ test("prix : estimation à la saisie, prix posé à l'entrée, décision manuell
   await expect(page.getByTestId("entry-pricing")).toContainText("Prix cible");
 
   // Décision manuelle : le prix et la catégorie choisis s'affichent partout, et l'offre sort de la revue.
-  await page.goto("/prix");
+  await page.goto("/pricing");
   await page.getByRole("tab", { name: /^Toutes/ }).click();
   const offer = page.getByTestId("offer-OF-SWSH3-136-FR-R-GD");
   await offer.getByRole("button", { name: /Fixer le prix/ }).click();
@@ -395,7 +395,7 @@ test("prix : estimation à la saisie, prix posé à l'entrée, décision manuell
   await expect(offer).toContainText("2,50 €");
   await expect(offer).toContainText("Lot");
 
-  await page.goto("/inventaire?emplacement=BOX-P");
+  await page.goto("/inventory?location=BOX-P");
   await page.getByRole("link", { name: /Fouinar/ }).click();
   const pricing = page.getByTestId("offer-pricing");
   await expect(pricing).toContainText("2,50 €");
@@ -403,7 +403,7 @@ test("prix : estimation à la saisie, prix posé à l'entrée, décision manuell
   await expect(pricing).toContainText("Lot");
 
   // Règles : un seuil incohérent est refusé, un seuil valide recalcule les offres.
-  await page.goto("/prix");
+  await page.goto("/pricing");
   await page.getByRole("tab", { name: "Règles" }).click();
   await page.getByLabel("Lot en dessous de (€)").fill("0,10");
   await page.getByRole("button", { name: "Enregistrer les règles" }).click();
@@ -428,7 +428,7 @@ test("ventes : vente directe réservée, prélevée par code, emballée, dépos�
   const sku = received.stockItem.unitSku;
 
   // Frais d'envoi réglés une fois : affranchissement habituel de la lettre suivie, sleeve, top-loader, enveloppe.
-  await page.goto("/reglages");
+  await page.goto("/settings");
   await page.getByRole("link", { name: /Frais d'envoi/ }).click();
   await page.getByLabel("Lettre suivie (€)").fill("1,29");
   await page.getByLabel("Sleeve (€)").fill("0,02");
@@ -438,7 +438,7 @@ test("ventes : vente directe réservée, prélevée par code, emballée, dépos�
   await page.getByRole("button", { name: "Enregistrer les frais" }).click();
   await expect(page.getByText("Frais d'envoi enregistrés")).toBeVisible();
 
-  await page.goto("/ventes");
+  await page.goto("/sales");
   await page.getByRole("link", { name: "Nouvelle vente" }).click();
   await page.getByLabel("Rechercher une carte en stock").fill("OF-SWSH3-136-FR-R-PL");
   await page.getByRole("button", { name: "Ajouter Fouinar PL" }).click();
@@ -485,10 +485,10 @@ test("ventes : vente directe réservée, prélevée par code, emballée, dépos�
   await expect(page.getByRole("button", { name: "Annuler la vente" })).toHaveCount(0);
 
   // Le stock physique a baissé, la vente figure dans les ventes remises.
-  await page.goto("/inventaire?emplacement=BOX-V");
+  await page.goto("/inventory?location=BOX-V");
   await page.getByRole("link", { name: /Fouinar/ }).click();
   await expect(onHand(page)).toHaveText("1");
-  await page.goto("/ventes");
+  await page.goto("/sales");
   await page.getByRole("tab", { name: /^Remises/ }).click();
   await expect(page.getByRole("link", { name: /Camille/ })).toContainText("5,00 €");
 });
@@ -496,7 +496,7 @@ test("ventes : vente directe réservée, prélevée par code, emballée, dépos�
 test("lot scanné : cartes reçues dans l'ordre du scanner, revue conservée après rechargement, entrée en stock d'un bloc", async ({ page }) => {
   await login(page);
   await page.request.post("/api/locations", { data: { code: "BOITE-07" } });
-  await page.goto("/scanner/lot");
+  await page.goto("/scanner/batch");
   const box = page.getByRole("button", { name: "Boîte de destination", exact: true });
   await box.click();
   await page.getByLabel("Filtrer les emplacements").fill("boite-07");
@@ -579,14 +579,14 @@ test("annonces : modèle de titre, fond des photos, composition du visuel à par
   };
 
   // L'ancienne page Annonces mène au planning des mises en ligne ; l'annonce se règle depuis la fiche d'une carte.
-  await page.goto("/annonces");
-  await page.waitForURL(/\/mises-en-ligne$/);
+  await page.goto("/listings");
+  await page.waitForURL(/\/listings$/);
   let panel = await openStockCard(page, "OF-SWSH3-136-FR-R-MT");
   await expect(panel.getByTestId("stock-listing-title")).toHaveText("Fouinar 136/189 Ténèbres Embrasées Reverse FR MT Carte Pokémon");
   await expect(panel.getByRole("button", { name: "Composer les photos d'annonce" })).toBeVisible();
 
   // Modèle : l'aperçu suit la saisie, une variable s'insère d'un clic, le titre des offres change après enregistrement.
-  await page.goto("/reglages/annonces");
+  await page.goto("/settings/listing");
   const title = page.getByLabel("Modèle de titre");
   await title.fill("Pokémon {nom} {numero} - ");
   await page.getByRole("button", { name: "{etat_nom}" }).click();
@@ -621,7 +621,7 @@ test("annonces : modèle de titre, fond des photos, composition du visuel à par
   await panel.getByRole("button", { name: "Recomposer les photos d'annonce" }).click();
   await expect.poll(async () => (await listingPhotos()).map((p) => p.id)).not.toContain(before);
   expect(await listingPhotos()).toHaveLength(1);
-  await page.goto("/reglages/annonces");
+  await page.goto("/settings/listing");
   await page.getByRole("tab", { name: "Photos" }).click();
   const [second] = (await listingPhotos()).map((p) => p.id);
   await page.getByRole("button", { name: "Tout recomposer" }).click();
@@ -646,7 +646,7 @@ test("canaux : simulation eBay — publication, achat simulé qui arrive dans le
   await expect(panel.getByTestId("stock-channel-ebay")).toHaveCount(0);
 
   // Canaux : le mode réel est indisponible sans connecteur, la simulation s'active d'un clic.
-  await page.goto("/reglages/canaux");
+  await page.goto("/settings/channels");
   const ebay = page.getByTestId("channel-card-ebay");
   await expect(ebay.getByRole("radio", { name: "Réel" })).toBeDisabled();
   await expect(ebay.getByText("Passer en réel : obtenir l'accès")).toBeVisible();
@@ -663,7 +663,7 @@ test("canaux : simulation eBay — publication, achat simulé qui arrive dans le
   await expect(page.getByText(/Commande SIM-\d{6} reçue/)).toBeVisible();
   await expect(channel).toContainText("en ligne · 1 ×");
 
-  await page.goto("/ventes");
+  await page.goto("/sales");
   const order = page.getByRole("link", { name: /SIM-\d{6}/ });
   await expect(order).toContainText("eBay");
   await expect(order).toContainText("Acheteur de test");
@@ -690,7 +690,7 @@ test("statistiques : chiffres clés, variation de cote d'une carte en stock, seu
     headers: { "Idempotency-Key": `e2e-stats-sale-${Date.now()}` },
   });
 
-  await page.goto("/statistiques");
+  await page.goto("/stats");
   await expect(page.getByRole("heading", { name: "Statistiques", level: 1 })).toBeVisible();
   // Par défaut : ce qui se vend. Les parcours précédents ont enregistré des ventes.
   await expect(page.getByTestId("sales-insights")).toBeVisible();
@@ -831,7 +831,7 @@ test("stock : une ligne par carte, prix accepté d'un clic ou saisi sur place, f
 
 test("scan sûr à 100 % : malgré une remarque de lecture, la fiche arrive remplie avec l'état par défaut et se valide d'une touche", async ({ page }) => {
   await login(page);
-  await page.goto("/ajouter");
+  await page.goto("/add");
   await chooseLocation(page, "BOX-AUTO");
   await page.getByLabel("État par défaut").selectOption("EX");
 
@@ -870,7 +870,7 @@ test("dossier du scanner relié : chaque carte scannée arrive seule, les ancien
   await login(page);
   await page.request.post("/api/locations", { data: { code: "BOITE-08" } });
   const batch = (await (await page.request.post("/api/scan-batches", { data: { locationCode: "BOITE-08", defaultCondition: "NM" } })).json()) as { id: string };
-  await page.goto(`/scanner/lot/${batch.id}`);
+  await page.goto(`/scanner/batch/${batch.id}`);
   const rows = page.getByTestId("batch-row");
 
   // Deux images d'un lot précédent traînent dans le dossier : elles ne doivent pas entrer dans celui-ci.
@@ -919,7 +919,7 @@ test("mise en ligne planifiée : image de fin d'annonce, sélection de cartes, r
   }
 
   // Image de fin d'annonce, réglée une fois.
-  await page.goto("/reglages/annonces");
+  await page.goto("/settings/listing");
   await page.getByRole("tab", { name: "Photos" }).click();
   await page.getByTestId("promo-input").setInputFiles({ name: "rachat.png", mimeType: "image/png", buffer: png(40, 40) });
   await expect(page.getByText("Image de fin d'annonce enregistrée")).toBeVisible();
@@ -956,7 +956,7 @@ test("mise en ligne planifiée : image de fin d'annonce, sélection de cartes, r
 
   // Le planning a sa page, ouverte depuis l'en-tête du stock.
   await page.getByRole("main").getByRole("link", { name: /^Mises en ligne/ }).click();
-  await page.waitForURL(/\/mises-en-ligne$/);
+  await page.waitForURL(/\/listings$/);
   const schedule = page.getByTestId("schedule");
   await expect(schedule).toContainText("2 mises en ligne planifiées sur 2 jours");
 
@@ -978,7 +978,7 @@ test("sans scanner : le téléphone photographie recto puis verso, les cartes en
   await login(page);
   await page.request.post("/api/locations", { data: { code: "BOITE-09" } });
   const batch = (await (await page.request.post("/api/scan-batches", { data: { locationCode: "BOITE-09", defaultCondition: "NM" } })).json()) as { id: string };
-  await page.goto(`/scanner/lot/${batch.id}`);
+  await page.goto(`/scanner/batch/${batch.id}`);
   const shoot = (width: number) => page.getByTestId("capture-input").setInputFiles({ name: "image.png", mimeType: "image/png", buffer: png(width) });
   const capture = page.getByTestId("capture");
   const rows = page.getByTestId("batch-row");
@@ -1046,7 +1046,7 @@ test("lot sans temps mort : variante appliquée en masse, corrections enchaîné
   await page.request.put("/api/channels/ebay", { data: { mode: "SIMULATION" } });
   await page.request.post("/api/locations", { data: { code: "BOITE-10" } });
   const batch = (await (await page.request.post("/api/scan-batches", { data: { locationCode: "BOITE-10", defaultCondition: "NM", paired: false } })).json()) as { id: string };
-  await page.goto(`/scanner/lot/${batch.id}`);
+  await page.goto(`/scanner/batch/${batch.id}`);
   const FINISH_UNKNOWN = 14;
   const file = (name: string, width: number) => ({ name, mimeType: "image/png", buffer: png(width) });
   await page.getByTestId("batch-input").setInputFiles([
@@ -1146,7 +1146,7 @@ test("page d'accueil : vitrine publique sans session, puis « Aujourd'hui » ave
   await expect(lastSale).toContainText(sale.externalId);
   await expect(lastSale).toContainText("Accueil Test");
   await expect(lastSale).toContainText("2,50 €");
-  await expect(lastSale).toHaveAttribute("href", /\/ventes\/[0-9a-f-]{36}$/);
+  await expect(lastSale).toHaveAttribute("href", /\/sales\/[0-9a-f-]{36}$/);
   await expect(page.getByTestId("home-listing").first()).toContainText("Fouinar");
   await expect(page.getByTestId("home-listing").first()).toContainText("eBay");
   // Barre d'onglets flottante : réduite (icônes seules) quand on descend, en grand dès qu'on remonte, toujours là.
@@ -1167,14 +1167,14 @@ test("page d'accueil : vitrine publique sans session, puis « Aujourd'hui » ave
   const more = page.getByTestId("more-sheet");
   await expect(more).toContainText("Ventes et chiffre d'affaires");
   await more.getByRole("link", { name: "Achats" }).click();
-  await page.waitForURL(/\/achats$/);
+  await page.waitForURL(/\/buying$/);
   await expect(more).toHaveCount(0);
   await expect(tabs.getByRole("button", { name: "Plus" })).toHaveAttribute("aria-current", "page");
   await page.goto("/");
   const task = page.getByTestId("home-task").filter({ hasText: "Lot d'accueil" });
   await expect(task).toContainText("carte à corriger");
   await task.click();
-  await page.waitForURL(new RegExp(`/scanner/lot/${batch.id}$`));
+  await page.waitForURL(new RegExp(`/scanner/batch/${batch.id}$`));
   await expect(page.getByRole("heading", { name: "Lot d'accueil" })).toBeVisible();
 });
 
@@ -1190,7 +1190,7 @@ test("pilote automatique : la pile scannée entre en stock, reçoit son prix et 
   expect(state, "un état encore libre pour le Fouinar reverse").toBeTruthy();
   const label = { MT: "Mint", NM: "Near Mint", EX: "Excellent", GD: "Good", LP: "Light Played", PL: "Played", PO: "Poor" }[state!]!;
 
-  await page.goto("/scanner/lot");
+  await page.goto("/scanner/batch");
   await page.getByRole("button", { name: "Boîte de destination", exact: true }).click();
   await page.getByLabel("Filtrer les emplacements").fill("boite-ap");
   await page.getByRole("radio", { name: "BOITE-AP", exact: true }).click();
@@ -1252,7 +1252,7 @@ test("préparation des envois : liste de prélèvement, bon de livraison et reç
   })).json()) as { id: string; externalId: string };
   await page.request.put("/api/app-settings", { data: { slipPaper: "ROLL_80", seller: { name: "Cartes de test", address: "1 rue du Port\n44000 Nantes", legal: "SIRET 000 000 000 00000" } } });
 
-  await page.goto("/ventes");
+  await page.goto("/sales");
   await page.getByRole("link", { name: "Préparer les envois" }).click();
   await expect(page.getByRole("heading", { name: "Préparer les envois" })).toBeVisible();
   await expect(page.getByTestId("run-summary")).toContainText("à préparer");
@@ -1353,14 +1353,14 @@ test("achats : suivre une carte avec un prix cible, ses prix sur Cardmarket et T
   await expect(page.getByTestId("home-task").filter({ hasText: "carte suivie à regarder" })).toBeVisible();
 
   // Le prix cible se modifie sur place : sous l'annonce la moins chère, l'alerte de cible disparaît.
-  await page.goto("/achats");
+  await page.goto("/buying");
   await draco.getByLabel("Prix cible pour Dracaufeu").fill("80");
   await draco.getByLabel("Prix cible pour Dracaufeu").press("Enter");
   await expect(page.getByText("Prix cible : 80,00 €")).toBeVisible();
   await expect(draco).not.toContainText("Sous votre prix cible");
 
   // Bonnes affaires : les cartes de plus de 10 € annoncées nettement sous leurs ventes, la plus grosse affaire d'abord.
-  await page.goto("/achats");
+  await page.goto("/buying");
   await page.getByRole("tab", { name: "Bonnes affaires" }).click();
   const deal = page.getByTestId("deal").filter({ hasText: "Dracaufeu" }).first();
   await expect(deal).toContainText("−79 %");
@@ -1399,7 +1399,7 @@ test("fiche d'une carte : variantes et prix, tous les exemplaires regroupés que
   // Depuis le stock : le nom de la carte mène à sa fiche.
   const panel = await openStockCard(page, normal.offer.offerSku);
   await panel.getByRole("link", { name: "Fouinar" }).click();
-  await page.waitForURL(new RegExp(`/carte/${fouinar.catalogCardId}$`));
+  await page.waitForURL(new RegExp(`/card/${fouinar.catalogCardId}$`));
   await expect(page.getByTestId("card-name")).toHaveText("Fouinar");
 
   // Les variantes, chacune avec ses prix sur chaque plateforme.
@@ -1428,7 +1428,7 @@ test("fiche d'une carte : variantes et prix, tous les exemplaires regroupés que
 
 test("langue : l'interface passe en anglais depuis le compte, montants et dates suivent, puis revient en français", async ({ page }) => {
   await login(page);
-  await page.goto("/compte");
+  await page.goto("/account");
   await expect(page.getByRole("heading", { name: "Compte", level: 1 })).toBeVisible();
   await page.getByTestId("locale-switch").getByRole("radio", { name: "English" }).click();
   await expect(page.getByRole("heading", { name: "Account", level: 1 })).toBeVisible();
@@ -1448,7 +1448,7 @@ test("langue : l'interface passe en anglais depuis le compte, montants et dates 
   // Montants au format anglais : le symbole avant le nombre, le point décimal.
   await expect(page.getByTestId("stock-totals")).toContainText(/€\d[\d,]*\.\d\d/);
 
-  await page.goto("/compte");
+  await page.goto("/account");
   await page.getByTestId("locale-switch").getByRole("radio", { name: "Français" }).click();
   await expect(page.getByRole("heading", { name: "Compte", level: 1 })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "fr");
@@ -1483,7 +1483,7 @@ test("cache : en revenant sur un écran, ses dernières données s'affichent tou
 
   // La déconnexion efface ce qui était gardé.
   await page.unrouteAll({ behavior: "ignoreErrors" });
-  await page.goto("/compte");
+  await page.goto("/account");
   await page.getByRole("button", { name: "Se déconnecter" }).click();
   await page.waitForURL(/\/login/);
   expect(await page.evaluate(() => localStorage.getItem("dexlane-cache-v1"))).toBeNull();
@@ -1491,7 +1491,7 @@ test("cache : en revenant sur un écran, ses dernières données s'affichent tou
 
 test("notifications : réglage par appareil et choix de ce qui est signalé", async ({ page }) => {
   await login(page);
-  await page.goto("/reglages");
+  await page.goto("/settings");
   await page.getByRole("link", { name: /^Notifications/ }).click();
   await expect(page.getByRole("heading", { name: "Notifications", level: 1 })).toBeVisible();
   await expect(page.getByTestId("push-device")).toContainText(/appareils? abonnés? en tout/);
@@ -1538,7 +1538,7 @@ function cardPhoto(): Buffer {
 test("photo au téléphone : la carte est repérée, redressée et recadrée au format carte avant la lecture", async ({ page }) => {
   await login(page);
   await page.request.put("/api/app-settings", { data: { intakeMode: "CAMERA" } });
-  await page.goto("/ajouter");
+  await page.goto("/add");
   await page.getByTestId("photo-input").setInputFiles({ name: "carte.png", mimeType: "image/png", buffer: cardPhoto() });
   const badge = page.getByTestId("photo-cropped");
   await expect(badge).toBeVisible({ timeout: 30_000 });
@@ -1550,7 +1550,7 @@ test("stock › fournitures : ajout depuis une suggestion, alerte « à commande
   await login(page);
   await page.request.post("/api/locations", { data: { code: "ETAGERE-E2E" } });
   await page.goto("/fournitures"); // l'ancienne adresse mène au stock
-  await expect(page).toHaveURL(/\/stock\?categorie=fournitures/);
+  await expect(page).toHaveURL(/\/stock\?section=supplies/);
   await expect(page.getByTestId("stock-tabs").getByRole("link", { name: "Fournitures" })).toHaveAttribute("aria-current", "page");
   await page.getByRole("button", { name: "Sleeves" }).click();
   const form = page.getByTestId("supply-form");
@@ -1570,7 +1570,7 @@ test("stock › fournitures : ajout depuis une suggestion, alerte « à commande
   await page.goto("/");
   await expect(page.getByTestId("home-task").filter({ hasText: "fourniture à commander" })).toContainText("Sleeves");
 
-  await page.goto("/stock?categorie=fournitures");
+  await page.goto("/stock?section=supplies");
   await row.click();
   await inspector.getByTestId("supply-ordered").click();
   await expect(inspector).toContainText("Commandé");
@@ -1606,13 +1606,13 @@ test("stock › fournitures : ajout depuis une suggestion, alerte « à commande
   await expect(journal.getByTestId("journal-summary")).toContainText("+530"); // stock initial (30) et entrée (500)
 
   // Son prix d'achat fixe désormais le coût des fournitures dans la marge : les frais d'envoi l'affichent.
-  await page.goto("/reglages/envois");
+  await page.goto("/settings/shipping");
   await expect(page.getByTestId("supplies-from-stock")).toContainText("Sleeves");
   await expect(page.getByTestId("supplies-per-card")).toContainText("0,05 €");
   await expect(page.getByLabel("Sleeve (€)")).toHaveCount(0);
 
   // Retirée pour ne pas peser sur les autres parcours.
-  await page.goto("/stock?categorie=fournitures");
+  await page.goto("/stock?section=supplies");
   await row.click();
   await inspector.getByRole("button", { name: "Modifier Sleeves" }).click();
   page.once("dialog", (d) => void d.accept());
@@ -1642,7 +1642,7 @@ test("stock › cartes : les derniers mouvements d'une carte dans sa fiche, et l
 
 test("agents : jeton créé dans les réglages, serveur MCP joignable avec ce jeton, puis révoqué", async ({ page }) => {
   await login(page);
-  await page.goto("/reglages/agents");
+  await page.goto("/settings/agents");
   await expect(page.getByTestId("mcp-endpoint")).toHaveValue(/\/mcp$/);
   await page.getByTestId("agent-name").fill("Agent e2e");
   await page.getByRole("button", { name: "Créer un jeton" }).click();
@@ -1669,4 +1669,52 @@ test("agents : jeton créé dans les réglages, serveur MCP joignable avec ce je
   await page.getByRole("button", { name: "Révoquer Agent e2e" }).click();
   await expect(page.getByText("Accès révoqué")).toBeVisible();
   expect((await mcp({ jsonrpc: "2.0", id: 4, method: "tools/list", params: {} })).status()).toBe(401);
+});
+
+test("ventes : suivi du colis, livraison notée et demande d'avis ; extension dans le stock ; anciennes adresses", async ({ page }) => {
+  await login(page);
+  const { candidates } = (await (await page.request.get("/api/catalog/cards?name=fouinar")).json()) as { candidates: { variants: { id: string }[] }[] };
+  await page.request.post("/api/locations", { data: { code: "BOX-TR" } });
+  const received = (await (await page.request.post("/api/inventory/receive", {
+    data: { variantId: candidates[0]!.variants[0]!.id, condition: "EX", quantity: 2, locationCode: "BOX-TR", unitCostCents: 10 },
+    headers: { "Idempotency-Key": `e2e-tr-${Date.now()}` },
+  })).json()) as { offer: { id: string; offerSku: string } };
+  const order = (await (await page.request.post("/api/orders", {
+    data: { lines: [{ offerId: received.offer.id, qty: 1, unitPriceCents: 300 }], shippingMode: "LETTER_TRACKED", buyerName: "Camille Suivi" },
+    headers: { "Idempotency-Key": `e2e-tr-sale-${Date.now()}` },
+  })).json()) as { id: string; externalId: string; lines: { allocations: { id: string; unitSku: string }[] }[] };
+  const allocation = order.lines[0]!.allocations[0]!;
+  await page.request.post(`/api/orders/${order.id}/pick`, { data: { allocationId: allocation.id, unitSku: allocation.unitSku } });
+  await page.request.post(`/api/orders/${order.id}/pack`);
+  await page.request.post(`/api/orders/${order.id}/handover`, { data: { tracking: "6A 1234 5678 901" } });
+
+  // L'ancienne adresse des ventes mène à la nouvelle ; la vente remise montre son suivi dans la liste.
+  await page.goto("/ventes");
+  await expect(page).toHaveURL(/\/sales$/);
+  await page.getByRole("tab", { name: /^Remises/ }).click();
+  await expect(page.getByTestId(`order-${order.externalId}`).getByTestId("order-delivery")).toContainText("6A12345678901");
+
+  await page.goto(`/sales/${order.id}`);
+  const card = page.getByTestId("delivery-card");
+  await expect(card.getByTestId("delivery-status")).toHaveText("Déposée");
+  await expect(card.getByTestId("delivery-tracking")).toHaveText("6A12345678901");
+  await expect(card).toContainText("La Poste / Colissimo");
+  await expect(card.getByRole("link", { name: "Suivre le colis" })).toHaveAttribute("href", "https://www.laposte.fr/outils/suivre-vos-envois?code=6A12345678901");
+  await card.getByTestId("mark-delivered").click();
+  await expect(card.getByTestId("delivery-status")).toHaveText("Livrée");
+  const review = card.getByTestId("review-panel");
+  await expect(review).toContainText("24 h après la livraison");
+  await expect(review.getByTestId("review-message")).toHaveValue(/^Bonjour Camille Suivi,/);
+  await review.getByTestId("review-requested").click();
+  await expect(review).toContainText("Demandé le");
+
+  // Le code d'extension en colonne du stock ; l'ancien filtre « statut » mène au nouveau paramètre.
+  await page.goto("/stock?statut=READY");
+  await expect(page).toHaveURL(/\/stock\?.*\bstatus=READY/);
+  await page.goto("/stock");
+  await page.getByLabel("Rechercher dans le stock").fill(received.offer.offerSku);
+  await expect(page.getByTestId(`stock-${received.offer.offerSku}`)).toContainText("EB03");
+  await page.goto("/reglages/envois");
+  await expect(page).toHaveURL(/\/settings\/shipping$/);
+  await expect(page.getByTestId("tracking-carriers")).toContainText("Non relié");
 });

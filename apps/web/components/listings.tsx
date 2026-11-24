@@ -581,7 +581,7 @@ export function Channels({ channels, onChange, compact }: { channels: ChannelSta
       {!compact && <div className="flex flex-wrap items-center gap-3">
         <Button variant="outline" onClick={sync} disabled={busy}>{busy ? <Spinner /> : <RefreshCw />} {t("Synchroniser maintenant")}</Button>
         <p className="text-xs text-muted-foreground">
-          {t("Les quantités annoncées suivent le stock après chaque vente ou entrée.")} {t("Les commandes arrivent dans")} <Link href="/ventes" className="font-medium text-primary underline-offset-2 hover:underline">{t("Ventes")}</Link>.
+          {t("Les quantités annoncées suivent le stock après chaque vente ou entrée.")} {t("Les commandes arrivent dans")} <Link href="/sales" className="font-medium text-primary underline-offset-2 hover:underline">{t("Ventes")}</Link>.
         </p>
       </div>}
     </div>

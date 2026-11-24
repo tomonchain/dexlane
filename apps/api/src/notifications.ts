@@ -191,7 +191,7 @@ export function digestMessage(d: Digest, locale: PushLocale): PushMessage | null
   if (d.newOrders === 0 && d.toPrepare > 0) {
     lines.push(locale === "en" ? `${d.toPrepare} ${plural(d.toPrepare, locale, ["", ""], ["sale", "sales"])} waiting to be prepared` : `${d.toPrepare} ${plural(d.toPrepare, locale, ["vente attend", "ventes attendent"], ["", ""])} d'être préparée${d.toPrepare > 1 ? "s" : ""}`);
   }
-  const url = d.newOrders > 0 ? "/ventes" : d.targets.length > 0 ? "/achats" : "/mises-en-ligne";
+  const url = d.newOrders > 0 ? "/sales" : d.targets.length > 0 ? "/buying" : "/listings";
   return { title: "Dexlane", body: lines.join(" · "), url, tag: "digest" };
 }
 
@@ -208,7 +208,7 @@ export async function sendDigest(sql: Db, send: PushSender, preferences: Notific
 
 /** Fournitures passées sous leur seuil de commande : une notification par passage sous le seuil. */
 export function suppliesMessage(items: { name: string; onHand: number }[], locale: PushLocale): PushMessage {
-  const url = "/stock?categorie=fournitures";
+  const url = "/stock?section=supplies";
   if (items.length === 1) {
     const [x] = items;
     const body = x!.onHand === 0
@@ -246,5 +246,5 @@ export function reviewsMessage(items: { orderId: string; externalId: string; buy
 }
 
 export const testMessage = (locale: PushLocale): PushMessage => locale === "en"
-  ? { title: "Dexlane", body: "Notifications are on for this device.", url: "/reglages/notifications", tag: "test" }
-  : { title: "Dexlane", body: "Les notifications sont activées sur cet appareil.", url: "/reglages/notifications", tag: "test" };
+  ? { title: "Dexlane", body: "Notifications are on for this device.", url: "/settings/notifications", tag: "test" }
+  : { title: "Dexlane", body: "Les notifications sont activées sur cet appareil.", url: "/settings/notifications", tag: "test" };
