@@ -16,6 +16,7 @@ import { Choice, ChoiceGroup } from "@/components/ui/toggle-group";
 import { ApiError, api } from "@/lib/api";
 import { variantLabel } from "@/lib/format";
 import { t, tn } from "@/lib/i18n";
+import { preloadOpenCv, scanCardPhoto } from "@/lib/card-scan";
 import { prepareImage } from "@/lib/image";
 import { AUTOPILOT_KEY, DEFAULT_AUTOPILOT, publishModeLabel, type AutopilotPrefs } from "@/lib/scan";
 import { canWatchFolder, cardsFromFiles, cardsInFolder, pickFolder, readFolder, type FolderCard } from "@/lib/scan-source";
@@ -94,9 +95,11 @@ export default function ScanBatchPage() {
   const upload = useCallback(async (card: FolderCard) => {
     try {
       const known = itemsRef.current.find((i) => i.position === card.position);
-      const item = known ?? (await api.addScanItem(id, card.position, card.front, await prepareImage(card.frontFile)));
+      // Une photo de téléphone est « scannée » d'abord : carte redressée et recadrée, comme au scanner.
+      const image = async (file: File) => prepareImage(card.fromCamera ? (await scanCardPhoto(file)).blob : file);
+      const item = known ?? (await api.addScanItem(id, card.position, card.front, await image(card.frontFile)));
       put(item);
-      if (card.backFile && !item.backPhoto && !item.unitSku) put(await api.setScanItemBack(item.id, await prepareImage(card.backFile)).catch(() => item));
+      if (card.backFile && !item.backPhoto && !item.unitSku) put(await api.setScanItemBack(item.id, await image(card.backFile)).catch(() => item));
     } catch (e) {
       queued.current.delete(card.position); // sera repris au prochain passage
       setError(message(e));
@@ -158,7 +161,10 @@ export default function ScanBatchPage() {
   // Sans scanner : le téléphone prend les photos. Sur les autres appareils, le lot se met à jour tout seul.
   useEffect(() => {
     setTouch(window.matchMedia("(pointer: coarse)").matches);
-    api.appSettings().then((s) => setIntake(s.intakeMode)).catch(() => undefined);
+    api.appSettings().then((s) => {
+      setIntake(s.intakeMode);
+      if (s.intakeMode === "CAMERA") preloadOpenCv(); // recadrage des photos prêt avant la première prise
+    }).catch(() => undefined);
   }, []);
   const batchId = batch?.id;
   const received = !!batch?.receivedAt;
@@ -185,7 +191,7 @@ export default function ScanBatchPage() {
     const position = pendingFront?.position ?? nextPosition();
     enqueue([{
       position, front: photoName(position, "recto"), back: pendingFront ? photoName(position, "verso") : null,
-      frontFile: pendingFront?.file ?? file, backFile: pendingFront ? file : null,
+      frontFile: pendingFront?.file ?? file, backFile: pendingFront ? file : null, fromCamera: true,
     }]);
     closePending();
   }
@@ -196,7 +202,7 @@ export default function ScanBatchPage() {
   /** Carte sans verso exploitable : le recto part seul. */
   function sendWithoutBack() {
     if (!pendingFront) return;
-    enqueue([{ position: pendingFront.position, front: photoName(pendingFront.position, "recto"), back: null, frontFile: pendingFront.file, backFile: null }]);
+    enqueue([{ position: pendingFront.position, front: photoName(pendingFront.position, "recto"), back: null, frontFile: pendingFront.file, backFile: null, fromCamera: true }]);
     closePending();
   }
 

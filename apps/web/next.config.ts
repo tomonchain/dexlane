@@ -17,6 +17,14 @@ const config: NextConfig = {
   // Mode embarqué : l'API et le cœur métier (paquets du monorepo, en TypeScript) sont compilés avec l'application.
   transpilePackages: ["@dexlane/api", "@dexlane/catalog", "@dexlane/db", "@dexlane/inventory", "@dexlane/pricing", "@dexlane/listings", "@dexlane/scan", "@dexlane/shared"],
   poweredByHeader: false,
+  // OpenCV.js (recadrage des photos de cartes, dans le navigateur) mentionne `fs` et `crypto` pour son usage sous
+  // Node : côté navigateur, ils sont remplacés par un module vide.
+  turbopack: {
+    resolveAlias: {
+      fs: { browser: "./lib/empty-module.ts" },
+      crypto: { browser: "./lib/empty-module.ts" },
+    },
+  },
   async headers() {
     return [
       {

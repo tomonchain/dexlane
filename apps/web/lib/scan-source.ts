@@ -31,6 +31,8 @@ export async function readFolder(folder: DirectoryHandle): Promise<Map<string, F
 export interface FolderCard extends PlannedCard {
   frontFile: File;
   backFile: File | null;
+  /** Photos prises au téléphone : la carte y est repérée, redressée et recadrée avant l'envoi. */
+  fromCamera?: boolean;
 }
 
 /**

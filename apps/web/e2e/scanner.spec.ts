@@ -1498,3 +1498,45 @@ test("notifications : réglage par appareil et choix de ce qui est signalé", as
   await watched.click();
   await expect.poll(async () => ((await (await page.request.get("/api/notifications")).json()) as { preferences: { watched: boolean } }).preferences.watched).toBe(true);
 });
+
+/** Photo de téléphone factice : une carte (bord jaune, intérieur clair) posée sur une table sombre. */
+function cardPhoto(): Buffer {
+  const width = 600, height = 800;
+  const card = { x: 150, y: 120, w: 300, h: 419 };
+  const row = width * 3 + 1;
+  const px = Buffer.alloc(row * height);
+  for (let y = 0; y < height; y++) {
+    px[y * row] = 0;
+    for (let x = 0; x < width; x++) {
+      const inCard = x >= card.x && x < card.x + card.w && y >= card.y && y < card.y + card.h;
+      const inner = inCard && x >= card.x + 15 && x < card.x + card.w - 15 && y >= card.y + 15 && y < card.y + card.h - 15;
+      const [r, g, b] = inner ? [245, 240, 215] : inCard ? [250, 205, 30] : [40 + ((x * 7 + y * 3) % 9), 40, 46];
+      px.set([r, g, b], y * row + 1 + x * 3);
+    }
+  }
+  const chunk = (type: string, data: Buffer) => {
+    const body = Buffer.concat([Buffer.from(type), data]);
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(body));
+    return Buffer.concat([length, body, crc]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 2;
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", header), chunk("IDAT", deflateSync(px)), chunk("IEND", Buffer.alloc(0))]);
+}
+
+test("photo au téléphone : la carte est repérée, redressée et recadrée au format carte avant la lecture", async ({ page }) => {
+  await login(page);
+  await page.request.put("/api/app-settings", { data: { intakeMode: "CAMERA" } });
+  await page.goto("/ajouter");
+  await page.getByTestId("photo-input").setInputFiles({ name: "carte.png", mimeType: "image/png", buffer: cardPhoto() });
+  const badge = page.getByTestId("photo-cropped");
+  await expect(badge).toBeVisible({ timeout: 30_000 });
+  const ratio = await page.getByRole("img", { name: "Photo prise" }).first().evaluate((img: HTMLImageElement) => img.naturalWidth / img.naturalHeight);
+  expect(ratio).toBeCloseTo(63 / 88, 2);
+});

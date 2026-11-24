@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Camera, Check, ChevronRight, Copy, Images, Layers, RotateCcw, ScanLine, Search } from "lucide-react";
+import { ArrowRight, Camera, Check, ChevronRight, Copy, Crop, Images, Layers, RotateCcw, ScanLine, Search } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
@@ -21,6 +21,7 @@ import { api, createKeyring } from "@/lib/api";
 import { formatEuros, parseEuros, reviewReason, variantLabel } from "@/lib/format";
 import { t, tn } from "@/lib/i18n";
 import { CATEGORY_LABEL, CATEGORY_VARIANT, reasonLabel } from "@/lib/pricing";
+import { preloadOpenCv, scanCardPhoto } from "@/lib/card-scan";
 import { prepareImage } from "@/lib/image";
 import { DEFAULT_SCAN_SESSION, LANGUAGES, SCAN_SESSION_KEY, scanErrorMessage, submitErrorMessage, type ScanSession } from "@/lib/scan";
 import { useStored } from "@/lib/storage";
@@ -88,6 +89,9 @@ function Scanner() {
   const [session, setSession, sessionReady] = useStored<ScanSession>(SCAN_SESSION_KEY, DEFAULT_SCAN_SESSION);
   const [phase, setPhase] = useState<Phase>("idle");
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  /** La carte a été repérée sur la photo, redressée et recadrée. */
+  const [cropped, setCropped] = useState(false);
+  const [cropping, setCropping] = useState(false);
   const [scan, setScan] = useState<ScanResult | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -126,6 +130,8 @@ function Scanner() {
   useEffect(() => () => {
     if (photoUrl) URL.revokeObjectURL(photoUrl);
   }, [photoUrl]);
+  // Le recadrage des photos (OpenCV) se charge pendant qu'on prépare la carte, pas au moment de la photo.
+  useEffect(preloadOpenCv, []);
 
   // Accolades obligatoires : scrollTo peut renvoyer une promesse, que React prendrait pour une fonction de nettoyage.
   useEffect(() => {
@@ -194,9 +200,18 @@ function Scanner() {
   async function onPhoto(file: File) {
     resetCard();
     setPhotoUrl(URL.createObjectURL(file));
+    setCropped(false);
+    setCropping(true);
     setPhase("reading");
+    // La photo est « scannée » : carte repérée, redressée et recadrée ; à défaut, la photo d'origine part telle quelle.
+    const scanned = await scanCardPhoto(file);
+    if (scanned.cropped) {
+      setPhotoUrl(URL.createObjectURL(scanned.blob));
+      setCropped(true);
+    }
+    setCropping(false);
     try {
-      const result = await api.scan(await prepareImage(file), session.language);
+      const result = await api.scan(await prepareImage(scanned.blob), session.language);
       setScan(result);
       setCandidates(result.candidates);
       // Présélection uniquement quand l'identification est sûre ; sinon l'opérateur choisit explicitement.
@@ -504,7 +519,7 @@ function Scanner() {
           <CardContent className="flex items-center gap-3" role="status">
             <Spinner className="size-5 text-primary" />
             <div className="grid">
-              <span className="text-sm font-medium">{t("Lecture du nom et du numéro…")}</span>
+              <span className="text-sm font-medium">{cropping ? t("Recadrage de la carte…") : t("Lecture du nom et du numéro…")}</span>
               <span className="text-xs text-muted-foreground">{t("Rapprochement avec le catalogue")}</span>
             </div>
           </CardContent>
@@ -541,7 +556,17 @@ function Scanner() {
                   <div className="grid gap-1 py-0.5">
                     <Eyebrow>{t("Lu sur la photo")}</Eyebrow>
                     <p className="text-sm font-medium">{read || t("rien de lisible")}</p>
+                    {cropped && (
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" data-testid="photo-cropped">
+                        <Crop className="size-3.5" aria-hidden /> {t("Carte recadrée automatiquement")}
+                      </span>
+                    )}
                   </div>
+                )}
+                {cropped && !reading && (
+                  <span className="inline-flex items-center gap-1 py-0.5 text-xs text-muted-foreground" data-testid="photo-cropped">
+                    <Crop className="size-3.5" aria-hidden /> {t("Carte recadrée automatiquement")}
+                  </span>
                 )}
               </div>
             )}

@@ -300,4 +300,6 @@ export const INTAKE: Record<string, string> = {
   "{n} carte importée": "{n} card imported",
   "{n} cartes importées": "{n} cards imported",
   "Format d'image non pris en charge. Choisissez un PNG, un WebP ou un JPEG.": "Unsupported image format. Choose a PNG, WebP or JPEG.",
+  "Recadrage de la carte…": "Cropping the card…",
+  "Carte recadrée automatiquement": "Card cropped automatically",
 };
