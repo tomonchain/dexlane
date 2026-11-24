@@ -10,7 +10,7 @@ import {
   deleteLocation, extractCardFromBulk, getInventorySummary, getOrderDetail, getShippingCosts, saveShippingCosts, listPreparation, markSlipsPrinted, getStockItemDetail, listAcquisitionLots,
   listLocations, listOrders, moveStock, packOrder, pickAllocation, receiveBulk, receiveCard, recordPhoto, resolveLocation,
   searchInventory, searchSellableOffers, shipOrder, updateLocationDescription,
-  archiveSupply, countSupply, createSupply, getSupply, listSupplies, markSupplyOrdered, receiveSupply, takeSupplyAlerts, updateSupply,
+  archiveSupply, countSupply, createSupply, getSupply, listSupplies, markSupplyOrdered, receiveSupply, takeSupplyAlerts, updateSupply, listStockMovements,
 } from "@dexlane/inventory";
 import {
   estimateVariants, findDeals, listWatched, platformPrices, trendingCards, unwatchCard, updateWatched, watchCard, getPricingSettings, priceHistory, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice, getAlertSettings, getDashboard, listPriceMoves, saveAlertSettings, salesInsights,
@@ -734,6 +734,8 @@ export function createApp(deps: AppDeps) {
   // ───────────────────────── Fournitures ─────────────────────────
 
   app.get("/api/supplies", async (c) => c.json(await listSupplies(sql)));
+  /** Journal du stock : entrées, sorties, corrections et déplacements, cartes et fournitures. */
+  app.get("/api/stock-movements", async (c) => c.json(await listStockMovements(sql, parse(s.movementsQuery, c.req.query()))));
   app.post("/api/supplies", async (c) => c.json(await createSupply(sql, await parseJsonBody(c, s.createSupplyBody), c.var.actor), 201));
   app.get("/api/supplies/:id", async (c) => c.json(await getSupply(sql, parse(s.supplyId, c.req.param("id")))));
   app.patch("/api/supplies/:id", async (c) => c.json(await updateSupply(sql, parse(s.supplyId, c.req.param("id")), await parseJsonBody(c, s.updateSupplyBody))));

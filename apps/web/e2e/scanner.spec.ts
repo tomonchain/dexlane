@@ -1546,39 +1546,92 @@ test("photo au téléphone : la carte est repérée, redressée et recadrée au 
   expect(ratio).toBeCloseTo(63 / 88, 2);
 });
 
-test("fournitures : ajout depuis une suggestion, alerte « à commander », commande puis réception", async ({ page }) => {
+test("stock › fournitures : ajout depuis une suggestion, alerte « à commander », commande, entrée, et journal des mouvements", async ({ page }) => {
   await login(page);
-  await page.goto("/fournitures");
-  await expect(page.getByRole("heading", { name: "Fournitures", level: 1 })).toBeVisible();
+  await page.request.post("/api/locations", { data: { code: "ETAGERE-E2E" } });
+  await page.goto("/fournitures"); // l'ancienne adresse mène au stock
+  await expect(page).toHaveURL(/\/stock\?categorie=fournitures/);
+  await expect(page.getByTestId("stock-tabs").getByRole("link", { name: "Fournitures" })).toHaveAttribute("aria-current", "page");
   await page.getByRole("button", { name: "Sleeves" }).click();
   const form = page.getByTestId("supply-form");
   await expect(form.getByLabel("Nom")).toHaveValue("Sleeves");
+  await form.getByLabel("Référence").fill("SLV-E2E");
   await form.getByLabel("En stock").fill("30");
+  await form.getByLabel("Prix d'achat unitaire (€)").fill("0,05");
   await form.getByRole("button", { name: "Ajouter" }).click();
 
-  // 30 sleeves pour un seuil de 100 : à commander, signalé en haut de page et sur l'accueil.
-  const card = page.getByTestId("supply-Sleeves");
-  await expect(card.getByTestId("supply-on-hand")).toHaveText("30");
-  await expect(card).toContainText("À commander");
+  // 30 sleeves pour un seuil de 100 : à commander, signalé en haut, sur l'onglet et sur l'accueil.
+  const row = page.getByTestId("supply-Sleeves");
+  await expect(row.getByTestId("supply-on-hand")).toHaveText("30");
   await expect(page.getByTestId("supplies-to-reorder")).toContainText("1 fourniture à commander");
+  await expect(page.getByTestId("supplies-totals")).toContainText("1,50");
+  const inspector = page.getByTestId("supply-inspector");
+  await expect(inspector).toContainText("SLV-E2E");
   await page.goto("/");
   await expect(page.getByTestId("home-task").filter({ hasText: "fourniture à commander" })).toContainText("Sleeves");
 
-  await page.goto("/fournitures");
-  await card.getByTestId("supply-ordered").click();
-  await expect(card).toContainText("Commandé");
+  await page.goto("/stock?categorie=fournitures");
+  await row.click();
+  await inspector.getByTestId("supply-ordered").click();
+  await expect(inspector).toContainText("Commandé");
   await expect(page.getByTestId("supplies-to-reorder")).toHaveCount(0);
-  await card.getByRole("button", { name: "Réception" }).click();
+  await inspector.getByRole("button", { name: "Entrée" }).click();
   await expect(page.getByTestId("supply-quantity")).toHaveValue("500"); // la quantité habituellement commandée
+  await page.getByLabel("Note (facultative)").fill("commande 42");
   await page.getByRole("button", { name: "Ajouter au stock" }).click();
-  await expect(card.getByTestId("supply-on-hand")).toHaveText("530");
-  await expect(card).not.toContainText("Commandé");
+  await expect(row.getByTestId("supply-on-hand")).toHaveText("530");
+  await expect(inspector.getByTestId("recent-movements")).toContainText("commande 42");
+
+  // Rangée sur une étagère, puis inventaire.
+  await inspector.getByRole("button", { name: "Modifier Sleeves" }).click();
+  await page.getByRole("button", { name: "Emplacement" }).click();
+  await page.getByLabel("Filtrer les emplacements").fill("etagere-e2e");
+  await page.getByRole("radio", { name: "ETAGERE-E2E", exact: true }).click();
+  await page.getByTestId("supply-form").getByRole("button", { name: "Enregistrer" }).click();
+  await expect(inspector).toContainText("ETAGERE-E2E");
+  await inspector.getByRole("button", { name: "Inventaire" }).click();
+  await page.getByTestId("supply-quantity").fill("528");
+  await page.getByRole("button", { name: "Enregistrer" }).click();
+  await expect(row.getByTestId("supply-on-hand")).toHaveText("528");
+
+  // Le journal : entrée, inventaire, cartes et fournitures ensemble (la fiche, en tiroir sur téléphone, se ferme d'abord).
+  await page.keyboard.press("Escape");
+  await expect(inspector).toHaveCount(0);
+  await page.getByTestId("stock-tabs").getByRole("link", { name: "Mouvements" }).click();
+  const journal = page.getByTestId("stock-journal");
+  await journal.getByRole("tab", { name: "Fournitures" }).click();
+  await expect(journal.getByTestId("stock-movement").first()).toContainText("Sleeves");
+  await expect(journal.getByTestId("stock-movement").first()).toContainText("−2");
+  await expect(journal).toContainText("commande 42");
+  await expect(journal.getByTestId("journal-summary")).toContainText("+530"); // stock initial (30) et entrée (500)
 
   // Retirée pour ne pas peser sur les autres parcours.
-  await card.getByRole("button", { name: "Modifier Sleeves" }).click();
+  await page.goto("/stock?categorie=fournitures");
+  await row.click();
+  await inspector.getByRole("button", { name: "Modifier Sleeves" }).click();
   page.once("dialog", (d) => void d.accept());
   await page.getByTestId("supply-form").getByRole("button", { name: "Retirer" }).click();
-  await expect(card).toHaveCount(0);
+  await expect(row).toHaveCount(0);
+});
+
+test("stock › cartes : les derniers mouvements d'une carte dans sa fiche, et le journal des cartes", async ({ page }) => {
+  await login(page);
+  const { candidates } = (await (await page.request.get("/api/catalog/cards?name=fouinar")).json()) as { candidates: { variants: { id: string }[] }[] };
+  await page.request.post("/api/locations", { data: { code: "BOX-MV" } });
+  const received = (await (await page.request.post("/api/inventory/receive", {
+    data: { variantId: candidates[0]!.variants[0]!.id, condition: "PL", quantity: 4, locationCode: "BOX-MV", unitCostCents: 5 },
+    headers: { "Idempotency-Key": `e2e-mv-${Date.now()}` },
+  })).json()) as { offer: { offerSku: string }; stockItem: { id: string } };
+  await page.request.post(`/api/inventory/${received.stockItem.id}/adjust`, { data: { countedOnHand: 3, reason: "abîmée" }, headers: { "Idempotency-Key": `e2e-mv-adj-${Date.now()}` } });
+
+  await openStockCard(page, received.offer.offerSku);
+  const recent = page.getByTestId("recent-movements");
+  // La correction en premier, puis l'entrée (d'autres parcours ont pu faire bouger la même carte avant).
+  await expect(recent.getByTestId("stock-movement").first()).toContainText("abîmée");
+  await expect(recent.getByTestId("stock-movement").nth(1)).toContainText("Entrée");
+  await page.getByRole("link", { name: "Tout le journal" }).click();
+  await page.getByTestId("stock-journal").getByRole("tab", { name: "Cartes" }).click();
+  await expect(page.getByTestId("stock-movement").filter({ hasText: "abîmée" })).toContainText("Fouinar");
 });
 
 test("agents : jeton créé dans les réglages, serveur MCP joignable avec ce jeton, puis révoqué", async ({ page }) => {

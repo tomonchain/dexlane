@@ -333,6 +333,9 @@ const supplyFields = {
   reorderPoint: z.number().int().min(0).max(1_000_000),
   reorderQuantity: z.number().int().min(1).max(1_000_000).nullable(),
   supplierUrl: z.union([z.url({ protocol: /^https?$/ }), z.literal("")]).nullable(),
+  reference: z.string().trim().max(60).nullable(),
+  unitCostCents: z.number().int().min(0).max(1_000_000).nullable(),
+  locationCode: z.string().trim().max(80).nullable(),
 };
 export const createSupplyBody = z.strictObject({
   ...supplyFields,
@@ -341,9 +344,21 @@ export const createSupplyBody = z.strictObject({
   reorderPoint: supplyFields.reorderPoint.default(0),
   reorderQuantity: supplyFields.reorderQuantity.default(null),
   supplierUrl: supplyFields.supplierUrl.default(null),
+  reference: supplyFields.reference.default(null),
+  unitCostCents: supplyFields.unitCostCents.default(null),
+  locationCode: supplyFields.locationCode.default(null),
   onHand: z.number().int().min(0).max(1_000_000).default(0),
 });
 export const updateSupplyBody = z.strictObject(supplyFields).partial();
+export const movementsQuery = z.object({
+  category: z.enum(["CARD", "SUPPLY"]).optional(),
+  kind: z.enum(["IN", "OUT", "ADJUST", "MOVE"]).optional(),
+  offerId: z.uuid().optional(),
+  supplyId: z.uuid().optional(),
+  before: z.string().max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  days: z.coerce.number().int().min(1).max(365).optional(),
+});
 export const supplyQuantityBody = z.strictObject({ quantity: z.number().int().min(1).max(1_000_000), note: z.string().trim().max(200).optional() });
 export const supplyCountBody = z.strictObject({ onHand: z.number().int().min(0).max(1_000_000), note: z.string().trim().max(200).optional() });
 export const supplyOrderedBody = z.strictObject({ ordered: z.boolean() });

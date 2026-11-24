@@ -163,19 +163,20 @@ Indicateur clé : `silentErrors`, les cartes acceptées sans revue alors qu'elle
 
 Les tests tournent contre un vrai PostgreSQL : la base de test de chaque package (`dexlane_<package>_test`) est créée si besoin puis **vidée** à chaque test. Par sécurité, le nom de base doit se terminer par `_test`.
 
-## Fournitures — points d'attention
+## Stock — cartes, fournitures, mouvements
 
-- **Écran** `/fournitures` (onglet « Plus », Réglages › Expédier) : chaque fourniture a un stock, un seuil de commande, une quantité habituellement commandée et un lien fournisseur. Suggestions en un geste : sleeves, top-loaders, enveloppes, enveloppes à bulles.
-- **Décompte automatique à la remise d'un envoi** (dans la transaction de la remise) : une fourniture « par carte » sort `perUse × cartes`, une fourniture « par envoi » sort `perUse` une fois, pour les modes d'envoi cochés (une enveloppe ne sert pas à une remise en main propre). Une fourniture « manuelle » ne bouge qu'à la réception ou à l'inventaire. Le stock ne descend jamais sous zéro et ne bloque jamais une remise.
-- **Alerte** : au seuil ou en dessous, une notification part aussitôt (préférence « Fournitures » dans Réglages › Notifications), une seule fois par passage sous le seuil ; elle se réarme quand le stock repasse au-dessus. « Commandé » fait taire l'alerte jusqu'à la réception. Le résumé du matin rappelle le nombre de fournitures à commander, et l'accueil affiche une tâche.
-- Jours de stock restants estimés au rythme des 30 derniers jours. Historique en base (`supply_movements`, append-only).
-- API : `GET/POST /api/supplies`, `GET/PATCH/DELETE /api/supplies/:id`, `POST /api/supplies/:id/receive`, `/count`, `/ordered`.
+- **Un seul écran `/stock`, trois rubriques** (onglets) : **Cartes** (une ligne par carte à vendre, comme avant), **Fournitures** (`?categorie=fournitures`) et **Mouvements** (`?categorie=mouvements`). L'ancienne adresse `/fournitures` y mène.
+- **Fournitures** : liste filtrable (tout, à commander, commandées) et recherche (nom, référence, emplacement) ; fiche à droite (tiroir sur téléphone) avec quantité, jauge, jours de stock au rythme des 30 derniers jours, seuil, prix d'achat unitaire, valeur, emplacement (les mêmes emplacements que les cartes), commande habituelle, lien fournisseur et derniers mouvements. Gestes : entrée (avec note), inventaire (le compté remplace le calculé), commandé, modifier, retirer. En-tête : articles, unités et valeur du stock de fournitures.
+- **Décompte automatique à la remise d'un envoi** (dans la transaction de la remise) : « par carte » sort `perUse × cartes`, « par envoi » sort `perUse` une fois, pour les modes d'envoi cochés ; « manuelle » ne bouge qu'à l'entrée ou à l'inventaire. Jamais sous zéro, jamais bloquant.
+- **Alerte** : au seuil ou en dessous, une notification part aussitôt (préférence « Fournitures »), une fois par passage sous le seuil, réarmée quand le stock remonte ; « Commandé » la fait taire jusqu'à l'entrée. Rappel dans le résumé du matin, tâche sur l'accueil, pastille sur l'onglet Fournitures.
+- **Mouvements** : le journal de tout ce qui entre (entrées, retours, réceptions), sort (ventes expédiées, fournitures utilisées, pertes), est corrigé ou déplacé, cartes et fournitures ensemble, jour par jour ; filtres par rubrique et par type, résumé des 30 derniers jours, pages par curseur. Les réservations et prélèvements d'une vente en cours n'y figurent pas, sa sortie si. Les actions d'un agent portent son nom. La fiche d'une carte et celle d'une fourniture montrent leurs derniers mouvements.
+- API : `GET/POST /api/supplies`, `GET/PATCH/DELETE /api/supplies/:id`, `POST /api/supplies/:id/receive`, `/count`, `/ordered` ; `GET /api/stock-movements?category=CARD|SUPPLY&kind=IN|OUT|ADJUST|MOVE&offerId=&supplyId=&before=&limit=&days=`.
 
 ## Agents — serveur MCP
 
 - **Adresse** : `https://<domaine>/mcp`, transport « Streamable HTTP » sans session (chaque `POST` porte un message JSON-RPC, réponse JSON), en-tête `Authorization: Bearer dxl_…`. Compatible avec tout client MCP qui accepte un serveur HTTP distant et un en-tête d'autorisation.
 - **Jetons** : Réglages › Agents (MCP). Un jeton par agent, montré une seule fois, révocable ; seule son empreinte (SHA-256) est gardée (`agent_tokens`). Un jeton d'agent n'ouvre que `/mcp`, jamais le reste de l'API.
-- **Outils** : lecture (vue d'ensemble, stock, fiche d'une offre, ventes, statistiques, variations de cote, fournitures, planning, catalogue, bonnes affaires, cartes suivies, offres vendables) et actions (prix d'une offre, planification des mises en ligne, vente directe idempotente, suivi d'une carte, commande, réception, inventaire et seuils des fournitures). Pas de suppression ni d'annulation.
+- **Outils** : lecture (vue d'ensemble, stock, fiche d'une offre, journal des mouvements, ventes, statistiques, variations de cote, fournitures, planning, catalogue, bonnes affaires, cartes suivies, offres vendables) et actions (prix d'une offre, planification des mises en ligne, vente directe idempotente, suivi d'une carte, commande, réception, inventaire et seuils des fournitures). Pas de suppression ni d'annulation.
 - Chaque outil rappelle la même route de l'API que l'application (validations, règles, synchronisation des canaux, alertes) ; le journal d'audit enregistre `agent:<nom>`. Code : `apps/api/src/mcp.ts`, `agents.ts` ; relais public `apps/web/app/mcp/route.ts`.
 
 ## Garanties anti-double-vente

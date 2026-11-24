@@ -14,10 +14,10 @@ import { ThemeSwitch } from "./theme";
 /** Les quatre destinations. Tout le reste se trouve dans le parcours (ajout, fiche d'une carte) ou dans Réglages. */
 const NAV: { href: string; label: string; short?: string; icon: LucideIcon; match: string[] }[] = [
   { href: "/", label: "Accueil", icon: House, match: [] },
-  { href: "/stock", label: "Stock", icon: Package, match: ["/stock", "/inventaire"] },
+  { href: "/stock", label: "Stock", icon: Package, match: ["/stock", "/inventaire", "/fournitures"] },
   { href: "/mises-en-ligne", label: "Mises en ligne", icon: CalendarClock, match: ["/mises-en-ligne"] },
   { href: "/achats", label: "Achats", icon: ShoppingBasket, match: ["/achats"] },
-  { href: "/ventes", label: "Ventes", icon: Receipt, match: ["/ventes", "/fournitures"] },
+  { href: "/ventes", label: "Ventes", icon: Receipt, match: ["/ventes"] },
   { href: "/statistiques", label: "Statistiques", short: "Stats", icon: ChartColumn, match: ["/statistiques"] },
   { href: "/reglages", label: "Réglages", icon: Settings, match: ["/reglages", "/prix", "/rangement", "/catalogue", "/compte"] },
 ];

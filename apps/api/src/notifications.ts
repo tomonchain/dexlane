@@ -206,7 +206,7 @@ export async function sendDigest(sql: Db, send: PushSender, preferences: Notific
 
 /** Fournitures passées sous leur seuil de commande : une notification par passage sous le seuil. */
 export function suppliesMessage(items: { name: string; onHand: number }[], locale: PushLocale): PushMessage {
-  const url = "/fournitures";
+  const url = "/stock?categorie=fournitures";
   if (items.length === 1) {
     const [x] = items;
     const body = x!.onHand === 0

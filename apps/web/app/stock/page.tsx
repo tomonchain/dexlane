@@ -31,6 +31,9 @@ import { composeMissingVisuals } from "@/lib/visuals";
 import { exportStockCsv } from "@/lib/export";
 import { InspectorSkeleton, StockRowsSkeleton } from "@/components/skeletons";
 import { useCachedState } from "@/lib/cache";
+import { StockTabs, stockCategory } from "@/components/stock-tabs";
+import { SuppliesView } from "@/components/supplies";
+import { MovementsView, RecentMovements } from "@/components/stock-movements";
 
 const PAGE_SIZE = 50;
 type Filter = StockStatus | "ALL";
@@ -311,12 +314,45 @@ function SelectionBar({ rows, busy, onClear, onBulk, onMove, onPlan }: {
 export default function StockPage() {
   return (
     <Suspense>
-      <Stock />
+      <StockSections />
     </Suspense>
   );
 }
 
-function Stock() {
+/** Le stock en trois rubriques : les cartes, les fournitures d'expédition, et le journal des mouvements. */
+function StockSections() {
+  const params = useSearchParams();
+  const category = stockCategory(params.get("categorie"));
+  const [toReorder, setToReorder] = useState(0);
+  useEffect(() => {
+    api.supplies().then((d) => setToReorder(d.toReorder)).catch(() => undefined);
+  }, [category]);
+  const tabs = <StockTabs current={category} badges={{ fournitures: toReorder }} />;
+  if (category === "fournitures") {
+    return (
+      <Page className="gap-4">
+        <SuppliesView header={(meta, actions, badge) => (
+          <>
+            <PageHeader title={t("Stock")} meta={meta} actions={actions} />
+            <StockTabs current="fournitures" badges={{ fournitures: badge }} />
+          </>
+        )} />
+      </Page>
+    );
+  }
+  if (category === "mouvements") {
+    return (
+      <Page className="gap-4">
+        <PageHeader title={t("Stock")} description={t("Tout ce qui entre, sort, est corrigé ou déplacé, cartes et fournitures.")} />
+        {tabs}
+        <MovementsView initialCategory={params.get("rubrique") === "SUPPLY" ? "SUPPLY" : undefined} />
+      </Page>
+    );
+  }
+  return <Stock tabs={tabs} />;
+}
+
+function Stock({ tabs }: { tabs: ReactNode }) {
   // L'accueil renvoie ici avec un filtre déjà posé (« ?statut=TO_PRICE »).
   const params = useSearchParams();
   const requested = params.get("statut") as Filter | null;
@@ -475,6 +511,7 @@ function Stock() {
           <AddMenu />
         </>}
       />
+      {tabs}
 
       {error && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive-soft px-3 py-2 text-sm text-destructive">{error}</p>}
 
@@ -925,7 +962,7 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
         })}
       </Section>
 
-      <Section title={d.positions.length > 1 ? t("{n} positions", { n: formatNumber(d.positions.length) }) : t("Position")}>
+      <Section title={d.positions.length > 1 ? t("{n} positions", { n: formatNumber(d.positions.length) }) : t("Position")} aside={<span className="text-[11px] text-muted-foreground">{t("Corriger ou déplacer : ouvrez la position")}</span>}>
         <ul className="grid gap-1">
           {d.positions.map((p) => (
             <li key={p.id} className="flex items-center gap-3 text-[13px]">
@@ -938,6 +975,9 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
             </li>
           ))}
         </ul>
+      </Section>
+      <Section title={t("Derniers mouvements")}>
+        <RecentMovements offerId={d.offerId} version={version} />
       </Section>
       {error && <p role="alert" className="border-t px-4 py-3 text-sm text-destructive">{error}</p>}
     </aside>

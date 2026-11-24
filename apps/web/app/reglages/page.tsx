@@ -21,7 +21,7 @@ const SECTIONS: { title: string; items: { href: string; label: string; hint: str
     title: "Expédier",
     items: [
       { href: "/reglages/boutique", label: "Boutique et documents", hint: "Nom, adresse et mention légale des bons et reçus, format de l'imprimante", icon: Printer },
-      { href: "/fournitures", label: "Fournitures", hint: "Stock de sleeves, top-loaders et enveloppes, seuils de commande", icon: PackageOpen },
+      { href: "/stock?categorie=fournitures", label: "Fournitures", hint: "Stock de sleeves, top-loaders et enveloppes, seuils de commande", icon: PackageOpen },
       { href: "/reglages/envois", label: "Frais d'envoi", hint: "Affranchissement, sleeve, top-loader, enveloppe : déduits de la marge", icon: Mail },
     ],
   },

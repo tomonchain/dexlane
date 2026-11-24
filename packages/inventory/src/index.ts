@@ -12,3 +12,4 @@ export * from "./sales";
 export * from "./photos";
 export * from "./costs";
 export * from "./supplies";
+export * from "./movements";
