@@ -2,7 +2,7 @@ import type {
   AcquisitionLot, Activity, CardPage, CatalogHit, Deal, DealList, TopCard, WatchedCard, AlertSettings, AppSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, SalesInsights, PriceMoves, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
   Location, Photo, PositionDetail, Received,
   OfferPricing, OrderDetail, PriceHistory, OrderList, OrderStage, PricingSettings, ShippingCosts, ShippingRun, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
-  PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockFacets, StockPage, StockStatus, StoredPhoto, VariantQuote, Supply, SupplyDetail, SupplyInput, AgentToken,
+  PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockFacets, StockPage, StockStatus, StoredPhoto, VariantQuote, SupplyDetail, SupplyInput, SupplyList, AgentToken, MovementPage, MovementKind, MovementCategory,
 } from "./types";
 import { clearCache } from "./cache";
 import { t } from "./i18n";
@@ -201,13 +201,15 @@ export const api = {
   createAgentToken: (name: string) => request<AgentToken & { token: string }>("POST", "/agent-tokens", { json: { name } }),
   revokeAgentToken: (id: string) => request<null>("DELETE", `/agent-tokens/${id}`),
 
-  supplies: () => request<{ supplies: Supply[]; toReorder: number }>("GET", "/supplies"),
+  supplies: () => request<SupplyList>("GET", "/supplies"),
+  stockMovements: (q: { category?: MovementCategory; kind?: MovementKind; offerId?: string; supplyId?: string; before?: string; limit?: number; days?: number } = {}) =>
+    request<MovementPage>("GET", "/stock-movements", { query: q }),
   supply: (id: string) => request<SupplyDetail>("GET", `/supplies/${id}`),
   createSupply: (input: SupplyInput & { onHand: number }) => request<SupplyDetail>("POST", "/supplies", { json: input }),
   updateSupply: (id: string, input: Partial<SupplyInput>) => request<SupplyDetail>("PATCH", `/supplies/${id}`, { json: input }),
   archiveSupply: (id: string) => request<null>("DELETE", `/supplies/${id}`),
-  receiveSupply: (id: string, quantity: number) => request<SupplyDetail>("POST", `/supplies/${id}/receive`, { json: { quantity } }),
-  countSupply: (id: string, onHand: number) => request<SupplyDetail>("POST", `/supplies/${id}/count`, { json: { onHand } }),
+  receiveSupply: (id: string, quantity: number, note?: string) => request<SupplyDetail>("POST", `/supplies/${id}/receive`, { json: { quantity, note } }),
+  countSupply: (id: string, onHand: number, note?: string) => request<SupplyDetail>("POST", `/supplies/${id}/count`, { json: { onHand, note } }),
   markSupplyOrdered: (id: string, ordered: boolean) => request<SupplyDetail>("POST", `/supplies/${id}/ordered`, { json: { ordered } }),
   markSlipsPrinted: (orderIds: string[]) => request<{ marked: number }>("POST", "/orders/preparation/printed", { json: { orderIds } }),
   createSale: (

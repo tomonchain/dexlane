@@ -1,5 +1,6 @@
 import { withTx, type Db } from "@dexlane/db";
 import { DomainError } from "@dexlane/shared";
+import { resolveLocation } from "./locations";
 import { SHIPPING_MODES, type ShippingMode } from "./shipping";
 
 /**
@@ -22,8 +23,15 @@ export interface Supply {
   reorderPoint: number;
   reorderQuantity: number | null;
   supplierUrl: string | null;
+  /** Référence libre (celle du fournisseur, par exemple). */
+  reference: string | null;
+  /** Prix d'achat unitaire, en centimes ; null : non renseigné. */
+  unitCostCents: number | null;
+  locationCode: string | null;
   orderedAt: Date | null;
   createdAt: Date;
+  /** Quantité × prix unitaire ; 0 sans prix renseigné. */
+  valueCents: number;
   /** Sorties des 30 derniers jours (envois et corrections à la baisse). */
   used30Days: number;
   /** Jours de stock au rythme des 30 derniers jours ; null sans consommation. */
@@ -50,6 +58,10 @@ export interface SupplyInput {
   reorderPoint: number;
   reorderQuantity: number | null;
   supplierUrl: string | null;
+  reference: string | null;
+  unitCostCents: number | null;
+  /** Code d'un emplacement existant ; null : sans emplacement. */
+  locationCode: string | null;
 }
 
 const statusOf = (onHand: number, reorderPoint: number): SupplyStatus => (onHand === 0 ? "OUT" : onHand <= reorderPoint ? "LOW" : "OK");
@@ -73,26 +85,56 @@ function check(input: Partial<SupplyInput>) {
   if (input.supplierUrl && !/^https?:\/\/\S+$/i.test(input.supplierUrl)) {
     throw new DomainError("INVALID_SUPPLY", "supplierUrl must be an http(s) link");
   }
+  if (input.unitCostCents != null && (!Number.isInteger(input.unitCostCents) || input.unitCostCents < 0 || input.unitCostCents > 1_000_000)) {
+    throw new DomainError("INVALID_SUPPLY", "unitCostCents must be whole cents between 0 and 10 000 €");
+  }
+  if (input.reference != null && input.reference.trim().length > 60) throw new DomainError("INVALID_SUPPLY", "reference must be 60 characters at most");
+}
+
+/** Emplacement donné par son code : son identifiant, null pour « sans emplacement », inchangé si absent. */
+async function locationIdOf(sql: Db, code: string | null | undefined): Promise<string | null | undefined> {
+  if (code === undefined) return undefined;
+  if (code === null || code.trim() === "") return null;
+  return (await resolveLocation(sql, { code })).id;
 }
 
 const COLUMNS = (sql: Db) => sql`
   s.id, s.name, s.usage, s.per_use, s.modes, s.on_hand, s.reorder_point, s.reorder_quantity, s.supplier_url, s.ordered_at, s.created_at,
+  s.reference, s.unit_cost_cents, (select l.code from locations l where l.id = s.location_id) as location_code,
   (select coalesce(-sum(m.qty_delta), 0)::int from supply_movements m
     where m.supply_id = s.id and m.qty_delta < 0 and m.kind <> 'RECEIVE' and m.created_at > now() - interval '30 days') as used_30_days`;
 
-type SupplyRow = Omit<Supply, "daysLeft" | "status">;
+type SupplyRow = Omit<Supply, "daysLeft" | "status" | "valueCents">;
 const toSupply = (row: SupplyRow): Supply => ({
   ...row,
+  valueCents: row.onHand * (row.unitCostCents ?? 0),
   daysLeft: row.used30Days > 0 ? Math.floor(row.onHand / (row.used30Days / 30)) : null,
   status: statusOf(row.onHand, row.reorderPoint),
 });
 
+export interface SupplyList {
+  supplies: Supply[];
+  /** À commander : au seuil ou en dessous, pas encore commandées. */
+  toReorder: number;
+  ordered: number;
+  totals: { items: number; units: number; valueCents: number };
+}
+
 /** Les fournitures actives : à commander d'abord (épuisées, puis sous le seuil), puis par nom. */
-export async function listSupplies(sql: Db): Promise<{ supplies: Supply[]; toReorder: number }> {
+export async function listSupplies(sql: Db): Promise<SupplyList> {
   const rows = await sql<SupplyRow[]>`select ${COLUMNS(sql)} from supplies s where s.archived_at is null order by s.name`;
   const rank: Record<SupplyStatus, number> = { OUT: 0, LOW: 1, OK: 2 };
   const supplies = rows.map(toSupply).sort((a, b) => rank[a.status] - rank[b.status]);
-  return { supplies, toReorder: supplies.filter((x) => x.status !== "OK" && !x.orderedAt).length };
+  return {
+    supplies,
+    toReorder: supplies.filter((x) => x.status !== "OK" && !x.orderedAt).length,
+    ordered: supplies.filter((x) => x.orderedAt).length,
+    totals: {
+      items: supplies.length,
+      units: supplies.reduce((n, x) => n + x.onHand, 0),
+      valueCents: supplies.reduce((n, x) => n + x.valueCents, 0),
+    },
+  };
 }
 
 export async function getSupply(sql: Db, id: string): Promise<Supply & { movements: SupplyMovement[] }> {
@@ -107,14 +149,15 @@ export async function getSupply(sql: Db, id: string): Promise<Supply & { movemen
 export async function createSupply(sql: Db, input: SupplyInput & { onHand: number }, actor: string): Promise<Supply> {
   check(input);
   if (!Number.isInteger(input.onHand) || input.onHand < 0) throw new DomainError("INVALID_SUPPLY", "onHand must be a whole number of 0 or more");
+  const locationId = await locationIdOf(sql, input.locationCode);
   const id = await withTx(sql, async (tx) => {
     const [row] = await tx<{ id: string }[]>`
-      insert into supplies (name, usage, per_use, modes, on_hand, reorder_point, reorder_quantity, supplier_url)
+      insert into supplies (name, usage, per_use, modes, on_hand, reorder_point, reorder_quantity, supplier_url, reference, unit_cost_cents, location_id)
       values (${input.name.trim()}, ${input.usage}, ${input.perUse}, ${input.modes}, ${input.onHand}, ${input.reorderPoint},
-              ${input.reorderQuantity}, ${input.supplierUrl || null})
+              ${input.reorderQuantity}, ${input.supplierUrl || null}, ${input.reference?.trim() || null}, ${input.unitCostCents}, ${locationId ?? null})
       returning id`;
     if (input.onHand > 0) {
-      await tx`insert into supply_movements (supply_id, kind, qty_delta, actor, note) values (${row!.id}, 'ADJUST', ${input.onHand}, ${actor}, 'initial')`;
+      await tx`insert into supply_movements (supply_id, kind, qty_delta, actor, note) values (${row!.id}, 'RECEIVE', ${input.onHand}, ${actor}, 'initial')`;
     }
     return row!.id;
   });
@@ -123,6 +166,7 @@ export async function createSupply(sql: Db, input: SupplyInput & { onHand: numbe
 
 export async function updateSupply(sql: Db, id: string, input: Partial<SupplyInput>): Promise<Supply> {
   check(input);
+  const locationId = await locationIdOf(sql, input.locationCode);
   const [row] = await sql<{ id: string }[]>`
     update supplies set
       name = coalesce(${input.name?.trim() ?? null}, name),
@@ -132,6 +176,9 @@ export async function updateSupply(sql: Db, id: string, input: Partial<SupplyInp
       reorder_point = coalesce(${input.reorderPoint ?? null}, reorder_point),
       reorder_quantity = ${input.reorderQuantity === undefined ? sql`reorder_quantity` : input.reorderQuantity},
       supplier_url = ${input.supplierUrl === undefined ? sql`supplier_url` : input.supplierUrl || null},
+      reference = ${input.reference === undefined ? sql`reference` : input.reference?.trim() || null},
+      unit_cost_cents = ${input.unitCostCents === undefined ? sql`unit_cost_cents` : input.unitCostCents},
+      location_id = ${locationId === undefined ? sql`location_id` : locationId},
       updated_at = now()
      where id = ${id} and archived_at is null
      returning id`;

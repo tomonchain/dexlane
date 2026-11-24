@@ -2,7 +2,7 @@ import type { Candidate, CandidateVariant, CatalogHit as CatalogHitRow, CatalogS
 import type {
   AcquisitionLotRow, CardCondition, InventoryRow, InventorySummary, LocationSummary, MovementRow, OrderDetail as OrderDetailRow, PhotoKind, PhotoRow,
   OrderStage, OrderSummary as OrderSummaryRow, ReceivedBulk, ReceivedPosition, SalesTotals, SellableOffer as SellableOfferRow,
-  ShippingMode, ShippingCosts, Supply as SupplyRow, SupplyMovement as SupplyMovementRow, SupplyUsage,
+  ShippingMode, ShippingCosts, Supply as SupplyRow, SupplyMovement as SupplyMovementRow, SupplyUsage, SupplyList as SupplyListRow, MovementPage as MovementPageRow, MovementKind, MovementCategory,
 } from "@dexlane/inventory";
 import type {
   Activity as ActivityRow, CardDetail as CardDetailRow, ChannelId, ChannelMode, ChannelState as ChannelStateRow, ListingBlocker, ListingOffer as ListingOfferRow, ListingSettings,
@@ -141,6 +141,10 @@ export interface ShippingRun { orders: OrderDetail[]; seller: Seller; slipPaper:
 export type { ShippingCosts, SupplyUsage };
 export type Supply = Json<SupplyRow>;
 export type SupplyDetail = Supply & { movements: Json<SupplyMovementRow>[] };
+export type SupplyList = Json<SupplyListRow>;
+export type MovementPage = Json<MovementPageRow>;
+export type StockMovement = MovementPage["movements"][number];
+export type { MovementKind, MovementCategory };
 export interface SupplyInput {
   name: string;
   usage: SupplyUsage;
@@ -149,6 +153,9 @@ export interface SupplyInput {
   reorderPoint: number;
   reorderQuantity: number | null;
   supplierUrl: string | null;
+  reference: string | null;
+  unitCostCents: number | null;
+  locationCode: string | null;
 }
 
 /** Jeton d'un agent (serveur MCP) ; le jeton lui-même n'est montré qu'à sa création. */

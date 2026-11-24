@@ -130,6 +130,18 @@ export function createMcpServer(call: InternalCall): McpServer {
     annotations: READ,
   }, () => run("GET", "/api/supplies"));
 
+  server.registerTool("list_stock_movements", {
+    title: "Stock movements",
+    description: "Stock journal, newest first: entries, exits (sales shipped, supplies used), corrections and moves, for cards and supplies, with a summary of units in and out over the last N days. Pass `next` from a previous page as `before`.",
+    inputSchema: {
+      category: z.enum(["CARD", "SUPPLY"]).optional(),
+      kind: z.enum(["IN", "OUT", "ADJUST", "MOVE"]).optional(),
+      offerId: uuid.optional(), supplyId: uuid.optional(),
+      before: z.string().max(200).optional(), limit: z.number().int().min(1).max(100).optional(), days: z.number().int().min(1).max(365).optional(),
+    },
+    annotations: READ,
+  }, (a) => run("GET", `/api/stock-movements${qs({ category: a.category, kind: a.kind, offerId: a.offerId, supplyId: a.supplyId, before: a.before, limit: a.limit ?? 30, days: a.days })}`));
+
   server.registerTool("get_publication_plan", {
     title: "Publication plan",
     description: "Listings planned day by day per channel, pending count and failed publications with their reason.",
@@ -229,10 +241,12 @@ export function createMcpServer(call: InternalCall): McpServer {
 
   server.registerTool("update_supply_settings", {
     title: "Update a supply's reorder settings",
-    description: "Change a supply's reorder point (alert level), usual reorder quantity or supplier link.",
+    description: "Change a supply's reorder point (alert level), usual reorder quantity, supplier link, unit cost (cents), reference or location code (an existing location).",
     inputSchema: {
       supplyId: uuid, reorderPoint: z.number().int().min(0).optional(),
       reorderQuantity: z.number().int().min(1).nullable().optional(), supplierUrl: z.url().nullable().optional(),
+      unitCostCents: z.number().int().min(0).max(1_000_000).nullable().optional(), reference: z.string().max(60).nullable().optional(),
+      locationCode: z.string().max(80).nullable().optional(),
     },
     annotations: { ...WRITE, idempotentHint: true },
   }, ({ supplyId, ...changes }) => run("PATCH", `/api/supplies/${supplyId}`, changes));

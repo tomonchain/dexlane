@@ -156,7 +156,7 @@ describe("supplies", () => {
 
     // Remise en main propre de 2 cartes : 2 sleeves, pas d'enveloppe.
     expect((await sell(2, "HAND_DELIVERY")).json.stage).toBe("SHIPPED");
-    expect((await pcall("GET", `/api/supplies/${sleeves.id}`)).json).toMatchObject({ onHand: 3, used30Days: 2, status: "OK", movements: [{ kind: "CONSUME", qtyDelta: -2 }, { kind: "ADJUST", qtyDelta: 5 }] });
+    expect((await pcall("GET", `/api/supplies/${sleeves.id}`)).json).toMatchObject({ onHand: 3, used30Days: 2, status: "OK", movements: [{ kind: "CONSUME", qtyDelta: -2 }, { kind: "RECEIVE", qtyDelta: 5, note: "initial" }] });
     expect((await pcall("GET", `/api/supplies/${envelopes.id}`)).json.onHand).toBe(10);
     expect(sent).toEqual([]);
 
@@ -166,7 +166,7 @@ describe("supplies", () => {
     const list = (await pcall("GET", "/api/supplies")).json;
     expect(list.toReorder).toBe(1);
     expect(list.supplies[0]).toMatchObject({ name: "Sleeves", onHand: 2, status: "LOW" });
-    expect(sent).toEqual([{ body: "Sleeves : plus que 2. Pensez à recommander.", url: "/fournitures" }]);
+    expect(sent).toEqual([{ body: "Sleeves : plus que 2. Pensez à recommander.", url: "/stock?categorie=fournitures" }]);
 
     // Plus de sleeves que le stock : il reste à zéro, sans bloquer la remise, et l'alerte n'est pas répétée.
     expect((await sell(2, "HAND_DELIVERY")).json.stage).toBe("SHIPPED");
@@ -183,10 +183,48 @@ describe("supplies", () => {
 
     // Seuil relevé par modification ; puis retirée de la liste.
     expect((await pcall("PATCH", `/api/supplies/${envelopes.id}`, { reorderPoint: 9, supplierUrl: "https://shop.example/enveloppes" })).json).toMatchObject({ status: "LOW", supplierUrl: "https://shop.example/enveloppes" });
-    expect(sent.at(-1)).toEqual({ body: "Enveloppes : plus que 9. Pensez à recommander.", url: "/fournitures" });
+    expect(sent.at(-1)).toEqual({ body: "Enveloppes : plus que 9. Pensez à recommander.", url: "/stock?categorie=fournitures" });
     expect((await pcall("DELETE", `/api/supplies/${envelopes.id}`)).status).toBe(204);
     expect((await pcall("GET", "/api/supplies")).json.supplies.map((x: { name: string }) => x.name)).toEqual(["Sleeves"]);
     expect((await pcall("POST", "/api/notifications/digest")).json.digest.suppliesToReorder).toBe(1);
+  });
+});
+
+describe("stock journal", () => {
+  it("lists card and supply movements together, newest first, with filters, pages and a summary", async () => {
+    await call("POST", "/api/locations", { body: { code: "BOX-01" } });
+    await call("POST", "/api/locations", { body: { code: "ETAGERE-1" } });
+    const variantId = await fouinarReverse();
+    const received = (await call("POST", "/api/inventory/receive", { body: { variantId, condition: "NM", quantity: 3, locationCode: "BOX-01", unitCostCents: 20 } })).json;
+    await call("POST", `/api/inventory/${received.stockItem.id}/adjust`, { body: { countedOnHand: 2, reason: "carte abîmée" } });
+    await call("POST", `/api/inventory/${received.stockItem.id}/move`, { body: { locationCode: "ETAGERE-1" } });
+
+    const sleeves = (await call("POST", "/api/supplies", { body: { name: "Sleeves", usage: "PER_CARD", onHand: 10, unitCostCents: 2, reference: "SLV-100", locationCode: "etagere-1" }, key: null })).json;
+    expect(sleeves).toMatchObject({ reference: "SLV-100", unitCostCents: 2, locationCode: "ETAGERE-1", valueCents: 20 });
+    expect((await call("POST", "/api/supplies", { body: { name: "Scotch", usage: "MANUAL", locationCode: "NULLE-PART" }, key: null })).json.error.code).toBe("LOCATION_NOT_FOUND");
+    await call("POST", `/api/supplies/${sleeves.id}/receive`, { body: { quantity: 5, note: "commande 42" }, key: null });
+    expect((await call("PATCH", `/api/supplies/${sleeves.id}`, { body: { locationCode: null, unitCostCents: 3 } })).json).toMatchObject({ locationCode: null, valueCents: 45 });
+    expect((await call("GET", "/api/supplies")).json.totals).toEqual({ items: 1, units: 15, valueCents: 45 });
+
+    const all = (await call("GET", "/api/stock-movements")).json;
+    expect(all.movements.map((m: { category: string; kind: string; qtyDelta: number }) => [m.category, m.kind, m.qtyDelta])).toEqual([
+      ["SUPPLY", "IN", 5], ["SUPPLY", "IN", 10], ["CARD", "MOVE", 0], ["CARD", "ADJUST", -1], ["CARD", "IN", 3],
+    ]);
+    expect(all.movements[0]).toMatchObject({ name: "Sleeves", detail: "SLV-100", reason: "commande 42", supplyId: sleeves.id, actor: "owner" });
+    expect(all.movements[2]).toMatchObject({ name: "Fouinar", fromLocation: "BOX-01", toLocation: "ETAGERE-1", unitSku: received.stockItem.unitSku, offerId: received.offer.id });
+    expect(all.movements[3]).toMatchObject({ type: "ADJUST", reason: "carte abîmée" });
+    expect(all.movements[4].detail).toMatch(/· 136 · NM$/);
+    expect(all.summary).toEqual({ days: 30, in: 18, out: 0, adjusted: -1, moves: 1 });
+    expect(all.next).toBeNull();
+
+    expect((await call("GET", "/api/stock-movements?category=CARD&kind=IN")).json.movements).toHaveLength(1);
+    expect((await call("GET", `/api/stock-movements?offerId=${received.offer.id}`)).json.summary).toMatchObject({ in: 3, adjusted: -1, moves: 1 });
+    const first = (await call("GET", "/api/stock-movements?limit=2")).json;
+    const second = (await call("GET", `/api/stock-movements?limit=2&before=${first.next}`)).json;
+    const third = (await call("GET", `/api/stock-movements?limit=2&before=${second.next}`)).json;
+    expect([...first.movements, ...second.movements, ...third.movements].map((m: { id: string }) => m.id)).toEqual(all.movements.map((m: { id: string }) => m.id));
+    expect(third.next).toBeNull();
+    expect((await call("GET", "/api/stock-movements?before=nimporte")).status).toBe(422);
   });
 });
 
