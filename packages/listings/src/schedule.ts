@@ -201,3 +201,108 @@ export async function runDuePublications(sql: Db, live: ChannelAdapters, actor: 
   }
   return { published, failed };
 }
+
+// ───────────────────────── Calendrier ─────────────────────────
+
+export interface CalendarDay {
+  /** « AAAA-MM-JJ » */
+  date: string;
+  /** Mises en ligne prévues ce jour-là (en attente), par canal. */
+  planned: Partial<Record<ChannelId, number>>;
+  /** Annonces publiées ce jour-là (planifiées ou à la main). */
+  published: number;
+  /** Publications planifiées ce jour-là qui ont échoué. */
+  failed: number;
+}
+
+/** Le calendrier des mises en ligne entre deux dates (incluses) : prévues, publiées, en échec, jour par jour. */
+export async function getPublicationCalendar(sql: Db, from: string, to: string): Promise<{ from: string; to: string; days: CalendarDay[] }> {
+  const rows = await sql<{ date: string; kind: "PLANNED" | "PUBLISHED" | "FAILED"; channel: string | null; n: number }[]>`
+    select to_char(planned_on, 'YYYY-MM-DD') as date, 'PLANNED' as kind, channel, count(*)::int as n
+      from scheduled_publications where status = 'PENDING' and planned_on between ${from} and ${to}
+     group by planned_on, channel
+    union all
+    select to_char(planned_on, 'YYYY-MM-DD'), 'FAILED', null, count(*)::int
+      from scheduled_publications where status = 'FAILED' and planned_on between ${from} and ${to}
+     group by planned_on
+    union all
+    select to_char((created_at at time zone 'Europe/Paris')::date, 'YYYY-MM-DD'), 'PUBLISHED', null, count(*)::int
+      from listings where (created_at at time zone 'Europe/Paris')::date between ${from} and ${to}
+     group by (created_at at time zone 'Europe/Paris')::date`;
+  const days = new Map<string, CalendarDay>();
+  const day = (date: string) => days.get(date) ?? (days.set(date, { date, planned: {}, published: 0, failed: 0 }), days.get(date)!);
+  for (const r of rows) {
+    const d = day(r.date);
+    if (r.kind === "PLANNED" && r.channel && isChannel(r.channel)) d.planned[r.channel] = (d.planned[r.channel] ?? 0) + r.n;
+    if (r.kind === "PUBLISHED") d.published += r.n;
+    if (r.kind === "FAILED") d.failed += r.n;
+  }
+  return { from, to, days: [...days.values()].sort((a, b) => a.date.localeCompare(b.date)) };
+}
+
+export interface CalendarEntry {
+  /** Publication planifiée ; null pour une annonce publiée à la main ce jour-là. */
+  id: string | null;
+  offerId: string;
+  offerSku: string;
+  cardName: string;
+  setCode: string;
+  condition: string;
+  priceCents: number | null;
+  photoUrl: string | null;
+  channel: ChannelId;
+  status: "PENDING" | "DONE" | "FAILED" | "PUBLISHED";
+  errorCode: string | null;
+}
+
+/** Ce qui est prévu, publié ou en échec un jour donné, carte par carte. */
+export async function getPublicationDay(sql: Db, date: string): Promise<{ date: string; entries: CalendarEntry[] }> {
+  const offer = (alias: string) => sql`
+    o.offer_sku, c.name as card_name, set_code(c.set_id, c.language, st.code_override, st.abbreviation) as set_code,
+    o.condition::text as condition, coalesce(o.target_price_cents, o.suggested_price_cents) as price_cents,
+    (select p.url from photos p where p.offer_id = o.id and p.kind in ('LISTING', 'SCAN_FRONT')
+      order by (p.kind = 'LISTING') desc, p.created_at limit 1) as photo_url
+    from offers o
+    join card_variants v on v.id = o.variant_id
+    join catalog_cards c on c.id = v.catalog_card_id
+    left join catalog_sets st on st.id = c.set_id and st.language = c.language
+    where o.id = ${sql(alias)}.offer_id`;
+  const entries = await sql<CalendarEntry[]>`
+    select sp.id, sp.offer_id, sp.channel, sp.status, sp.error_code, x.*
+      from scheduled_publications sp, lateral (select ${offer("sp")}) x
+     where sp.planned_on = ${date} and sp.status in ('PENDING', 'DONE', 'FAILED')
+    union all
+    select null, l.offer_id, l.channel, 'PUBLISHED', null, x.*
+      from listings l, lateral (select ${offer("l")}) x
+     where (l.created_at at time zone 'Europe/Paris')::date = ${date}
+       and not exists (select 1 from scheduled_publications sp where sp.listing_id = l.id)
+     order by 4, 7`;
+  return { date, entries };
+}
+
+/**
+ * Déplace une publication à un autre jour (elle passe en dernier ce jour-là). Une publication en échec est replanifiée :
+ * une nouvelle publication en attente est créée au jour choisi.
+ */
+export async function reschedulePublication(sql: Db, id: string, plannedOn: string): Promise<void> {
+  if (plannedOn < todayInParis()) throw new DomainError("DATE_IN_PAST", "a publication cannot be planned in the past");
+  await withTx(sql, async (tx) => {
+    const [row] = await tx<{ offerId: string; channel: string; status: string }[]>`
+      select offer_id, channel, status from scheduled_publications where id = ${id} for update`;
+    if (!row) throw new DomainError("PUBLICATION_NOT_FOUND", "publication not found");
+    const [next] = await tx<{ rank: number }[]>`
+      select coalesce(max(rank), -1) + 1 as rank from scheduled_publications
+       where planned_on = ${plannedOn} and channel = ${row.channel} and status = 'PENDING'`;
+    const rank = next!.rank;
+    if (row.status === "PENDING") {
+      await tx`update scheduled_publications set planned_on = ${plannedOn}, rank = ${rank} where id = ${id}`;
+    } else if (row.status === "FAILED") {
+      await tx`
+        insert into scheduled_publications (offer_id, channel, planned_on, rank)
+        values (${row.offerId}, ${row.channel}, ${plannedOn}, ${rank})
+        on conflict (offer_id, channel) where status = 'PENDING' do update set planned_on = excluded.planned_on, rank = excluded.rank`;
+    } else {
+      throw new DomainError("PUBLICATION_DONE", "this publication already happened");
+    }
+  });
+}

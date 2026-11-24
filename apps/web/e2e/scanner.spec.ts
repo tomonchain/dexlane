@@ -960,6 +960,34 @@ test("mise en ligne planifiée : image de fin d'annonce, sélection de cartes, r
   // Le planning a sa page, ouverte depuis l'en-tête du stock.
   await page.getByRole("main").getByRole("link", { name: /^Mises en ligne/ }).click();
   await page.waitForURL(/\/listings$/);
+
+  // Le calendrier, affiché d'abord : une carte aujourd'hui, une demain ; celle de demain passe au surlendemain.
+  const shift = (n: number) => {
+    const d = new Date(`${today}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+  const calendar = page.getByTestId("publication-calendar");
+  await expect(calendar.getByTestId(`calendar-day-${today}`)).toHaveAttribute("aria-label", /\d+ prévues?/);
+  await expect(calendar.getByTestId(`calendar-day-${shift(1)}`)).toHaveAttribute("aria-label", /\d+ prévues?/);
+  const [pl] = ((await (await page.request.get("/api/stock?q=OF-SWSH3-136-FR-N-PL")).json()) as { items: { offerId: string }[] }).items;
+  await calendar.getByTestId(`calendar-day-${shift(1)}`).click();
+  const day = page.getByTestId("calendar-day");
+  const entry = day.getByTestId("calendar-entry").filter({ has: page.locator(`a[href="/stock?offer=${pl!.offerId}"]`) });
+  await expect(entry).toContainText("Prévue");
+  await entry.getByRole("button", { name: "Déplacer" }).click();
+  await entry.getByLabel("Nouvelle date").fill(shift(2));
+  await entry.getByRole("button", { name: "Valider" }).click();
+  await expect(page.getByText("Mise en ligne déplacée")).toBeVisible();
+  await expect(entry).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(calendar.getByTestId(`calendar-day-${shift(2)}`)).toHaveAttribute("aria-label", /\d+ prévues?/);
+  await calendar.getByTestId(`calendar-day-${shift(2)}`).click();
+  await expect(day.getByTestId("calendar-entry").filter({ has: page.locator(`a[href="/stock?offer=${pl!.offerId}"]`) })).toContainText("Prévue");
+  await page.keyboard.press("Escape");
+
+  // La vue en liste, jour par jour.
+  await page.getByRole("tab", { name: /^Liste/ }).click();
   const schedule = page.getByTestId("schedule");
   await expect(schedule).toContainText("2 mises en ligne planifiées sur 2 jours");
 
@@ -975,6 +1003,12 @@ test("mise en ligne planifiée : image de fin d'annonce, sélection de cartes, r
   await schedule.getByRole("button", { name: /^Annuler les mises en ligne du/ }).click();
   await expect(page.getByText("1 mise en ligne annulée")).toBeVisible();
   await expect(schedule).toHaveCount(0);
+
+  // Au calendrier, la carte publiée aujourd'hui apparaît comme publiée.
+  await page.getByRole("tab", { name: "Calendrier" }).click();
+  await expect(calendar.getByTestId(`calendar-day-${today}`)).toHaveAttribute("aria-label", /\d+ publiées?/);
+  await calendar.getByTestId(`calendar-day-${today}`).click();
+  await expect(day.getByTestId("calendar-entry").filter({ hasText: "Publiée" }).first()).toBeVisible();
 });
 
 test("sans scanner : le téléphone photographie recto puis verso, les cartes entrent dans le lot dans l'ordre des prises de vue", async ({ page }) => {

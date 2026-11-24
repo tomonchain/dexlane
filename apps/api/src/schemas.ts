@@ -375,3 +375,8 @@ export const setCodeBody = z.strictObject({ language: z.string().regex(/^[a-z]{2
 export const trackingBody = z.strictObject({ carrier: z.enum(CARRIERS).nullable().optional(), tracking: z.string().trim().max(80).nullable().optional() });
 export const reviewBody = z.strictObject({ requested: z.boolean() });
 export const catalogImportBody = z.strictObject({ language: z.string().regex(/^[a-z]{2}(-[a-z]{2})?$/).default("fr"), budgetSeconds: z.number().int().min(5).max(280).default(50) });
+export const calendarDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+export const calendarQuery = z.object({ from: calendarDate, to: calendarDate })
+  .refine((v) => v.from <= v.to && (Date.parse(v.to) - Date.parse(v.from)) / 86_400_000 <= 93, { message: "from must precede to, 93 days at most", path: ["to"] });
+export const publicationId = z.uuid();
+export const rescheduleBody = z.strictObject({ plannedOn: calendarDate });

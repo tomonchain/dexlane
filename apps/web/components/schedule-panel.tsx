@@ -9,7 +9,7 @@ import { dayLabel, formatNumber } from "@/lib/format";
 import { t, tn } from "@/lib/i18n";
 import type { ChannelState, Schedule } from "@/lib/types";
 
-const PLAN_ERRORS: Record<string, string> = {
+export const PLAN_ERRORS: Record<string, string> = {
   LISTING_NOT_READY: "prix, photo ou variante manquante",
   OFFER_NOT_SELLABLE: "plus de stock vendable",
   CHANNEL_DISABLED: "canal désactivé",
