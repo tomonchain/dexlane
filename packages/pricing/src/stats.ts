@@ -256,11 +256,13 @@ export interface SalesInsights {
     medianDaysToSell: number | null;
     /** Cartes vendues sur la période ÷ (vendues + encore en stock), en %. */
     sellThroughPercent: number | null;
+    /** Cartes mises en vente sur la période (voir `LISTED_CARDS`). */
+    listed: number;
   };
   /** Même mesure sur la période précédente de même durée, pour la comparaison. */
-  previous: { orders: number; cards: number; revenueCents: number };
-  /** Chiffre d'affaires et cartes vendues par mois, sur les douze derniers mois. */
-  months: { month: string; cards: number; revenueCents: number }[];
+  previous: { orders: number; cards: number; revenueCents: number; listed: number };
+  /** Chiffre d'affaires, cartes vendues et cartes mises en vente par mois, sur les douze derniers mois. */
+  months: { month: string; cards: number; revenueCents: number; listed: number }[];
   /** Par série : vendues, en stock, taux d'écoulement. Les plus vendues d'abord. */
   bySet: (SalesSlice & { inStock: number; sellThroughPercent: number })[];
   byPriceBand: SalesSlice[];
@@ -327,6 +329,24 @@ const ordered = (all: SalesSlice[], keys: string[], labels: string[]): SalesSlic
   keys.map((key, i) => all.find((s) => s.key === key) ?? { key, label: labels[i]!, cards: 0, revenueCents: 0 });
 
 /**
+ * Les cartes mises en vente, une ligne par position (hors vrac) : sa quantité reçue et le moment où elle a été
+ * proposée à la vente. C'est sa première mise en ligne sur un canal (ou son entrée en stock si l'offre était déjà en
+ * ligne) ; une carte vendue en direct sans être passée en ligne compte comme mise en vente le jour de sa vente.
+ * Une position jamais mise en ligne ni vendue n'est pas (encore) en vente.
+ */
+const LISTED_CARDS = (sql: Db) => sql`
+  select r.qty, least(
+           case when fl.at is not null then greatest(s.created_at, fl.at) end,
+           case when fs.at is not null then greatest(s.created_at, fs.at) end) as at
+    from stock_items s
+    join lateral (select coalesce(sum(m.qty_delta), 0)::int as qty from inventory_movements m
+                   where m.stock_item_id = s.id and m.movement_type = 'RECEIVE' and m.bucket = 'on_hand') r on true
+    left join lateral (select min(l.created_at) as at from listings l where l.offer_id = s.offer_id) fl on true
+    left join lateral (select min(a.created_at) as at from order_allocations a
+                        where a.stock_item_id = s.id and a.status <> 'RELEASED') fs on true
+   where s.kind <> 'BULK' and r.qty > 0`;
+
+/**
  * Ce qui se vend, sur les `days` derniers jours : par série, tranche de prix, état, rareté, canal, jour de la semaine,
  * délai depuis l'entrée en stock, et les cartes les plus vendues. Une vente compte dès qu'elle est enregistrée
  * (date de commande), hors ventes annulées : c'est la demande qu'on cherche à comprendre, pas la date d'envoi.
@@ -357,13 +377,20 @@ export async function salesInsights(sql: Db, opts: { days?: number } = {}): Prom
       from order_lines ol join orders o on o.id = ol.order_id
      where o.fulfillment_status <> 'CANCELLED'
        and o.ordered_at >= now() - make_interval(days => ${days * 2}) and o.ordered_at < now() - make_interval(days => ${days})`;
-  const months = await sql<{ month: string; cards: number; revenueCents: string }[]>`
+  const months = await sql<{ month: string; cards: number; revenueCents: string; listed: number }[]>`
+    with listed as (${LISTED_CARDS(sql)})
     select to_char(m.start, 'YYYY-MM') as month, coalesce(sum(ol.qty), 0)::int as cards,
-           coalesce(sum(ol.qty::bigint * ol.unit_price_cents), 0)::text as revenue_cents
+           coalesce(sum(ol.qty::bigint * ol.unit_price_cents), 0)::text as revenue_cents,
+           (select coalesce(sum(qty), 0)::int from listed where at >= m.start and at < m.start + interval '1 month') as listed
       from generate_series(date_trunc('month', now()) - interval '11 months', date_trunc('month', now()), interval '1 month') as m(start)
       left join orders o on o.fulfillment_status <> 'CANCELLED' and o.ordered_at >= m.start and o.ordered_at < m.start + interval '1 month'
       left join order_lines ol on ol.order_id = o.id
      group by m.start order by m.start`;
+  const [listed] = await sql<{ now: number; before: number }[]>`
+    with listed as (${LISTED_CARDS(sql)})
+    select coalesce(sum(qty) filter (where at >= now() - make_interval(days => ${days})), 0)::int as now,
+           coalesce(sum(qty) filter (where at >= now() - make_interval(days => ${days * 2}) and at < now() - make_interval(days => ${days})), 0)::int as before
+      from listed`;
   // Ce qui reste à vendre : les cartes réservées par une vente sont déjà comptées comme vendues.
   const stock = await sql<{ setId: string; cards: number }[]>`
     select c.set_id, sum(s.on_hand - s.reserved)::int as cards
@@ -408,8 +435,9 @@ export async function salesInsights(sql: Db, opts: { days?: number } = {}): Prom
       averageOrderCents: orders ? Math.round(revenueCents / orders) : 0,
       medianDaysToSell: median,
       sellThroughPercent: cards + inStock === 0 ? null : percent(cards, cards + inStock),
+      listed: listed!.now,
     },
-    previous: { ...previous!, revenueCents: Number(previous!.revenueCents) },
+    previous: { ...previous!, revenueCents: Number(previous!.revenueCents), listed: listed!.before },
     months: months.map((m) => ({ ...m, revenueCents: Number(m.revenueCents) })),
     bySet: slices(lines, (l) => [l.setId, l.setName]).slice(0, 10).map((s) => {
       const left = stockBySet.get(s.key) ?? 0;

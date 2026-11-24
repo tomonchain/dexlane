@@ -697,6 +697,11 @@ test("statistiques : chiffres clés, variation de cote d'une carte en stock, seu
   await expect(page.getByTestId("sales-cards")).not.toHaveText("0");
   await expect(page.getByTestId("sales-by-set")).toContainText("Ténèbres Embrasées");
   await expect(page.getByTestId("sales-top-cards")).toContainText("Fouinar");
+  // Mises en vente et ventes : les deux comptes, leur rapport et un verdict.
+  const balance = page.getByTestId("sales-balance");
+  await expect(balance.getByTestId("balance-listed")).not.toHaveText("0");
+  await expect(balance.getByTestId("balance-ratio")).toContainText("%");
+  await expect(balance.getByTestId("balance-verdict")).toHaveText(/Équilibré|Le stock s'accumule|Le stock se vide/);
   await page.getByRole("tab", { name: "Stock et cotes" }).click();
   await expect(page.getByTestId("stat-value")).toContainText("€");
   await expect(page.getByRole("heading", { name: "Valeur du stock par catégorie" })).toBeVisible();

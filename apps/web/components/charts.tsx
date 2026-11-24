@@ -86,6 +86,84 @@ export function MonthlyColumns({ data, format, label }: { data: ColumnDatum[]; f
   );
 }
 
+export interface PairDatum {
+  key: string;
+  /** « 2026-11 » */
+  month: string;
+  values: [number, number];
+  details: [string, string][];
+}
+
+/**
+ * Colonnes mensuelles de deux séries côte à côte (ex. mises en vente et ventes), avec légende : on lit d'un coup
+ * d'œil si elles avancent ensemble. Mêmes conventions que `MonthlyColumns` (grille discrète, détail au survol).
+ */
+export function PairedMonthlyColumns({ data, series, format, label }: {
+  data: PairDatum[];
+  series: [string, string];
+  format: (value: number) => string;
+  label: string;
+}) {
+  const max = niceMax(Math.max(...data.flatMap((d) => d.values)));
+  const ticks = [1, 0.5, 0];
+  const colors = ["bg-chart-2", "bg-chart-1"] as const;
+  return (
+    <figure className="grid gap-3" aria-label={label}>
+      <figcaption className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        {series.map((name, i) => (
+          <span key={name} className="inline-flex items-center gap-1.5"><span className={cn("size-2.5 rounded-sm", colors[i])} aria-hidden />{name}</span>
+        ))}
+      </figcaption>
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3">
+        <div className="relative h-44 w-8 text-right text-[11px] text-muted-foreground tabular" aria-hidden>
+          {ticks.map((tick) => (
+            <span key={tick} className="absolute right-0 -translate-y-1/2" style={{ top: `${(1 - tick) * 100}%` }}>{format(max * tick)}</span>
+          ))}
+        </div>
+        <div className="relative h-44">
+          {ticks.map((tick) => <span key={tick} className="absolute inset-x-0 border-t border-border/70" style={{ top: `${(1 - tick) * 100}%` }} aria-hidden />)}
+          <div className="absolute inset-0 grid" style={{ gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))` }}>
+            {data.map((d, i) => (
+              <div
+                key={d.key}
+                tabIndex={0}
+                className="group relative flex h-full items-end justify-center gap-px rounded-md px-[3px] outline-none hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/30 sm:gap-0.5"
+                aria-label={`${monthFull().format(monthDate(d.month))} : ${d.details.map(([name, value]) => `${name} ${value}`).join(", ")}`}
+              >
+                {d.values.map((value, j) => (
+                  <span
+                    key={j}
+                    className={cn("w-full max-w-3 rounded-t transition-opacity group-hover:opacity-85", colors[j])}
+                    style={{ height: `${(value / max) * 100}%`, minHeight: value > 0 ? 2 : 0 }}
+                  />
+                ))}
+                <div
+                  role="tooltip"
+                  className={cn(
+                    "pointer-events-none absolute bottom-full z-10 mb-1 hidden w-max min-w-40 rounded-lg border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-lg group-hover:block group-focus-visible:block",
+                    i < 2 ? "left-0" : i >= data.length - 2 ? "right-0" : "left-1/2 -translate-x-1/2",
+                  )}
+                >
+                  <p className="mb-1 font-semibold first-letter:uppercase">{monthFull().format(monthDate(d.month))}</p>
+                  <dl className="grid grid-cols-[auto_auto] gap-x-4 gap-y-0.5">
+                    {d.details.map(([name, value]) => (
+                      <div key={name} className="contents"><dt className="text-muted-foreground">{name}</dt><dd className="tabular text-right font-medium">{value}</dd></div>
+                    ))}
+                  </dl>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <span />
+        <div className="grid pt-1.5 text-center text-[11px] text-muted-foreground" style={{ gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))` }} aria-hidden>
+          {data.map((d) => <span key={d.key} className="truncate">{monthName().format(monthDate(d.month)).replace(".", "")}</span>)}
+        </div>
+      </div>
+    </figure>
+  );
+}
+
 const dayShort = () => dateFormat({ day: "numeric", month: "short", timeZone: "UTC" });
 const dayFull = () => dateFormat({ weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
 const dayDate = (day: string) => new Date(`${day}T12:00:00Z`);

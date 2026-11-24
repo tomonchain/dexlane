@@ -7,7 +7,7 @@ import { Suspense, useCallback, useEffect, useState, type ReactNode } from "reac
 import { toast } from "sonner";
 import { AlertRules } from "@/components/alert-rules";
 import { CardThumb } from "@/components/card-chooser";
-import { HorizontalBars, MonthlyColumns, Sparkline } from "@/components/charts";
+import { HorizontalBars, MonthlyColumns, PairedMonthlyColumns, Sparkline } from "@/components/charts";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -149,6 +149,67 @@ function Panel({ title, description, children, className }: { title: string; des
 
 const cardsNote = (n: number) => tn(n, "{n} carte", "{n} cartes");
 
+/**
+ * Équilibre entre ce qu'on met en vente et ce qui part. Le rapport vendues ÷ mises en vente est « équilibré » entre
+ * 80 et 125 % : en dessous, le stock en vente s'accumule ; au-dessus, il se vide. « En croissance » quand les deux
+ * flux progressent d'au moins 5 % sur la période précédente.
+ */
+function balance(d: Pick<SalesInsights, "totals" | "previous">) {
+  const { listed, cards: sold } = d.totals;
+  const ratio = listed === 0 ? null : Math.round((sold / listed) * 100);
+  const growing = (now: number, before: number) => before > 0 && now >= before * 1.05;
+  const shrinking = (now: number, before: number) => before > 0 && now <= before * 0.95;
+  const trend = growing(listed, d.previous.listed) && growing(sold, d.previous.cards) ? "UP"
+    : shrinking(listed, d.previous.listed) && shrinking(sold, d.previous.cards) ? "DOWN" : "FLAT";
+  const state = ratio === null ? (sold > 0 ? "DRAINING" : "NONE") : ratio < 80 ? "PILING" : ratio > 125 ? "DRAINING" : "BALANCED";
+  return { ratio, trend, state } as const;
+}
+
+function BalancePanel({ data }: { data: SalesInsights }) {
+  const { ratio, trend, state } = balance(data);
+  const { listed, cards: sold } = data.totals;
+  const verdict = {
+    BALANCED: { badge: trend === "UP" ? t("Équilibré et en croissance") : t("Équilibré"), variant: "success" as const,
+      text: trend === "UP" ? t("Vous mettez en vente à peu près ce que vous vendez, et les deux progressent : c'est le bon rythme.")
+        : trend === "DOWN" ? t("Mises en vente et ventes s'équilibrent, mais reculent toutes les deux par rapport à la période précédente.")
+        : t("Vous mettez en vente à peu près ce que vous vendez. Pour grandir, augmentez les deux ensemble.") },
+    PILING: { badge: t("Le stock s'accumule"), variant: "warning" as const,
+      text: t("Vous mettez en vente plus que vous ne vendez : ralentissez les mises en ligne ou revoyez les prix de ce qui ne part pas.") },
+    DRAINING: { badge: t("Le stock se vide"), variant: "warning" as const,
+      text: t("Vous vendez plus que vous ne mettez en vente : remettez des cartes en ligne pour ne pas manquer de stock.") },
+    NONE: { badge: null, variant: "neutral" as const, text: t("Aucune carte mise en vente ni vendue sur la période.") },
+  }[state];
+  const ratioOf = (s: number, l: number) => (l === 0 ? "—" : pct(Math.round((s / l) * 100)));
+  return (
+    <Panel title={t("Mises en vente et ventes")} description={t("Le but : un rapport équilibré, avec des mises en vente et des ventes qui progressent ensemble.")}>
+      <div className="grid gap-4" data-testid="sales-balance">
+        <div className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border bg-border">
+          <Kpi label={t("Mises en vente")} testId="balance-listed" value={formatNumber(listed)} delta={<Delta now={listed} before={data.previous.listed} />} />
+          <Kpi label={t("Vendues")} value={formatNumber(sold)} delta={<Delta now={sold} before={data.previous.cards} />} />
+          <Kpi label={t("Vendues ÷ mises en vente")} testId="balance-ratio" value={ratio === null ? "—" : pct(ratio)}
+            hint={data.previous.listed > 0 ? t("{ratio} la période précédente", { ratio: ratioOf(data.previous.cards, data.previous.listed) }) : undefined} />
+        </div>
+        <div className="flex flex-wrap items-start gap-x-3 gap-y-1.5 text-sm">
+          {verdict.badge && <Badge variant={verdict.variant} data-testid="balance-verdict">{verdict.badge}</Badge>}
+          <p className="min-w-0 flex-1 basis-64 text-muted-foreground">{verdict.text}</p>
+        </div>
+        <PairedMonthlyColumns
+          label={t("Mises en vente et ventes par mois")}
+          series={[t("Mises en vente"), t("Vendues")]}
+          format={(n) => formatNumber(Math.round(n))}
+          data={data.months.map((m) => ({
+            key: m.month, month: m.month, values: [m.listed, m.cards],
+            details: [[t("Mises en vente"), formatNumber(m.listed)], [t("Vendues"), formatNumber(m.cards)], [t("Vendues ÷ mises en vente"), ratioOf(m.cards, m.listed)]],
+          }))}
+        />
+        <p className="text-xs text-muted-foreground">
+          {t("Une carte compte comme mise en vente à sa première mise en ligne, ou le jour de sa vente si elle part en direct sans être passée en ligne.")}
+        </p>
+      </div>
+    </Panel>
+  );
+}
+
 function SalesView() {
   const [days, setDays] = useState("90");
   const [data, setData] = useCachedState<SalesInsights>(`stats:sales:${days}`);
@@ -167,6 +228,7 @@ function SalesView() {
       </div>
       {error && <Alert variant="destructive">{error}</Alert>}
       {!data && !error && <DashboardSkeleton />}
+      {data && data.totals.cards === 0 && data.totals.listed > 0 && <BalancePanel data={data} />}
       {data && data.totals.cards === 0 && (
         <EmptyState icon={<TrendingUp />} title={t("Aucune vente sur les {period} écoulés", { period: t(period) })}>
           {t("Les statistiques se remplissent avec vos ventes : séries qui partent, prix qui se vendent, délai de vente.")}
@@ -204,6 +266,8 @@ function SalesReport({ data }: { data: SalesInsights }) {
           </CardContent>
         </Card>
       )}
+
+      <BalancePanel data={data} />
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <Panel title={t("Chiffre d'affaires par mois")} description={t("Prix des cartes vendues, sur douze mois.")}>
