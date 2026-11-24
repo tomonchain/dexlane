@@ -300,6 +300,29 @@ describe("delivery tracking and reviews", () => {
   });
 });
 
+describe("full catalog import", () => {
+  it("imports the missing sets newest first, batch by batch, and sets aside the ones without cards for a week", async () => {
+    tcgdex = fakeClient(["swsh3-136", "base1-4", "sv03.5-151"].map(card), {
+      listSets: async () => [
+        { id: "base1", name: "Set de Base" }, { id: "swsh3", name: "Ténèbres Embrasées" },
+        { id: "sv03.5", name: "151" }, { id: "vide1", name: "Série vide" },
+      ] as never,
+    });
+    const before = (await call("GET", "/api/catalog/import?language=fr")).json;
+    // Deux séries déjà importées à la main (jeu de départ des tests).
+    expect(before).toMatchObject({ language: "fr", total: 2, imported: 2, cards: 2, listComplete: false });
+
+    const run = (await call("POST", "/api/catalog/import/next", { body: { language: "fr", budgetSeconds: 30 }, key: null })).json;
+    expect(run.imported.map((x: { setId: string }) => x.setId)).toEqual(["vide1", "sv03.5"]);
+    expect(run.imported[0]).toMatchObject({ setId: "vide1", cards: 0 });
+    expect(run.status).toMatchObject({ total: 4, imported: 3, remaining: 0, skipped: 1, cards: 3, listComplete: true });
+
+    // Rien de plus à importer : la série vide attend une semaine avant d'être retentée.
+    expect((await call("POST", "/api/catalog/import/next", { body: { language: "fr", budgetSeconds: 30 }, key: null })).json.imported).toEqual([]);
+    expect((await call("POST", "/api/catalog/import/next", { body: { language: "fr", budgetSeconds: 1 }, key: null })).status).toBe(400);
+  });
+});
+
 describe("set codes", () => {
   it("shows the usual set code in the stock, finds cards by it however it is typed, and lets it be corrected per set", async () => {
     await call("POST", "/api/locations", { body: { code: "BOX-01" } });

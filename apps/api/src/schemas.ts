@@ -374,3 +374,4 @@ export const agentTokenId = z.uuid();
 export const setCodeBody = z.strictObject({ language: z.string().regex(/^[a-z]{2}(-[a-z]{2})?$/), code: z.string().trim().max(20).nullable() });
 export const trackingBody = z.strictObject({ carrier: z.enum(CARRIERS).nullable().optional(), tracking: z.string().trim().max(80).nullable().optional() });
 export const reviewBody = z.strictObject({ requested: z.boolean() });
+export const catalogImportBody = z.strictObject({ language: z.string().regex(/^[a-z]{2}(-[a-z]{2})?$/).default("fr"), budgetSeconds: z.number().int().min(5).max(280).default(50) });

@@ -1,5 +1,6 @@
 "use client";
 
+import { CatalogImport } from "@/components/catalog-import";
 import { SetLogo } from "@/components/set-logo";
 import { BookOpen, ChevronRight, CloudDownload, RefreshCw, Search } from "lucide-react";
 import Link from "next/link";
@@ -126,13 +127,15 @@ export default function CatalogPage() {
     <div className="grid gap-5">
       <PageHeader
         title={t("Catalogue")}
-        description={t("Le scan et la recherche ne trouvent que les cartes des séries importées. Réimporter une série met à jour ses cartes et ajoute les cotations du jour.")}
+        description={t("Le scan et la recherche trouvent les cartes des séries importées ; le catalogue français s'importe en entier, peu à peu. Réimporter une série met à jour ses cartes et ajoute les cotations du jour.")}
         actions={
           <Button variant="outline" onClick={refresh} disabled={refreshing || syncing !== null}>
             {refreshing ? <Spinner /> : <RefreshCw />} {sets?.length ? t("Actualiser la liste") : t("Charger la liste")}
           </Button>
         }
       />
+
+      {ready && <CatalogImport language={language} onProgress={() => void load()} />}
 
       <div className="grid gap-3 sm:grid-cols-[11rem_14rem_minmax(0,1fr)]">
         <Field label={t("Langue des cartes")}>

@@ -6,6 +6,10 @@
     {
       "path": "/cron/daily",
       "schedule": "17 4 * * *"
+    },
+    {
+      "path": "/cron/catalog",
+      "schedule": "41 1 * * *"
     }
   ]
 }

@@ -2,7 +2,7 @@ import type {
   AcquisitionLot, Activity, CardPage, CatalogHit, Deal, DealList, TopCard, WatchedCard, AlertSettings, AppSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, SalesInsights, PriceMoves, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
   Location, Photo, PositionDetail, Received,
   OfferPricing, OrderDetail, PriceHistory, OrderList, OrderStage, PricingSettings, ShippingCosts, ShippingRun, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
-  PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockFacets, StockPage, StockStatus, StoredPhoto, VariantQuote, SupplyDetail, SupplyInput, SupplyList, ShippingCostsView, AgentToken, Carrier, MovementPage, MovementKind, MovementCategory,
+  PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockFacets, StockPage, StockStatus, StoredPhoto, VariantQuote, SupplyDetail, SupplyInput, SupplyList, ShippingCostsView, CatalogImportStatus, AgentToken, Carrier, MovementPage, MovementKind, MovementCategory,
 } from "./types";
 import { clearCache } from "./cache";
 import { t } from "./i18n";
@@ -240,6 +240,9 @@ export const api = {
     request<OfferPricing>("POST", `/pricing/offers/${offerId}/price`, { json: input }),
   recomputePricing: () => request<{ repriced: number }>("POST", "/pricing/recompute"),
 
+  catalogImport: (language: string) => request<CatalogImportStatus>("GET", "/catalog/import", { query: { language } }),
+  importNextSets: (language: string, budgetSeconds = 50) =>
+    request<{ imported: { setId: string; name: string; cards: number; errorCount: number }[]; status: CatalogImportStatus }>("POST", "/catalog/import/next", { json: { language, budgetSeconds } }),
   setSetCode: (setId: string, language: string, code: string | null) =>
     request<{ code: string; codeOverride: string | null }>("PUT", `/catalog/sets/${encodeURIComponent(setId)}/code`, { json: { language, code } }),
   catalogSet: (setId: string, language: string) =>

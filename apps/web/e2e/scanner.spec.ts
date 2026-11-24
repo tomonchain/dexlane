@@ -288,6 +288,9 @@ test("vrac : entrée du lot, correction après comptage, extraction d'une carte"
 test("catalogue : onglets, import d'une série, détail, puis recherche par autocomplétion de série", async ({ page }) => {
   await login(page);
   await page.goto("/catalog");
+  // Catalogue français complet : la liste des séries n'a pas encore été lue, il n'est donc pas « complet ».
+  await expect(page.getByTestId("catalog-import")).toContainText(/Catalogue français : \d+ séries sur \d+/);
+  await expect(page.getByTestId("catalog-import").getByRole("button", { name: "Tout importer maintenant" })).toBeVisible();
   await expect(page.getByRole("tab", { name: /^Importées/ })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("tab", { name: /^Importées/ })).toContainText("2");
   await page.getByRole("button", { name: "Actualiser la liste" }).click();
