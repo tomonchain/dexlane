@@ -2,7 +2,7 @@ import type {
   AcquisitionLot, Activity, CardPage, CatalogHit, Deal, DealList, TopCard, WatchedCard, AlertSettings, AppSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, SalesInsights, PriceMoves, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
   Location, Photo, PositionDetail, Received,
   OfferPricing, OrderDetail, PriceHistory, OrderList, OrderStage, PricingSettings, ShippingCosts, ShippingRun, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
-  PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockFacets, StockPage, StockStatus, StoredPhoto, VariantQuote,
+  PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockFacets, StockPage, StockStatus, StoredPhoto, VariantQuote, Supply, SupplyDetail, SupplyInput, AgentToken,
 } from "./types";
 import { clearCache } from "./cache";
 import { t } from "./i18n";
@@ -114,7 +114,7 @@ export const api = {
     request<{ items: ListingOffer[]; total: number }>("GET", "/listings/offers", { query: q }),
 
   appSettings: () => request<AppSettings>("GET", "/app-settings"),
-  notifications: () => request<{ publicKey: string; devices: number; preferences: { sales: boolean; watched: boolean; publications: boolean } }>("GET", "/notifications"),
+  notifications: () => request<{ publicKey: string; devices: number; preferences: { sales: boolean; watched: boolean; publications: boolean; supplies: boolean } }>("GET", "/notifications"),
   subscribePush: (subscription: { endpoint: string; keys: { p256dh: string; auth: string }; locale: "fr" | "en" }) =>
     request<{ devices: number }>("POST", "/notifications/subscriptions", { json: subscription }),
   unsubscribePush: (endpoint: string) => request<{ devices: number }>("POST", "/notifications/subscriptions/remove", { json: { endpoint } }),
@@ -196,6 +196,19 @@ export const api = {
   shippingCosts: () => request<ShippingCosts>("GET", "/shipping-costs"),
   saveShippingCosts: (costs: ShippingCosts) => request<ShippingCosts>("PUT", "/shipping-costs", { json: costs }),
   shippingRun: () => request<ShippingRun>("GET", "/orders/preparation"),
+
+  agentTokens: () => request<{ tokens: AgentToken[] }>("GET", "/agent-tokens"),
+  createAgentToken: (name: string) => request<AgentToken & { token: string }>("POST", "/agent-tokens", { json: { name } }),
+  revokeAgentToken: (id: string) => request<null>("DELETE", `/agent-tokens/${id}`),
+
+  supplies: () => request<{ supplies: Supply[]; toReorder: number }>("GET", "/supplies"),
+  supply: (id: string) => request<SupplyDetail>("GET", `/supplies/${id}`),
+  createSupply: (input: SupplyInput & { onHand: number }) => request<SupplyDetail>("POST", "/supplies", { json: input }),
+  updateSupply: (id: string, input: Partial<SupplyInput>) => request<SupplyDetail>("PATCH", `/supplies/${id}`, { json: input }),
+  archiveSupply: (id: string) => request<null>("DELETE", `/supplies/${id}`),
+  receiveSupply: (id: string, quantity: number) => request<SupplyDetail>("POST", `/supplies/${id}/receive`, { json: { quantity } }),
+  countSupply: (id: string, onHand: number) => request<SupplyDetail>("POST", `/supplies/${id}/count`, { json: { onHand } }),
+  markSupplyOrdered: (id: string, ordered: boolean) => request<SupplyDetail>("POST", `/supplies/${id}/ordered`, { json: { ordered } }),
   markSlipsPrinted: (orderIds: string[]) => request<{ marked: number }>("POST", "/orders/preparation/printed", { json: { orderIds } }),
   createSale: (
     input: { lines: { offerId: string; qty: number; unitPriceCents: number }[]; shippingMode: ShippingMode; shippingChargedCents?: number; buyerName?: string; addressLines?: string[]; note?: string },

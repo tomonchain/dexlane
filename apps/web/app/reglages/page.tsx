@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, BellDot, BellRing, BookOpen, Boxes, ChevronRight, CircleUserRound, Mail, Megaphone, Printer, ScanLine, Sparkles, Store, Tags, type LucideIcon } from "lucide-react";
+import { Archive, Bot, PackageOpen, BellDot, BellRing, BookOpen, Boxes, ChevronRight, CircleUserRound, Mail, Megaphone, Printer, ScanLine, Sparkles, Store, Tags, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { ExportStockRow } from "@/components/export-stock";
 import Link from "next/link";
@@ -21,6 +21,7 @@ const SECTIONS: { title: string; items: { href: string; label: string; hint: str
     title: "Expédier",
     items: [
       { href: "/reglages/boutique", label: "Boutique et documents", hint: "Nom, adresse et mention légale des bons et reçus, format de l'imprimante", icon: Printer },
+      { href: "/fournitures", label: "Fournitures", hint: "Stock de sleeves, top-loaders et enveloppes, seuils de commande", icon: PackageOpen },
       { href: "/reglages/envois", label: "Frais d'envoi", hint: "Affranchissement, sleeve, top-loader, enveloppe : déduits de la marge", icon: Mail },
     ],
   },
@@ -37,7 +38,8 @@ const SECTIONS: { title: string; items: { href: string; label: string; hint: str
     items: [
       { href: "/catalogue", label: "Catalogue", hint: "Séries importées et cotations", icon: BookOpen },
       { href: "/bienvenue", label: "Assistant de démarrage", hint: "Revoir les étapes : mode de scan, séries, emplacements, prix, canaux", icon: Sparkles },
-      { href: "/reglages/notifications", label: "Notifications", hint: "Résumé du matin sur votre téléphone : ventes, cartes suivies, mises en ligne", icon: BellDot },
+      { href: "/reglages/notifications", label: "Notifications", hint: "Résumé du matin sur votre téléphone : ventes, cartes suivies, mises en ligne, fournitures", icon: BellDot },
+      { href: "/reglages/agents", label: "Agents (MCP)", hint: "Jetons d'accès pour laisser des agents gérer la boutique", icon: Bot },
       { href: "/compte", label: "Compte", hint: "Mot de passe, thème, déconnexion", icon: CircleUserRound },
     ],
     extra: <ExportStockRow />,

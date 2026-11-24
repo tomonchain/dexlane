@@ -24,6 +24,7 @@ interface Data {
   moves: PriceMoves | null;
   activity: Activity | null;
   watched: { items: WatchedCard[]; alerts: number } | null;
+  supplies: { toReorder: number; names: string[] } | null;
 }
 
 const CHANNEL_LABEL: Record<string, string> = { direct: "Vente directe", ebay: "eBay", cardtrader: "CardTrader" };
@@ -108,8 +109,12 @@ export function Home() {
       api.priceMoves(true).catch(() => null), // les alertes sont un plus : leur absence ne bloque pas l'accueil
       api.activity().catch(() => null), // de même pour l'activité récente
       api.watchlist().catch(() => null), // et pour les cartes suivies
+      api.supplies().catch(() => null), // et pour les fournitures
     ])
-      .then(([stock, batches, schedule, orders, moves, activity, watched]) => setData({ stock, batches: batches.batches, schedule, orders, moves, activity, watched }))
+      .then(([stock, batches, schedule, orders, moves, activity, watched, supplies]) => setData({
+        stock, batches: batches.batches, schedule, orders, moves, activity, watched,
+        supplies: supplies && { toReorder: supplies.toReorder, names: supplies.supplies.filter((x) => x.status !== "OK" && !x.orderedAt).map((x) => x.name) },
+      }))
       .catch((e: Error) => setError(e.message));
   }, []);
 
@@ -149,6 +154,7 @@ export function Home() {
     orders.counts.TO_PREPARE > 0 && <Task key="prepare" count={orders.counts.TO_PREPARE} label={tn(orders.counts.TO_PREPARE, "vente à préparer", "ventes à préparer")} hint={t("Cartes réservées, à sortir de leur boîte")} href="/ventes" action={t("Préparer")} />,
     orders.counts.PACKED > 0 && <Task key="packed" count={orders.counts.PACKED} label={t("colis à remettre")} hint={t("Emballés, en attente de dépôt ou de remise")} href="/ventes" action={t("Remettre")} />,
     data.watched && data.watched.alerts > 0 && <Task key="watched" count={data.watched.alerts} label={tn(data.watched.alerts, "carte suivie à regarder", "cartes suivies à regarder")} hint={t("Prix cible atteint ou variation au-delà de vos seuils")} href="/achats" action={t("Voir les achats")} />,
+    data.supplies && data.supplies.toReorder > 0 && <Task key="supplies" count={data.supplies.toReorder} label={tn(data.supplies.toReorder, "fourniture à commander", "fournitures à commander")} hint={data.supplies.names.join(", ")} href="/fournitures" action={t("Voir les fournitures")} />,
     moves && moves.alerts > 0 && <Task key="alerts" count={moves.alerts} label={tn(moves.alerts, "carte dont la cote a bougé", "cartes dont la cote a bougé")} hint={t("Au-delà de {percent} % sur {days} jours", { percent: moves.settings.percent, days: moves.settings.windowDays })} href="/statistiques?vue=cotes" action={t("Voir les variations")} />,
   ].filter(Boolean);
 

@@ -6,6 +6,7 @@ import { SALES } from "./sales";
 import { SETTINGS } from "./settings";
 import { SHELL } from "./shell";
 import { STOCK } from "./stock";
+import { SUPPLIES } from "./supplies";
 
 /** Dictionnaire anglais complet. Un même texte peut figurer dans plusieurs fichiers : la traduction doit être la même. */
-export const EN: Record<string, string> = { ...COMMON, ...SHELL, ...STOCK, ...INTAKE, ...SALES, ...PRICING, ...SETTINGS, ...CATALOG };
+export const EN: Record<string, string> = { ...COMMON, ...SHELL, ...STOCK, ...INTAKE, ...SALES, ...PRICING, ...SETTINGS, ...CATALOG, ...SUPPLIES };

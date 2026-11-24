@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CARD_CONDITIONS, SHIPPING_MODES, type LocationRef } from "@dexlane/inventory";
+import { CARD_CONDITIONS, SHIPPING_MODES, SUPPLY_USAGES, type LocationRef } from "@dexlane/inventory";
 
 const cents = z.number().int().min(0).max(2_000_000_000);
 const location = {
@@ -175,6 +175,7 @@ export const ordersQuery = z.object({
   offset: z.coerce.number().int().min(0).optional(),
 });
 export const orderId = z.uuid();
+export const supplyId = z.uuid();
 export const pickBody = z.strictObject({ allocationId: z.uuid(), unitSku: z.string().trim().min(1).max(40) });
 export const handoverBody = z.strictObject({
   tracking: z.string().trim().min(1).max(80).optional(),
@@ -287,7 +288,7 @@ export const appSettingsBody = z.strictObject({
   intakeMode: z.enum(["SCANNER", "CAMERA", "FILES"]).nullable().optional(),
   slipPaper: z.enum(["ROLL_80", "ROLL_58", "LABEL_100X150", "A4"]).optional(),
   seller: z.strictObject({ name: z.string().trim().max(80), address: z.string().trim().max(300), legal: z.string().trim().max(300) }).optional(),
-  notifications: z.strictObject({ sales: z.boolean(), watched: z.boolean(), publications: z.boolean() }).optional(),
+  notifications: z.strictObject({ sales: z.boolean(), watched: z.boolean(), publications: z.boolean(), supplies: z.boolean().default(true) }).optional(),
 });
 export const pushSubscriptionBody = z.strictObject({
   endpoint: z.url().max(1000),
@@ -321,3 +322,33 @@ export const slipsPrintedBody = z.strictObject({ orderIds: z.array(z.uuid()).min
 
 export const offerPhotoQuery = z.object({ kind: z.enum(["SCAN_FRONT", "SCAN_BACK"]).default("SCAN_FRONT") });
 export const salesInsightsQuery = z.object({ days: z.coerce.number().int().min(7).max(730).optional() });
+
+// ───────────────────────── Fournitures ─────────────────────────
+
+const supplyFields = {
+  name: z.string().trim().min(1).max(80),
+  usage: z.enum(SUPPLY_USAGES),
+  perUse: z.number().int().min(1).max(100),
+  modes: z.array(z.enum(SHIPPING_MODES)).min(1).max(4),
+  reorderPoint: z.number().int().min(0).max(1_000_000),
+  reorderQuantity: z.number().int().min(1).max(1_000_000).nullable(),
+  supplierUrl: z.union([z.url({ protocol: /^https?$/ }), z.literal("")]).nullable(),
+};
+export const createSupplyBody = z.strictObject({
+  ...supplyFields,
+  perUse: supplyFields.perUse.default(1),
+  modes: supplyFields.modes.default([...SHIPPING_MODES]),
+  reorderPoint: supplyFields.reorderPoint.default(0),
+  reorderQuantity: supplyFields.reorderQuantity.default(null),
+  supplierUrl: supplyFields.supplierUrl.default(null),
+  onHand: z.number().int().min(0).max(1_000_000).default(0),
+});
+export const updateSupplyBody = z.strictObject(supplyFields).partial();
+export const supplyQuantityBody = z.strictObject({ quantity: z.number().int().min(1).max(1_000_000), note: z.string().trim().max(200).optional() });
+export const supplyCountBody = z.strictObject({ onHand: z.number().int().min(0).max(1_000_000), note: z.string().trim().max(200).optional() });
+export const supplyOrderedBody = z.strictObject({ ordered: z.boolean() });
+
+// ───────────────────────── Agents (MCP) ─────────────────────────
+
+export const agentTokenBody = z.strictObject({ name: z.string().trim().min(1).max(60) });
+export const agentTokenId = z.uuid();

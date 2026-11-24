@@ -1545,3 +1545,69 @@ test("photo au téléphone : la carte est repérée, redressée et recadrée au 
   const ratio = await page.getByRole("img", { name: "Photo prise" }).first().evaluate((img: HTMLImageElement) => img.naturalWidth / img.naturalHeight);
   expect(ratio).toBeCloseTo(63 / 88, 2);
 });
+
+test("fournitures : ajout depuis une suggestion, alerte « à commander », commande puis réception", async ({ page }) => {
+  await login(page);
+  await page.goto("/fournitures");
+  await expect(page.getByRole("heading", { name: "Fournitures", level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: "Sleeves" }).click();
+  const form = page.getByTestId("supply-form");
+  await expect(form.getByLabel("Nom")).toHaveValue("Sleeves");
+  await form.getByLabel("En stock").fill("30");
+  await form.getByRole("button", { name: "Ajouter" }).click();
+
+  // 30 sleeves pour un seuil de 100 : à commander, signalé en haut de page et sur l'accueil.
+  const card = page.getByTestId("supply-Sleeves");
+  await expect(card.getByTestId("supply-on-hand")).toHaveText("30");
+  await expect(card).toContainText("À commander");
+  await expect(page.getByTestId("supplies-to-reorder")).toContainText("1 fourniture à commander");
+  await page.goto("/");
+  await expect(page.getByTestId("home-task").filter({ hasText: "fourniture à commander" })).toContainText("Sleeves");
+
+  await page.goto("/fournitures");
+  await card.getByTestId("supply-ordered").click();
+  await expect(card).toContainText("Commandé");
+  await expect(page.getByTestId("supplies-to-reorder")).toHaveCount(0);
+  await card.getByRole("button", { name: "Réception" }).click();
+  await expect(page.getByTestId("supply-quantity")).toHaveValue("500"); // la quantité habituellement commandée
+  await page.getByRole("button", { name: "Ajouter au stock" }).click();
+  await expect(card.getByTestId("supply-on-hand")).toHaveText("530");
+  await expect(card).not.toContainText("Commandé");
+
+  // Retirée pour ne pas peser sur les autres parcours.
+  await card.getByRole("button", { name: "Modifier Sleeves" }).click();
+  page.once("dialog", (d) => void d.accept());
+  await page.getByTestId("supply-form").getByRole("button", { name: "Retirer" }).click();
+  await expect(card).toHaveCount(0);
+});
+
+test("agents : jeton créé dans les réglages, serveur MCP joignable avec ce jeton, puis révoqué", async ({ page }) => {
+  await login(page);
+  await page.goto("/reglages/agents");
+  await expect(page.getByTestId("mcp-endpoint")).toHaveValue(/\/mcp$/);
+  await page.getByTestId("agent-name").fill("Agent e2e");
+  await page.getByRole("button", { name: "Créer un jeton" }).click();
+  const token = await page.getByTestId("agent-token-value").inputValue();
+  expect(token).toMatch(/^dxl_/);
+  await expect(page.getByTestId("agent-tokens")).toContainText("Agent e2e");
+
+  const mcp = (body: unknown, bearer = token) => page.request.post("/mcp", {
+    headers: { Authorization: `Bearer ${bearer}`, Accept: "application/json, text/event-stream", "Content-Type": "application/json" },
+    data: body,
+  });
+  const listed = await mcp({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} });
+  expect(listed.status()).toBe(200);
+  const tools = ((await listed.json()) as { result: { tools: { name: string }[] } }).result.tools.map((t) => t.name);
+  expect(tools).toContain("get_business_overview");
+  const overview = await mcp({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "get_business_overview", arguments: {} } });
+  const result = ((await overview.json()) as { result: { isError?: boolean; content: { text: string }[] } }).result;
+  expect(result.isError).toBeFalsy();
+  expect(JSON.parse(result.content[0]!.text)).toHaveProperty("stock");
+  // Le jeton du serveur web ou une session ne remplacent pas un jeton d'agent sur /mcp.
+  expect((await mcp({ jsonrpc: "2.0", id: 3, method: "tools/list", params: {} }, "pas-un-jeton")).status()).toBe(401);
+
+  page.once("dialog", (d) => void d.accept());
+  await page.getByRole("button", { name: "Révoquer Agent e2e" }).click();
+  await expect(page.getByText("Accès révoqué")).toBeVisible();
+  expect((await mcp({ jsonrpc: "2.0", id: 4, method: "tools/list", params: {} })).status()).toBe(401);
+});

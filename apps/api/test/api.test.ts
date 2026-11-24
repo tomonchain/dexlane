@@ -121,6 +121,142 @@ describe("phone notifications", () => {
   });
 });
 
+describe("supplies", () => {
+  it("counts supplies out at each handover, by card or by postal shipment, and alerts once when one reaches its reorder point", async () => {
+    const sent: { body: string; url: string }[] = [];
+    const pushApp = createApp({
+      sql, token: TOKEN, recognizer: () => ({ recognize: (image) => recognize(image) }), photos: createMemoryPhotoStore(), tcgdex: () => tcgdex, onError: (e) => errors.push(e),
+      push: async (_subscription, message) => {
+        sent.push({ body: message.body.replace(/[\u00a0\u202f]/g, " "), url: message.url });
+        return "sent";
+      },
+    });
+    const pcall = async (method: string, path: string, body?: unknown) => {
+      const res = await pushApp.request(path, { method, headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() }, body: body === undefined ? undefined : JSON.stringify(body) });
+      return { status: res.status, json: (res.status === 204 ? null : await res.json()) as any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+    };
+    await pcall("POST", "/api/notifications/subscriptions", { endpoint: "https://push.example/phone", keys: { p256dh: "p".repeat(87), auth: "a".repeat(22) }, locale: "fr" });
+
+    const sleeves = (await pcall("POST", "/api/supplies", { name: "Sleeves", usage: "PER_CARD", onHand: 5, reorderPoint: 2, reorderQuantity: 100 })).json;
+    expect(sleeves).toMatchObject({ name: "Sleeves", perUse: 1, onHand: 5, status: "OK", daysLeft: null, modes: ["LETTER_UNTRACKED", "LETTER_TRACKED", "PARCEL_TRACKED", "HAND_DELIVERY"] });
+    const envelopes = (await pcall("POST", "/api/supplies", { name: "Enveloppes", usage: "PER_SHIPMENT", modes: ["LETTER_UNTRACKED", "LETTER_TRACKED"], onHand: 10, reorderPoint: 3 })).json;
+    expect((await pcall("POST", "/api/supplies", { name: "", usage: "PER_CARD" })).status).toBe(400);
+    expect((await pcall("POST", "/api/supplies", { name: "Scotch", usage: "MANUAL", modes: [] })).status).toBe(400);
+
+    await call("POST", "/api/locations", { body: { code: "BOX-01" } });
+    const variantId = await fouinarReverse();
+    const received = (await call("POST", "/api/inventory/receive", { body: { variantId, condition: "NM", quantity: 5, locationCode: "BOX-01", unitCostCents: 20 } })).json;
+    const number = String(Number((received.stockItem.unitSku as string).slice(3)));
+    const sell = async (qty: number, shippingMode: string) => {
+      const order = (await pcall("POST", "/api/orders", { lines: [{ offerId: received.offer.id, qty, unitPriceCents: 100 }], shippingMode })).json;
+      await pcall("POST", `/api/orders/${order.id}/pick`, { allocationId: order.lines[0].allocations[0].id, unitSku: number });
+      await pcall("POST", `/api/orders/${order.id}/pack`);
+      return pcall("POST", `/api/orders/${order.id}/handover`, {});
+    };
+
+    // Remise en main propre de 2 cartes : 2 sleeves, pas d'enveloppe.
+    expect((await sell(2, "HAND_DELIVERY")).json.stage).toBe("SHIPPED");
+    expect((await pcall("GET", `/api/supplies/${sleeves.id}`)).json).toMatchObject({ onHand: 3, used30Days: 2, status: "OK", movements: [{ kind: "CONSUME", qtyDelta: -2 }, { kind: "ADJUST", qtyDelta: 5 }] });
+    expect((await pcall("GET", `/api/supplies/${envelopes.id}`)).json.onHand).toBe(10);
+    expect(sent).toEqual([]);
+
+    // Lettre de 1 carte : 1 sleeve, 1 enveloppe ; les sleeves atteignent leur seuil, une alerte part.
+    await sell(1, "LETTER_UNTRACKED");
+    expect((await pcall("GET", `/api/supplies/${envelopes.id}`)).json.onHand).toBe(9);
+    const list = (await pcall("GET", "/api/supplies")).json;
+    expect(list.toReorder).toBe(1);
+    expect(list.supplies[0]).toMatchObject({ name: "Sleeves", onHand: 2, status: "LOW" });
+    expect(sent).toEqual([{ body: "Sleeves : plus que 2. Pensez à recommander.", url: "/fournitures" }]);
+
+    // Plus de sleeves que le stock : il reste à zéro, sans bloquer la remise, et l'alerte n'est pas répétée.
+    expect((await sell(2, "HAND_DELIVERY")).json.stage).toBe("SHIPPED");
+    expect((await pcall("GET", `/api/supplies/${sleeves.id}`)).json).toMatchObject({ onHand: 0, status: "OUT" });
+    expect(sent).toHaveLength(1);
+
+    // Commandées : plus « à commander » ; reçues : stock refait, alerte réarmée.
+    expect((await pcall("POST", `/api/supplies/${sleeves.id}/ordered`, { ordered: true })).json.orderedAt).toEqual(expect.any(String));
+    expect((await pcall("GET", "/api/supplies")).json.toReorder).toBe(0);
+    expect((await pcall("POST", `/api/supplies/${sleeves.id}/receive`, { quantity: 100 })).json).toMatchObject({ onHand: 100, orderedAt: null, status: "OK" });
+    expect((await pcall("POST", `/api/supplies/${sleeves.id}/count`, { onHand: 1, note: "inventaire" })).json).toMatchObject({ onHand: 1, status: "LOW" });
+    expect(sent).toHaveLength(2);
+    expect((await pcall("POST", `/api/supplies/${sleeves.id}/receive`, { quantity: 0 })).status).toBe(400);
+
+    // Seuil relevé par modification ; puis retirée de la liste.
+    expect((await pcall("PATCH", `/api/supplies/${envelopes.id}`, { reorderPoint: 9, supplierUrl: "https://shop.example/enveloppes" })).json).toMatchObject({ status: "LOW", supplierUrl: "https://shop.example/enveloppes" });
+    expect(sent.at(-1)).toEqual({ body: "Enveloppes : plus que 9. Pensez à recommander.", url: "/fournitures" });
+    expect((await pcall("DELETE", `/api/supplies/${envelopes.id}`)).status).toBe(204);
+    expect((await pcall("GET", "/api/supplies")).json.supplies.map((x: { name: string }) => x.name)).toEqual(["Sleeves"]);
+    expect((await pcall("POST", "/api/notifications/digest")).json.digest.suppliesToReorder).toBe(1);
+  });
+});
+
+describe("agents (MCP server)", () => {
+  it("lets an agent token use the MCP tools only, on behalf of the agent, until it is revoked", async () => {
+    const created = await call("POST", "/api/agent-tokens", { body: { name: "Airth" }, key: null });
+    expect(created.status).toBe(201);
+    const token = created.json.token as string;
+    expect(token).toMatch(/^dxl_[A-Za-z0-9_-]{43}$/);
+    expect((await call("GET", "/api/agent-tokens")).json.tokens).toEqual([expect.objectContaining({ name: "Airth", prefix: token.slice(0, 10), lastUsedAt: null })]);
+    expect(JSON.stringify((await call("GET", "/api/agent-tokens")).json)).not.toContain(token);
+
+    let id = 0;
+    const mcp = async (method: string, params: unknown = {}, bearer = token) => {
+      const res = await app.request("/api/mcp", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${bearer}`, "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }),
+      });
+      return { status: res.status, json: (await res.json()) as any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+    };
+    const tool = async (name: string, args: unknown = {}) => {
+      const { json } = await mcp("tools/call", { name, arguments: args });
+      return { isError: json.result.isError === true, data: JSON.parse(json.result.content[0].text) };
+    };
+
+    const init = await mcp("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } });
+    expect(init.status).toBe(200);
+    expect(init.json.result).toMatchObject({ serverInfo: { name: "dexlane" }, capabilities: { tools: {} } });
+    expect(init.json.result.instructions).toContain("euro cents");
+    const tools = (await mcp("tools/list")).json.result.tools as { name: string; annotations: { readOnlyHint: boolean } }[];
+    expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(["get_business_overview", "search_stock", "set_offer_price", "record_direct_sale", "list_supplies", "mark_supply_ordered"]));
+    expect(tools.find((t) => t.name === "search_stock")!.annotations.readOnlyHint).toBe(true);
+
+    // Un peu d'activité : une carte en stock, une fourniture sous son seuil.
+    await call("POST", "/api/locations", { body: { code: "BOX-01" } });
+    const variantId = await fouinarReverse();
+    const offerId = (await call("POST", "/api/inventory/receive", { body: { variantId, condition: "NM", quantity: 3, locationCode: "BOX-01", unitCostCents: 20 } })).json.offer.id as string;
+    const sleeves = (await call("POST", "/api/supplies", { body: { name: "Sleeves", usage: "PER_CARD", onHand: 3, reorderPoint: 10 }, key: null })).json;
+
+    const overview = await tool("get_business_overview");
+    expect(overview.isError).toBe(false);
+    expect(overview.data).toMatchObject({ supplies: { toReorder: 1, items: [{ name: "Sleeves", status: "LOW", ordered: false }] }, last30Days: { cardsSold: 0 } });
+    expect((await tool("search_stock", { query: "fouinar" })).data.items[0]).toMatchObject({ offerId });
+
+    // Actions, journalisées au nom de l'agent.
+    expect((await tool("set_offer_price", { offerId, targetPriceCents: 250 })).isError).toBe(false);
+    const sale = await tool("record_direct_sale", { lines: [{ offerId, qty: 1, unitPriceCents: 250 }], shippingMode: "HAND_DELIVERY", buyerName: "Léa", idempotencyKey: "agent-sale-0001" });
+    expect(sale.data).toMatchObject({ stage: "TO_PREPARE", buyerName: "Léa" });
+    expect((await tool("record_direct_sale", { lines: [{ offerId, qty: 1, unitPriceCents: 250 }], shippingMode: "HAND_DELIVERY", buyerName: "Léa", idempotencyKey: "agent-sale-0001" })).data.id).toBe(sale.data.id);
+    expect((await tool("mark_supply_ordered", { supplyId: sleeves.id, ordered: true })).data.orderedAt).toEqual(expect.any(String));
+    const [audit] = await sql<{ actor: string }[]>`select actor from audit_events where action = 'agent_token_created' or actor like 'agent:%' order by id desc limit 1`;
+    expect(audit!.actor).toBe("agent:Airth");
+
+    // Refus métier : résultat en erreur, lisible par l'agent.
+    const refused = await tool("record_direct_sale", { lines: [{ offerId, qty: 50, unitPriceCents: 250 }], shippingMode: "HAND_DELIVERY" });
+    expect(refused).toMatchObject({ isError: true, data: { error: { code: "INSUFFICIENT_STOCK" } } });
+    // Arguments invalides : refusés par le serveur MCP.
+    expect((await mcp("tools/call", { name: "set_offer_price", arguments: { offerId: "x", targetPriceCents: -1 } })).json.result.isError).toBe(true);
+
+    // Le jeton d'agent n'ouvre rien d'autre ; une méthode autre que POST est refusée ; un jeton révoqué non plus.
+    expect((await app.request("/api/stock", { headers: { Authorization: `Bearer ${token}` } })).status).toBe(401);
+    expect((await app.request("/api/mcp", { headers: { Authorization: `Bearer ${token}` } })).status).toBe(405);
+    expect((await call("GET", "/api/agent-tokens")).json.tokens[0].lastUsedAt).toEqual(expect.any(String));
+    expect((await app.request(`/api/agent-tokens/${created.json.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${TOKEN}` } })).status).toBe(204);
+    expect((await mcp("tools/list")).status).toBe(401);
+    expect((await mcp("tools/list", {}, "dxl_" + "x".repeat(43))).status).toBe(401);
+  });
+});
+
 describe("database outages", () => {
   /** Base factice : les `failures` premiers appels échouent comme une connexion qui n'aboutit pas. */
   function flakySql(failures: number) {
@@ -562,7 +698,7 @@ describe("purchases", () => {
 
 describe("application settings", () => {
   it("remembers the onboarding progress and the way cards come in", async () => {
-    const blank = { slipPaper: "ROLL_80", seller: { name: "", address: "", legal: "" }, notifications: { sales: true, watched: true, publications: true } };
+    const blank = { slipPaper: "ROLL_80", seller: { name: "", address: "", legal: "" }, notifications: { sales: true, watched: true, publications: true, supplies: true } };
     expect((await call("GET", "/api/app-settings")).json).toEqual({ onboardingDone: false, intakeMode: null, ...blank });
     expect((await call("PUT", "/api/app-settings", { body: { intakeMode: "CAMERA" } })).json).toEqual({ onboardingDone: false, intakeMode: "CAMERA", ...blank });
     expect((await call("PUT", "/api/app-settings", { body: { onboardingDone: true } })).json).toEqual({ onboardingDone: true, intakeMode: "CAMERA", ...blank });

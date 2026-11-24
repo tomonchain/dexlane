@@ -163,6 +163,21 @@ Indicateur clé : `silentErrors`, les cartes acceptées sans revue alors qu'elle
 
 Les tests tournent contre un vrai PostgreSQL : la base de test de chaque package (`dexlane_<package>_test`) est créée si besoin puis **vidée** à chaque test. Par sécurité, le nom de base doit se terminer par `_test`.
 
+## Fournitures — points d'attention
+
+- **Écran** `/fournitures` (onglet « Plus », Réglages › Expédier) : chaque fourniture a un stock, un seuil de commande, une quantité habituellement commandée et un lien fournisseur. Suggestions en un geste : sleeves, top-loaders, enveloppes, enveloppes à bulles.
+- **Décompte automatique à la remise d'un envoi** (dans la transaction de la remise) : une fourniture « par carte » sort `perUse × cartes`, une fourniture « par envoi » sort `perUse` une fois, pour les modes d'envoi cochés (une enveloppe ne sert pas à une remise en main propre). Une fourniture « manuelle » ne bouge qu'à la réception ou à l'inventaire. Le stock ne descend jamais sous zéro et ne bloque jamais une remise.
+- **Alerte** : au seuil ou en dessous, une notification part aussitôt (préférence « Fournitures » dans Réglages › Notifications), une seule fois par passage sous le seuil ; elle se réarme quand le stock repasse au-dessus. « Commandé » fait taire l'alerte jusqu'à la réception. Le résumé du matin rappelle le nombre de fournitures à commander, et l'accueil affiche une tâche.
+- Jours de stock restants estimés au rythme des 30 derniers jours. Historique en base (`supply_movements`, append-only).
+- API : `GET/POST /api/supplies`, `GET/PATCH/DELETE /api/supplies/:id`, `POST /api/supplies/:id/receive`, `/count`, `/ordered`.
+
+## Agents — serveur MCP
+
+- **Adresse** : `https://<domaine>/mcp`, transport « Streamable HTTP » sans session (chaque `POST` porte un message JSON-RPC, réponse JSON), en-tête `Authorization: Bearer dxl_…`. Compatible avec tout client MCP qui accepte un serveur HTTP distant et un en-tête d'autorisation.
+- **Jetons** : Réglages › Agents (MCP). Un jeton par agent, montré une seule fois, révocable ; seule son empreinte (SHA-256) est gardée (`agent_tokens`). Un jeton d'agent n'ouvre que `/mcp`, jamais le reste de l'API.
+- **Outils** : lecture (vue d'ensemble, stock, fiche d'une offre, ventes, statistiques, variations de cote, fournitures, planning, catalogue, bonnes affaires, cartes suivies, offres vendables) et actions (prix d'une offre, planification des mises en ligne, vente directe idempotente, suivi d'une carte, commande, réception, inventaire et seuils des fournitures). Pas de suppression ni d'annulation.
+- Chaque outil rappelle la même route de l'API que l'application (validations, règles, synchronisation des canaux, alertes) ; le journal d'audit enregistre `agent:<nom>`. Code : `apps/api/src/mcp.ts`, `agents.ts` ; relais public `apps/web/app/mcp/route.ts`.
+
 ## Garanties anti-double-vente
 
 1. **Base** : `CHECK (reserved + inspection + quarantine <= on_hand)` sur chaque position — aucun chemin de code ne peut rendre le disponible négatif.
