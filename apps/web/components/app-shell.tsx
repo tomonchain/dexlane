@@ -17,7 +17,7 @@ const NAV: { href: string; label: string; short?: string; icon: LucideIcon; matc
   { href: "/stock", label: "Stock", icon: Package, match: ["/stock", "/inventaire"] },
   { href: "/mises-en-ligne", label: "Mises en ligne", icon: CalendarClock, match: ["/mises-en-ligne"] },
   { href: "/achats", label: "Achats", icon: ShoppingBasket, match: ["/achats"] },
-  { href: "/ventes", label: "Ventes", icon: Receipt, match: ["/ventes"] },
+  { href: "/ventes", label: "Ventes", icon: Receipt, match: ["/ventes", "/fournitures"] },
   { href: "/statistiques", label: "Statistiques", short: "Stats", icon: ChartColumn, match: ["/statistiques"] },
   { href: "/reglages", label: "Réglages", icon: Settings, match: ["/reglages", "/prix", "/rangement", "/catalogue", "/compte"] },
 ];

@@ -26,6 +26,23 @@ export async function callApi(
   return app.fetch(new Request(new URL(pathAndQuery, "http://dexlane.internal"), request));
 }
 
+/**
+ * Relaie une requête telle quelle, avec l'en-tête `Authorization` de l'appelant (jeton d'agent du serveur MCP) au lieu
+ * du jeton du serveur web : c'est l'API qui vérifie le jeton.
+ */
+export async function forwardToApi(pathAndQuery: string, req: Request): Promise<Response> {
+  const headers = new Headers();
+  for (const name of ["authorization", "content-type", "accept", "mcp-protocol-version"]) {
+    const value = req.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  const init = { method: req.method, headers, body: req.method === "GET" || req.method === "HEAD" ? undefined : await req.arrayBuffer() };
+  const remote = process.env.DEXLANE_API_URL;
+  if (remote) return fetch(new URL(pathAndQuery, remote), { ...init, cache: "no-store" });
+  const app = await embeddedApp();
+  return app.fetch(new Request(new URL(pathAndQuery, "http://dexlane.internal"), init));
+}
+
 // Une seule instance (et un seul pool de connexions) par processus, y compris après rechargement à chaud.
 const globals = globalThis as { __dexlaneApp?: Promise<Pick<Hono, "fetch">> };
 

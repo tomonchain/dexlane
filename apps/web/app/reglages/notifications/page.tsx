@@ -12,11 +12,12 @@ import { api } from "@/lib/api";
 import { t, tn } from "@/lib/i18n";
 import { currentSubscription, disablePush, enablePush, pushSupport, type PushSupport } from "@/lib/push";
 
-type Preferences = { sales: boolean; watched: boolean; publications: boolean };
+type Preferences = { sales: boolean; watched: boolean; publications: boolean; supplies: boolean };
 const KINDS: { key: keyof Preferences; label: string; hint: string }[] = [
   { key: "sales", label: "Ventes", hint: "Les ventes arrivées d'eBay ou de CardTrader, à préparer." },
   { key: "watched", label: "Cartes suivies", hint: "Une carte suivie passe sous votre prix cible." },
   { key: "publications", label: "Mises en ligne", hint: "Les publications du jour qui n'ont pas pu partir." },
+  { key: "supplies", label: "Fournitures", hint: "Une fourniture atteint son seuil de commande (alerte immédiate)." },
 ];
 
 /** Notifications sur le téléphone : un résumé chaque matin, seulement quand il y a du nouveau. */

@@ -40,8 +40,10 @@ export interface NotificationPreferences {
   sales: boolean;
   watched: boolean;
   publications: boolean;
+  /** Fournitures passées sous leur seuil de commande. */
+  supplies: boolean;
 }
-export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = { sales: true, watched: true, publications: true };
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = { sales: true, watched: true, publications: true, supplies: true };
 
 /** Envoi réel par les services de notification des navigateurs (Apple, Google, Mozilla). */
 export const webPushSender: PushSender = async (subscription, message, keys) => {
@@ -119,6 +121,8 @@ export interface Digest {
   targets: { name: string; cents: number }[];
   published: number;
   failed: number;
+  /** Fournitures à commander (sous le seuil, pas encore commandées). */
+  suppliesToReorder: number;
 }
 
 /** Ce qui s'est passé depuis le dernier résumé, selon les préférences. */
@@ -133,6 +137,8 @@ export async function collectDigest(sql: Db, preferences: NotificationPreference
   const [publications] = await sql<{ published: number; failed: number }[]>`
     select count(*) filter (where status = 'DONE')::int as published, count(*) filter (where status = 'FAILED')::int as failed
       from scheduled_publications where done_at > ${since}`;
+  const [supplies] = await sql<{ n: number }[]>`
+    select count(*)::int as n from supplies where archived_at is null and ordered_at is null and on_hand <= reorder_point`;
   const watched = preferences.watched ? (await listWatched(sql)).items.filter((w) => w.alerts.includes("TARGET_REACHED")) : [];
   const reached = watched.map((w) => ({ id: w.id, name: w.card.name, cents: w.cardmarket.lowCents ?? 0 }));
   return {
@@ -144,6 +150,7 @@ export async function collectDigest(sql: Db, preferences: NotificationPreference
       targets: reached.filter((r) => !alreadyNotified.has(r.id)).map(({ name, cents }) => ({ name, cents })),
       published: preferences.publications ? publications!.published : 0,
       failed: preferences.publications ? publications!.failed : 0,
+      suppliesToReorder: preferences.supplies ? supplies!.n : 0,
     },
   };
 }
@@ -174,6 +181,11 @@ export function digestMessage(d: Digest, locale: PushLocale): PushMessage | null
       ? `${d.published} ${plural(d.published, locale, ["", ""], ["card", "cards"])} listed`
       : `${d.published} ${plural(d.published, locale, ["carte mise en ligne", "cartes mises en ligne"], ["", ""])}`);
   }
+  if (d.suppliesToReorder > 0) {
+    lines.push(locale === "en"
+      ? `${d.suppliesToReorder} ${plural(d.suppliesToReorder, locale, ["", ""], ["supply", "supplies"])} to reorder`
+      : `${d.suppliesToReorder} ${plural(d.suppliesToReorder, locale, ["fourniture à commander", "fournitures à commander"], ["", ""])}`);
+  }
   if (d.newOrders === 0 && d.toPrepare > 0) {
     lines.push(locale === "en" ? `${d.toPrepare} ${plural(d.toPrepare, locale, ["", ""], ["sale", "sales"])} waiting to be prepared` : `${d.toPrepare} ${plural(d.toPrepare, locale, ["vente attend", "ventes attendent"], ["", ""])} d'être préparée${d.toPrepare > 1 ? "s" : ""}`);
   }
@@ -190,6 +202,25 @@ export async function sendDigest(sql: Db, send: PushSender, preferences: Notific
     insert into notification_state (last_digest_at, notified) values (now(), ${sql.json({ targets: notified })})
     on conflict (id) do update set last_digest_at = excluded.last_digest_at, notified = excluded.notified`;
   return { ...result, digest };
+}
+
+/** Fournitures passées sous leur seuil de commande : une notification par passage sous le seuil. */
+export function suppliesMessage(items: { name: string; onHand: number }[], locale: PushLocale): PushMessage {
+  const url = "/fournitures";
+  if (items.length === 1) {
+    const [x] = items;
+    const body = x!.onHand === 0
+      ? (locale === "en" ? `${x!.name}: out of stock. Time to reorder.` : `${x!.name} : épuisé. Pensez à recommander.`)
+      : (locale === "en" ? `${x!.name}: only ${x!.onHand} left. Time to reorder.` : `${x!.name} : plus que ${x!.onHand}. Pensez à recommander.`);
+    return { title: locale === "en" ? "Supplies to reorder" : "Fournitures à commander", body, url, tag: "supplies" };
+  }
+  const names = items.map((x) => x.name).join(", ");
+  return {
+    title: locale === "en" ? "Supplies to reorder" : "Fournitures à commander",
+    body: locale === "en" ? `${items.length} supplies are running low: ${names}.` : `${items.length} fournitures arrivent à leur seuil : ${names}.`,
+    url,
+    tag: "supplies",
+  };
 }
 
 export const testMessage = (locale: PushLocale): PushMessage => locale === "en"

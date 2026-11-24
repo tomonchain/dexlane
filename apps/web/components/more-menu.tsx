@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, BookOpen, Boxes, ChartColumn, CircleUserRound, Monitor, Moon, Settings, ShoppingBasket, Sun, Tags, X, type LucideIcon } from "lucide-react";
+import { Archive, BookOpen, Boxes, PackageOpen, ChartColumn, CircleUserRound, Monitor, Moon, Settings, ShoppingBasket, Sun, Tags, X, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
 import { Dialog } from "radix-ui";
@@ -25,6 +25,7 @@ const SECTIONS: { title: string; items: { href: string; label: string; icon: Luc
     title: "Gérer",
     items: [
       { href: "/catalogue", label: "Catalogue", icon: BookOpen },
+      { href: "/fournitures", label: "Fournitures", icon: PackageOpen },
       { href: "/rangement", label: "Emplacements", icon: Archive },
       { href: "/inventaire", label: "Positions", icon: Boxes },
       { href: "/prix", label: "Règles de prix", icon: Tags },
@@ -40,7 +41,7 @@ const SECTIONS: { title: string; items: { href: string; label: string; icon: Luc
 ];
 
 /** Préfixes des écrans de « Plus » : l'onglet est surligné quand l'un d'eux est ouvert. */
-export const MORE_PATHS = ["/achats", "/statistiques", "/catalogue", "/rangement", "/inventaire", "/prix", "/reglages", "/compte"];
+export const MORE_PATHS = ["/achats", "/statistiques", "/fournitures", "/catalogue", "/rangement", "/inventaire", "/prix", "/reglages", "/compte"];
 
 const THEMES = [
   { value: "light", label: "Clair", icon: Sun },

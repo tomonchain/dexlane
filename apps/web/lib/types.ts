@@ -2,7 +2,7 @@ import type { Candidate, CandidateVariant, CatalogHit as CatalogHitRow, CatalogS
 import type {
   AcquisitionLotRow, CardCondition, InventoryRow, InventorySummary, LocationSummary, MovementRow, OrderDetail as OrderDetailRow, PhotoKind, PhotoRow,
   OrderStage, OrderSummary as OrderSummaryRow, ReceivedBulk, ReceivedPosition, SalesTotals, SellableOffer as SellableOfferRow,
-  ShippingMode, ShippingCosts,
+  ShippingMode, ShippingCosts, Supply as SupplyRow, SupplyMovement as SupplyMovementRow, SupplyUsage,
 } from "@dexlane/inventory";
 import type {
   Activity as ActivityRow, CardDetail as CardDetailRow, ChannelId, ChannelMode, ChannelState as ChannelStateRow, ListingBlocker, ListingOffer as ListingOfferRow, ListingSettings,
@@ -138,4 +138,24 @@ export interface AppSettings {
 /** Préparation des envois : les commandes à préparer et ce qu'il faut pour imprimer leurs bons. */
 export interface ShippingRun { orders: OrderDetail[]; seller: Seller; slipPaper: SlipPaper }
 
-export type { ShippingCosts };
+export type { ShippingCosts, SupplyUsage };
+export type Supply = Json<SupplyRow>;
+export type SupplyDetail = Supply & { movements: Json<SupplyMovementRow>[] };
+export interface SupplyInput {
+  name: string;
+  usage: SupplyUsage;
+  perUse: number;
+  modes: ShippingMode[];
+  reorderPoint: number;
+  reorderQuantity: number | null;
+  supplierUrl: string | null;
+}
+
+/** Jeton d'un agent (serveur MCP) ; le jeton lui-même n'est montré qu'à sa création. */
+export interface AgentToken {
+  id: string;
+  name: string;
+  prefix: string;
+  lastUsedAt: string | null;
+  createdAt: string;
+}

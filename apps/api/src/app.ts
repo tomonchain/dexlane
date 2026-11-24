@@ -10,6 +10,7 @@ import {
   deleteLocation, extractCardFromBulk, getInventorySummary, getOrderDetail, getShippingCosts, saveShippingCosts, listPreparation, markSlipsPrinted, getStockItemDetail, listAcquisitionLots,
   listLocations, listOrders, moveStock, packOrder, pickAllocation, receiveBulk, receiveCard, recordPhoto, resolveLocation,
   searchInventory, searchSellableOffers, shipOrder, updateLocationDescription,
+  archiveSupply, countSupply, createSupply, getSupply, listSupplies, markSupplyOrdered, receiveSupply, takeSupplyAlerts, updateSupply,
 } from "@dexlane/inventory";
 import {
   estimateVariants, findDeals, listWatched, platformPrices, trendingCards, unwatchCard, updateWatched, watchCard, getPricingSettings, priceHistory, listOfferPricing, quoteVariant, refreshOfferPricing, refreshPricing, savePricingSettings, setOfferPrice, getAlertSettings, getDashboard, listPriceMoves, saveAlertSettings, salesInsights,
@@ -18,7 +19,11 @@ import {
   MAX_IMAGE_BYTES, RecognitionError, assertSupportedImage, identifyCard, type CardImage, type CardRecognizer, type ImageMediaType, addItem, createBatch, findItem, getBatch, listBatches, listItems, receiveBatch, receiveReady, setItemBack, updateBatch, updateItem,
 } from "@dexlane/scan";
 import { DomainError } from "@dexlane/shared";
+import { randomUUID } from "node:crypto";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { AGENT_TOKEN_PREFIX, createAgentToken, listAgentTokens, revokeAgentToken, verifyAgentToken } from "./agents";
 import { changePassword, passwordStatus, setPassword, verifyPassword } from "./auth";
+import { createMcpServer, type InternalCall } from "./mcp";
 import { HttpError, errorBody, idempotent, parse, parseJsonBody, secretEquals, statusOfDomainError } from "./http";
 import {
   cancelPublications, endListing, getActivity, getCardDetail, getListingSettings, getSchedule, getStockDetail, listChannels, listStock, stockFacets, planPublications, queuePublications, runDuePublications, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
@@ -27,7 +32,7 @@ import {
 import { readPhoto, type PhotoStore } from "./photos";
 import { getAppSettings, saveAppSettings } from "./settings";
 import {
-  broadcast, countSubscriptions, removeSubscription, saveSubscription, sendDigest, testMessage, vapidKeys, webPushSender, type PushSender,
+  broadcast, countSubscriptions, removeSubscription, saveSubscription, sendDigest, suppliesMessage, testMessage, vapidKeys, webPushSender, type PushSender,
 } from "./notifications";
 import * as s from "./schemas";
 
@@ -77,6 +82,12 @@ export function createApp(deps: AppDeps) {
   app.use("/api/*", async (c, next) => {
     const header = c.req.header("Authorization") ?? "";
     const presented = header.startsWith("Bearer ") ? header.slice("Bearer ".length) : "";
+    // Un jeton d'agent n'ouvre que le serveur MCP ; tout le reste de l'API demande le jeton du propriétaire.
+    const agent = c.req.path === "/api/mcp" && presented.startsWith(AGENT_TOKEN_PREFIX) ? await verifyAgentToken(sql, presented) : null;
+    if (agent) {
+      c.set("actor", `agent:${agent.name}`);
+      return next();
+    }
     if (!presented || !secretEquals(presented, deps.token)) {
       throw new HttpError(401, "UNAUTHORIZED", "missing or invalid bearer token");
     }
@@ -85,12 +96,18 @@ export function createApp(deps: AppDeps) {
     if (session !== undefined && session !== String(await currentSessionVersion())) {
       throw new HttpError(401, "SESSION_EXPIRED", "this session is no longer valid; sign in again");
     }
-    c.set("actor", "owner");
+    // Les outils MCP rappellent l'API avec le jeton du propriétaire, au nom de l'agent (journal des actions).
+    const onBehalf = c.req.header("X-Dexlane-Agent");
+    c.set("actor", onBehalf && /^agent:[^\n]{1,60}$/.test(onBehalf) ? onBehalf : "owner");
     await next();
     // Après tout changement de stock ou de vente, les quantités annoncées sur les canaux sont réalignées :
     // c'est le garde-fou contre la double vente d'une carte entre deux canaux.
     if (c.req.method !== "GET" && c.res.ok && /^\/api\/(orders|inventory)(\/|$)/.test(c.req.path)) {
       await syncQuantities(sql, deps.channels ?? {}).catch(deps.onError ?? console.error);
+    }
+    // Un envoi remis ou un stock corrigé peut faire passer une fourniture sous son seuil : l'alerte part aussitôt.
+    if (c.req.method !== "GET" && c.res.ok && /^\/api\/(orders|supplies|channels)(\/|$)/.test(c.req.path)) {
+      await alertLowSupplies().catch(deps.onError ?? console.error);
     }
   });
 
@@ -258,6 +275,12 @@ export function createApp(deps: AppDeps) {
     await removeSubscription(sql, (await parseJsonBody(c, s.pushEndpointBody)).endpoint);
     return c.json({ devices: await countSubscriptions(sql) });
   });
+  /** Fournitures passées sous leur seuil : une notification par passage sous le seuil, si l'alerte est activée. */
+  async function alertLowSupplies() {
+    if (!(await getAppSettings(sql)).notifications.supplies) return;
+    const low = await takeSupplyAlerts(sql);
+    if (low.length > 0) await broadcast(sql, push, (locale) => suppliesMessage(low, locale));
+  }
   /** Une notification d'essai sur chaque appareil abonné. */
   app.post("/api/notifications/test", async (c) => c.json(await broadcast(sql, push, testMessage)));
   /** Résumé du matin (tâche quotidienne, après la synchronisation des canaux) : envoyé s'il y a du nouveau. */
@@ -671,6 +694,65 @@ export function createApp(deps: AppDeps) {
   /** Frais d'envoi : affranchissement habituel par mode, sleeve, top-loader et enveloppe. */
   app.get("/api/shipping-costs", async (c) => c.json(await getShippingCosts(sql)));
   app.put("/api/shipping-costs", async (c) => c.json(await saveShippingCosts(sql, await parseJsonBody(c, s.shippingCostsBody), c.var.actor)));
+
+  // ───────────────────────── Agents (serveur MCP) ─────────────────────────
+
+  app.get("/api/agent-tokens", async (c) => c.json({ tokens: await listAgentTokens(sql) }));
+  /** Le jeton n'est renvoyé qu'ici, une seule fois. */
+  app.post("/api/agent-tokens", async (c) => c.json(await createAgentToken(sql, (await parseJsonBody(c, s.agentTokenBody)).name, c.var.actor), 201));
+  app.delete("/api/agent-tokens/:id", async (c) => {
+    await revokeAgentToken(sql, parse(s.agentTokenId, c.req.param("id")), c.var.actor);
+    return c.body(null, 204);
+  });
+
+  /**
+   * Serveur MCP (Streamable HTTP, sans session) : chaque requête monte le serveur, appelle l'outil demandé et répond en
+   * JSON. Les outils passent par les routes de l'API, au nom de l'agent.
+   */
+  app.all("/api/mcp", async (c) => {
+    if (c.req.method !== "POST") {
+      return c.json({ jsonrpc: "2.0", error: { code: -32000, message: "Method not allowed: this MCP server is stateless, use POST" }, id: null }, 405, { Allow: "POST" });
+    }
+    const actor = c.var.actor.startsWith("agent:") ? c.var.actor : "agent:owner";
+    const internal: InternalCall = async (method, path, body, idempotencyKey) => {
+      const headers: Record<string, string> = { Authorization: `Bearer ${deps.token}`, "X-Dexlane-Agent": actor };
+      if (body !== undefined) headers["Content-Type"] = "application/json";
+      if (method !== "GET") headers["Idempotency-Key"] = idempotencyKey ?? `mcp-${randomUUID()}`;
+      const res = await app.request(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+      return { status: res.status, json: res.status === 204 ? null : await res.json().catch(() => null) };
+    };
+    const server = createMcpServer(internal);
+    const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
+    await server.connect(transport);
+    try {
+      return await transport.handleRequest(c.req.raw);
+    } finally {
+      void server.close();
+    }
+  });
+
+  // ───────────────────────── Fournitures ─────────────────────────
+
+  app.get("/api/supplies", async (c) => c.json(await listSupplies(sql)));
+  app.post("/api/supplies", async (c) => c.json(await createSupply(sql, await parseJsonBody(c, s.createSupplyBody), c.var.actor), 201));
+  app.get("/api/supplies/:id", async (c) => c.json(await getSupply(sql, parse(s.supplyId, c.req.param("id")))));
+  app.patch("/api/supplies/:id", async (c) => c.json(await updateSupply(sql, parse(s.supplyId, c.req.param("id")), await parseJsonBody(c, s.updateSupplyBody))));
+  app.delete("/api/supplies/:id", async (c) => {
+    await archiveSupply(sql, parse(s.supplyId, c.req.param("id")));
+    return c.body(null, 204);
+  });
+  /** Commande reçue : la quantité s'ajoute au stock et la commande en cours est close. */
+  app.post("/api/supplies/:id/receive", async (c) => {
+    const { quantity, note } = await parseJsonBody(c, s.supplyQuantityBody);
+    return c.json(await receiveSupply(sql, parse(s.supplyId, c.req.param("id")), quantity, c.var.actor, note ?? null));
+  });
+  /** Inventaire : le stock compté remplace le stock calculé. */
+  app.post("/api/supplies/:id/count", async (c) => {
+    const { onHand, note } = await parseJsonBody(c, s.supplyCountBody);
+    return c.json(await countSupply(sql, parse(s.supplyId, c.req.param("id")), onHand, c.var.actor, note ?? null));
+  });
+  app.post("/api/supplies/:id/ordered", async (c) =>
+    c.json(await markSupplyOrdered(sql, parse(s.supplyId, c.req.param("id")), (await parseJsonBody(c, s.supplyOrderedBody)).ordered)));
 
   app.post("/api/orders/preparation/printed", async (c) =>
     c.json({ marked: await markSlipsPrinted(sql, (await parseJsonBody(c, s.slipsPrintedBody)).orderIds) }));

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { withTx, type Db } from "@dexlane/db";
 import { DomainError } from "@dexlane/shared";
 import { applyDelta, emit, type AllocationRow } from "./internal";
+import { consumeSupplies } from "./supplies";
 
 export const SHIPPING_MODES = ["LETTER_UNTRACKED", "LETTER_TRACKED", "PARCEL_TRACKED", "HAND_DELIVERY"] as const;
 export type ShippingMode = (typeof SHIPPING_MODES)[number];
@@ -78,6 +79,8 @@ export function confirmHandover(sql: Db, shipmentId: string, actor: string): Pro
                                   handover_confirmed_by = ${actor}, updated_at = now()
               where id = ${shipmentId}`;
     await tx`update orders set fulfillment_status = 'SHIPPED', updated_at = now() where id = ${shipment.orderId}`;
+    // Les fournitures de l'envoi (sleeves, top-loaders, enveloppe) sortent du stock de fournitures.
+    await consumeSupplies(tx, { shipmentId, mode: shipment.mode, cards: allocs.reduce((n, a) => n + a.qty, 0), actor });
     await emit(tx, "ParcelHandedOver", "shipment", shipmentId, {
       orderId: shipment.orderId,
       mode: shipment.mode,
