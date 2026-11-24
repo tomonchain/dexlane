@@ -26,6 +26,9 @@ import {
 } from "@dexlane/listings";
 import { readPhoto, type PhotoStore } from "./photos";
 import { getAppSettings, saveAppSettings } from "./settings";
+import {
+  broadcast, countSubscriptions, removeSubscription, saveSubscription, sendDigest, testMessage, vapidKeys, webPushSender, type PushSender,
+} from "./notifications";
 import * as s from "./schemas";
 
 export interface AppDeps {
@@ -40,6 +43,8 @@ export interface AppDeps {
   channels?: ChannelAdapters;
   /** Source du catalogue (TCGdex par défaut) ; remplaçable dans les tests. */
   tcgdex?: () => TcgdexClient;
+  /** Envoi des notifications sur le téléphone (Web Push par défaut) ; remplaçable dans les tests. */
+  push?: PushSender;
   onError?: (err: unknown) => void;
 }
 
@@ -59,6 +64,7 @@ export function createApp(deps: AppDeps) {
     if (err instanceof RecognitionError) return c.json(errorBody(err.code, err.message), RECOGNITION_STATUS[err.code]);
     if (err instanceof HTTPException) return c.json(errorBody("HTTP_ERROR", err.message), err.status);
     (deps.onError ?? console.error)(err);
+    if (isConnectionError(err)) return c.json(errorBody("DATABASE_UNAVAILABLE", "the database did not answer; try again"), 503);
     return c.json(errorBody("INTERNAL_ERROR", "internal error"), 500);
   });
   app.notFound((c) => c.json(errorBody("NOT_FOUND", "no such route"), 404));
@@ -233,6 +239,29 @@ export function createApp(deps: AppDeps) {
 
   app.get("/api/app-settings", async (c) => c.json(await getAppSettings(sql)));
   app.put("/api/app-settings", async (c) => c.json(await saveAppSettings(sql, await parseJsonBody(c, s.appSettingsBody))));
+
+  // ───────────────────────── Notifications sur le téléphone ─────────────────────────
+
+  const push = deps.push ?? webPushSender;
+  /** Clé publique pour abonner un appareil, nombre d'appareils abonnés, et ce qui est notifié. */
+  app.get("/api/notifications", async (c) => c.json({
+    publicKey: (await vapidKeys(sql)).publicKey,
+    devices: await countSubscriptions(sql),
+    preferences: (await getAppSettings(sql)).notifications,
+  }));
+  app.post("/api/notifications/subscriptions", async (c) => {
+    const body = await parseJsonBody(c, s.pushSubscriptionBody);
+    await saveSubscription(sql, { ...body, userAgent: c.req.header("User-Agent")?.slice(0, 300) });
+    return c.json({ devices: await countSubscriptions(sql) }, 201);
+  });
+  app.post("/api/notifications/subscriptions/remove", async (c) => {
+    await removeSubscription(sql, (await parseJsonBody(c, s.pushEndpointBody)).endpoint);
+    return c.json({ devices: await countSubscriptions(sql) });
+  });
+  /** Une notification d'essai sur chaque appareil abonné. */
+  app.post("/api/notifications/test", async (c) => c.json(await broadcast(sql, push, testMessage)));
+  /** Résumé du matin (tâche quotidienne, après la synchronisation des canaux) : envoyé s'il y a du nouveau. */
+  app.post("/api/notifications/digest", async (c) => c.json(await sendDigest(sql, push, (await getAppSettings(sql)).notifications)));
 
   // ───────────────────────── Mise en ligne planifiée ─────────────────────────
 
@@ -782,7 +811,30 @@ export function createApp(deps: AppDeps) {
     return c.json(await getStockItemDetail(sql, { id: stockItemId }, { movements: 5 }));
   });
 
+  // Une base qui ne répond pas quelques secondes (réveil d'une base serverless, réseau) : une lecture est retentée,
+  // deux fois, avant de renvoyer l'erreur. Les écritures ne sont jamais rejouées ici.
+  const fetchOnce = app.fetch.bind(app);
+  app.fetch = async (request, env, ctx) => {
+    if (request.method !== "GET" && request.method !== "HEAD") return fetchOnce(request, env, ctx);
+    for (let attempt = 0; ; attempt++) {
+      const response = await fetchOnce(request.clone(), env, ctx);
+      if (response.status !== 503 || attempt >= READ_RETRIES) return response;
+      const body = (await response.clone().json().catch(() => null)) as { error?: { code?: string } } | null;
+      if (body?.error?.code !== "DATABASE_UNAVAILABLE") return response;
+      await new Promise((resolve) => setTimeout(resolve, READ_RETRY_DELAY_MS * (attempt + 1)));
+    }
+  };
   return app;
+}
+
+const READ_RETRIES = 2;
+const READ_RETRY_DELAY_MS = 400;
+/** Erreurs de connexion à la base (délai dépassé, connexion coupée ou refusée, serveur en redémarrage). */
+const CONNECTION_CODES = new Set(["CONNECT_TIMEOUT", "CONNECTION_CLOSED", "CONNECTION_ENDED", "CONNECTION_DESTROYED", "ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "EPIPE", "ENOTFOUND", "EAI_AGAIN"]);
+export function isConnectionError(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null)?.code;
+  if (typeof code !== "string") return false;
+  return CONNECTION_CODES.has(code) || code.startsWith("08") || code === "57P01" || code === "57P02" || code === "57P03";
 }
 
 async function readImage(c: Context): Promise<CardImage> {

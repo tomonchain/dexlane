@@ -64,6 +64,90 @@ async function fouinarReverse(): Promise<string> {
 
 const count = async (table: string) => (await sql.unsafe<{ n: number }[]>(`select count(*)::int as n from ${table}`))[0]!.n;
 
+describe("phone notifications", () => {
+  it("subscribes a device, sends a test, drops vanished devices, and sends the morning digest once per alert", async () => {
+    const sent: { endpoint: string; body: string; url: string }[] = [];
+    const vanished = new Set<string>();
+    const pushApp = createApp({
+      sql, token: TOKEN, recognizer: () => ({ recognize: (image) => recognize(image) }), photos: createMemoryPhotoStore(), tcgdex: () => tcgdex, onError: (e) => errors.push(e),
+      push: async (subscription, message) => {
+        if (vanished.has(subscription.endpoint)) return "gone";
+        sent.push({ endpoint: subscription.endpoint, body: message.body.replace(/[\u00a0\u202f]/g, " "), url: message.url });
+        return "sent";
+      },
+    });
+    const pcall = async (method: string, path: string, body?: unknown) => {
+      const res = await pushApp.request(path, { method, headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+      return { status: res.status, json: (await res.json()) as any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+    };
+
+    const info = await pcall("GET", "/api/notifications");
+    expect(info.json).toMatchObject({ devices: 0, preferences: { sales: true, watched: true, publications: true } });
+    expect(info.json.publicKey).toMatch(/^[A-Za-z0-9_-]{80,}$/);
+    expect((await pcall("GET", "/api/notifications")).json.publicKey).toBe(info.json.publicKey); // clés créées une seule fois
+
+    const phone = { endpoint: "https://push.example/phone", keys: { p256dh: "p".repeat(87), auth: "a".repeat(22) }, locale: "fr" };
+    const laptop = { endpoint: "https://push.example/laptop", keys: { p256dh: "q".repeat(87), auth: "b".repeat(22) }, locale: "en" };
+    expect((await pcall("POST", "/api/notifications/subscriptions", phone)).json).toEqual({ devices: 1 });
+    expect((await pcall("POST", "/api/notifications/subscriptions", phone)).json).toEqual({ devices: 1 }); // même appareil
+    expect((await pcall("POST", "/api/notifications/subscriptions", laptop)).json).toEqual({ devices: 2 });
+    expect((await pcall("POST", "/api/notifications/subscriptions", { endpoint: "pas une adresse", keys: phone.keys })).status).toBe(400);
+
+    expect((await pcall("POST", "/api/notifications/test")).json).toEqual({ sent: 2, removed: 0, failed: 0 });
+    expect(sent.map((m) => m.body)).toEqual(["Les notifications sont activées sur cet appareil.", "Notifications are on for this device."]);
+
+    // Rien de nouveau : pas de notification.
+    sent.length = 0;
+    expect((await pcall("POST", "/api/notifications/digest")).json).toMatchObject({ sent: 0 });
+
+    // Une carte suivie passe sous le prix cible : le résumé la signale, dans la langue de chaque appareil, une seule fois.
+    tcgdex = fakeClient(["sv03.5-151"].map(card));
+    await call("POST", "/api/catalog/sets/sv03.5/sync", { body: {}, key: null });
+    const variantId = (await call("GET", "/api/catalog/cards?name=mew")).json.candidates[0].variants[0].id as string;
+    await call("POST", "/api/watchlist", { body: { variantId, targetCents: 500 }, key: null });
+    vanished.add(laptop.endpoint);
+    const digest = (await pcall("POST", "/api/notifications/digest")).json;
+    expect(digest).toMatchObject({ sent: 1, removed: 1, digest: { targets: [{ name: "Mew-ex", cents: 298 }] } });
+    expect(sent).toEqual([{ endpoint: phone.endpoint, body: "Mew-ex est sous votre prix cible (2,98 €)", url: "/achats" }]);
+    expect((await pcall("GET", "/api/notifications")).json.devices).toBe(1);
+    sent.length = 0;
+    expect((await pcall("POST", "/api/notifications/digest")).json).toMatchObject({ sent: 0 });
+
+    // Préférence coupée : plus d'alerte de carte suivie.
+    await call("PUT", "/api/app-settings", { body: { notifications: { sales: true, watched: false, publications: true } } });
+    expect((await pcall("GET", "/api/notifications")).json.preferences.watched).toBe(false);
+
+    expect((await pcall("POST", "/api/notifications/subscriptions/remove", { endpoint: phone.endpoint })).json).toEqual({ devices: 0 });
+  });
+});
+
+describe("database outages", () => {
+  /** Base factice : les `failures` premiers appels échouent comme une connexion qui n'aboutit pas. */
+  function flakySql(failures: number) {
+    let calls = 0;
+    const fake = ((strings: TemplateStringsArray, ...values: unknown[]) => {
+      calls++;
+      if (calls <= failures) return Promise.reject(Object.assign(new Error("write CONNECT_TIMEOUT"), { code: "CONNECT_TIMEOUT" }));
+      return sql(strings, ...(values as never[]));
+    }) as unknown as typeof sql;
+    return { fake, calls: () => calls };
+  }
+
+  it("retries a read when the database does not answer, then reports it as unavailable", async () => {
+    const once = flakySql(1);
+    const recovering = createApp({ sql: once.fake, token: TOKEN, recognizer: () => ({ recognize: (image) => recognize(image) }), photos: createMemoryPhotoStore(), onError: () => undefined });
+    const ok = await recovering.request("/api/health");
+    expect([ok.status, once.calls()]).toEqual([200, 2]);
+
+    const down = flakySql(Infinity);
+    const outage = createApp({ sql: down.fake, token: TOKEN, recognizer: () => ({ recognize: (image) => recognize(image) }), photos: createMemoryPhotoStore(), onError: () => undefined });
+    const failed = await outage.request("/api/health");
+    expect(failed.status).toBe(503);
+    expect(((await failed.json()) as { error: { code: string } }).error.code).toBe("DATABASE_UNAVAILABLE");
+    expect(down.calls()).toBe(3); // la lecture et deux nouvelles tentatives
+  });
+});
+
 describe("authentication", () => {
   it("leaves only the health check open", async () => {
     expect((await call("GET", "/api/health", { token: null })).json).toEqual({ status: "ok" });
@@ -478,7 +562,7 @@ describe("purchases", () => {
 
 describe("application settings", () => {
   it("remembers the onboarding progress and the way cards come in", async () => {
-    const blank = { slipPaper: "ROLL_80", seller: { name: "", address: "", legal: "" } };
+    const blank = { slipPaper: "ROLL_80", seller: { name: "", address: "", legal: "" }, notifications: { sales: true, watched: true, publications: true } };
     expect((await call("GET", "/api/app-settings")).json).toEqual({ onboardingDone: false, intakeMode: null, ...blank });
     expect((await call("PUT", "/api/app-settings", { body: { intakeMode: "CAMERA" } })).json).toEqual({ onboardingDone: false, intakeMode: "CAMERA", ...blank });
     expect((await call("PUT", "/api/app-settings", { body: { onboardingDone: true } })).json).toEqual({ onboardingDone: true, intakeMode: "CAMERA", ...blank });

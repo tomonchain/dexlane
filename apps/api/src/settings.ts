@@ -1,4 +1,5 @@
 import type { Db } from "@dexlane/db";
+import { DEFAULT_NOTIFICATION_PREFERENCES, type NotificationPreferences } from "./notifications";
 
 /** Comment les cartes entrent : scanner à défilement, appareil photo du téléphone, ou fichiers déjà pris. */
 export type IntakeMode = "SCANNER" | "CAMERA" | "FILES";
@@ -21,13 +22,21 @@ export interface AppSettings {
   intakeMode: IntakeMode | null;
   slipPaper: SlipPaper;
   seller: Seller;
+  /** Ce qui mérite une notification sur le téléphone. */
+  notifications: NotificationPreferences;
 }
 
-const DEFAULTS: AppSettings = { onboardingDone: false, intakeMode: null, slipPaper: "ROLL_80", seller: { name: "", address: "", legal: "" } };
+const DEFAULTS: AppSettings = {
+  onboardingDone: false, intakeMode: null, slipPaper: "ROLL_80", seller: { name: "", address: "", legal: "" }, notifications: DEFAULT_NOTIFICATION_PREFERENCES,
+};
 
 export async function getAppSettings(sql: Db): Promise<AppSettings> {
   const [row] = await sql<{ settings: Partial<AppSettings> }[]>`select settings from app_settings`;
-  return { ...DEFAULTS, ...row?.settings, seller: { ...DEFAULTS.seller, ...row?.settings.seller } };
+  return {
+    ...DEFAULTS, ...row?.settings,
+    seller: { ...DEFAULTS.seller, ...row?.settings.seller },
+    notifications: { ...DEFAULTS.notifications, ...row?.settings.notifications },
+  };
 }
 
 export async function saveAppSettings(sql: Db, change: Partial<AppSettings>): Promise<AppSettings> {

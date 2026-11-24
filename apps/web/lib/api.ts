@@ -4,6 +4,7 @@ import type {
   OfferPricing, OrderDetail, PriceHistory, OrderList, OrderStage, PricingSettings, ShippingCosts, ShippingRun, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
   PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockFacets, StockPage, StockStatus, StoredPhoto, VariantQuote,
 } from "./types";
+import { clearCache } from "./cache";
 import { t } from "./i18n";
 
 export class ApiError extends Error {
@@ -46,12 +47,14 @@ async function request<T>(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", p
     throw new ApiError(0, "NETWORK", t("Connexion impossible. Vérifiez le réseau puis réessayez."));
   }
   if (res.status === 401) {
+    clearCache();
     window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
     throw new ApiError(401, "UNAUTHORIZED", t("Session expirée."));
   }
   const data = (await res.json().catch(() => null)) as { error?: { code: string; message: string; details?: unknown } } | null;
   if (!res.ok) {
     const e = data?.error;
+    if (e?.code === "DATABASE_UNAVAILABLE") throw new ApiError(res.status, e.code, t("La base de données ne répond pas pour l'instant. Réessayez dans quelques secondes."));
     throw new ApiError(res.status, e?.code ?? "HTTP_ERROR", e?.message ?? t("Erreur {status}", { status: res.status }), e?.details);
   }
   return data as T;
@@ -111,6 +114,11 @@ export const api = {
     request<{ items: ListingOffer[]; total: number }>("GET", "/listings/offers", { query: q }),
 
   appSettings: () => request<AppSettings>("GET", "/app-settings"),
+  notifications: () => request<{ publicKey: string; devices: number; preferences: { sales: boolean; watched: boolean; publications: boolean } }>("GET", "/notifications"),
+  subscribePush: (subscription: { endpoint: string; keys: { p256dh: string; auth: string }; locale: "fr" | "en" }) =>
+    request<{ devices: number }>("POST", "/notifications/subscriptions", { json: subscription }),
+  unsubscribePush: (endpoint: string) => request<{ devices: number }>("POST", "/notifications/subscriptions/remove", { json: { endpoint } }),
+  testPush: () => request<{ sent: number; removed: number; failed: number }>("POST", "/notifications/test"),
   saveAppSettings: (change: Partial<AppSettings>) => request<AppSettings>("PUT", "/app-settings", { json: change }),
 
   schedule: () => request<Schedule>("GET", "/publications"),
@@ -249,7 +257,10 @@ export const api = {
   /** Première connexion ou mot de passe oublié : le jeton d'installation autorise à définir le mot de passe. */
   setPassword: (setupToken: string, newPassword: string) => auth("POST", { setupToken, newPassword }),
   changePassword: (currentPassword: string, newPassword: string) => auth("PUT", { currentPassword, newPassword }),
-  logout: () => fetch("/auth", { method: "DELETE" }),
+  logout: () => {
+    clearCache(); // les données de ce compte ne restent pas sur l'appareil
+    return fetch("/auth", { method: "DELETE" });
+  },
 };
 
 /**
