@@ -1,13 +1,16 @@
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
 
 /**
- * Session du navigateur : un cookie httpOnly signé par le serveur web, illisible et infalsifiable côté page.
- * Il ne contient ni le mot de passe ni le jeton d'API, seulement le compte et la « version de session » en vigueur à la
- * connexion ; l'API refuse une version périmée, ce qui déconnecte tous les appareils au changement de mot de passe.
+ * Les sessions sont tenues par BetterAuth, dans l'API : un cookie httpOnly dont seule l'API connaît la valeur. Le
+ * serveur web ne fait que regarder s'il est présent (pour choisir entre la landing et l'application) ; c'est l'API qui
+ * le vérifie à chaque requête.
  */
-export const SESSION_COOKIE = "dexlane_session";
-export const SESSION_MAX_AGE_S = 30 * 24 * 3600;
+const SESSION_COOKIES = ["dexlane.session_token", "__Secure-dexlane.session_token"];
+
+/** Un cookie de session est-il présenté ? Indication seulement : sa validité est vérifiée par l'API. */
+export const hasSessionCookie = (cookies: { get(name: string): { value: string } | undefined }) =>
+  SESSION_COOKIES.some((name) => !!cookies.get(name)?.value);
 
 export class ServerConfigError extends Error {}
 
@@ -18,42 +21,10 @@ export function serverToken(): string {
   return token;
 }
 
-const signingKey = () => createHmac("sha256", serverToken()).update("dexlane-web-session-v1").digest();
-const sign = (payload: string) => createHmac("sha256", signingKey()).update(payload).digest("base64url");
 const digest = (s: string) => createHash("sha256").update(s).digest();
 
 /** Comparaison à temps constant, y compris quand les longueurs diffèrent. */
 export const secretEquals = (a: string, b: string) => timingSafeEqual(digest(a), digest(b));
-
-/** Le compte d'installation : celui des sessions ouvertes avant l'arrivée des comptes. */
-export const OWNER_ACCOUNT_ID = "00000000-0000-0000-0000-000000000001";
-
-export interface Session {
-  sessionVersion: number;
-  accountId: string;
-}
-
-export function issueSession(sessionVersion: number, accountId: string): string {
-  const payload = Buffer.from(JSON.stringify({ sv: sessionVersion, acc: accountId, exp: Math.floor(Date.now() / 1000) + SESSION_MAX_AGE_S })).toString("base64url");
-  return `v1.${payload}.${sign(payload)}`;
-}
-
-export function readSession(req: NextRequest): Session | null {
-  return parseSession(req.cookies.get(SESSION_COOKIE)?.value);
-}
-
-/** Session portée par la valeur du cookie, si elle est authentique et non expirée. */
-export function parseSession(cookie: string | undefined): Session | null {
-  const [version, payload, signature] = (cookie ?? "").split(".");
-  if (version !== "v1" || !payload || !signature || !secretEquals(signature, sign(payload))) return null;
-  try {
-    const { sv, acc, exp } = JSON.parse(Buffer.from(payload, "base64url").toString()) as { sv?: unknown; acc?: unknown; exp?: unknown };
-    if (typeof sv !== "number" || typeof exp !== "number" || exp < Date.now() / 1000) return null;
-    return { sessionVersion: sv, accountId: typeof acc === "string" ? acc : OWNER_ACCOUNT_ID };
-  } catch {
-    return null;
-  }
-}
 
 export const jsonError = (status: number, code: string, message: string, details?: unknown) =>
   Response.json({ error: { code, message, ...(details === undefined ? {} : { details }) } }, { status });

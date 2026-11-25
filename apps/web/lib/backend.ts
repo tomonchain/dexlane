@@ -7,23 +7,23 @@ import { serverToken } from "./session";
  * - `DEXLANE_API_URL` défini : l'API tourne à part (apps/api), on la joint en HTTP ;
  * - sinon : l'API est embarquée dans ce serveur Next (un seul déploiement, p. ex. Vercel) et lit
  *   `DATABASE_URL` et les identifiants Anthropic directement.
- * Dans les deux cas le serveur web s'authentifie avec `DEXLANE_API_TOKEN`. `sessionVersion` accompagne les
- * appels faits pour une session navigateur : l'API rejette une session antérieure au mot de passe courant.
+ * Dans les deux cas le serveur web s'authentifie avec `DEXLANE_API_TOKEN`. Pour un navigateur, il transmet son cookie
+ * de session : c'est l'API (BetterAuth) qui dit de quel compte il s'agit.
  */
 export async function callApi(
   pathAndQuery: string,
-  init: { method?: string; headers?: Headers; body?: ArrayBuffer | string; sessionVersion?: number; accountId?: string } = {},
+  init: { method?: string; headers?: Headers; body?: ArrayBuffer | string; accountId?: string } = {},
 ): Promise<Response> {
   const headers = new Headers(init.headers);
   headers.set("Authorization", `Bearer ${serverToken()}`);
-  if (init.sessionVersion !== undefined) headers.set("X-Dexlane-Session-Version", String(init.sessionVersion));
   // Le compte pour lequel l'API travaille : elle cloisonne ses données. Sans lui, c'est le compte d'installation.
   if (init.accountId !== undefined) headers.set("X-Dexlane-Account", init.accountId);
   if (typeof init.body === "string") headers.set("Content-Type", "application/json");
   const request = { method: init.method ?? "GET", headers, body: init.body };
 
   const remote = process.env.DEXLANE_API_URL;
-  if (remote) return fetch(new URL(pathAndQuery, remote), { ...request, cache: "no-store" });
+  // Les redirections (lien de vérification d'adresse) sont rendues telles quelles au navigateur.
+  if (remote) return fetch(new URL(pathAndQuery, remote), { ...request, cache: "no-store", redirect: "manual" });
   const app = await embeddedApp();
   return app.fetch(new Request(new URL(pathAndQuery, "http://dexlane.internal"), request));
 }

@@ -1,82 +1,51 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { authApi as api, withSession, type Granted } from "@/lib/auth-server";
-import { SESSION_COOKIE, ServerConfigError, isSameOrigin, jsonError, readSession, secretEquals, serverToken, type Session } from "@/lib/session";
+import type { NextRequest } from "next/server";
+import { callApi } from "@/lib/backend";
+import { ServerConfigError, hasSessionCookie, isSameOrigin, jsonError, secretEquals, serverToken } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
+type ApiError = { error?: { code?: string; message?: string; details?: unknown } };
+
+async function api<T>(path: string, init?: Parameters<typeof callApi>[1]): Promise<{ ok: true; data: T } | { ok: false; response: Response }> {
+  let res: Response;
+  try {
+    res = await callApi(path, init);
+  } catch (e) {
+    if (e instanceof ServerConfigError) return { ok: false, response: jsonError(500, "SERVER_MISCONFIGURED", e.message) };
+    console.error(e);
+    return { ok: false, response: jsonError(502, "API_UNREACHABLE", "the dexlane API is not reachable") };
+  }
+  const data = (await res.json().catch(() => null)) as (T & ApiError) | null;
+  if (res.ok && data) return { ok: true, data };
+  const error = data?.error;
+  return { ok: false, response: jsonError(res.status >= 400 ? res.status : 502, error?.code ?? "API_ERROR", error?.message ?? `the dexlane API answered ${res.status}`, error?.details) };
+}
+
 /**
- * État de l'écran de connexion : le compte d'installation a-t-il déjà un mot de passe ? Avec une session ouverte (un
- * compte inscrit), la question ne se pose pas : l'assistant de démarrage n'a pas de compte à créer.
+ * L'installation a-t-elle déjà son propriétaire ? Sinon, l'assistant de démarrage le crée. Avec une session ouverte (un
+ * compte inscrit), la question ne se pose pas.
  */
 export async function GET(req: NextRequest): Promise<Response> {
-  try {
-    if (readSession(req)) return Response.json({ passwordSet: true });
-  } catch {
-    // serveur sans jeton configuré : l'appel à l'API ci-dessous le signalera
-  }
-  const status = await api<{ passwordSet: boolean }>("/api/auth/status");
+  if (hasSessionCookie(req.cookies)) return Response.json({ passwordSet: true });
+  const status = await api<{ passwordSet: boolean }>("/api/setup/status");
   return status.ok ? Response.json({ passwordSet: status.data.passwordSet }) : status.response;
 }
 
 /**
- * Connexion : `{ email, password }`, ou `{ password }` seul pour le compte d'installation.
- * Première connexion ou mot de passe oublié : `{ setupToken, newPassword }`, où le jeton d'installation est
- * `DEXLANE_API_TOKEN` — la preuve qu'on administre le serveur.
+ * Propriétaire de l'installation : `{ setupToken, email, newPassword }`. Le jeton d'installation (`DEXLANE_API_TOKEN`)
+ * prouve qu'on administre le serveur : il crée le propriétaire à la première connexion, et sert de clé de secours pour
+ * remplacer son adresse et son mot de passe. La connexion elle-même passe ensuite par /api/auth/sign-in/email.
  */
 export async function POST(req: NextRequest): Promise<Response> {
   if (!isSameOrigin(req)) return jsonError(403, "CROSS_ORIGIN", "cross-origin request refused");
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const text = (key: string) => (typeof body?.[key] === "string" ? (body[key] as string) : "");
-
-  if (text("setupToken") || text("newPassword")) {
-    try {
-      if (!secretEquals(text("setupToken").trim(), serverToken())) return jsonError(401, "INVALID_SETUP_TOKEN", "invalid setup token");
-    } catch (e) {
-      if (e instanceof ServerConfigError) return jsonError(500, "SERVER_MISCONFIGURED", e.message);
-      throw e;
-    }
-    const reset = await api<Granted>("/api/auth/password/reset", {
-      method: "POST",
-      body: JSON.stringify({ newPassword: text("newPassword") }),
-    });
-    return reset.ok ? withSession(req, reset.data) : reset.response;
-  }
-
-  if (!text("password")) return jsonError(400, "PASSWORD_REQUIRED", "password is required");
-  const email = text("email").trim();
-  const verified = await api<Granted>("/api/auth/password/verify", {
-    method: "POST",
-    body: JSON.stringify({ password: text("password"), ...(email ? { email } : {}) }),
-  });
-  return verified.ok ? withSession(req, verified.data) : verified.response;
-}
-
-/** Changement de mot de passe depuis une session ouverte ; la session courante est renouvelée, les autres tombent. */
-export async function PUT(req: NextRequest): Promise<Response> {
-  if (!isSameOrigin(req)) return jsonError(403, "CROSS_ORIGIN", "cross-origin request refused");
-  let session: Session | null;
   try {
-    session = readSession(req);
-    if (!session) return jsonError(401, "UNAUTHORIZED", "session expired");
+    if (!secretEquals(text("setupToken").trim(), serverToken())) return jsonError(401, "INVALID_SETUP_TOKEN", "invalid setup token");
   } catch (e) {
     if (e instanceof ServerConfigError) return jsonError(500, "SERVER_MISCONFIGURED", e.message);
     throw e;
   }
-  const body = (await req.json().catch(() => null)) as { currentPassword?: unknown; newPassword?: unknown } | null;
-  if (typeof body?.currentPassword !== "string" || typeof body.newPassword !== "string") {
-    return jsonError(400, "PASSWORD_REQUIRED", "currentPassword and newPassword are required");
-  }
-  const changed = await api<Granted>("/api/auth/password/change", {
-    method: "POST",
-    accountId: session.accountId,
-    body: JSON.stringify({ currentPassword: body.currentPassword, newPassword: body.newPassword }),
-  });
-  return changed.ok ? withSession(req, changed.data) : changed.response;
-}
-
-export async function DELETE(req: NextRequest): Promise<Response> {
-  if (!isSameOrigin(req)) return jsonError(403, "CROSS_ORIGIN", "cross-origin request refused");
-  const res = NextResponse.json({ ok: true });
-  res.cookies.delete(SESSION_COOKIE);
-  return res;
+  const done = await api<{ ok: true }>("/api/setup/owner", { method: "POST", body: JSON.stringify({ email: text("email"), password: text("newPassword") }) });
+  return done.ok ? Response.json({ ok: true }) : done.response;
 }

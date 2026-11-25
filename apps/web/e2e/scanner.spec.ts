@@ -1,6 +1,6 @@
 import { deflateSync, crc32 } from "node:zlib";
 import { expect, test, type Page } from "@playwright/test";
-import { E2E_API_PORT, E2E_PASSWORD, E2E_TOKEN } from "./constants";
+import { E2E_API_PORT, E2E_EMAIL, E2E_PASSWORD, E2E_TOKEN } from "./constants";
 
 /** PNG valide de la largeur voulue : la largeur choisit le scénario du lecteur factice (e2e/harness.ts). */
 function png(width: number, height = 14): Buffer {
@@ -35,9 +35,10 @@ const takePhoto = (page: Page, scenario: number) =>
 
 /** Ouvre une session ; définit le mot de passe au passage si le parcours est lancé seul sur une base neuve. */
 async function login(page: Page) {
+  // Le propriétaire de l'installation : créé avec le jeton d'installation s'il n'existe pas encore, puis connecté.
   const { passwordSet } = (await (await page.request.get("/auth")).json()) as { passwordSet: boolean };
-  const data = passwordSet ? { password: E2E_PASSWORD } : { setupToken: E2E_TOKEN, newPassword: E2E_PASSWORD };
-  expect((await page.request.post("/auth", { data })).ok()).toBe(true);
+  if (!passwordSet) expect((await page.request.post("/auth", { data: { setupToken: E2E_TOKEN, email: E2E_EMAIL, newPassword: E2E_PASSWORD } })).ok()).toBe(true);
+  expect((await page.request.post("/api/auth/sign-in/email", { data: { email: E2E_EMAIL, password: E2E_PASSWORD } })).ok()).toBe(true);
   // L'assistant de démarrage a son propre parcours : ailleurs, il est considéré comme terminé.
   expect((await page.request.put("/api/app-settings", { data: { onboardingDone: true } })).ok()).toBe(true);
 }
@@ -74,6 +75,7 @@ test("première utilisation : l'assistant crée le compte, règle le scan, impor
 
   // 1. Compte : un mauvais jeton est refusé, le bon crée le compte.
   await page.getByLabel("Jeton d'installation").fill("pas-le-bon-jeton-pas-le-bon-jeton");
+  await page.getByLabel("Adresse e-mail").fill(E2E_EMAIL);
   await page.getByLabel(/^Mot de passe/).fill(E2E_PASSWORD);
   await page.getByLabel("Confirmer le mot de passe").fill(E2E_PASSWORD);
   await page.getByRole("button", { name: "Créer mon compte" }).click();
@@ -134,7 +136,7 @@ test("première utilisation : l'assistant crée le compte, règle le scan, impor
   await page.goto("/inventory");
   await expect(page.getByRole("heading", { name: "Inventaire" })).toBeVisible();
 
-  // Déconnexion depuis le compte, puis retour par le seul mot de passe.
+  // Déconnexion depuis le compte, puis retour par l'adresse e-mail et le mot de passe.
   await page.getByTestId("more-button").click();
   await page.getByTestId("more-sheet").getByRole("link", { name: "Réglages" }).click();
   await page.getByRole("link", { name: /^Compte/ }).click();
@@ -143,9 +145,10 @@ test("première utilisation : l'assistant crée le compte, règle le scan, impor
   await expect(page.getByRole("heading", { name: "Connexion" })).toBeVisible();
   await expect(page.getByLabel("Jeton d'installation")).toHaveCount(0);
 
+  await page.getByLabel("Adresse e-mail").fill(E2E_EMAIL);
   await page.getByLabel("Mot de passe", { exact: true }).fill("ce-n-est-pas-ca");
   await page.getByRole("button", { name: "Se connecter" }).click();
-  await expect(errorBanner(page)).toHaveText("Mot de passe incorrect.");
+  await expect(errorBanner(page)).toHaveText("Adresse e-mail ou mot de passe incorrect.");
   await page.getByLabel("Mot de passe", { exact: true }).fill(E2E_PASSWORD);
   await page.getByRole("button", { name: "Se connecter" }).click();
   await expect(page.getByRole("heading", { name: "Aujourd'hui" })).toBeVisible();
@@ -1159,7 +1162,7 @@ test("inscription : compte créé depuis /signup, adresse vérifiée par le lien
     headers: { "Idempotency-Key": `e2e-inscription-${Date.now()}` },
   });
   expect(((await (await page.request.get("/api/stock")).json()) as { items: unknown[] }).items.length).toBeGreaterThan(0);
-  await page.request.delete("/auth");
+  await page.request.post("/api/auth/sign-out", { data: {} });
 
   const email = `vendeur-${Date.now()}@example.com`;
   const password = "mot-de-passe-vendeur";
@@ -1183,19 +1186,21 @@ test("inscription : compte créé depuis /signup, adresse vérifiée par le lien
   await page.getByRole("button", { name: "Se connecter" }).click();
   await expect(errorBanner(page)).toContainText("n'a pas encore été vérifiée");
 
-  // Le lien reçu ouvre le compte : l'assistant de démarrage, sans compte à créer, et un stock vide.
+  // Le lien reçu vérifie l'adresse et ouvre le compte : l'assistant de démarrage, sans compte à créer, et un stock vide.
   const verification = await lastMail(page, email);
   expect(verification.subject).toBe("Confirme ton adresse e-mail");
+  expect(verification.path).toContain("/api/auth/verify-email?token=");
   await page.goto(verification.path);
   await page.waitForURL(/\/welcome$/);
   await expect(page.getByLabel("Jeton d'installation")).toHaveCount(0);
-  expect((await (await page.request.get("/api/account")).json()) as { email: string; plan: string }).toMatchObject({ email, plan: "solo" });
+  expect((await (await page.request.get("/api/account")).json()) as { email: string; plan: string }).toMatchObject({ email, plan: "solo", role: "user" });
   expect(((await (await page.request.get("/api/stock")).json()) as { items: unknown[] }).items).toEqual([]);
   expect((await page.request.put("/api/app-settings", { data: { onboardingDone: true } })).ok()).toBe(true);
-  // Le lien ne sert qu'une fois.
-  await page.request.delete("/auth");
+  // Une fois l'adresse vérifiée, le lien n'ouvre plus de session.
+  await page.request.post("/api/auth/sign-out", { data: {} });
   await page.goto(verification.path);
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ce lien n'est plus valable");
+  await page.goto("/stock");
+  await page.waitForURL(/\/login/);
 
   // Connexion par adresse e-mail et mot de passe.
   await page.goto("/login");
@@ -1203,7 +1208,7 @@ test("inscription : compte créé depuis /signup, adresse vérifiée par le lien
   await page.getByLabel("Mot de passe", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Se connecter" }).click();
   await expect(page.getByRole("heading", { name: "Aujourd'hui" })).toBeVisible();
-  await page.request.delete("/auth");
+  await page.request.post("/api/auth/sign-out", { data: {} });
 
   // Mot de passe oublié : lien par e-mail, nouveau mot de passe, session ouverte.
   await page.goto("/login");
@@ -1215,8 +1220,14 @@ test("inscription : compte créé depuis /signup, adresse vérifiée par le lien
   const reset = await lastMail(page, email);
   expect(reset.subject).toBe("Réinitialise ton mot de passe");
   await page.goto(reset.path);
+  await page.waitForURL(/\/reset-password\?token=/);
   await page.getByLabel(/^Nouveau mot de passe/).fill("nouveau-mot-de-passe-vendeur");
-  await page.getByRole("button", { name: "Enregistrer et me connecter" }).click();
+  await page.getByRole("button", { name: "Enregistrer le mot de passe" }).click();
+  // Le nouveau mot de passe ferme les sessions : on se connecte avec lui, et on retrouve son stock, toujours vide.
+  await page.waitForURL(/\/login$/);
+  await page.getByLabel("Adresse e-mail").fill(email);
+  await page.getByLabel("Mot de passe", { exact: true }).fill("nouveau-mot-de-passe-vendeur");
+  await page.getByRole("button", { name: "Se connecter" }).click();
   await expect(page.getByRole("heading", { name: "Aujourd'hui" })).toBeVisible();
   expect(((await (await page.request.get("/api/stock")).json()) as { items: unknown[] }).items).toEqual([]);
 });

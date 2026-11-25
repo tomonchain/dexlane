@@ -30,7 +30,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   // Chaque compte actif a ses cartes, son planning, ses canaux et ses abonnements : la tâche tourne pour chacun.
   let accountIds: string[];
   try {
-    const res = await callApi("/api/auth/accounts");
+    const res = await callApi("/api/accounts/active");
     accountIds = ((await res.json()) as { accountIds: string[] }).accountIds;
   } catch (e) {
     console.error(e);

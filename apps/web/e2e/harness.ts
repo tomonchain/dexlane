@@ -11,7 +11,7 @@ import { createDb } from "@dexlane/db";
 import { prepareTestDatabase, testDatabaseUrl } from "@dexlane/db/testing";
 import type { CardReadingRaw, CardRecognizer } from "@dexlane/scan";
 import { card, fakeClient } from "../../../packages/catalog/test/fixtures";
-import { E2E_API_PORT, E2E_TOKEN } from "./constants";
+import { E2E_API_PORT, E2E_TOKEN, E2E_WEB_PORT } from "./constants";
 
 
 const clear: CardReadingRaw = {
@@ -64,6 +64,8 @@ await sql`
 const mails: { to: string; subject: string; text: string }[] = [];
 const app = createApp({
   sql, token: E2E_TOKEN, recognizer: () => recognizer, tcgdex: () => client, photos: createMemoryPhotoStore(),
+  // BetterAuth : sa propre connexion à la base de test, et l'adresse du site servi par Next pour les liens des e-mails.
+  databaseUrl: testDatabaseUrl("web"), baseUrl: `http://127.0.0.1:${E2E_WEB_PORT}`,
   mailer: { send: async (mail) => void mails.push({ to: mail.to, subject: mail.subject, text: mail.text }) }, onError: () => undefined,
 });
 

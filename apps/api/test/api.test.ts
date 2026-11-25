@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { syncSet, type TcgdexClient } from "@dexlane/catalog";
 import { OWNER_ACCOUNT_ID } from "@dexlane/db";
-import { useTestDb } from "@dexlane/db/testing";
+import { testDatabaseUrl, useTestDb } from "@dexlane/db/testing";
 import type { CardReadingRaw, CardRecognizer } from "@dexlane/scan";
 import { card, fakeClient } from "../../../packages/catalog/test/fixtures";
 import { createApp } from "../src/app";
@@ -1155,57 +1155,6 @@ describe("direct sales", () => {
   });
 });
 
-describe("owner password", () => {
-  const post = (path: string, body: unknown, headers?: Record<string, string>) => call("POST", `/api/auth/password/${path}`, { body, key: null, headers });
-
-  it("is set with the token, then verified, changed, and invalidates older sessions", async () => {
-    expect((await call("GET", "/api/auth/status")).json).toEqual({ passwordSet: false });
-    expect((await post("verify", { password: "peu importe" })).json.error.code).toBe("PASSWORD_NOT_SET");
-    expect((await post("reset", { newPassword: "court" })).json.error.code).toBe("WEAK_PASSWORD");
-
-    const set = await post("reset", { newPassword: "premier-secret" });
-    expect([set.status, set.json]).toEqual([200, { accountId: OWNER_ACCOUNT_ID, sessionVersion: 1 }]);
-    expect((await call("GET", "/api/auth/status")).json).toEqual({ passwordSet: true });
-    expect((await post("verify", { password: "premier-secret" })).json).toEqual({ accountId: OWNER_ACCOUNT_ID, sessionVersion: 1 });
-
-    const wrong = await post("change", { currentPassword: "mauvais", newPassword: "deuxieme-secret" });
-    expect([wrong.status, wrong.json.error.code]).toEqual([401, "INVALID_PASSWORD"]);
-    expect((await post("change", { currentPassword: "premier-secret", newPassword: "deuxieme-secret" })).json).toEqual({ accountId: OWNER_ACCOUNT_ID, sessionVersion: 2 });
-    expect((await post("verify", { password: "premier-secret" })).status).toBe(401);
-    expect((await post("verify", { password: "deuxieme-secret" })).json).toEqual({ accountId: OWNER_ACCOUNT_ID, sessionVersion: 2 });
-
-    // Une session ouverte avant le changement n'est plus acceptée ; un appel direct par jeton l'est toujours.
-    const stale = await call("GET", "/api/inventory", { headers: { "X-Dexlane-Session-Version": "1" } });
-    expect([stale.status, stale.json.error.code]).toEqual([401, "SESSION_EXPIRED"]);
-    expect((await call("GET", "/api/inventory", { headers: { "X-Dexlane-Session-Version": "2" } })).status).toBe(200);
-    expect((await call("GET", "/api/inventory")).status).toBe(200);
-    expect(await count("audit_events")).toBe(2);
-    const [stored] = await sql<{ passwordHash: string }[]>`select password_hash from accounts`;
-    expect(stored!.passwordHash).toMatch(/^scrypt\$/);
-    expect(stored!.passwordHash).not.toContain("deuxieme-secret");
-  });
-
-  it("locks out after repeated failures, even for the right password, until the delay has passed", async () => {
-    await post("reset", { newPassword: "bon-mot-de-passe" });
-    for (let i = 0; i < 4; i++) expect((await post("verify", { password: `essai-${i}` })).status).toBe(401);
-    const fifth = await post("verify", { password: "essai-5" });
-    expect(fifth.json.error).toMatchObject({ code: "INVALID_PASSWORD", details: { retryAfterS: 30 } });
-
-    const locked = await post("verify", { password: "bon-mot-de-passe" });
-    expect([locked.status, locked.json.error.code]).toEqual([429, "TOO_MANY_ATTEMPTS"]);
-    expect(locked.json.error.details.retryAfterS).toBeGreaterThan(0);
-
-    await sql`update accounts set locked_until = now() - interval '1 second'`;
-    expect((await post("verify", { password: "bon-mot-de-passe" })).status).toBe(200);
-    expect((await sql`select failed_attempts, locked_until from accounts`)[0]).toEqual({ failedAttempts: 0, lockedUntil: null });
-
-    // Le jeton reste la clé de secours : il réinitialise le mot de passe et lève le verrou.
-    for (let i = 0; i < 5; i++) await post("verify", { password: "non" });
-    expect((await post("reset", { newPassword: "nouveau-depart" })).status).toBe(200);
-    expect((await post("verify", { password: "nouveau-depart" })).status).toBe(200);
-  });
-});
-
 describe("locations", () => {
   it("creates a series at once, edits a description, and only deletes unused leaves", async () => {
     const batch = await call("POST", "/api/locations/batch", { body: { codes: ["box-01/row-01", "BOX-01/ROW-02", "BOX-01/ROW-02"] }, key: null });
@@ -1393,120 +1342,163 @@ describe("scan upload", () => {
 
 describe("accounts", () => {
   const mails: Mail[] = [];
+  const BASE = "https://dexlane.test";
   const accountsApp = createApp({
     sql, token: TOKEN, recognizer: () => ({ recognize: (image) => recognize(image) }), tcgdex: () => tcgdex, photos: createMemoryPhotoStore(),
+    databaseUrl: testDatabaseUrl("api"), baseUrl: BASE,
     mailer: { send: async (mail) => void mails.push(mail) }, onError: (e) => errors.push(e),
   });
-  const BASE = "https://dexlane.test";
   let seq = 0;
-  async function as(accountId: string | null, method: string, path: string, body?: unknown) {
-    const headers: Record<string, string> = { Authorization: `Bearer ${TOKEN}` };
-    if (accountId) headers["X-Dexlane-Account"] = accountId;
-    if (method === "POST") headers["Idempotency-Key"] = `acc-key-${++seq}`;
-    if (body !== undefined) headers["Content-Type"] = "application/json";
-    const res = await accountsApp.request(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  /** Requête du serveur web : pour un navigateur (`cookie`), ou en son nom propre. */
+  async function req(method: string, path: string, opts: { body?: unknown; cookie?: string; account?: string } = {}) {
+    const headers: Record<string, string> = { Authorization: `Bearer ${TOKEN}`, Origin: BASE };
+    if (opts.cookie !== undefined) Object.assign(headers, { Cookie: opts.cookie, "X-Dexlane-Browser": "1" });
+    if (opts.account) headers["X-Dexlane-Account"] = opts.account;
+    if (method === "POST" && !path.startsWith("/api/auth/")) headers["Idempotency-Key"] = `acc-key-${++seq}`;
+    if (opts.body !== undefined) headers["Content-Type"] = "application/json";
+    const res = await accountsApp.request(path, { method, headers, body: opts.body === undefined ? undefined : JSON.stringify(opts.body), redirect: "manual" });
+    const cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return { status: res.status, json: (await res.json()) as any };
+    return { status: res.status, cookie, location: res.headers.get("location"), json: (await res.json().catch(() => null)) as any };
   }
-  const tokenIn = (mail: Mail) => new URL(mail.text.match(/https:\/\/\S+/)![0]).searchParams.get("token")!;
+  const linkIn = (mail: Mail) => {
+    const url = new URL(mail.text.match(/https:\/\/\S+/)![0]);
+    return url.pathname + url.search;
+  };
   beforeEach(() => void (mails.length = 0));
 
-  async function register(email: string, password = "un-bon-mot-de-passe"): Promise<string> {
-    expect((await as(null, "POST", "/api/auth/signup", { email, password, baseUrl: BASE, plan: "solo", code: "FLYER" })).json).toEqual({ ok: true });
-    const verified = await as(null, "POST", "/api/auth/email/verify", { token: tokenIn(mails.at(-1)!) });
-    expect(verified.status).toBe(200);
-    return verified.json.accountId as string;
+  /** Inscription complète : le lien reçu vérifie l'adresse et ouvre la session. */
+  async function register(email: string, password = "un-bon-mot-de-passe", extra: Record<string, string> = {}): Promise<{ cookie: string; accountId: string }> {
+    const signup = await req("POST", "/api/auth/sign-up/email", { body: { name: email.split("@")[0], email, password, callbackURL: "/signup/verify", ...extra } });
+    expect(signup.status).toBe(200);
+    const verified = await req("GET", linkIn(mails.at(-1)!));
+    expect(verified.status).toBe(302);
+    const account = await req("GET", "/api/account", { cookie: verified.cookie });
+    expect(account.status).toBe(200);
+    return { cookie: verified.cookie, accountId: account.json.accountId };
   }
 
+  it("sets up the installation owner with the setup flow, as an administrator on the installation account", async () => {
+    expect((await req("GET", "/api/setup/status")).json).toEqual({ passwordSet: false });
+    expect((await req("POST", "/api/setup/owner", { body: { email: "proprio@example.com", password: "court" } })).json.error.code).toBe("WEAK_PASSWORD");
+    expect((await req("POST", "/api/setup/owner", { body: { email: "Proprio@Example.com", password: "premier-secret" } })).json).toEqual({ ok: true });
+    expect((await req("GET", "/api/setup/status")).json).toEqual({ passwordSet: true });
+    expect(mails).toHaveLength(0);
+
+    const signedIn = await req("POST", "/api/auth/sign-in/email", { body: { email: "proprio@example.com", password: "premier-secret" } });
+    expect(signedIn.status).toBe(200);
+    expect((await req("GET", "/api/account", { cookie: signedIn.cookie })).json).toEqual({ accountId: OWNER_ACCOUNT_ID, email: "proprio@example.com", role: "admin", plan: null });
+    expect((await req("POST", "/api/auth/sign-in/email", { body: { email: "proprio@example.com", password: "mauvais-secret" } })).status).toBe(401);
+
+    // Clé de secours : le même flux remplace l'adresse et le mot de passe, et ferme les sessions ouvertes.
+    expect((await req("POST", "/api/setup/owner", { body: { email: "nouveau@example.com", password: "deuxieme-secret" } })).status).toBe(200);
+    expect((await req("GET", "/api/stock", { cookie: signedIn.cookie })).status).toBe(401);
+    expect((await req("POST", "/api/auth/sign-in/email", { body: { email: "nouveau@example.com", password: "deuxieme-secret" } })).status).toBe(200);
+    expect(await sql`select count(*)::int as n from auth_users`).toEqual([{ n: 1 }]);
+    // Le navigateur ne peut pas appeler l'installation lui-même.
+    expect((await req("POST", "/api/setup/owner", { body: { email: "x@example.com", password: "troisieme-secret" }, cookie: "" })).status).toBeGreaterThanOrEqual(401);
+  });
+
   it("signs up with an email link, refuses to sign in before verification, and never reveals which emails exist", async () => {
-    expect((await as(null, "POST", "/api/auth/signup", { email: "  Camille@Example.com ", password: "un-bon-mot-de-passe", baseUrl: BASE })).json).toEqual({ ok: true });
+    const signup = await req("POST", "/api/auth/sign-up/email", { body: { name: "Camille", email: "Camille@Example.com", password: "un-bon-mot-de-passe", callbackURL: "/signup/verify", plan: "solo", signupCode: "FLYER" } });
+    expect(signup.status).toBe(200);
     expect(mails).toHaveLength(1);
     expect(mails[0]).toMatchObject({ to: "camille@example.com", subject: "Confirme ton adresse e-mail" });
-    expect(mails[0]!.text).toContain(`${BASE}/signup/verify?token=`);
+    expect(mails[0]!.text).toContain(`${BASE}/api/auth/verify-email?token=`);
 
-    // Avant la vérification : le bon mot de passe ne suffit pas.
-    expect((await as(null, "POST", "/api/auth/password/verify", { email: "camille@example.com", password: "un-bon-mot-de-passe" })).json.error.code).toBe("EMAIL_NOT_VERIFIED");
-    // Un second lien n'est pas renvoyé dans la minute.
-    await as(null, "POST", "/api/auth/email/resend", { email: "camille@example.com", baseUrl: BASE });
-    expect(mails).toHaveLength(1);
+    // Avant la vérification : le bon mot de passe ne suffit pas, et un navigateur sans session n'a accès à rien.
+    const early = await req("POST", "/api/auth/sign-in/email", { body: { email: "camille@example.com", password: "un-bon-mot-de-passe" } });
+    expect([early.status, early.json.code]).toEqual([403, "EMAIL_NOT_VERIFIED"]);
+    expect((await req("GET", "/api/stock", { cookie: "" })).json.error.code).toBe("SESSION_EXPIRED");
 
-    const verified = await as(null, "POST", "/api/auth/email/verify", { token: tokenIn(mails[0]!) });
-    expect(verified.json).toEqual({ accountId: expect.stringMatching(/^[0-9a-f-]{36}$/), sessionVersion: 1 });
-    expect(verified.json.accountId).not.toBe(OWNER_ACCOUNT_ID);
-    // Le lien ne sert qu'une fois.
-    expect((await as(null, "POST", "/api/auth/email/verify", { token: tokenIn(mails[0]!) })).json.error.code).toBe("LINK_EXPIRED");
+    // Le lien vérifie l'adresse, ouvre la session et renvoie vers le site.
+    const verified = await req("GET", linkIn(mails[0]!));
+    expect([verified.status, verified.location]).toEqual([302, "/signup/verify"]);
+    const account = (await req("GET", "/api/account", { cookie: verified.cookie })).json;
+    expect(account).toEqual({ accountId: expect.stringMatching(/^[0-9a-f-]{36}$/), email: "camille@example.com", role: "user", plan: "solo" });
+    expect(account.accountId).not.toBe(OWNER_ACCOUNT_ID);
 
-    expect((await as(null, "POST", "/api/auth/password/verify", { email: "CAMILLE@example.com", password: "un-bon-mot-de-passe" })).json).toEqual(verified.json);
-    expect((await as(null, "POST", "/api/auth/password/verify", { email: "camille@example.com", password: "mauvais-mot-de-passe" })).json.error.code).toBe("INVALID_PASSWORD");
-    expect((await as(null, "POST", "/api/auth/password/verify", { email: "inconnue@example.com", password: "un-bon-mot-de-passe" })).json.error.code).toBe("INVALID_PASSWORD");
-    expect((await as(verified.json.accountId, "GET", "/api/account")).json).toMatchObject({ email: "camille@example.com", plan: null });
+    const signedIn = await req("POST", "/api/auth/sign-in/email", { body: { email: "camille@example.com", password: "un-bon-mot-de-passe" } });
+    expect(signedIn.status).toBe(200);
+    expect((await req("GET", "/api/account", { cookie: signedIn.cookie })).json.accountId).toBe(account.accountId);
+    expect((await req("POST", "/api/auth/sign-in/email", { body: { email: "camille@example.com", password: "mauvais-mot-de-passe" } })).status).toBe(401);
+    expect((await req("POST", "/api/auth/sign-in/email", { body: { email: "inconnue@example.com", password: "un-bon-mot-de-passe" } })).status).toBe(401);
 
-    // Adresse déjà inscrite : même réponse, et un e-mail qui le dit à son propriétaire ; le mot de passe ne change pas.
-    expect((await as(null, "POST", "/api/auth/signup", { email: "camille@example.com", password: "un-autre-mot-de-passe", baseUrl: BASE })).json).toEqual({ ok: true });
+    // Adresse déjà inscrite : même réponse, un e-mail qui le dit à son propriétaire, et le mot de passe ne change pas.
+    const again = await req("POST", "/api/auth/sign-up/email", { body: { name: "X", email: "camille@example.com", password: "un-autre-mot-de-passe", callbackURL: "/signup/verify" } });
+    expect(again.status).toBe(200);
     expect(mails.at(-1)).toMatchObject({ subject: "Tu as déjà un compte Dexlane" });
-    expect((await as(null, "POST", "/api/auth/password/verify", { email: "camille@example.com", password: "un-autre-mot-de-passe" })).status).toBe(401);
-    expect((await as(null, "POST", "/api/auth/signup", { email: "pas-une-adresse", password: "un-bon-mot-de-passe", baseUrl: BASE })).status).toBe(400);
-    expect((await as(null, "POST", "/api/auth/signup", { email: "court@example.com", password: "court", baseUrl: BASE })).json.error.code).toBe("WEAK_PASSWORD");
+    expect((await req("POST", "/api/auth/sign-in/email", { body: { email: "camille@example.com", password: "un-autre-mot-de-passe" } })).status).toBe(401);
+    expect((await req("POST", "/api/auth/sign-up/email", { body: { name: "X", email: "court@example.com", password: "court" } })).status).toBe(400);
+    // Déconnexion : la session ne vaut plus rien.
+    expect((await req("POST", "/api/auth/sign-out", { body: {}, cookie: signedIn.cookie })).status).toBe(200);
+    expect((await req("GET", "/api/stock", { cookie: signedIn.cookie })).status).toBe(401);
   });
 
   it("resets a forgotten password from an email link, which closes the older sessions", async () => {
-    const accountId = await register("lea@example.com");
-    await as(null, "POST", "/api/auth/password/forgot", { email: "lea@example.com", baseUrl: BASE });
+    const lea = await register("lea@example.com");
+    expect((await req("POST", "/api/auth/request-password-reset", { body: { email: "lea@example.com", redirectTo: "/reset-password" } })).status).toBe(200);
     expect(mails.at(-1)).toMatchObject({ subject: "Réinitialise ton mot de passe" });
-    expect(mails.at(-1)!.text).toContain(`${BASE}/reset-password?token=`);
     const count = mails.length;
-    await as(null, "POST", "/api/auth/password/forgot", { email: "inconnue@example.com", baseUrl: BASE });
+    expect((await req("POST", "/api/auth/request-password-reset", { body: { email: "inconnue@example.com", redirectTo: "/reset-password" } })).status).toBe(200);
     expect(mails).toHaveLength(count);
 
-    const reset = await as(null, "POST", "/api/auth/password/reset-with-token", { token: tokenIn(mails.at(-1)!), newPassword: "nouveau-mot-de-passe" });
-    expect(reset.json).toEqual({ accountId, sessionVersion: 2 });
-    expect((await as(null, "POST", "/api/auth/password/verify", { email: "lea@example.com", password: "un-bon-mot-de-passe" })).status).toBe(401);
-    expect((await as(null, "POST", "/api/auth/password/verify", { email: "lea@example.com", password: "nouveau-mot-de-passe" })).json).toEqual(reset.json);
-    // Une session ouverte avant le changement est refusée.
-    const stale = await accountsApp.request("/api/stock", { headers: { Authorization: `Bearer ${TOKEN}`, "X-Dexlane-Account": accountId, "X-Dexlane-Session-Version": "1" } });
-    expect(stale.status).toBe(401);
+    // Le lien renvoie vers la page du site avec son jeton.
+    const followed = await req("GET", linkIn(mails.at(-1)!));
+    expect(followed.status).toBe(302);
+    const token = new URL(followed.location!, BASE).searchParams.get("token")!;
+    expect(new URL(followed.location!, BASE).pathname).toBe("/reset-password");
+    expect((await req("POST", "/api/auth/reset-password", { body: { token, newPassword: "nouveau-mot-de-passe" } })).status).toBe(200);
+    expect((await req("POST", "/api/auth/sign-in/email", { body: { email: "lea@example.com", password: "un-bon-mot-de-passe" } })).status).toBe(401);
+    expect((await req("POST", "/api/auth/sign-in/email", { body: { email: "lea@example.com", password: "nouveau-mot-de-passe" } })).status).toBe(200);
+    expect((await req("GET", "/api/stock", { cookie: lea.cookie })).status).toBe(401);
+    expect((await req("POST", "/api/auth/reset-password", { body: { token, newPassword: "encore-un-mot-de-passe" } })).status).toBe(400);
   });
 
   it("keeps each account's data apart: stock, locations, settings, sales and agents", async () => {
     const [alice, bob] = [await register("alice@example.com"), await register("bob@example.com")];
-    expect((await as(null, "GET", "/api/auth/accounts")).json.accountIds).toEqual([alice, bob]);
+    expect((await req("GET", "/api/accounts/active")).json.accountIds).toEqual([alice.accountId, bob.accountId]);
+    expect((await req("GET", "/api/accounts/active", { cookie: alice.cookie })).status).toBe(403);
 
     // Le même code d'emplacement et la même carte dans deux comptes : aucune collision.
     const variantId = await fouinarReverse();
-    const stocked: Record<string, string> = {};
-    for (const [account, quantity] of [[alice, 3], [bob, 1]] as const) {
-      expect((await as(account, "POST", "/api/locations", { code: "BOX-01" })).status).toBe(201);
-      const received = await as(account, "POST", "/api/inventory/receive", { variantId, condition: "NM", quantity, locationCode: "BOX-01", unitCostCents: 10 });
+    const stocked = new Map<string, string>();
+    for (const [who, quantity] of [[alice, 3], [bob, 1]] as const) {
+      expect((await req("POST", "/api/locations", { body: { code: "BOX-01" }, cookie: who.cookie })).status).toBe(201);
+      const received = await req("POST", "/api/inventory/receive", { body: { variantId, condition: "NM", quantity, locationCode: "BOX-01", unitCostCents: 10 }, cookie: who.cookie });
       expect(received.status).toBe(201);
-      stocked[account] = received.json.offer.id;
+      stocked.set(who.accountId, received.json.offer.id);
     }
-    expect(stocked[alice]).not.toBe(stocked[bob]);
-    const stockOf = async (account: string | null) => (await as(account, "GET", "/api/stock")).json.items.map((i: { offerId: string; onHand: number }) => [i.offerId, i.onHand]);
-    expect(await stockOf(alice)).toEqual([[stocked[alice], 3]]);
-    expect(await stockOf(bob)).toEqual([[stocked[bob], 1]]);
-    // Le compte d'installation ne voit rien de tout cela, et inversement.
-    expect(await stockOf(null)).toEqual([]);
+    const [aliceOffer, bobOffer] = [stocked.get(alice.accountId)!, stocked.get(bob.accountId)!];
+    expect(aliceOffer).not.toBe(bobOffer);
+    const stockOf = async (opts: { cookie?: string }) => (await req("GET", "/api/stock", opts)).json.items.map((i: { offerId: string; onHand: number }) => [i.offerId, i.onHand]);
+    expect(await stockOf(alice)).toEqual([[aliceOffer, 3]]);
+    expect(await stockOf(bob)).toEqual([[bobOffer, 1]]);
+    // Le compte d'installation ne voit rien de tout cela.
+    expect(await stockOf({})).toEqual([]);
+    // Un navigateur ne choisit pas son compte : l'en-tête est ignoré au profit de la session.
+    expect((await req("GET", "/api/stock", { cookie: bob.cookie, account: alice.accountId })).json.items.map((i: { offerId: string }) => i.offerId)).toEqual([bobOffer]);
 
     // Une ressource d'un autre compte n'existe pas pour moi.
-    expect((await as(bob, "GET", `/api/stock/${stocked[alice]}`)).status).toBe(404);
-    expect((await as(bob, "POST", "/api/orders", { lines: [{ offerId: stocked[alice], qty: 1, unitPriceCents: 500 }], shippingMode: "HAND_DELIVERY" })).status).toBeGreaterThanOrEqual(400);
-    expect(await stockOf(alice)).toEqual([[stocked[alice], 3]]);
+    expect((await req("GET", `/api/stock/${aliceOffer}`, { cookie: bob.cookie })).status).toBe(404);
+    expect((await req("POST", "/api/orders", { body: { lines: [{ offerId: aliceOffer, qty: 1, unitPriceCents: 500 }], shippingMode: "HAND_DELIVERY" }, cookie: bob.cookie })).status).toBeGreaterThanOrEqual(400);
+    expect(await stockOf(alice)).toEqual([[aliceOffer, 3]]);
 
     // Réglages : une ligne par compte.
-    expect((await as(alice, "PUT", "/api/app-settings", { onboardingDone: true })).status).toBe(200);
-    expect((await as(alice, "GET", "/api/app-settings")).json.onboardingDone).toBe(true);
-    expect((await as(bob, "GET", "/api/app-settings")).json.onboardingDone).toBe(false);
-    expect((await as(alice, "PUT", "/api/channels/ebay", { mode: "SIMULATION" })).status).toBe(200);
-    const modes = async (account: string) => (await as(account, "GET", "/api/channels")).json.channels.find((ch: { id: string }) => ch.id === "ebay").mode;
-    expect([await modes(alice), await modes(bob)]).toEqual(["SIMULATION", "OFF"]);
+    expect((await req("PUT", "/api/app-settings", { body: { onboardingDone: true }, cookie: alice.cookie })).status).toBe(200);
+    expect((await req("GET", "/api/app-settings", { cookie: alice.cookie })).json.onboardingDone).toBe(true);
+    expect((await req("GET", "/api/app-settings", { cookie: bob.cookie })).json.onboardingDone).toBe(false);
+    expect((await req("PUT", "/api/channels/ebay", { body: { mode: "SIMULATION" }, cookie: alice.cookie })).status).toBe(200);
+    const mode = async (who: { cookie: string }) => (await req("GET", "/api/channels", { cookie: who.cookie })).json.channels.find((ch: { id: string }) => ch.id === "ebay").mode;
+    expect([await mode(alice), await mode(bob)]).toEqual(["SIMULATION", "OFF"]);
 
     // Une vente d'Alice n'apparaît que chez elle.
-    expect((await as(alice, "POST", "/api/orders", { lines: [{ offerId: stocked[alice], qty: 1, unitPriceCents: 500 }], shippingMode: "HAND_DELIVERY" })).status).toBe(201);
-    expect((await as(alice, "GET", "/api/orders")).json.items).toHaveLength(1);
-    expect((await as(bob, "GET", "/api/orders")).json.items).toHaveLength(0);
+    expect((await req("POST", "/api/orders", { body: { lines: [{ offerId: aliceOffer, qty: 1, unitPriceCents: 500 }], shippingMode: "HAND_DELIVERY" }, cookie: alice.cookie })).status).toBe(201);
+    expect((await req("GET", "/api/orders", { cookie: alice.cookie })).json.items).toHaveLength(1);
+    expect((await req("GET", "/api/orders", { cookie: bob.cookie })).json.items).toHaveLength(0);
 
     // Un jeton d'agent n'ouvre que le stock du compte qui l'a créé.
-    const created = await as(bob, "POST", "/api/agent-tokens", { name: "Airth" });
+    const created = await req("POST", "/api/agent-tokens", { body: { name: "Airth" }, cookie: bob.cookie });
     expect(created.status).toBe(201);
     const mcp = await accountsApp.request("/api/mcp", {
       method: "POST",
@@ -1514,13 +1506,13 @@ describe("accounts", () => {
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "search_stock", arguments: {} } }),
     });
     const text = JSON.stringify(await mcp.json());
-    expect(text).toContain(stocked[bob]);
-    expect(text).not.toContain(stocked[alice]);
+    expect(text).toContain(bobOffer);
+    expect(text).not.toContain(aliceOffer);
 
     // En base, chaque ligne porte son compte.
     const owners = await sql<{ accountId: string; n: number }[]>`select account_id, count(*)::int as n from offers group by 1`;
     expect(owners).toHaveLength(2);
-    expect(owners).toEqual(expect.arrayContaining([{ accountId: alice, n: 1 }, { accountId: bob, n: 1 }]));
+    expect(owners).toEqual(expect.arrayContaining([{ accountId: alice.accountId, n: 1 }, { accountId: bob.accountId, n: 1 }]));
     expect(errors).toEqual([]);
   });
 });

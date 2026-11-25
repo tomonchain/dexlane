@@ -8,7 +8,7 @@ import { AppShell } from "@/components/app-shell";
 import { I18nProvider } from "@/components/i18n-provider";
 import { ThemeProvider } from "@/components/theme";
 import { LOCALE_COOKIE, resolveLocale } from "@/lib/i18n";
-import { SESSION_COOKIE, parseSession } from "@/lib/session";
+import { hasSessionCookie } from "@/lib/session";
 import "../globals.css";
 
 async function requestLocale() {
@@ -37,12 +37,7 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   // La racine du site est publique pour un visiteur, et l'accueil de l'application pour le propriétaire connecté.
-  let signedIn = false;
-  try {
-    signedIn = parseSession((await cookies()).get(SESSION_COOKIE)?.value) !== null;
-  } catch {
-    signedIn = false; // serveur sans jeton configuré : tout visiteur voit la page publique
-  }
+  const signedIn = hasSessionCookie(await cookies());
   const locale = await requestLocale();
   return (
     // suppressHydrationWarning : la classe de thème est posée avant l'hydratation par next-themes.

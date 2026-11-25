@@ -22,10 +22,7 @@ import { DomainError } from "@dexlane/shared";
 import { randomUUID } from "node:crypto";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { AGENT_TOKEN_PREFIX, createAgentToken, listAgentTokens, revokeAgentToken, verifyAgentToken } from "./agents";
-import {
-  accountProfile, activeAccountIds, changePassword, passwordStatus, requestPasswordReset, resendVerification, resetPasswordWithToken, setPassword,
-  signUp, verifyEmail, verifyPassword,
-} from "./auth";
+import { activeAccountIds, createAuth, ownerExists, publicBaseUrl, setupOwner, type Auth } from "./better-auth";
 import { mailerFromEnv, type Mailer } from "./mailer";
 import { runForAccount, scopedDb } from "./scope";
 import { createMcpServer, type InternalCall } from "./mcp";
@@ -58,12 +55,15 @@ export interface AppDeps {
   push?: PushSender;
   /** Suivi des colis chez les transporteurs (d'après l'environnement par défaut) ; remplaçable dans les tests. */
   tracking?: TrackingAdapters;
+  /** Connexion à la base pour BetterAuth (`DATABASE_URL` par défaut) et adresse publique du site (liens des e-mails). */
+  databaseUrl?: string;
+  baseUrl?: string;
   /** Envoi des e-mails (Resend d'après l'environnement par défaut) ; `null` : aucun envoi possible. Remplaçable dans les tests. */
   mailer?: Mailer | null;
   onError?: (err: unknown) => void;
 }
 
-type Env = { Variables: { actor: string; accountId: string } };
+type Env = { Variables: { actor: string; accountId: string; user?: { email: string; role: string; plan: string | null } } };
 
 const RECOGNITION_STATUS = {
   IMAGE_TOO_LARGE: 413, UNSUPPORTED_MEDIA_TYPE: 415, REFUSED: 502, TRUNCATED: 502, UNPARSEABLE: 502,
@@ -93,8 +93,21 @@ export function createApp(deps: AppDeps) {
   });
 
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-  /** Routes qui travaillent hors de tout compte : authentification, et import du catalogue commun (long). */
-  const unscoped = (path: string) => path.startsWith("/api/auth/") || path.startsWith("/api/catalog/import");
+  /** Routes qui travaillent hors de tout compte : installation, liste des comptes, import du catalogue commun (long). */
+  const unscoped = (path: string) => path.startsWith("/api/setup/") || path === "/api/accounts/active" || path.startsWith("/api/catalog/import");
+
+  const mailer = (): Mailer => {
+    const configured = deps.mailer === undefined ? mailerFromEnv() : deps.mailer;
+    if (!configured) throw new HttpError(503, "EMAIL_NOT_CONFIGURED", "email sending is not configured (RESEND_API_KEY, EMAIL_FROM)");
+    return configured;
+  };
+  // Comptes et sessions : BetterAuth, créé à la première requête qui en a besoin.
+  let authInstance: Auth | undefined;
+  const auth = (): Auth => {
+    const databaseUrl = deps.databaseUrl ?? process.env.DATABASE_URL;
+    if (!databaseUrl) throw new HttpError(500, "SERVER_MISCONFIGURED", "DATABASE_URL is not set");
+    return (authInstance ??= createAuth({ sql: root, databaseUrl, baseUrl: deps.baseUrl ?? publicBaseUrl(), token: deps.token, mailer }));
+  };
 
   app.use("/api/*", async (c, next) => {
     const header = c.req.header("Authorization") ?? "";
@@ -110,14 +123,25 @@ export function createApp(deps: AppDeps) {
     if (!presented || !secretEquals(presented, deps.token)) {
       throw new HttpError(401, "UNAUTHORIZED", "missing or invalid bearer token");
     }
-    // Le serveur web désigne le compte de la session ; sans lui (scripts, tâches), c'est le compte d'installation.
-    const accountId = c.req.header("X-Dexlane-Account") ?? OWNER_ACCOUNT_ID;
-    if (!UUID.test(accountId)) throw new HttpError(400, "INVALID_ACCOUNT", "invalid account id");
-    // Appel relayé par l'application web pour une session navigateur : la session doit dater du mot de passe courant.
-    const session = c.req.header("X-Dexlane-Session-Version");
-    if (session !== undefined && session !== String(await currentSessionVersion(accountId))) {
-      throw new HttpError(401, "SESSION_EXPIRED", "this session is no longer valid; sign in again");
+    // Connexion, inscription, vérification de l'adresse, mot de passe, administration : les routes de BetterAuth.
+    if (c.req.path.startsWith("/api/auth/")) return auth().handler(c.req.raw);
+
+    let accountId: string;
+    if (c.req.header("X-Dexlane-Browser") === "1") {
+      // Requête relayée pour un navigateur : c'est sa session qui dit pour quel compte il travaille.
+      const session = await auth().api.getSession({ headers: c.req.raw.headers });
+      const user = session?.user as { accountId?: string | null; email: string; role?: string | null; plan?: string | null } | undefined;
+      if (!user?.accountId) {
+        if (unscoped(c.req.path) && c.req.path === "/api/setup/status") return next();
+        throw new HttpError(401, "SESSION_EXPIRED", "this session is no longer valid; sign in again");
+      }
+      accountId = user.accountId;
+      c.set("user", { email: user.email, role: user.role ?? "user", plan: user.plan ?? null });
+    } else {
+      // Scripts, tâches planifiées et outils internes désignent le compte ; sans lui, c'est le compte d'installation.
+      accountId = c.req.header("X-Dexlane-Account") ?? OWNER_ACCOUNT_ID;
     }
+    if (!UUID.test(accountId)) throw new HttpError(400, "INVALID_ACCOUNT", "invalid account id");
     // Les outils MCP rappellent l'API avec le jeton du serveur, au nom de l'agent (journal des actions).
     const onBehalf = c.req.header("X-Dexlane-Agent");
     c.set("actor", onBehalf && /^agent:[^\n]{1,60}$/.test(onBehalf) ? onBehalf : "owner");
@@ -148,83 +172,30 @@ export function createApp(deps: AppDeps) {
     });
   });
 
-  // ───────────────────────── Comptes : connexion, inscription, mot de passe ─────────────────────────
-  // Réservé au serveur de l'application web (porteur du jeton) : il vérifie le mot de passe saisi et émet la session.
+  // ───────────────────────── Installation et comptes ─────────────────────────
 
-  const sessionVersions = new Map<string, { value: number | null; at: number }>();
-  async function currentSessionVersion(accountId: string): Promise<number | null> {
-    const cached = sessionVersions.get(accountId);
-    if (cached && Date.now() - cached.at <= 10_000) return cached.value;
-    const value = (await passwordStatus(root, accountId)).sessionVersion;
-    sessionVersions.set(accountId, { value, at: Date.now() });
-    if (sessionVersions.size > 5000) sessionVersions.clear();
-    return value;
-  }
-  const mailer = (): Mailer => {
-    const configured = deps.mailer === undefined ? mailerFromEnv() : deps.mailer;
-    if (!configured) throw new HttpError(503, "EMAIL_NOT_CONFIGURED", "email sending is not configured (RESEND_API_KEY, EMAIL_FROM)");
-    return configured;
-  };
+  /** L'installation a-t-elle son propriétaire ? Sinon, l'assistant de démarrage le crée avec le jeton d'installation. */
+  app.get("/api/setup/status", async (c) => c.json({ passwordSet: await ownerExists(root) }));
 
-  app.get("/api/auth/status", async (c) => c.json({ passwordSet: (await passwordStatus(root)).passwordSet }));
-
-  /** Connexion : avec une adresse e-mail, ou sans (compte d'installation). */
-  app.post("/api/auth/password/verify", async (c) => {
-    const { password, email } = await parseJsonBody(c, s.verifyPasswordBody);
-    return c.json(await verifyPassword(root, password, { email }));
-  });
-
-  /** Définition initiale ou réinitialisation du compte d'installation : le jeton d'API fait office de clé de secours. */
-  app.post("/api/auth/password/reset", async (c) => {
-    const { newPassword } = await parseJsonBody(c, s.resetPasswordBody);
-    const sessionVersion = await setPassword(root, OWNER_ACCOUNT_ID, newPassword, "password_reset");
-    sessionVersions.delete(OWNER_ACCOUNT_ID);
-    return c.json({ accountId: OWNER_ACCOUNT_ID, sessionVersion });
-  });
-
-  app.post("/api/auth/password/change", async (c) => {
-    const body = await parseJsonBody(c, s.changePasswordBody);
-    const sessionVersion = await changePassword(root, c.var.accountId, body.currentPassword, body.newPassword);
-    sessionVersions.delete(c.var.accountId);
-    return c.json({ accountId: c.var.accountId, sessionVersion });
-  });
-
-  /** Inscription : le compte est créé, le lien de vérification part par e-mail. Même réponse si l'adresse est déjà prise. */
-  app.post("/api/auth/signup", async (c) => {
-    const body = await parseJsonBody(c, s.signUpBody);
-    await signUp(root, mailer(), body);
+  /**
+   * Première connexion, ou clé de secours : le porteur du jeton d'installation (vérifié par le serveur web) choisit
+   * l'adresse e-mail et le mot de passe du propriétaire.
+   */
+  app.post("/api/setup/owner", async (c) => {
+    if (c.req.header("X-Dexlane-Browser") === "1") throw new HttpError(403, "FORBIDDEN", "setup is reserved to the server");
+    const body = await parseJsonBody(c, s.setupOwnerBody);
+    await setupOwner(auth(), root, body);
     return c.json({ ok: true });
-  });
-
-  app.post("/api/auth/email/resend", async (c) => {
-    const { email, baseUrl } = await parseJsonBody(c, s.emailLinkBody);
-    await resendVerification(root, mailer(), email, baseUrl);
-    return c.json({ ok: true });
-  });
-
-  app.post("/api/auth/email/verify", async (c) => {
-    const { token } = await parseJsonBody(c, s.tokenBody);
-    return c.json(await verifyEmail(root, token));
-  });
-
-  app.post("/api/auth/password/forgot", async (c) => {
-    const { email, baseUrl } = await parseJsonBody(c, s.emailLinkBody);
-    await requestPasswordReset(root, mailer(), email, baseUrl);
-    return c.json({ ok: true });
-  });
-
-  app.post("/api/auth/password/reset-with-token", async (c) => {
-    const { token, newPassword } = await parseJsonBody(c, s.resetWithTokenBody);
-    const session = await resetPasswordWithToken(root, token, newPassword);
-    sessionVersions.delete(session.accountId);
-    return c.json(session);
   });
 
   /** Les comptes pour lesquels les tâches planifiées tournent. */
-  app.get("/api/auth/accounts", async (c) => c.json({ accountIds: await activeAccountIds(root) }));
+  app.get("/api/accounts/active", async (c) => {
+    if (c.req.header("X-Dexlane-Browser") === "1") throw new HttpError(403, "FORBIDDEN", "reserved to the server");
+    return c.json({ accountIds: await activeAccountIds(root) });
+  });
 
-  /** Le compte de la session : adresse, forfait. */
-  app.get("/api/account", async (c) => c.json(await accountProfile(root, c.var.accountId)));
+  /** L'utilisateur de la session : adresse, rôle, forfait choisi. */
+  app.get("/api/account", (c) => c.json({ accountId: c.var.accountId, ...(c.var.user ?? { email: null, role: "user", plan: null }) }));
 
   // ───────────────────────── Scan et catalogue ─────────────────────────
 

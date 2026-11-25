@@ -124,19 +124,7 @@ export const locationId = z.uuid();
 
 const password = z.string().min(1).max(200);
 const email = z.string().trim().toLowerCase().max(254).pipe(z.email());
-const baseUrl = z.url().max(300);
-const linkToken = z.string().min(20).max(200);
-export const verifyPasswordBody = z.strictObject({ password, email: email.optional() });
-export const signUpBody = z.strictObject({
-  email, password, baseUrl,
-  plan: z.string().trim().min(1).max(40).optional(),
-  code: z.string().trim().min(1).max(60).optional(),
-});
-export const emailLinkBody = z.strictObject({ email, baseUrl });
-export const tokenBody = z.strictObject({ token: linkToken });
-export const resetWithTokenBody = z.strictObject({ token: linkToken, newPassword: password });
-export const resetPasswordBody = z.strictObject({ newPassword: password });
-export const changePasswordBody = z.strictObject({ currentPassword: password, newPassword: password });
+export const setupOwnerBody = z.strictObject({ email, password });
 
 const percent = z.number().int().min(0).max(200);
 export const pricingSettingsBody = z.strictObject({

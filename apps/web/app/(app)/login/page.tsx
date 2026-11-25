@@ -21,12 +21,12 @@ const COPY: Record<Exclude<Mode, "loading">, { title: string; description: strin
   login: { title: "Connexion", description: "Saisissez votre adresse e-mail et votre mot de passe.", submit: "Se connecter" },
   setup: {
     title: "Première connexion",
-    description: "Choisissez votre mot de passe. Le jeton d'installation (DEXLANE_API_TOKEN) prouve que vous administrez le serveur ; il ne sera plus demandé ensuite.",
+    description: "Choisissez votre adresse e-mail et votre mot de passe. Le jeton d'installation (DEXLANE_API_TOKEN) prouve que vous administrez le serveur ; il ne sera plus demandé ensuite.",
     submit: "Créer le mot de passe",
   },
   reset: {
     title: "Compte d'installation",
-    description: "Le jeton d'installation (DEXLANE_API_TOKEN) permet de définir un nouveau mot de passe pour le compte d'installation. Les autres appareils seront déconnectés.",
+    description: "Le jeton d'installation (DEXLANE_API_TOKEN) permet de choisir l'adresse e-mail et le mot de passe du propriétaire de l'installation. Ses autres appareils seront déconnectés.",
     submit: "Définir le nouveau mot de passe",
   },
 };
@@ -77,7 +77,7 @@ export default function LoginPage() {
     setBusy(true);
     setError(null);
     try {
-      await (mode === "login" ? api.login(password, email.trim() || undefined) : api.setPassword(token, password));
+      await (mode === "login" ? api.login(email.trim(), password) : api.setupOwner(token, email.trim(), password));
       enter();
     } catch (err) {
       setError(authMessage(err));
@@ -86,7 +86,7 @@ export default function LoginPage() {
   }
 
   const choosing = mode === "setup" || mode === "reset";
-  const ready = mode === "login" ? password !== "" : token.trim() !== "" && password !== "" && confirm !== "";
+  const ready = email.trim() !== "" && (mode === "login" ? password !== "" : token.trim() !== "" && password !== "" && confirm !== "");
 
   return (
     <div className="relative flex min-h-dvh items-center justify-center overflow-hidden px-4 py-10">
@@ -108,11 +108,9 @@ export default function LoginPage() {
                 <PasswordInput value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" className="font-mono" required autoFocus />
               </Field>
             )}
-            {mode === "login" && (
-              <Field label={t("Adresse e-mail")} hint={t("Laissez vide pour le compte d'installation.")}>
-                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" inputMode="email" autoFocus />
-              </Field>
-            )}
+            <Field label={t("Adresse e-mail")}>
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" inputMode="email" required autoFocus={!choosing} />
+            </Field>
             <Field label={choosing ? t("Nouveau mot de passe") : t("Mot de passe")} hint={choosing ? t("10 caractères minimum.") : undefined}>
               <PasswordInput
                 value={password}

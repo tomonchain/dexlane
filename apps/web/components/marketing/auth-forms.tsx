@@ -18,16 +18,18 @@ import { clearCache } from "@/lib/cache";
  */
 
 class AuthError extends Error {
-  constructor(public code: string, message: string, public retryAfterS?: number) {
+  constructor(public code: string, message: string) {
     super(message);
   }
 }
 
-async function post(action: string, body: Record<string, unknown>): Promise<void> {
-  const res = await fetch(`/auth/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+/** Appelle une route de BetterAuth, relayée sous /api/auth. */
+async function post(path: string, body: Record<string, unknown>): Promise<void> {
+  const res = await fetch(`/api/auth/${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   if (res.ok) return;
-  const data = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string; details?: { retryAfterS?: number } } } | null;
-  throw new AuthError(data?.error?.code ?? "ERROR", data?.error?.message ?? `HTTP ${res.status}`, data?.error?.details?.retryAfterS);
+  const data = (await res.json().catch(() => null)) as { code?: string; message?: string; error?: { code?: string; message?: string } } | null;
+  const code = data?.code ?? data?.error?.code ?? (res.status === 429 ? "TOO_MANY_ATTEMPTS" : "ERROR");
+  throw new AuthError(code, data?.message ?? data?.error?.message ?? `HTTP ${res.status}`);
 }
 
 const message = (e: unknown): string => {
@@ -81,7 +83,11 @@ export function SignupForm() {
     setError(null);
     try {
       // Le forfait choisi sur /tarifs et le code du flyer (/colis) accompagnent l'inscription.
-      await post("signup", { email, password, plan: param("plan"), code: param("code") });
+      const [plan, signupCode] = [param("plan"), param("code")];
+      await post("sign-up/email", {
+        name: email.trim().split("@")[0], email: email.trim(), password, callbackURL: "/signup/verify",
+        ...(plan ? { plan } : {}), ...(signupCode ? { signupCode } : {}),
+      });
       setSent(true);
     } catch (err) {
       setError(message(err));
@@ -101,7 +107,7 @@ export function SignupForm() {
             : (
               <Button
                 variant="outline"
-                onClick={() => void post("resend", { email }).catch(() => undefined).finally(() => setResent(true))}
+                onClick={() => void post("send-verification-email", { email: email.trim(), callbackURL: "/signup/verify" }).catch(() => undefined).finally(() => setResent(true))}
               >
                 {AUTH.signup.resend}
               </Button>
@@ -132,13 +138,15 @@ export function SignupForm() {
   );
 }
 
-/** Lien de vérification suivi : l'adresse est confirmée, la session s'ouvre. */
+/**
+ * Retour du lien de vérification : BetterAuth a confirmé l'adresse et ouvert la session avant de renvoyer ici, ou il
+ * signale une erreur dans l'adresse (`?error=…`) si le lien n'est plus valable.
+ */
 export function VerifyEmail() {
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    const token = param("token");
-    if (!token) return setError(AUTH.errors.LINK_EXPIRED);
-    post("verify", { token }).then(enter, (e) => setError(message(e)));
+    if (param("error")) setError(AUTH.errors.LINK_EXPIRED);
+    else enter();
   }, []);
 
   return (
@@ -169,7 +177,7 @@ export function ForgotPasswordForm() {
     setBusy(true);
     setError(null);
     try {
-      await post("forgot", { email });
+      await post("request-password-reset", { email: email.trim(), redirectTo: "/reset-password" });
       setSent(true);
     } catch (err) {
       setError(message(err));
@@ -210,8 +218,10 @@ export function ResetPasswordForm() {
     setBusy(true);
     setError(null);
     try {
-      await post("reset", { token: param("token"), newPassword: password });
-      enter();
+      await post("reset-password", { token: param("token"), newPassword: password });
+      // Le nouveau mot de passe ferme toutes les sessions : on se connecte avec lui.
+      clearCache();
+      window.location.assign("/login");
     } catch (err) {
       setError(message(err));
       setBusy(false);

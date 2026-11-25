@@ -42,7 +42,7 @@ export function useTestDb(scope: string): Db {
       select tablename from pg_tables where schemaname = 'public' and tablename <> 'schema_migrations'`;
     await sql.unsafe(`truncate ${tables.map((t) => `"${t.tablename}"`).join(", ")} restart identity cascade`);
     // Le compte d'installation existe toujours (migration 0033) : c'est le compte par défaut hors de toute portée.
-    await sql`insert into accounts (id, email_verified_at) values (owner_account_id(), now())`;
+    await sql`insert into accounts (id) values (owner_account_id())`;
   });
   afterAll(() => sql.end());
   return sql;

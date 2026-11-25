@@ -108,6 +108,7 @@ export default function WelcomePage() {
 
 function AccountStep({ onDone }: { onDone: () => void }) {
   const [token, setToken] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
@@ -119,7 +120,7 @@ function AccountStep({ onDone }: { onDone: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      await api.setPassword(token, password);
+      await api.setupOwner(token, email.trim(), password);
       onDone();
     } catch (err) {
       setError(authMessage(err));
@@ -131,12 +132,15 @@ function AccountStep({ onDone }: { onDone: () => void }) {
     <form onSubmit={submit}>
       <Step
         title={t("Créez votre compte")}
-        description={t("Choisissez le mot de passe qui protégera votre stock. Le jeton d'installation prouve que ce serveur est le vôtre ; il n'est demandé que cette fois.")}
+        description={t("Choisissez l'adresse e-mail et le mot de passe qui protégeront votre stock. Le jeton d'installation prouve que ce serveur est le vôtre ; il n'est demandé que cette fois.")}
         footer={<Button type="submit" size="lg" disabled={busy}>{busy ? <Spinner className="text-primary-foreground" /> : null} {t("Créer mon compte")} <ArrowRight /></Button>}
       >
         <div className="grid gap-4">
           <Field label={t("Jeton d'installation")} hint={t("La valeur de DEXLANE_API_TOKEN, définie à l'installation.")}>
             <PasswordInput value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" className="font-mono" required autoFocus />
+          </Field>
+          <Field label={t("Adresse e-mail")}>
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" inputMode="email" required />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={t("Mot de passe")} hint={t("10 caractères au moins.")}>

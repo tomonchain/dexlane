@@ -61,17 +61,25 @@ async function request<T>(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", p
 }
 
 /** Routes de session du serveur web (/auth), hors relais d'API. */
-async function auth<T = { ok: true }>(method: "GET" | "POST" | "PUT", body?: unknown): Promise<T> {
-  const res = await fetch("/auth", {
+async function send<T>(url: string, method: "GET" | "POST", body?: unknown): Promise<T> {
+  const res = await fetch(url, {
     method,
     headers: body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   }).catch(() => null);
   if (!res) throw new ApiError(0, "NETWORK", t("Connexion impossible. Vérifiez le réseau puis réessayez."));
-  const data = (await res.json().catch(() => null)) as { error?: { code: string; message: string; details?: unknown } } | null;
-  if (!res.ok) throw new ApiError(res.status, data?.error?.code ?? "HTTP_ERROR", data?.error?.message ?? t("Erreur {status}", { status: res.status }), data?.error?.details);
+  // Nos routes répondent `{ error: { code, message } }` ; celles de BetterAuth, `{ code, message }`.
+  const data = (await res.json().catch(() => null)) as { error?: { code: string; message: string; details?: unknown }; code?: string; message?: string } | null;
+  if (!res.ok) {
+    const code = data?.error?.code ?? data?.code ?? (res.status === 429 ? "TOO_MANY_ATTEMPTS" : "HTTP_ERROR");
+    throw new ApiError(res.status, code, data?.error?.message ?? data?.message ?? t("Erreur {status}", { status: res.status }), data?.error?.details);
+  }
   return data as T;
 }
+/** Installation (propriétaire, jeton d'installation) : route /auth du serveur web. */
+const auth = <T = { ok: true }>(method: "GET" | "POST", body?: unknown) => send<T>("/auth", method, body);
+/** Connexion, mot de passe, déconnexion : routes de BetterAuth, relayées sous /api/auth. */
+const betterAuth = <T = unknown>(path: string, body: unknown = {}) => send<T>(`/api/auth/${path}`, "POST", body);
 
 /** Nouvelle clé d'idempotence : une par intention de l'utilisateur, réutilisée telle quelle en cas de nouvel essai. */
 export const newKey = () => crypto.randomUUID();
@@ -281,14 +289,16 @@ export const api = {
   activate: (id: string) => request<PositionDetail>("POST", `/inventory/${id}/activate`),
 
   authStatus: () => auth<{ passwordSet: boolean }>("GET"),
-  /** Avec une adresse e-mail, ou sans pour le compte d'installation. */
-  login: (password: string, email?: string) => auth("POST", email ? { email, password } : { password }),
-  /** Première connexion ou mot de passe oublié : le jeton d'installation autorise à définir le mot de passe. */
-  setPassword: (setupToken: string, newPassword: string) => auth("POST", { setupToken, newPassword }),
-  changePassword: (currentPassword: string, newPassword: string) => auth("PUT", { currentPassword, newPassword }),
+  login: (email: string, password: string) => betterAuth("sign-in/email", { email, password }),
+  /** Première connexion ou clé de secours : le jeton d'installation autorise à choisir l'adresse et le mot de passe du propriétaire. */
+  setupOwner: async (setupToken: string, email: string, newPassword: string) => {
+    await auth("POST", { setupToken, email, newPassword });
+    await betterAuth("sign-in/email", { email, password: newPassword });
+  },
+  changePassword: (currentPassword: string, newPassword: string) => betterAuth("change-password", { currentPassword, newPassword, revokeOtherSessions: true }),
   logout: () => {
     clearCache(); // les données de ce compte ne restent pas sur l'appareil
-    return fetch("/auth", { method: "DELETE" });
+    return betterAuth("sign-out").catch(() => undefined);
   },
 };
 

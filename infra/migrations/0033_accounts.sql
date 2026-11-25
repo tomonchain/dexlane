@@ -9,44 +9,32 @@
 
 -- ───────────────────────── Comptes ─────────────────────────
 
+-- Un compte : l'espace de données d'un vendeur. Ses utilisateurs (adresse e-mail, mot de passe, sessions) sont tenus par
+-- BetterAuth dans les tables auth_* ci-dessous ; chaque utilisateur porte le compte auquel il appartient.
 create table accounts (
   id uuid primary key default gen_random_uuid(),
-  -- Sans adresse : le compte d'installation (le propriétaire d'origine), qui se connecte avec son seul mot de passe.
-  email text,
-  password_hash text,
-  session_version integer not null default 1,
-  failed_attempts integer not null default 0,
-  locked_until timestamptz,
-  email_verified_at timestamptz,
-  -- Forfait choisi et code du flyer saisis à l'inscription (indicatifs : pas encore de facturation).
-  plan text,
-  signup_code text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  created_at timestamptz not null default now()
 );
-create unique index accounts_email_key on accounts (lower(email));
 
 create function owner_account_id() returns uuid language sql immutable
   as $$ select '00000000-0000-0000-0000-000000000001'::uuid $$;
 
--- Le propriétaire d'origine devient le premier compte, avec son mot de passe et toutes les données existantes.
-insert into accounts (id, password_hash, session_version, failed_attempts, locked_until, email_verified_at, updated_at)
-select owner_account_id(), c.password_hash, coalesce(c.session_version, 1), coalesce(c.failed_attempts, 0), c.locked_until, now(),
-       coalesce(c.updated_at, now())
-  from (select 1) one left join owner_credentials c on true;
+-- Le propriétaire d'origine devient le compte d'installation, avec toutes les données existantes. Son ancien mot de
+-- passe (sans adresse e-mail) ne sert plus : il choisit son adresse et son mot de passe à la première connexion, avec
+-- le jeton d'installation.
+insert into accounts (id) values (owner_account_id());
 drop table owner_credentials;
 
--- Liens à usage unique envoyés par e-mail : vérification de l'adresse, réinitialisation du mot de passe.
-create table account_tokens (
-  id uuid primary key default gen_random_uuid(),
-  account_id uuid not null references accounts (id) on delete cascade,
-  kind text not null check (kind in ('VERIFY_EMAIL', 'RESET_PASSWORD')),
-  token_hash text not null unique,
-  expires_at timestamptz not null,
-  used_at timestamptz,
-  created_at timestamptz not null default now()
-);
-create index account_tokens_account_idx on account_tokens (account_id, kind);
+-- Tables de BetterAuth (schéma généré par son outil de migration pour la configuration d'apps/api/src/better-auth.ts).
+create table "auth_users" ("id" text not null primary key, "name" text not null, "email" text not null unique, "emailVerified" boolean not null, "image" text, "createdAt" timestamptz default CURRENT_TIMESTAMP not null, "updatedAt" timestamptz default CURRENT_TIMESTAMP not null, "role" text, "banned" boolean, "banReason" text, "banExpires" timestamptz, "accountId" text, "plan" text, "signupCode" text);
+create table "auth_sessions" ("id" text not null primary key, "expiresAt" timestamptz not null, "token" text not null unique, "createdAt" timestamptz default CURRENT_TIMESTAMP not null, "updatedAt" timestamptz not null, "ipAddress" text, "userAgent" text, "userId" text not null references "auth_users" ("id") on delete cascade, "impersonatedBy" text);
+create table "auth_credentials" ("id" text not null primary key, "accountId" text not null, "providerId" text not null, "userId" text not null references "auth_users" ("id") on delete cascade, "accessToken" text, "refreshToken" text, "idToken" text, "accessTokenExpiresAt" timestamptz, "refreshTokenExpiresAt" timestamptz, "scope" text, "password" text, "createdAt" timestamptz default CURRENT_TIMESTAMP not null, "updatedAt" timestamptz not null);
+create table "auth_verifications" ("id" text not null primary key, "identifier" text not null, "value" text not null, "expiresAt" timestamptz not null, "createdAt" timestamptz default CURRENT_TIMESTAMP not null, "updatedAt" timestamptz default CURRENT_TIMESTAMP not null);
+create table "auth_rate_limits" ("id" text not null primary key, "key" text not null unique, "count" integer not null, "lastRequest" bigint not null);
+create index "auth_sessions_userId_idx" on "auth_sessions" ("userId");
+create index "auth_credentials_userId_idx" on "auth_credentials" ("userId");
+create index "auth_verifications_identifier_idx" on "auth_verifications" ("identifier");
+create index "auth_users_accountId_idx" on "auth_users" ("accountId");
 
 -- ───────────────────────── Compte courant ─────────────────────────
 
@@ -98,11 +86,9 @@ begin
     execute format('create policy account_isolation on %I using (account_id = %s) with check (account_id = %s)', t, cond, cond);
   end loop;
 
-  -- Un compte ne voit que lui-même et ses propres liens.
+  -- Un compte ne voit que lui-même.
   alter table accounts enable row level security;
   execute format('create policy account_isolation on accounts using (id = %s) with check (id = %s)', cond, cond);
-  alter table account_tokens enable row level security;
-  execute format('create policy account_isolation on account_tokens using (account_id = %s) with check (account_id = %s)', cond, cond);
 end $$;
 
 -- ───────────────────────── Unicité par compte ─────────────────────────
@@ -139,5 +125,5 @@ grant select, insert, update, delete on all tables in schema public to dexlane_t
 grant usage, select on all sequences in schema public to dexlane_tenant;
 alter default privileges in schema public grant select, insert, update, delete on tables to dexlane_tenant;
 alter default privileges in schema public grant usage, select on sequences to dexlane_tenant;
--- Le suivi des migrations ne regarde pas les comptes.
-revoke all on schema_migrations from dexlane_tenant;
+-- Le suivi des migrations et les tables d'authentification ne regardent pas les comptes.
+revoke all on schema_migrations, auth_users, auth_sessions, auth_credentials, auth_verifications, auth_rate_limits from dexlane_tenant;

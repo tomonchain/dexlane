@@ -83,12 +83,19 @@ export const SHELL: Record<string, string> = {
   "Connexion": "Sign in",
   "Saisissez votre adresse e-mail et votre mot de passe.": "Enter your email address and your password.",
   "Adresse e-mail": "Email address",
-  "Laissez vide pour le compte d'installation.": "Leave empty for the setup account.",
   "Créer un compte": "Create an account",
+  "Le jeton d'installation (DEXLANE_API_TOKEN) permet de choisir l'adresse e-mail et le mot de passe du propriétaire de l'installation. Ses autres appareils seront déconnectés.":
+    "The setup token (DEXLANE_API_TOKEN) lets you choose the email address and password of the installation owner. Their other devices will be signed out.",
+  "Choisissez votre adresse e-mail et votre mot de passe. Le jeton d'installation (DEXLANE_API_TOKEN) prouve que vous administrez le serveur ; il ne sera plus demandé ensuite.":
+    "Choose your email address and password. The setup token (DEXLANE_API_TOKEN) proves you run the server; it won't be asked for again.",
+  "Choisissez l'adresse e-mail et le mot de passe qui protégeront votre stock. Le jeton d'installation prouve que ce serveur est le vôtre ; il n'est demandé que cette fois.":
+    "Choose the email address and password that will protect your stock. The setup token proves this server is yours; it is only asked for this once.",
+  "Adresse e-mail ou mot de passe incorrect.": "Incorrect email address or password.",
+  "Cette adresse e-mail appartient déjà à un autre compte.": "This email address already belongs to another account.",
+  "Vérifiez l'adresse e-mail.": "Check the email address.",
+  "Ce compte est suspendu.": "This account is suspended.",
   "Réinitialiser avec le jeton d'installation": "Reset with the setup token",
   "Compte d'installation": "Setup account",
-  "Le jeton d'installation (DEXLANE_API_TOKEN) permet de définir un nouveau mot de passe pour le compte d'installation. Les autres appareils seront déconnectés.":
-    "The setup token (DEXLANE_API_TOKEN) lets you set a new password for the setup account. Other devices will be signed out.",
   "Cette adresse e-mail n'a pas encore été vérifiée : suivez le lien reçu par e-mail.": "This email address has not been verified yet: follow the link you received by email.",
   "Saisissez votre mot de passe.": "Enter your password.",
   "Première connexion": "First sign-in",
