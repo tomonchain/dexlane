@@ -41,6 +41,7 @@ async function relay(req: NextRequest, ctx: { params: Promise<{ path: string[] }
       headers,
       body: req.method === "GET" ? undefined : await req.arrayBuffer(),
       sessionVersion: session.sessionVersion,
+      accountId: session.accountId,
     });
   } catch (e) {
     console.error(e);

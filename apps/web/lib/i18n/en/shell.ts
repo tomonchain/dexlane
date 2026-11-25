@@ -81,6 +81,15 @@ export const SHELL: Record<string, string> = {
 
   // Connexion
   "Connexion": "Sign in",
+  "Saisissez votre adresse e-mail et votre mot de passe.": "Enter your email address and your password.",
+  "Adresse e-mail": "Email address",
+  "Laissez vide pour le compte d'installation.": "Leave empty for the setup account.",
+  "Créer un compte": "Create an account",
+  "Réinitialiser avec le jeton d'installation": "Reset with the setup token",
+  "Compte d'installation": "Setup account",
+  "Le jeton d'installation (DEXLANE_API_TOKEN) permet de définir un nouveau mot de passe pour le compte d'installation. Les autres appareils seront déconnectés.":
+    "The setup token (DEXLANE_API_TOKEN) lets you set a new password for the setup account. Other devices will be signed out.",
+  "Cette adresse e-mail n'a pas encore été vérifiée : suivez le lien reçu par e-mail.": "This email address has not been verified yet: follow the link you received by email.",
   "Saisissez votre mot de passe.": "Enter your password.",
   "Première connexion": "First sign-in",
   "Choisissez votre mot de passe. Le jeton d'installation (DEXLANE_API_TOKEN) prouve que vous administrez le serveur ; il ne sera plus demandé ensuite.":

@@ -61,7 +61,17 @@ await sql`
   select variant_id, condition, source, quote_type, currency, greatest(amount_cents / 2, 1), source_scope, observed_at - interval '10 days', variant_ambiguous
     from price_snapshots`;
 
+const mails: { to: string; subject: string; text: string }[] = [];
+const app = createApp({
+  sql, token: E2E_TOKEN, recognizer: () => recognizer, tcgdex: () => client, photos: createMemoryPhotoStore(),
+  mailer: { send: async (mail) => void mails.push({ to: mail.to, subject: mail.subject, text: mail.text }) }, onError: () => undefined,
+});
+
 serve(
-  { fetch: createApp({ sql, token: E2E_TOKEN, recognizer: () => recognizer, tcgdex: () => client, photos: createMemoryPhotoStore(), onError: () => undefined }).fetch, hostname: "127.0.0.1", port: E2E_API_PORT },
+  {
+    // Les e-mails ne partent nulle part : les tests lisent le dernier à /__test/mails.
+    fetch: (req: Request) => (new URL(req.url).pathname === "/__test/mails" ? Response.json(mails) : app.fetch(req)),
+    hostname: "127.0.0.1", port: E2E_API_PORT,
+  },
   (info) => console.log(`e2e api listening on http://127.0.0.1:${info.port}`),
 );

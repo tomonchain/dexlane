@@ -92,7 +92,7 @@ export async function setChannelMode(sql: Db, live: ChannelAdapters, channel: Ch
     const before = await modeOf(tx, channel);
     await tx`
       insert into channel_settings (channel, mode) values (${channel}, ${mode})
-      on conflict (channel) do update set mode = excluded.mode, updated_at = now()`;
+      on conflict (account_id, channel) do update set mode = excluded.mode, updated_at = now()`;
     // Les annonces de simulation n'existent nulle part : elles s'arrêtent avec la simulation.
     if (before === "SIMULATION" && mode !== "SIMULATION") {
       await tx`update listings set status = 'ENDED', updated_at = now() where channel = ${channel} and simulated and status <> 'ENDED'`;

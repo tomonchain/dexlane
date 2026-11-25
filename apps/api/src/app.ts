@@ -4,7 +4,7 @@ import { HTTPException } from "hono/http-exception";
 import {
   createTcgdexClient, findCandidates, getSetDetail, setSetCode, catalogImportStatus, importNextSets, listSets, syncSet, syncSetList, type TcgdexClient, refreshTrackedPrices, searchCatalog,
 } from "@dexlane/catalog";
-import type { Db } from "@dexlane/db";
+import { OWNER_ACCOUNT_ID, withTx, type Db } from "@dexlane/db";
 import {
   activateStock, addOfferPhoto, adjustStock, attachPhotos, cancelOrder, deletePhoto, getPhoto, saveListingPhoto, createAcquisitionLot, createDirectSale, createLocation, createLocations,
   deleteLocation, extractCardFromBulk, getInventorySummary, getOrderDetail, getShippingCosts, saveShippingCosts, listPreparation, markSlipsPrinted, getStockItemDetail, listAcquisitionLots,
@@ -22,7 +22,12 @@ import { DomainError } from "@dexlane/shared";
 import { randomUUID } from "node:crypto";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { AGENT_TOKEN_PREFIX, createAgentToken, listAgentTokens, revokeAgentToken, verifyAgentToken } from "./agents";
-import { changePassword, passwordStatus, setPassword, verifyPassword } from "./auth";
+import {
+  accountProfile, activeAccountIds, changePassword, passwordStatus, requestPasswordReset, resendVerification, resetPasswordWithToken, setPassword,
+  signUp, verifyEmail, verifyPassword,
+} from "./auth";
+import { mailerFromEnv, type Mailer } from "./mailer";
+import { runForAccount, scopedDb } from "./scope";
 import { createMcpServer, type InternalCall } from "./mcp";
 import { trackingFromEnv, type TrackingAdapters } from "./tracking";
 import { HttpError, errorBody, idempotent, parse, parseJsonBody, secretEquals, statusOfDomainError } from "./http";
@@ -53,17 +58,22 @@ export interface AppDeps {
   push?: PushSender;
   /** Suivi des colis chez les transporteurs (d'après l'environnement par défaut) ; remplaçable dans les tests. */
   tracking?: TrackingAdapters;
+  /** Envoi des e-mails (Resend d'après l'environnement par défaut) ; `null` : aucun envoi possible. Remplaçable dans les tests. */
+  mailer?: Mailer | null;
   onError?: (err: unknown) => void;
 }
 
-type Env = { Variables: { actor: string } };
+type Env = { Variables: { actor: string; accountId: string } };
 
 const RECOGNITION_STATUS = {
   IMAGE_TOO_LARGE: 413, UNSUPPORTED_MEDIA_TYPE: 415, REFUSED: 502, TRUNCATED: 502, UNPARSEABLE: 502,
 } as const;
 
 export function createApp(deps: AppDeps) {
-  const { sql } = deps;
+  // `root` s'adresse à la base sans cloisonnement (authentification, catalogue commun) ; `sql` suit le compte de la
+  // requête en cours : c'est lui que les routes et le cœur métier utilisent.
+  const root = deps.sql;
+  const sql = scopedDb(root);
   const app = new Hono<Env>();
 
   app.onError((err, c) => {
@@ -82,70 +92,139 @@ export function createApp(deps: AppDeps) {
     return c.json({ status: "ok" });
   });
 
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  /** Routes qui travaillent hors de tout compte : authentification, et import du catalogue commun (long). */
+  const unscoped = (path: string) => path.startsWith("/api/auth/") || path.startsWith("/api/catalog/import");
+
   app.use("/api/*", async (c, next) => {
     const header = c.req.header("Authorization") ?? "";
     const presented = header.startsWith("Bearer ") ? header.slice("Bearer ".length) : "";
-    // Un jeton d'agent n'ouvre que le serveur MCP ; tout le reste de l'API demande le jeton du propriétaire.
-    const agent = c.req.path === "/api/mcp" && presented.startsWith(AGENT_TOKEN_PREFIX) ? await verifyAgentToken(sql, presented) : null;
+    // Un jeton d'agent n'ouvre que le serveur MCP, pour le compte qui l'a créé ; tout le reste de l'API demande le
+    // jeton du serveur.
+    const agent = c.req.path === "/api/mcp" && presented.startsWith(AGENT_TOKEN_PREFIX) ? await verifyAgentToken(root, presented) : null;
     if (agent) {
       c.set("actor", `agent:${agent.name}`);
+      c.set("accountId", agent.accountId);
       return next();
     }
     if (!presented || !secretEquals(presented, deps.token)) {
       throw new HttpError(401, "UNAUTHORIZED", "missing or invalid bearer token");
     }
+    // Le serveur web désigne le compte de la session ; sans lui (scripts, tâches), c'est le compte d'installation.
+    const accountId = c.req.header("X-Dexlane-Account") ?? OWNER_ACCOUNT_ID;
+    if (!UUID.test(accountId)) throw new HttpError(400, "INVALID_ACCOUNT", "invalid account id");
     // Appel relayé par l'application web pour une session navigateur : la session doit dater du mot de passe courant.
     const session = c.req.header("X-Dexlane-Session-Version");
-    if (session !== undefined && session !== String(await currentSessionVersion())) {
+    if (session !== undefined && session !== String(await currentSessionVersion(accountId))) {
       throw new HttpError(401, "SESSION_EXPIRED", "this session is no longer valid; sign in again");
     }
-    // Les outils MCP rappellent l'API avec le jeton du propriétaire, au nom de l'agent (journal des actions).
+    // Les outils MCP rappellent l'API avec le jeton du serveur, au nom de l'agent (journal des actions).
     const onBehalf = c.req.header("X-Dexlane-Agent");
     c.set("actor", onBehalf && /^agent:[^\n]{1,60}$/.test(onBehalf) ? onBehalf : "owner");
-    await next();
-    // Après tout changement de stock ou de vente, les quantités annoncées sur les canaux sont réalignées :
-    // c'est le garde-fou contre la double vente d'une carte entre deux canaux.
-    if (c.req.method !== "GET" && c.res.ok && /^\/api\/(orders|inventory)(\/|$)/.test(c.req.path)) {
-      await syncQuantities(sql, deps.channels ?? {}).catch(deps.onError ?? console.error);
-    }
-    // Un envoi remis ou un stock corrigé peut faire passer une fourniture sous son seuil : l'alerte part aussitôt.
-    if (c.req.method !== "GET" && c.res.ok && /^\/api\/(orders|supplies|channels)(\/|$)/.test(c.req.path)) {
-      await alertLowSupplies().catch(deps.onError ?? console.error);
-    }
+    c.set("accountId", accountId);
+    // Le serveur MCP ne touche pas aux données lui-même : ses outils rappellent l'API, chacun dans sa propre portée.
+    if (unscoped(c.req.path) || c.req.path === "/api/mcp") return next();
+
+    // Tout le reste s'exécute pour ce compte, dans une transaction où Postgres cloisonne ses données.
+    await runForAccount(root, accountId, async () => {
+      await next();
+      // Après tout changement de stock ou de vente, les quantités annoncées sur les canaux sont réalignées :
+      // c'est le garde-fou contre la double vente d'une carte entre deux canaux.
+      if (c.req.method !== "GET" && c.res.ok && /^\/api\/(orders|inventory)(\/|$)/.test(c.req.path)) {
+        await withTx(sql, () => syncQuantities(sql, deps.channels ?? {})).catch(deps.onError ?? console.error);
+      }
+      // Un envoi remis ou un stock corrigé peut faire passer une fourniture sous son seuil : l'alerte part aussitôt.
+      if (c.req.method !== "GET" && c.res.ok && /^\/api\/(orders|supplies|channels)(\/|$)/.test(c.req.path)) {
+        await withTx(sql, () => alertLowSupplies()).catch(deps.onError ?? console.error);
+      }
+      // Une requête SQL en échec hors d'une sous-transaction annule toute la transaction : la réponse ne doit alors
+      // pas annoncer un succès.
+      if (c.res.ok) {
+        await sql`select 1`.catch((err: unknown) => {
+          (deps.onError ?? console.error)(err);
+          c.res = c.json(errorBody("INTERNAL_ERROR", "internal error"), 500);
+        });
+      }
+    });
   });
 
-  // ───────────────────────── Mot de passe du propriétaire ─────────────────────────
+  // ───────────────────────── Comptes : connexion, inscription, mot de passe ─────────────────────────
   // Réservé au serveur de l'application web (porteur du jeton) : il vérifie le mot de passe saisi et émet la session.
 
-  let sessionVersionCache: { value: number | null; at: number } | null = null;
-  async function currentSessionVersion(): Promise<number | null> {
-    if (!sessionVersionCache || Date.now() - sessionVersionCache.at > 10_000) {
-      sessionVersionCache = { value: (await passwordStatus(sql)).sessionVersion, at: Date.now() };
-    }
-    return sessionVersionCache.value;
+  const sessionVersions = new Map<string, { value: number | null; at: number }>();
+  async function currentSessionVersion(accountId: string): Promise<number | null> {
+    const cached = sessionVersions.get(accountId);
+    if (cached && Date.now() - cached.at <= 10_000) return cached.value;
+    const value = (await passwordStatus(root, accountId)).sessionVersion;
+    sessionVersions.set(accountId, { value, at: Date.now() });
+    if (sessionVersions.size > 5000) sessionVersions.clear();
+    return value;
   }
+  const mailer = (): Mailer => {
+    const configured = deps.mailer === undefined ? mailerFromEnv() : deps.mailer;
+    if (!configured) throw new HttpError(503, "EMAIL_NOT_CONFIGURED", "email sending is not configured (RESEND_API_KEY, EMAIL_FROM)");
+    return configured;
+  };
 
-  app.get("/api/auth/status", async (c) => c.json({ passwordSet: (await passwordStatus(sql)).passwordSet }));
+  app.get("/api/auth/status", async (c) => c.json({ passwordSet: (await passwordStatus(root)).passwordSet }));
 
+  /** Connexion : avec une adresse e-mail, ou sans (compte d'installation). */
   app.post("/api/auth/password/verify", async (c) => {
-    const { password } = await parseJsonBody(c, s.verifyPasswordBody);
-    return c.json({ sessionVersion: await verifyPassword(sql, password) });
+    const { password, email } = await parseJsonBody(c, s.verifyPasswordBody);
+    return c.json(await verifyPassword(root, password, { email }));
   });
 
-  /** Définition initiale ou réinitialisation : le jeton d'API fait office de clé de secours. */
+  /** Définition initiale ou réinitialisation du compte d'installation : le jeton d'API fait office de clé de secours. */
   app.post("/api/auth/password/reset", async (c) => {
     const { newPassword } = await parseJsonBody(c, s.resetPasswordBody);
-    const sessionVersion = await setPassword(sql, newPassword, "password_reset");
-    sessionVersionCache = null;
-    return c.json({ sessionVersion });
+    const sessionVersion = await setPassword(root, OWNER_ACCOUNT_ID, newPassword, "password_reset");
+    sessionVersions.delete(OWNER_ACCOUNT_ID);
+    return c.json({ accountId: OWNER_ACCOUNT_ID, sessionVersion });
   });
 
   app.post("/api/auth/password/change", async (c) => {
     const body = await parseJsonBody(c, s.changePasswordBody);
-    const sessionVersion = await changePassword(sql, body.currentPassword, body.newPassword);
-    sessionVersionCache = null;
-    return c.json({ sessionVersion });
+    const sessionVersion = await changePassword(root, c.var.accountId, body.currentPassword, body.newPassword);
+    sessionVersions.delete(c.var.accountId);
+    return c.json({ accountId: c.var.accountId, sessionVersion });
   });
+
+  /** Inscription : le compte est créé, le lien de vérification part par e-mail. Même réponse si l'adresse est déjà prise. */
+  app.post("/api/auth/signup", async (c) => {
+    const body = await parseJsonBody(c, s.signUpBody);
+    await signUp(root, mailer(), body);
+    return c.json({ ok: true });
+  });
+
+  app.post("/api/auth/email/resend", async (c) => {
+    const { email, baseUrl } = await parseJsonBody(c, s.emailLinkBody);
+    await resendVerification(root, mailer(), email, baseUrl);
+    return c.json({ ok: true });
+  });
+
+  app.post("/api/auth/email/verify", async (c) => {
+    const { token } = await parseJsonBody(c, s.tokenBody);
+    return c.json(await verifyEmail(root, token));
+  });
+
+  app.post("/api/auth/password/forgot", async (c) => {
+    const { email, baseUrl } = await parseJsonBody(c, s.emailLinkBody);
+    await requestPasswordReset(root, mailer(), email, baseUrl);
+    return c.json({ ok: true });
+  });
+
+  app.post("/api/auth/password/reset-with-token", async (c) => {
+    const { token, newPassword } = await parseJsonBody(c, s.resetWithTokenBody);
+    const session = await resetPasswordWithToken(root, token, newPassword);
+    sessionVersions.delete(session.accountId);
+    return c.json(session);
+  });
+
+  /** Les comptes pour lesquels les tâches planifiées tournent. */
+  app.get("/api/auth/accounts", async (c) => c.json({ accountIds: await activeAccountIds(root) }));
+
+  /** Le compte de la session : adresse, forfait. */
+  app.get("/api/account", async (c) => c.json(await accountProfile(root, c.var.accountId)));
 
   // ───────────────────────── Scan et catalogue ─────────────────────────
 
@@ -754,7 +833,7 @@ export function createApp(deps: AppDeps) {
     }
     const actor = c.var.actor.startsWith("agent:") ? c.var.actor : "agent:owner";
     const internal: InternalCall = async (method, path, body, idempotencyKey) => {
-      const headers: Record<string, string> = { Authorization: `Bearer ${deps.token}`, "X-Dexlane-Agent": actor };
+      const headers: Record<string, string> = { Authorization: `Bearer ${deps.token}`, "X-Dexlane-Agent": actor, "X-Dexlane-Account": c.var.accountId };
       if (body !== undefined) headers["Content-Type"] = "application/json";
       if (method !== "GET") headers["Idempotency-Key"] = idempotencyKey ?? `mcp-${randomUUID()}`;
       const res = await app.request(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });

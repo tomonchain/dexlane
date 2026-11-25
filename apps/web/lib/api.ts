@@ -281,7 +281,8 @@ export const api = {
   activate: (id: string) => request<PositionDetail>("POST", `/inventory/${id}/activate`),
 
   authStatus: () => auth<{ passwordSet: boolean }>("GET"),
-  login: (password: string) => auth("POST", { password }),
+  /** Avec une adresse e-mail, ou sans pour le compte d'installation. */
+  login: (password: string, email?: string) => auth("POST", email ? { email, password } : { password }),
   /** Première connexion ou mot de passe oublié : le jeton d'installation autorise à définir le mot de passe. */
   setPassword: (setupToken: string, newPassword: string) => auth("POST", { setupToken, newPassword }),
   changePassword: (currentPassword: string, newPassword: string) => auth("PUT", { currentPassword, newPassword }),

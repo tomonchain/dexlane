@@ -40,6 +40,8 @@ export const SEO = {
     title: "Tu viens de recevoir une carte vendue avec Dexlane.",
     description: `Les tiennes peuvent partir aussi vite. Ton code ${PARCEL_OFFER.code} t'offre ${PARCEL_OFFER.offer}.`,
   },
+  signup: { title: "Crée ton compte — Dexlane", description: `${FREE} cartes offertes chaque mois. Sans carte bancaire.` },
+  forgotPassword: { title: "Mot de passe oublié — Dexlane", description: "[À COMPLÉTER]" },
   notFound: "Cette page n'existe pas.",
 } satisfies Record<string, PageSeo | string>;
 
@@ -300,6 +302,56 @@ export const PARCEL = {
 export const DOCS = {
   title: "Docs",
   entries: ["Démarrer avec la version hébergée", "Installer la version Community"],
+};
+
+/**
+ * Inscription, vérification de l'adresse et mot de passe oublié. Ces textes ne figurent pas dans le brief : rédigés au
+ * plus court, dans son ton. [À CONFIRMER]
+ */
+export const AUTH = {
+  email: "Adresse e-mail",
+  password: "Mot de passe",
+  passwordHint: "10 caractères minimum.",
+  login: "Se connecter",
+  backToLogin: "Retour à la connexion",
+  signup: {
+    title: "Crée ton compte",
+    lead: HERO.underCta,
+    submit: "Créer mon compte",
+    terms: ["En créant un compte, tu acceptes les", "CGU", "et la politique de", "confidentialité"],
+    haveAccount: "Déjà un compte ?",
+    sentTitle: "Vérifie ta boîte mail",
+    sentText: "On vient d'envoyer un lien à {email}. Clique dessus pour ouvrir ton compte. Le lien est valable 24 heures.",
+    resend: "Renvoyer l'e-mail",
+    resent: "Si l'adresse est correcte, un nouvel e-mail vient de partir.",
+  },
+  verify: {
+    title: "On ouvre ton compte",
+    pending: "Vérification de ton adresse…",
+    failedTitle: "Ce lien n'est plus valable",
+    again: "Recommencer l'inscription",
+  },
+  forgot: {
+    title: "Mot de passe oublié",
+    lead: "Indique l'adresse de ton compte : on t'envoie un lien pour en choisir un nouveau.",
+    submit: "Envoyer le lien",
+    sent: "Si un compte existe avec cette adresse, un e-mail vient de partir. Le lien est valable 1 heure.",
+  },
+  reset: {
+    title: "Nouveau mot de passe",
+    lead: "Choisis ton nouveau mot de passe. Tes autres appareils seront déconnectés.",
+    newPassword: "Nouveau mot de passe",
+    submit: "Enregistrer et me connecter",
+    again: "Demander un nouveau lien",
+  },
+  errors: {
+    WEAK_PASSWORD: "Le mot de passe doit faire au moins 10 caractères.",
+    VALIDATION_ERROR: "Vérifie l'adresse e-mail et le mot de passe.",
+    LINK_EXPIRED: "Ce lien est invalide, expiré ou déjà utilisé.",
+    EMAIL_NOT_CONFIGURED: "L'envoi d'e-mails n'est pas encore configuré sur ce serveur.",
+    API_UNREACHABLE: "Le serveur ne répond pas. Réessaie dans un instant.",
+    DEFAULT: "Quelque chose n'a pas fonctionné. Réessaie dans un instant.",
+  },
 };
 
 export const NOT_FOUND = { title: "Cette page n'existe pas.", home: "Accueil" };

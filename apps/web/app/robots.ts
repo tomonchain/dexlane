@@ -4,7 +4,7 @@ import { SITE_URL } from "@/config/site";
 /** Le site marketing est ouvert aux moteurs ; l'application et ses API ne le sont pas. */
 const APP_PATHS = [
   "/api/", "/auth", "/cron/", "/mcp", "/home", "/account", "/add", "/bulk", "/buying", "/card/", "/catalog", "/inventory",
-  "/listings", "/locations", "/login", "/pricing", "/sales", "/scanner", "/settings", "/stats", "/stock", "/welcome",
+  "/listings", "/locations", "/login", "/pricing", "/sales", "/scanner", "/settings", "/stats", "/stock", "/welcome", "/signup/verify", "/forgot-password", "/reset-password",
 ];
 
 export default function robots(): MetadataRoute.Robots {

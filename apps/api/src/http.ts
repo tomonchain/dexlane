@@ -82,7 +82,7 @@ export async function idempotent(
     const [claimed] = await tx`
       insert into idempotency_keys (key, scope, request_hash, status, response)
       values (${key}, ${scope}, ${requestHash}, 0, '{}')
-      on conflict (key) do nothing
+      on conflict (account_id, key) do nothing
       returning key`;
     if (!claimed) {
       const [previous] = await tx<{ scope: string; requestHash: string; status: number; response: unknown }[]>`

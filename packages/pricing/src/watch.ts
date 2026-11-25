@@ -139,7 +139,7 @@ export async function watchCard(sql: Db, input: { variantId: string; targetCents
   if (!variant) throw new DomainError("VARIANT_NOT_FOUND", `card variant ${input.variantId} does not exist`);
   const [row] = await sql<{ id: string }[]>`
     insert into watched_cards (variant_id, target_cents, note) values (${input.variantId}, ${input.targetCents ?? null}, ${input.note?.trim() || null})
-    on conflict (variant_id) do update set target_cents = coalesce(excluded.target_cents, watched_cards.target_cents),
+    on conflict (account_id, variant_id) do update set target_cents = coalesce(excluded.target_cents, watched_cards.target_cents),
                                            note = coalesce(excluded.note, watched_cards.note)
     returning id`;
   return row!;

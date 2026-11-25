@@ -49,7 +49,7 @@ export function PlanGrid({ detailed, headingLevel = 3 }: { detailed?: boolean; h
               })}
             </ul>
           )}
-          <Cta href={SIGNUP_URL} size="md" tone={plan.featured ? "ink" : "paper"} className="mt-auto w-full">{plan.button}</Cta>
+          <Cta href={`${SIGNUP_URL}?plan=${plan.id}`} size="md" tone={plan.featured ? "ink" : "paper"} className="mt-auto w-full">{plan.button}</Cta>
         </li>
       ))}
     </ul>

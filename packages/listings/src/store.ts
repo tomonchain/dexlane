@@ -31,7 +31,7 @@ export async function saveListingSettings(sql: Db, settings: ListingSettings, ac
     const before = await getListingSettings(tx);
     await tx`
       insert into listing_settings (settings) values (${tx.json(settings as never)})
-      on conflict (id) do update set settings = excluded.settings, updated_at = now()`;
+      on conflict (account_id) do update set settings = excluded.settings, updated_at = now()`;
     await tx`
       insert into audit_events (actor, action, entity, entity_id, before, after)
       values (${actor}, 'listing_settings_changed', 'listing_settings', 'default', ${tx.json(before as never)}, ${tx.json(settings as never)})`;

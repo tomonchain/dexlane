@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 /**
  * Session du navigateur : un cookie httpOnly signé par le serveur web, illisible et infalsifiable côté page.
- * Il ne contient ni le mot de passe ni le jeton d'API, seulement la « version de session » en vigueur à la
+ * Il ne contient ni le mot de passe ni le jeton d'API, seulement le compte et la « version de session » en vigueur à la
  * connexion ; l'API refuse une version périmée, ce qui déconnecte tous les appareils au changement de mot de passe.
  */
 export const SESSION_COOKIE = "dexlane_session";
@@ -25,23 +25,31 @@ const digest = (s: string) => createHash("sha256").update(s).digest();
 /** Comparaison à temps constant, y compris quand les longueurs diffèrent. */
 export const secretEquals = (a: string, b: string) => timingSafeEqual(digest(a), digest(b));
 
-export function issueSession(sessionVersion: number): string {
-  const payload = Buffer.from(JSON.stringify({ sv: sessionVersion, exp: Math.floor(Date.now() / 1000) + SESSION_MAX_AGE_S })).toString("base64url");
+/** Le compte d'installation : celui des sessions ouvertes avant l'arrivée des comptes. */
+export const OWNER_ACCOUNT_ID = "00000000-0000-0000-0000-000000000001";
+
+export interface Session {
+  sessionVersion: number;
+  accountId: string;
+}
+
+export function issueSession(sessionVersion: number, accountId: string): string {
+  const payload = Buffer.from(JSON.stringify({ sv: sessionVersion, acc: accountId, exp: Math.floor(Date.now() / 1000) + SESSION_MAX_AGE_S })).toString("base64url");
   return `v1.${payload}.${sign(payload)}`;
 }
 
-export function readSession(req: NextRequest): { sessionVersion: number } | null {
+export function readSession(req: NextRequest): Session | null {
   return parseSession(req.cookies.get(SESSION_COOKIE)?.value);
 }
 
 /** Session portée par la valeur du cookie, si elle est authentique et non expirée. */
-export function parseSession(cookie: string | undefined): { sessionVersion: number } | null {
+export function parseSession(cookie: string | undefined): Session | null {
   const [version, payload, signature] = (cookie ?? "").split(".");
   if (version !== "v1" || !payload || !signature || !secretEquals(signature, sign(payload))) return null;
   try {
-    const { sv, exp } = JSON.parse(Buffer.from(payload, "base64url").toString()) as { sv?: unknown; exp?: unknown };
+    const { sv, acc, exp } = JSON.parse(Buffer.from(payload, "base64url").toString()) as { sv?: unknown; acc?: unknown; exp?: unknown };
     if (typeof sv !== "number" || typeof exp !== "number" || exp < Date.now() / 1000) return null;
-    return { sessionVersion: sv };
+    return { sessionVersion: sv, accountId: typeof acc === "string" ? acc : OWNER_ACCOUNT_ID };
   } catch {
     return null;
   }

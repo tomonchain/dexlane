@@ -36,7 +36,7 @@ export function importOrder(sql: Db, input: ImportOrderInput): Promise<ImportOrd
       values (${input.channel}, ${input.externalId}, ${input.paymentStatus}, ${input.grossCents}, ${input.currency},
               ${input.orderedAt}, ${input.shipBy ?? null},
               ${input.shippingAddress ? tx.json(input.shippingAddress as never) : null})
-      on conflict (channel, external_id) do nothing
+      on conflict (account_id, channel, external_id) do nothing
       returning id`;
     if (!inserted) {
       const [existing] = await tx<{ id: string }[]>`

@@ -16,6 +16,8 @@ export function authMessage(e: unknown): string {
       return t("Le mot de passe doit faire au moins 10 caractères.");
     case "INVALID_SETUP_TOKEN":
       return t("Jeton d'installation refusé.");
+    case "EMAIL_NOT_VERIFIED":
+      return t("Cette adresse e-mail n'a pas encore été vérifiée : suivez le lien reçu par e-mail.");
     case "PASSWORD_NOT_SET":
       return t("Aucun mot de passe n'est encore défini.");
     case "API_UNREACHABLE":

@@ -43,7 +43,7 @@ export async function createLocation(
       const [inserted] = await tx<LocationRow[]>`
         insert into locations (code, parent_id, description)
         values (${code}, ${parentId}, ${isLeaf ? (input.description ?? null) : null})
-        on conflict (code) do nothing
+        on conflict (account_id, code) do nothing
         returning id, parent_id, code, description`;
       const row: LocationRow =
         inserted ?? (await tx<LocationRow[]>`select id, parent_id, code, description from locations where code = ${code}`)[0]!;

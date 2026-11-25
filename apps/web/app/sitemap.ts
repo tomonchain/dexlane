@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/config/site";
 
 /** Pages publiques indexables. /colis (page d'arrivée du flyer) n'y figure pas. */
-const PAGES = ["/", "/tarifs", "/docs", "/contact", "/mentions-legales", "/cgu", "/confidentialite"];
+const PAGES = ["/", "/tarifs", "/signup", "/docs", "/contact", "/mentions-legales", "/cgu", "/confidentialite"];
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return PAGES.map((path) => ({

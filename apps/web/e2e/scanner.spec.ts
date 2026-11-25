@@ -1,6 +1,6 @@
 import { deflateSync, crc32 } from "node:zlib";
 import { expect, test, type Page } from "@playwright/test";
-import { E2E_PASSWORD, E2E_TOKEN } from "./constants";
+import { E2E_API_PORT, E2E_PASSWORD, E2E_TOKEN } from "./constants";
 
 /** PNG valide de la largeur voulue : la largeur choisit le scénario du lecteur factice (e2e/harness.ts). */
 function png(width: number, height = 14): Buffer {
@@ -1139,6 +1139,86 @@ test("lot sans temps mort : variante appliquée en masse, corrections enchaîné
   expect(detail.photos.filter((p) => p.kind === "LISTING").length).toBeGreaterThanOrEqual(1);
   expect(detail.planned).toMatchObject({ channel: "ebay" });
   await page.request.post("/api/publications/cancel", { data: {} });
+});
+
+/** Le dernier e-mail envoyé à cette adresse, et le chemin du lien qu'il contient. */
+async function lastMail(page: Page, to: string) {
+  const mails = (await (await page.request.get(`http://127.0.0.1:${E2E_API_PORT}/__test/mails`)).json()) as { to: string; subject: string; text: string }[];
+  const mail = mails.filter((m) => m.to === to).at(-1)!;
+  const url = new URL(mail.text.match(/https?:\/\/\S+/)![0]);
+  return { subject: mail.subject, path: url.pathname + url.search };
+}
+
+test("inscription : compte créé depuis /signup, adresse vérifiée par le lien reçu, stock à soi, connexion par e-mail et mot de passe oublié", async ({ page }) => {
+  // Le compte d'installation a déjà du stock : le nouveau compte ne doit pas le voir.
+  await login(page);
+  await page.request.post("/api/locations", { data: { code: "BOITE-INS" } });
+  const { candidates } = (await (await page.request.get("/api/catalog/cards?name=fouinar")).json()) as { candidates: { variants: { id: string }[] }[] };
+  await page.request.post("/api/inventory/receive", {
+    data: { variantId: candidates[0]!.variants[0]!.id, condition: "NM", quantity: 1, locationCode: "BOITE-INS", unitCostCents: 5 },
+    headers: { "Idempotency-Key": `e2e-inscription-${Date.now()}` },
+  });
+  expect(((await (await page.request.get("/api/stock")).json()) as { items: unknown[] }).items.length).toBeGreaterThan(0);
+  await page.request.delete("/auth");
+
+  const email = `vendeur-${Date.now()}@example.com`;
+  const password = "mot-de-passe-vendeur";
+  // Le bouton d'un forfait mène à l'inscription, forfait retenu.
+  await page.goto("/tarifs");
+  await page.getByTestId("plan-solo").getByRole("link", { name: "Choisir Solo" }).click();
+  await page.waitForURL(/\/signup\?plan=solo$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Crée ton compte");
+  await page.getByLabel("Adresse e-mail").fill(email);
+  await page.getByLabel(/^Mot de passe/).fill("court");
+  await page.getByRole("button", { name: "Créer mon compte" }).click();
+  await expect(page.getByTestId("signup-sent")).toHaveCount(0);
+  await page.getByLabel(/^Mot de passe/).fill(password);
+  await page.getByRole("button", { name: "Créer mon compte" }).click();
+  await expect(page.getByTestId("signup-sent")).toContainText(email);
+
+  // Tant que l'adresse n'est pas vérifiée, la connexion est refusée.
+  await page.goto("/login");
+  await page.getByLabel("Adresse e-mail").fill(email);
+  await page.getByLabel("Mot de passe", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Se connecter" }).click();
+  await expect(errorBanner(page)).toContainText("n'a pas encore été vérifiée");
+
+  // Le lien reçu ouvre le compte : l'assistant de démarrage, sans compte à créer, et un stock vide.
+  const verification = await lastMail(page, email);
+  expect(verification.subject).toBe("Confirme ton adresse e-mail");
+  await page.goto(verification.path);
+  await page.waitForURL(/\/welcome$/);
+  await expect(page.getByLabel("Jeton d'installation")).toHaveCount(0);
+  expect((await (await page.request.get("/api/account")).json()) as { email: string; plan: string }).toMatchObject({ email, plan: "solo" });
+  expect(((await (await page.request.get("/api/stock")).json()) as { items: unknown[] }).items).toEqual([]);
+  expect((await page.request.put("/api/app-settings", { data: { onboardingDone: true } })).ok()).toBe(true);
+  // Le lien ne sert qu'une fois.
+  await page.request.delete("/auth");
+  await page.goto(verification.path);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ce lien n'est plus valable");
+
+  // Connexion par adresse e-mail et mot de passe.
+  await page.goto("/login");
+  await page.getByLabel("Adresse e-mail").fill(email);
+  await page.getByLabel("Mot de passe", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Se connecter" }).click();
+  await expect(page.getByRole("heading", { name: "Aujourd'hui" })).toBeVisible();
+  await page.request.delete("/auth");
+
+  // Mot de passe oublié : lien par e-mail, nouveau mot de passe, session ouverte.
+  await page.goto("/login");
+  await page.getByRole("link", { name: "Mot de passe oublié ?" }).click();
+  await page.waitForURL(/\/forgot-password$/);
+  await page.getByLabel("Adresse e-mail").fill(email);
+  await page.getByRole("button", { name: "Envoyer le lien" }).click();
+  await expect(page.getByTestId("forgot-sent")).toBeVisible();
+  const reset = await lastMail(page, email);
+  expect(reset.subject).toBe("Réinitialise ton mot de passe");
+  await page.goto(reset.path);
+  await page.getByLabel(/^Nouveau mot de passe/).fill("nouveau-mot-de-passe-vendeur");
+  await page.getByRole("button", { name: "Enregistrer et me connecter" }).click();
+  await expect(page.getByRole("heading", { name: "Aujourd'hui" })).toBeVisible();
+  expect(((await (await page.request.get("/api/stock")).json()) as { items: unknown[] }).items).toEqual([]);
 });
 
 test("site marketing : en-tête et menu mobile, tarifs, pages légales, contact, colis, docs, 404, sitemap et robots", async ({ page }) => {

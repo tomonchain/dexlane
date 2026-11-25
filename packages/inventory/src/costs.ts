@@ -33,7 +33,7 @@ export async function saveShippingCosts(sql: Db, costs: ShippingCosts, actor: st
   }
   await sql`
     insert into shipping_costs (settings) values (${sql.json(costs as never)})
-    on conflict (id) do update set settings = excluded.settings, updated_at = now()`;
+    on conflict (account_id) do update set settings = excluded.settings, updated_at = now()`;
   await sql`
     insert into audit_events (actor, action, entity, entity_id, after)
     values (${actor}, 'shipping_costs_changed', 'shipping_costs', 'default', ${sql.json(costs as never)})`;

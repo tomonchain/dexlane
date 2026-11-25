@@ -78,7 +78,7 @@ export async function saveSubscription(sql: Db, input: PushSubscriptionInput): P
   await sql`
     insert into push_subscriptions (endpoint, p256dh, auth, locale, user_agent)
     values (${input.endpoint}, ${input.keys.p256dh}, ${input.keys.auth}, ${input.locale}, ${input.userAgent ?? null})
-    on conflict (endpoint) do update set p256dh = excluded.p256dh, auth = excluded.auth, locale = excluded.locale, user_agent = excluded.user_agent`;
+    on conflict (account_id, endpoint) do update set p256dh = excluded.p256dh, auth = excluded.auth, locale = excluded.locale, user_agent = excluded.user_agent`;
 }
 
 export async function removeSubscription(sql: Db, endpoint: string): Promise<void> {
@@ -202,7 +202,7 @@ export async function sendDigest(sql: Db, send: PushSender, preferences: Notific
   const result = anything ? await broadcast(sql, send, (locale) => digestMessage(digest, locale)!) : { sent: 0, removed: 0, failed: 0 };
   await sql`
     insert into notification_state (last_digest_at, notified) values (now(), ${sql.json({ targets: notified })})
-    on conflict (id) do update set last_digest_at = excluded.last_digest_at, notified = excluded.notified`;
+    on conflict (account_id) do update set last_digest_at = excluded.last_digest_at, notified = excluded.notified`;
   return { ...result, digest };
 }
 

@@ -29,7 +29,7 @@ export async function savePricingSettings(sql: Db, settings: PricingSettings, ac
     const before = await getPricingSettings(tx);
     await tx`
       insert into pricing_settings (settings) values (${tx.json(settings as never)})
-      on conflict (id) do update set settings = excluded.settings, updated_at = now()`;
+      on conflict (account_id) do update set settings = excluded.settings, updated_at = now()`;
     await tx`
       insert into audit_events (actor, action, entity, entity_id, before, after)
       values (${actor}, 'pricing_settings_changed', 'pricing_settings', 'default', ${tx.json(before as never)}, ${tx.json(settings as never)})`;
