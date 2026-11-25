@@ -9,7 +9,7 @@ import { I18nProvider } from "@/components/i18n-provider";
 import { ThemeProvider } from "@/components/theme";
 import { LOCALE_COOKIE, resolveLocale } from "@/lib/i18n";
 import { SESSION_COOKIE, parseSession } from "@/lib/session";
-import "./globals.css";
+import "../globals.css";
 
 async function requestLocale() {
   return resolveLocale((await cookies()).get(LOCALE_COOKIE)?.value, (await headers()).get("accept-language"));

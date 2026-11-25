@@ -1141,37 +1141,133 @@ test("lot sans temps mort : variante appliquée en masse, corrections enchaîné
   await page.request.post("/api/publications/cancel", { data: {} });
 });
 
+test("site marketing : en-tête et menu mobile, tarifs, pages légales, contact, colis, docs, 404, sitemap et robots", async ({ page }) => {
+  await page.goto("/");
+  const header = page.getByRole("banner");
+  // En-tête : opaque, bordure basse une fois qu'on a défilé.
+  await expect(header).toHaveClass(/border-transparent/);
+  await page.mouse.wheel(0, 600);
+  await expect(header).toHaveClass(/border-border/);
+
+  // Menu mobile : aria-expanded, fermeture avec Échap, puis à la navigation ; lien actif.
+  const menuButton = page.getByRole("button", { name: "Menu" });
+  const menu = page.getByRole("navigation", { name: "Menu" });
+  await expect(menuButton).toHaveAttribute("aria-expanded", "false");
+  await expect(menu).toBeHidden();
+  await menuButton.click();
+  await expect(menuButton).toHaveAttribute("aria-expanded", "true");
+  await expect(menu.getByRole("link", { name: "GitHub" })).toHaveAttribute("target", "_blank");
+  await page.keyboard.press("Escape");
+  await expect(menuButton).toHaveAttribute("aria-expanded", "false");
+  await expect(menu).toBeHidden();
+  await menuButton.click();
+  await menu.getByRole("link", { name: "Tarifs" }).click();
+  await page.waitForURL(/\/tarifs$/);
+  await expect(menuButton).toHaveAttribute("aria-expanded", "false");
+  await menuButton.click();
+  await expect(menu.getByRole("link", { name: "Tarifs" })).toHaveAttribute("aria-current", "page");
+  await page.keyboard.press("Escape");
+
+  // /tarifs : grille complète lue dans la configuration, trois lignes, encart, FAQ du prix.
+  await expect(page).toHaveTitle("Tarifs — Dexlane");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Tu paies selon ce que tu publies. Rien sur ce que tu vends.");
+  await expect(page.locator("[data-testid^=plan-]")).toHaveCount(4);
+  await expect(page.getByTestId("plan-pro")).toContainText("Recommandé");
+  await expect(page.getByTestId("plan-pro")).toContainText(/29\s€ \/ mois/);
+  await expect(page.getByTestId("plan-boutique")).toContainText("Support prioritaire");
+  await expect(page.getByText("Un lot compte pour une seule carte.")).toBeVisible();
+  await expect(page.getByText(/10\s€ les 500 cartes supplémentaires/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tu préfères l'héberger toi-même ?" })).toBeVisible();
+  await expect(page.locator("details")).toHaveCount(4);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBe(0);
+
+  // Pages légales : un seul titre, un sommaire, des champs à compléter.
+  for (const [path, title] of [["/mentions-legales", "Mentions légales"], ["/cgu", "CGU"], ["/confidentialite", "Confidentialité"]] as const) {
+    await page.goto(path);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(title);
+    await expect(page.getByRole("navigation", { name: "Sommaire" })).toBeVisible();
+    await expect(page.getByText("[À COMPLÉTER]").first()).toBeVisible();
+  }
+  await expect(page.getByRole("heading", { name: "Suppression du compte et des données eBay associées" })).toBeVisible();
+
+  // Pied de page : trois groupes.
+  for (const group of ["Produit", "Projet", "Légal"]) await expect(page.getByRole("navigation", { name: group })).toBeVisible();
+
+  await page.goto("/contact");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Contact");
+  await expect(page.getByText("Une question, un bug, une idée ? Écris-nous, c'est le fondateur qui répond.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "[À COMPLÉTER]" })).toHaveAttribute("href", "mailto:[À COMPLÉTER]");
+  await expect(page.getByRole("link", { name: "github.com/tomonchain/dexlane/issues" })).toBeVisible();
+
+  await page.goto("/colis");
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Tu viens de recevoir une carte vendue avec Dexlane.");
+  await expect(page.getByRole("main").getByRole("link", { name: "Essayer gratuitement" })).toHaveAttribute("href", /^\/signup\?code=/);
+  await expect(page.getByRole("heading", { name: "Connecte ton compte eBay" })).toBeVisible();
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /\/og\.png$/);
+  const og = await page.request.get("/og.png");
+  expect(og.headers()["content-type"]).toBe("image/png");
+
+  await page.goto("/docs");
+  await expect(page.getByRole("link", { name: "Démarrer avec la version hébergée" })).toHaveAttribute("href", "https://github.com/tomonchain/dexlane#readme");
+  await expect(page.getByRole("link", { name: "Installer la version Community" })).toHaveAttribute("href", "https://github.com/tomonchain/dexlane#readme");
+
+  const missing = await page.goto("/cette-page-n-existe-pas");
+  expect(missing?.status()).toBe(404);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Cette page n'existe pas.");
+  await page.getByRole("main").getByRole("link", { name: "Accueil" }).click();
+  await page.waitForURL(/\/$/);
+
+  const sitemap = await (await page.request.get("/sitemap.xml")).text();
+  expect(sitemap).toContain("/tarifs</loc>");
+  expect(sitemap).not.toContain("/colis");
+  const robots = await (await page.request.get("/robots.txt")).text();
+  expect(robots).toMatch(/Sitemap: .*\/sitemap\.xml/);
+  expect(robots).toContain("Disallow: /api/");
+});
+
 test("page d'accueil : landing publique sans session, puis « Aujourd'hui » avec ce qui attend une fois connecté", async ({ page }) => {
-  // Visiteur : la landing, sans navigation d'application ni donnée du stock, référencée.
+  // Visiteur : la landing statique, sans navigation d'application ni donnée du stock, référencée.
   await page.goto("/");
   await expect(page).toHaveTitle("Dexlane — Publie tes cartes Pokémon sur eBay en quelques secondes");
+  await expect(page.locator("html")).toHaveAttribute("lang", "fr");
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /^index/);
   await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", "Tes cartes en vente sur eBay. Sans y passer tes soirées.");
-  // Le titre porte le logo eBay à la place du mot : son nom accessible reste la phrase du brief.
-  const hero = page.getByRole("heading", { level: 1, name: "Tes cartes en vente sur eBay en quelques secondes. Pas en quelques soirées." });
-  await expect(hero).toBeVisible();
-  await expect(hero.getByRole("img", { name: "eBay" })).toBeVisible();
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /\/og\.png$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Tes cartes en vente sur eBay en quelques secondes. Pas en quelques soirées.");
   await expect(page.getByRole("navigation", { name: "Navigation principale" })).toHaveCount(0);
+  // Aucune image de carte ni logo tiers : la démonstration du produit est en HTML, vignettes neutres.
+  await expect(page.locator("img")).toHaveCount(0);
   // Mobile d'abord : le CTA principal est visible sans défiler.
   const cta = page.getByRole("link", { name: "Essayer gratuitement" }).first();
   await expect(cta).toBeInViewport();
   await expect(cta).toHaveAttribute("href", "/signup");
   await expect(page.getByRole("link", { name: "Voir le code sur GitHub" })).toHaveAttribute("href", "https://github.com/tomonchain/dexlane");
-  for (const title of ["Vendre des cartes, c'est 10 % de passion et 90 % de saisie.", "Trois étapes. La troisième est un clic.", "Tout ce qui te prend du temps, Dexlane s'en charge.", "Que tu vendes 30 cartes ou 3 000.", "Le code est ouvert. Vérifie par toi-même.", "Les questions qu'on nous pose", "Tes cartes ne se vendront pas depuis un classeur."]) {
+  for (const title of ["Vendre des cartes, c'est 10 % de passion et 90 % de saisie.", "Trois étapes. La troisième est un clic.", "Tout ce qui te prend du temps, Dexlane s'en charge.", "Que tu vendes 30 cartes ou 3 000.", "Tu paies selon ce que tu publies. Rien sur ce que tu vends.", "Le code est ouvert. Vérifie par toi-même.", "Fait par un vendeur, pour des vendeurs.", "Les questions qu'on nous pose", "Tes cartes ne se vendront pas depuis un classeur."]) {
     await expect(page.getByRole("heading", { level: 2, name: title })).toBeVisible();
   }
-  // En production, ce qui reste à confirmer n'apparaît pas : tarifs, fondateur, fonctionnalités non livrées, témoignages.
-  await expect(page.locator("[data-pending]")).toHaveCount(0);
-  await expect(page.locator("#tarifs")).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Fait par un vendeur, pour des vendeurs." })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Vente en lots" })).toHaveCount(0);
+  // Ancres des sections ; huit fonctionnalités, dont les deux sur le stock ; grille de tarifs courte.
+  for (const id of ["probleme", "comment-ca-marche", "fonctionnalites", "pour-qui", "tarifs", "open-source", "fondateur", "faq", "essayer"]) {
+    await expect(page.locator(`section#${id}`)).toHaveCount(1);
+  }
+  await expect(page.locator("#fonctionnalites h3")).toHaveCount(8);
+  await expect(page.getByRole("heading", { name: "Retrouve chaque carte en dix secondes" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Achats, ventes, marge" })).toBeVisible();
+  await expect(page.getByTestId("plan-pro")).toContainText("Recommandé");
+  await expect(page.getByTestId("plan-pro")).not.toContainText("Suggestions de titre et de prix");
+  await expect(page.getByRole("link", { name: "Voir le détail des tarifs →" })).toHaveAttribute("href", "/tarifs");
+  // Les éléments « à confirmer » sont affichés tels que rédigés ; pas de témoignages.
+  await expect(page.getByText("Licence [À CONFIRMER]")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Ce qu'en disent les vendeurs" })).toHaveCount(0);
   // FAQ : une question s'ouvre sur sa réponse.
   await page.getByText("Est-ce que Dexlane prend une commission sur mes ventes ?").click();
   await expect(page.getByText("Non, aucune. Tu paies ton forfait, c'est tout.", { exact: false })).toBeVisible();
   await expect(page.getByText("Dexlane est un outil indépendant.", { exact: false })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBe(0);
-  await page.getByRole("link", { name: "Se connecter" }).click();
+  // Sur téléphone, « Se connecter » est dans le menu.
+  await page.getByRole("button", { name: "Menu" }).click();
+  await page.getByRole("navigation", { name: "Menu" }).getByRole("link", { name: "Se connecter" }).click();
   await page.waitForURL(/\/login$/);
 
   // Propriétaire : un lot en cours apparaît dans « À faire » et mène droit au lot.

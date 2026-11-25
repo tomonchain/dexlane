@@ -78,7 +78,9 @@ function useCompactOnScroll(pathname: string): boolean {
 }
 
 export function AppShell({ children, signedIn }: { children: ReactNode; signedIn: boolean }) {
-  const pathname = usePathname();
+  // L'accueil est servi à « / » quand une session est ouverte (proxy.ts) : « /home » et « / » sont le même écran.
+  const rawPathname = usePathname();
+  const pathname = rawPathname === "/home" ? "/" : rawPathname;
   const [searching, setSearching] = useState(false);
 
   const router = useRouter();
