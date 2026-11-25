@@ -1141,13 +1141,35 @@ test("lot sans temps mort : variante appliquée en masse, corrections enchaîné
   await page.request.post("/api/publications/cancel", { data: {} });
 });
 
-test("page d'accueil : vitrine publique sans session, puis « Aujourd'hui » avec ce qui attend une fois connecté", async ({ page }) => {
-  // Visiteur : la présentation du produit, sans navigation d'application ni donnée du stock.
+test("page d'accueil : landing publique sans session, puis « Aujourd'hui » avec ce qui attend une fois connecté", async ({ page }) => {
+  // Visiteur : la landing, sans navigation d'application ni donnée du stock, référencée.
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Du carton de cartes à l'annonce en ligne." })).toBeVisible();
+  await expect(page).toHaveTitle("Dexlane — Publie tes cartes Pokémon sur eBay en quelques secondes");
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /^index/);
+  await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", "Tes cartes en vente sur eBay. Sans y passer tes soirées.");
+  const hero = page.getByRole("heading", { level: 1 });
+  await expect(hero).toHaveText("Tes cartes en vente sur eBay en quelques secondes. Pas en quelques soirées.");
   await expect(page.getByRole("navigation", { name: "Navigation principale" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Quatre gestes, dans l'ordre." })).toBeVisible();
-  await page.getByRole("link", { name: "Ouvrir Dexlane" }).click();
+  // Mobile d'abord : le CTA principal est visible sans défiler.
+  const cta = page.getByRole("link", { name: "Essayer gratuitement" }).first();
+  await expect(cta).toBeInViewport();
+  await expect(cta).toHaveAttribute("href", "/signup");
+  await expect(page.getByRole("link", { name: "Voir le code sur GitHub" })).toHaveAttribute("href", "https://github.com/tomonchain/dexlane");
+  for (const title of ["Vendre des cartes, c'est 10 % de passion et 90 % de saisie.", "Trois étapes. La troisième est un clic.", "Tout ce qui te prend du temps, Dexlane s'en charge.", "Que tu vendes 30 cartes ou 3 000.", "Le code est ouvert. Vérifie par toi-même.", "Les questions qu'on nous pose", "Tes cartes ne se vendront pas depuis un classeur."]) {
+    await expect(page.getByRole("heading", { level: 2, name: title })).toBeVisible();
+  }
+  // En production, ce qui reste à confirmer n'apparaît pas : tarifs, fondateur, fonctionnalités non livrées, témoignages.
+  await expect(page.locator("[data-pending]")).toHaveCount(0);
+  await expect(page.locator("#tarifs")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Fait par un vendeur, pour des vendeurs." })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Vente en lots" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Ce qu'en disent les vendeurs" })).toHaveCount(0);
+  // FAQ : une question s'ouvre sur sa réponse.
+  await page.getByText("Est-ce que Dexlane prend une commission sur mes ventes ?").click();
+  await expect(page.getByText("Non, aucune. Tu paies ton forfait, c'est tout.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Dexlane est un outil indépendant.", { exact: false })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBe(0);
+  await page.getByRole("link", { name: "Se connecter" }).click();
   await page.waitForURL(/\/login$/);
 
   // Propriétaire : un lot en cours apparaît dans « À faire » et mène droit au lot.

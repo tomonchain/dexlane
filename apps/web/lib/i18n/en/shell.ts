@@ -79,49 +79,6 @@ export const SHELL: Record<string, string> = {
   "{n} ventes remises": "{n} sales handed over",
   "Toutes les statistiques": "All statistics",
 
-  // Page de présentation
-  "Se connecter": "Sign in",
-  "Du carton de cartes à l'annonce en ligne.": "From a box of cards to a live listing.",
-  "Dexlane transforme une pile de cartes Pokémon en stock rangé, tarifé et prêt à vendre. Vous scannez, vous corrigez l'essentiel, la mise en ligne s'étale toute seule.":
-    "Dexlane turns a pile of Pokémon cards into organized, priced, ready-to-sell stock. You scan, you fix what matters, and listings roll out on their own.",
-  "Ouvrir Dexlane": "Open Dexlane",
-  "Voir le parcours": "See how it works",
-  "Le parcours": "How it works",
-  "Quatre gestes, dans l'ordre.": "Four steps, in order.",
-  "Scannez la pile": "Scan the pile",
-  "Un lot au scanner à défilement, ou au téléphone recto puis verso. Chaque carte est reconnue et prend son rang.":
-    "A batch through a sheet-fed scanner, or by phone, front then back. Each card is recognized and gets its position.",
-  "Corrigez l'essentiel": "Fix what matters",
-  "Les lectures sûres sont déjà remplies. Vous ne revoyez que les cartes signalées, dans l'ordre du scan.":
-    "Confident reads are already filled in. You only review flagged cards, in scan order.",
-  "Le prix se pose": "Prices set themselves",
-  "D'après les ventes réussies, selon votre stratégie, et jamais sous votre prix d'achat.":
-    "Based on completed sales, following your strategy, and never below your purchase price.",
-  "Planifiez la mise en ligne": "Schedule your listings",
-  "Tant de cartes par jour, avec vos photos mises en scène et votre image de fin d'annonce.":
-    "So many cards a day, with your styled photos and your closing listing image.",
-  "Ce qui compte": "What matters",
-  "Pensé pour vendre, pas pour collectionner.": "Built for selling, not collecting.",
-  "L'ordre de la boîte": "Box order",
-  "Les codes suivent l'ordre du scan : le jour de la vente, la carte se retrouve à son rang dans sa boîte.":
-    "Codes follow scan order: on the day of the sale, the card is found at its position in its box.",
-  "Des prix explicables": "Explainable prices",
-  "Vendre vite, équilibré ou marge maximale. Chaque prix montre la cote dont il vient et sa date.":
-    "Sell fast, balanced or maximum margin. Each price shows the market price it comes from and its date.",
-  "Des photos prêtes": "Ready-made photos",
-  "Le scan devient un visuel carré sur le fond de votre choix. Une photo manquante s'ajoute après coup.":
-    "The scan becomes a square image on the background of your choice. A missing photo can be added later.",
-  "Une mise en ligne étalée": "Spread-out listings",
-  "Le planning publie chaque matin ce qui est dû et signale ce qui n'a pas pu partir.":
-    "The schedule publishes what's due every morning and flags what couldn't go out.",
-  "Pas de double vente": "No double sales",
-  "Une carte vendue quelque part est retirée partout. Le stock réservé ne peut pas être revendu.":
-    "A card sold somewhere is removed everywhere. Reserved stock can't be sold again.",
-  "Canaux de vente : eBay et CardTrader sont prévus. Aujourd'hui, la mise en ligne tourne en simulation ; la publication réelle arrive avec le raccordement aux marketplaces.":
-    "Sales channels: eBay and CardTrader are planned. For now, listing runs in simulation; real publishing comes with the marketplace connections.",
-  "Dexlane — stock et vente de cartes Pokémon.": "Dexlane — Pokémon card stock and sales.",
-  "Planifiée mer. 19": "Scheduled Wed 19",
-
   // Connexion
   "Connexion": "Sign in",
   "Saisissez votre mot de passe.": "Enter your password.",

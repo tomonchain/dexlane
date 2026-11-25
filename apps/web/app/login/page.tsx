@@ -3,7 +3,7 @@
 import { ArrowRight } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Logo } from "@/components/app-shell";
-import { LocaleSwitch } from "@/components/landing";
+import { LocaleSwitch } from "@/components/locale-switch";
 import { PasswordInput } from "@/components/password-input";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
