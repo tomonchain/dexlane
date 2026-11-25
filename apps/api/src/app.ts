@@ -29,6 +29,8 @@ import { HttpError, errorBody, idempotent, parse, parseJsonBody, secretEquals, s
 import {
   cancelPublications, getPublicationCalendar, getPublicationDay, reschedulePublication, endListing, getActivity, getCardDetail, getListingSettings, getSchedule, getStockDetail, listChannels, listStock, stockFacets, planPublications, queuePublications, runDuePublications, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
   syncChannels, syncQuantities, type ChannelAdapters,
+  EBAY_MARKETPLACES, createEbayDefaults, ebayAccountOptions, ebayAdapter, ebayClientFromEnv, ebayShippingServices, getEbaySettings, missingEbaySettings,
+  saveEbaySettings, type EbayClient,
 } from "@dexlane/listings";
 import { readPhoto, type PhotoStore } from "./photos";
 import { getAppSettings, saveAppSettings } from "./settings";
@@ -45,8 +47,13 @@ export interface AppDeps {
   recognizer: () => CardRecognizer;
   /** Stockage des photos ; sans lui, les scans fonctionnent mais aucune image n'est conservée. */
   photos?: PhotoStore | null;
-  /** Connecteurs réels des marketplaces (identifiants configurés) ; sans eux, seule la simulation est possible. */
+  /**
+   * Connecteurs réels des marketplaces ; par défaut, ceux dont les identifiants sont dans l'environnement (eBay).
+   * Sans eux, seule la simulation est possible.
+   */
   channels?: ChannelAdapters;
+  /** Client eBay (connexion du compte, règles de vente) ; par défaut d'après l'environnement, null pour s'en passer. */
+  ebay?: EbayClient | null;
   /** Source du catalogue (TCGdex par défaut) ; remplaçable dans les tests. */
   tcgdex?: () => TcgdexClient;
   /** Envoi des notifications sur le téléphone (Web Push par défaut) ; remplaçable dans les tests. */
@@ -65,6 +72,8 @@ const RECOGNITION_STATUS = {
 export function createApp(deps: AppDeps) {
   const { sql } = deps;
   const app = new Hono<Env>();
+  const ebay = deps.ebay !== undefined ? deps.ebay : ebayClientFromEnv(sql, process.env);
+  const live: ChannelAdapters = deps.channels ?? (ebay ? { ebay: ebayAdapter(sql, ebay) } : {});
 
   app.onError((err, c) => {
     if (err instanceof HttpError) return c.json(errorBody(err.code, err.message, err.details), err.status);
@@ -106,7 +115,7 @@ export function createApp(deps: AppDeps) {
     // Après tout changement de stock ou de vente, les quantités annoncées sur les canaux sont réalignées :
     // c'est le garde-fou contre la double vente d'une carte entre deux canaux.
     if (c.req.method !== "GET" && c.res.ok && /^\/api\/(orders|inventory)(\/|$)/.test(c.req.path)) {
-      await syncQuantities(sql, deps.channels ?? {}).catch(deps.onError ?? console.error);
+      await syncQuantities(sql, live).catch(deps.onError ?? console.error);
     }
     // Un envoi remis ou un stock corrigé peut faire passer une fourniture sous son seuil : l'alerte part aussitôt.
     if (c.req.method !== "GET" && c.res.ok && /^\/api\/(orders|supplies|channels)(\/|$)/.test(c.req.path)) {
@@ -316,7 +325,7 @@ export function createApp(deps: AppDeps) {
   app.post("/api/publications/cancel", async (c) => c.json({ cancelled: await cancelPublications(sql, await parseJsonBody(c, s.cancelPlanBody)) }));
 
   /** Publie ce qui est dû aujourd'hui. Lancé chaque jour par la tâche planifiée, et à la demande. */
-  app.post("/api/publications/run", async (c) => c.json(await runDuePublications(sql, deps.channels ?? {}, c.var.actor)));
+  app.post("/api/publications/run", async (c) => c.json(await runDuePublications(sql, live, c.var.actor)));
 
   // ───────────────────────── Sessions de scan ─────────────────────────
 
@@ -557,8 +566,6 @@ export function createApp(deps: AppDeps) {
 
   // ───────────────────────── Canaux de vente ─────────────────────────
 
-  const live = deps.channels ?? {};
-
   app.get("/api/channels", async (c) => c.json({ channels: await listChannels(sql, live) }));
 
   app.put("/api/channels/:channel", async (c) => {
@@ -569,7 +576,65 @@ export function createApp(deps: AppDeps) {
   });
 
   /** Commandes des canaux réels, puis quantités annoncées. */
-  app.post("/api/channels/sync", async (c) => c.json(await syncChannels(sql, live, c.var.actor)));
+  app.post("/api/channels/sync", async (c) => c.json(await syncChannels(sql, live, c.var.actor, deps.onError ?? console.error)));
+
+  // ───────────────────────── eBay : compte et réglages ─────────────────────────
+
+  const ebayClient = () => {
+    if (!ebay) throw new HttpError(409, "CHANNEL_NOT_CONFIGURED", "eBay application keys are not configured (EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_RU_NAME)");
+    return ebay;
+  };
+  const ebayConnection = async () => {
+    const settings = await getEbaySettings(sql);
+    return {
+      configured: !!ebay,
+      environment: ebay?.config.environment ?? null,
+      account: ebay ? await ebay.account() : null,
+      settings,
+      missing: missingEbaySettings(settings),
+      marketplaces: Object.entries(EBAY_MARKETPLACES).map(([id, m]) => ({ id, label: m.label })),
+    };
+  };
+
+  app.get("/api/channels/ebay/connection", async (c) => c.json(await ebayConnection()));
+
+  /** Adresse d'autorisation eBay où envoyer le propriétaire ; il revient sur /settings/channels/ebay. */
+  app.post("/api/channels/ebay/connect", async (c) => c.json({ url: await ebayClient().consentUrl() }));
+
+  app.post("/api/channels/ebay/connect/complete", async (c) => {
+    const body = await parseJsonBody(c, s.ebayConsentBody);
+    const { username } = await ebayClient().completeConsent(body);
+    await sql`
+      insert into audit_events (actor, action, entity, entity_id, after)
+      values (${c.var.actor}, 'channel_connected', 'channel', 'ebay', ${sql.json({ environment: ebayClient().config.environment, username })})`;
+    return c.json(await ebayConnection());
+  });
+
+  app.delete("/api/channels/ebay/connection", async (c) => {
+    const [channel] = await listChannels(sql, live).then((all) => all.filter((ch) => ch.id === "ebay"));
+    // Sans compte, le mode réel ne peut plus rien faire : le canal est éteint (les annonces restent sur eBay).
+    if (channel?.mode === "LIVE") await setChannelMode(sql, live, "ebay", "OFF", c.var.actor);
+    await ebayClient().disconnect();
+    await sql`insert into audit_events (actor, action, entity, entity_id) values (${c.var.actor}, 'channel_disconnected', 'channel', 'ebay')`;
+    return c.json(await ebayConnection());
+  });
+
+  /** Règles de vente et lieux d'expédition présents sur le compte eBay, pour le site choisi. */
+  app.get("/api/channels/ebay/options", async (c) => c.json(await ebayAccountOptions(ebayClient(), await getEbaySettings(sql))));
+
+  app.get("/api/channels/ebay/shipping-services", async (c) =>
+    c.json({ services: await ebayShippingServices(ebayClient(), (await getEbaySettings(sql)).marketplaceId) }));
+
+  app.put("/api/channels/ebay/settings", async (c) => {
+    await saveEbaySettings(sql, await parseJsonBody(c, s.ebaySettingsBody), c.var.actor);
+    return c.json(await ebayConnection());
+  });
+
+  /** Crée sur le compte eBay ce qui manque pour publier : règles d'envoi, de paiement, de retour, lieu d'expédition. */
+  app.post("/api/channels/ebay/defaults", async (c) => {
+    await createEbayDefaults(sql, ebayClient(), await parseJsonBody(c, s.ebayDefaultsBody), c.var.actor);
+    return c.json(await ebayConnection());
+  });
 
   /** Publie l'offre sur le canal, ou met à jour son annonce si elle y est déjà. */
   app.post("/api/listings/offers/:offerId/publish", async (c) => {

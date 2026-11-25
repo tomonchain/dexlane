@@ -1088,6 +1088,19 @@ describe("sales channels", () => {
     expect((await call("POST", `/api/listings/${published.json.id}/end`)).status).toBe(404);
     expect(await call("POST", "/api/channels/sync")).toMatchObject({ status: 200, json: { orders: 0, updated: 0, errors: 0 } });
   });
+
+  it("says when the eBay application keys are missing, and keeps the eBay settings", async () => {
+    expect((await call("GET", "/api/channels/ebay/connection")).json).toMatchObject({
+      configured: false, account: null, missing: ["FULFILLMENT_POLICY", "PAYMENT_POLICY", "RETURN_POLICY", "LOCATION"],
+    });
+    expect((await call("POST", "/api/channels/ebay/connect")).json.error.code).toBe("CHANNEL_NOT_CONFIGURED");
+    expect((await call("GET", "/api/channels/ebay/options")).status).toBe(409);
+    const saved = await call("PUT", "/api/channels/ebay/settings", { body: { marketplaceId: "EBAY_DE", paymentPolicyId: "P1" } });
+    expect(saved.json.settings).toMatchObject({ marketplaceId: "EBAY_DE", paymentPolicyId: "P1", categoryId: "183454" });
+    expect((await call("PUT", "/api/channels/ebay/settings", { body: { marketplaceId: "EBAY_US" } })).status).toBe(400);
+    // Les réglages eBay ne changent rien au mode du canal.
+    expect((await call("GET", "/api/channels")).json.channels[0]).toMatchObject({ mode: "OFF", liveAvailable: false, liveBlocker: null });
+  });
 });
 
 describe("direct sales", () => {

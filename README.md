@@ -22,12 +22,12 @@ Application personnelle de négoce de cartes Pokémon. Spécification : [`specs-
 | `packages/catalog` | Synchronisation TCGdex (séries, cartes, variantes détaillées, cotations Cardmarket datées), recherche des 3 meilleurs candidats à partir d'une lecture OCR |
 | `packages/scan` | Lecture de carte par Claude (vision + sortie structurée, repli serveur), identification photo → candidats catalogue, banc d'essai précision/coût |
 | `packages/pricing` | Moteur de règles de prix (estimation, catégorie, plancher, motifs de revue), tarification des offres, file de revue, règles réglables. Statistiques : ce qui se vend (`salesInsights` : séries et taux d'écoulement, tranches de prix, états, raretés, canaux, jours de la semaine, délai de vente, cartes les plus vendues), valeur du stock, variations de cote des cartes détenues, seuils d'alerte |
-| `packages/listings` | Annonces : modèle de titre et de description à variables, style des photos, offres vendables avec leur texte et leurs photos. Canaux de vente : interface de connecteur, mode simulation, publication, alignement des quantités, import des commandes |
+| `packages/listings` | Annonces : modèle de titre et de description à variables, style des photos, offres vendables avec leur texte et leurs photos. Canaux de vente : interface de connecteur, mode simulation, connecteur eBay (OAuth, API Inventory, Account et Fulfillment), publication, alignement des quantités, import des commandes |
 | `packages/inventory` | Entrée d'une carte identifiée (offre et SKU attribués automatiquement), lots de vrac et extraction, emplacements hiérarchiques, lots d'acquisition, déplacement, correction d'inventaire auditée, recherche, import idempotent de commandes, allocation commande → positions, survente (Parcours F), picking par scan, emballage, confirmation de dépôt |
 | `apps/api` | API HTTP (Hono) : scan, recherche catalogue, emplacements, entrée en stock, vrac, inventaire. Jeton propriétaire, validation stricte, clés d'idempotence |
 | `apps/web` | Application web installable (Next.js), pensée pour le téléphone : scan photo → candidats → confirmation → rangement, recherche manuelle, inventaire et fiche de position (déplacer, corriger, valider), lots de vrac et extraction, emplacements (aide, création en série, arborescence) et lots d'acquisition, catalogue (import par série, détail d'une série avec prix et stock détenu), prix (file de revue, règles), ventes directes (saisie, préparation, remise, marge), scan en lot (images d'un scanner à défilement), photos des exemplaires, annonces (modèle, fond des photos, visuels composés, canaux), statistiques (chiffres clés, variations de prix, alertes), compte (mot de passe, thème) |
 
-Pas encore commencés : `apps/worker`, connecteurs réels eBay et CardTrader (le socle et la simulation sont en place ; les connecteurs attendent les accès API), fulfillment PDF, étiquettes QR.
+Pas encore commencés : `apps/worker`, connecteur réel CardTrader (la simulation est en place ; le connecteur attend l'accès API), fulfillment PDF, étiquettes QR. Le connecteur eBay est écrit et testé contre des réponses simulées ; reste à le valider dans le bac à sable eBay.
 
 ## Prérequis
 
@@ -95,7 +95,7 @@ Stock à vendre : `GET /api/stock?q=&status=ALL|TO_PRICE|READY|LISTED|DRAFT&sort
 
 Statistiques : `GET /api/stats/dashboard`, `GET /api/stats/price-moves?alerts=true|false`, `GET` / `PUT /api/stats/alert-settings`, `POST /api/prices/refresh` (relève les cotes des cartes en stock, puis réévalue les offres).
 
-Canaux : `GET /api/channels`, `PUT /api/channels/{ebay|cardtrader}` (`OFF`, `SIMULATION`, `LIVE`), `POST /api/channels/sync`, `POST /api/listings/offers/{id}/publish`, `POST /api/listings/{id}/end`, `POST /api/listings/{id}/simulate-order`.
+Canaux : `GET /api/channels`, `PUT /api/channels/{ebay|cardtrader}` (`OFF`, `SIMULATION`, `LIVE`), `POST /api/channels/sync`, eBay : `GET`/`DELETE /api/channels/ebay/connection`, `POST /api/channels/ebay/connect` et `/connect/complete`, `GET /api/channels/ebay/options` et `/shipping-services`, `PUT /api/channels/ebay/settings`, `POST /api/channels/ebay/defaults`, `POST /api/listings/offers/{id}/publish`, `POST /api/listings/{id}/end`, `POST /api/listings/{id}/simulate-order`.
 
 Autres routes : `GET /api/catalog/sets/{id}` (contenu importé d'une série : cartes, variantes avec leur prix estimé d'après les ventes — `estimate` —, exemplaires en stock), `POST /api/locations/batch`, `PATCH` et `DELETE /api/locations/{id}` (suppression réservée à un emplacement vide et jamais utilisé), `/api/auth/*` (mot de passe du propriétaire, réservé au serveur web).
 
@@ -228,7 +228,7 @@ L'estimation, sa fiabilité et le détail des moyennes sont conservés sur l'off
 
 ## Canaux de vente — points d'attention
 
-- **Trois modes par canal** : désactivé, simulation, réel. Le mode réel exige un connecteur configuré (`ChannelAdapter` passé à `createApp`) ; aucun n'est encore écrit, faute d'accès API. Le contrat suit le modèle d'eBay : une annonce par `offer_sku`, une quantité tenue à jour, des commandes qu'on vient chercher.
+- **Trois modes par canal** : désactivé, simulation, réel. Le mode réel exige un connecteur prêt (`ChannelAdapter`) : celui d'eBay se crée d'après l'environnement, CardTrader n'en a pas encore. Le contrat suit le modèle d'eBay : une annonce par `offer_sku`, une quantité tenue à jour, des commandes qu'on vient chercher.
 - **Simulation** : le canal accepte tout et n'envoie rien. « Simuler un achat » crée une commande par le même chemin qu'une vraie (import idempotent, réservation, envoi à préparer) : elle réserve réellement le stock, à annuler après essai. Quitter la simulation termine les annonces simulées.
 - **Prête à publier** : une offre doit avoir un prix cible, au moins une photo de l'exemplaire et une variante confirmée ; sinon la publication est refusée avec la liste de ce qui manque.
 - **Double vente entre canaux** : après toute écriture sur `/api/orders` ou `/api/inventory`, la quantité annoncée est réalignée sur le stock vendable (moins la marge `buffer`). À zéro, l'annonce passe en pause ; elle reprend au réassort. Un échec côté canal laisse l'annonce en `ERROR`, retentée à la synchronisation suivante.
@@ -237,6 +237,17 @@ L'estimation, sa fiabilité et le détail des moyennes sont conservés sur l'off
 - **Visuel d'annonce composé d'office** : dès qu'une photo arrive (lot entré en stock, photo ajoutée après coup) et avant toute publication ou planification, le visuel « carte sur fond » est composé dans le navigateur s'il manque. Réglable dans Réglages → Modèle d'annonce et photos (`autoCompose`) ; désactivé, les photos partent telles quelles.
 - **Image de fin d'annonce** : réglée une fois (Annonces → Photos), elle est ajoutée en dernière photo de chaque annonce publiée, après les photos de la carte.
 - **Prix** : l'annonce garde le prix du moment de la publication ; un prix cible modifié ensuite est signalé, « Mettre à jour » le renvoie.
+
+## eBay — le connecteur réel
+
+- **Clés** : `EBAY_CLIENT_ID` (App ID), `EBAY_CLIENT_SECRET` (Cert ID), `EBAY_RU_NAME` (RuName de « User tokens »), `EBAY_ENV` (`sandbox` par défaut, `production` pour vendre). Sans les trois premières, eBay reste en simulation. Le RuName a pour adresse d'acceptation et de refus `<application>/settings/channels/ebay`.
+- **Connexion du compte** (Réglages › Canaux de vente) : le propriétaire autorise Dexlane sur eBay (OAuth). Le jeton de renouvellement (18 mois) est gardé dans `channel_accounts` ; les jetons d'accès (2 h) sont renouvelés d'office. Il ne sert à rien sans le secret de l'application, qui reste dans l'environnement. Un compte connecté au bac à sable ne vaut pas pour la production.
+- **Avant de publier** : site eBay (eBay.fr par défaut ; sites en euros seulement), règles d'envoi, de paiement et de retour, lieu d'expédition. On les choisit parmi celles du compte, ou Dexlane les crée (service d'envoi lu sur eBay, frais de port, délai, retours 14/30/60 jours, code postal et ville). Le mode réel reste grisé tant que ce n'est pas fait.
+- **Publication** (API Inventory) : un objet par `offer_sku` (état « Non gradée » et descripteur d'état de la carte, texte, photos, quantité), une offre à prix fixe dans la catégorie 183454 (cartes à l'unité), puis la mise en ligne. Republier révise l'annonce en ligne. Les caractéristiques (Jeu, Langue, Finition, Personnage, Numéro…) sont lues dans la taxonomie eBay du site, gardées une semaine, et remplies avec la valeur exacte proposée par eBay ; une caractéristique obligatoire impossible à remplir bloque la publication avec son nom.
+- **États** : eBay n'a que quatre niveaux pour une carte non gradée. MT et NM → *Near mint or better* ; EX → *Lightly played (Excellent)* ; GD et LP → *Moderately played (Very good)* ; PL et PO → *Heavily played (Poor)*. Entre deux niveaux, on prend le plus prudent.
+- **Quantités** : alignées par `bulk_update_price_quantity`. Une annonce close par eBay à zéro stock est remise en ligne au réassort (nouveau numéro d'annonce).
+- **Commandes** (API Fulfillment) : les commandes payées, non annulées, non expédiées, modifiées depuis la dernière synchronisation (deux jours de recouvrement, un mois la première fois). Seules les lignes publiées par Dexlane (avec une référence d'offre) comptent. Nom et adresse de livraison, date limite d'expédition et mode d'envoi (déduit du service choisi par l'acheteur) sont repris. Une commande qui ne passe pas n'empêche pas les autres, et la synchronisation est retentée.
+- **Erreurs** : le message d'eBay est rapporté tel quel (« eBay : … »).
 
 ## Du scanner à l'envoi — le parcours sans intervention
 
@@ -248,7 +259,7 @@ Ce qui reste une action de votre part, et pourquoi :
 
 - **Relier le dossier du scanner** à l'ouverture du lot : un navigateur ne lit un dossier qu'après un clic d'autorisation. Un petit programme installé sur le poste du scanner supprimerait ce clic ; il n'est pas écrit.
 - **Cliquer « Imprimer »** : une page web ne peut pas imprimer seule. Le lien `/sales/preparation?print=1` ouvre directement la boîte d'impression ; Chrome lancé avec `--kiosk-printing` l'imprime alors sans confirmation.
-- **La mise en ligne est simulée** tant que les connecteurs eBay et CardTrader ne sont pas branchés.
+- **La mise en ligne est simulée** tant qu'un canal n'est pas passé en réel (eBay : clés configurées, compte connecté, règles de vente choisies).
 - Si l'onglet du lot est fermé avant la fin, ce qui est en file est publié par la tâche quotidienne.
 
 ## Fiche d'une carte

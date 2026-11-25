@@ -6,6 +6,7 @@ import type {
 } from "@dexlane/inventory";
 import type {
   Activity as ActivityRow, CardDetail as CardDetailRow, ChannelId, ChannelMode, ChannelState as ChannelStateRow, ListingBlocker, ListingOffer as ListingOfferRow, ListingSettings,
+  EbayAccountOptions, EbaySettings, EbayShippingService,
   ListingState as ListingStateRow, PhotoStyle, PlanResult, Schedule as ScheduleRow, StockDetail as StockDetailRow, StockFacets, StockPage as StockPageRow, StockRow as StockRowRaw, StockStatus,
 } from "@dexlane/listings";
 import type {
@@ -96,6 +97,27 @@ export interface OrderList {
 
 export type { ChannelId, ChannelMode, ListingBlocker, ListingSettings, PhotoStyle };
 export type ChannelState = Json<ChannelStateRow>;
+
+export type { EbayAccountOptions, EbaySettings, EbayShippingService };
+/** Connexion du compte eBay et réglages du canal. */
+export interface EbayConnection {
+  /** Les clés de l'application sont dans l'environnement du serveur. */
+  configured: boolean;
+  environment: "sandbox" | "production" | null;
+  account: { username: string | null; connectedAt: string; refreshExpiresAt: string | null } | null;
+  settings: EbaySettings;
+  /** Ce qui manque pour publier : FULFILLMENT_POLICY, PAYMENT_POLICY, RETURN_POLICY, LOCATION. */
+  missing: string[];
+  marketplaces: { id: EbaySettings["marketplaceId"]; label: string }[];
+}
+export interface EbayDefaultsInput {
+  shippingServiceCode: string;
+  shippingCostCents: number;
+  handlingDays: number;
+  returnDays: 14 | 30 | 60;
+  postalCode: string;
+  city: string;
+}
 export type ListingState = Json<ListingStateRow>;
 export type ListingOffer = Json<ListingOfferRow>;
 
