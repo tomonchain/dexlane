@@ -4,7 +4,7 @@ import {
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { PlanGrid } from "@/components/marketing/plans";
-import { StockDemoDesktop, StockDemoMobile } from "@/components/marketing/product-demo";
+import { PhoneDemo, StockDemoDesktop } from "@/components/marketing/product-demo";
 import { Cta, GitHubMark, Glow, LEAD, ORANGE, RealCard, SectionTitle, Streaks, TextLink, WithEbayLogo } from "@/components/marketing/ui";
 import { CONTACT_EMAIL, GITHUB_URL, SIGNUP_URL } from "@/config/site";
 import { cn } from "@/lib/utils";
@@ -47,25 +47,13 @@ function WindowDots() {
   );
 }
 
-/** Téléphone : bord blanc, îlot noir, l'écran Stock en démonstration. */
-function Phone({ className }: { className?: string }) {
-  return (
-    <div className={cn("rounded-[2.4rem] bg-card p-2 shadow-[0_0_0_1px_rgb(0_0_0/0.08),0_30px_60px_-20px_rgb(0_0_0/0.35)]", className)}>
-      <div className="relative overflow-hidden rounded-[1.9rem] bg-background ring-1 ring-border">
-        <div aria-hidden className="flex h-8 items-center justify-center"><span className="h-[18px] w-[34%] rounded-full bg-foreground" /></div>
-        <StockDemoMobile />
-      </div>
-    </div>
-  );
-}
-
 /** L'écran Stock dans une fenêtre, avec le téléphone qui la chevauche (ordinateur) ; le téléphone seul sur mobile. */
 function ProductShot() {
   return (
     <div className="relative" role="img" aria-label="Aperçu de l'écran Stock de Dexlane : des cartes en ligne sur eBay, planifiées ou prêtes, avec leur prix">
       <Streaks className="-inset-x-[30vw] top-[12%] bottom-[-10%] [mask-image:linear-gradient(to_bottom,transparent,black_30%,black_65%,transparent)]" />
-      <div aria-hidden className="relative mx-auto w-[82%] max-w-sm sm:hidden">
-        <Phone />
+      <div aria-hidden className="relative mx-auto w-[76%] max-w-xs sm:hidden">
+        <PhoneDemo />
       </div>
       <div aria-hidden className="relative hidden sm:block sm:pr-[12%] lg:pr-[14%]">
         <div className="overflow-hidden rounded-2xl bg-card p-1.5 shadow-[0_0_0_1px_rgb(0_0_0/0.07),0_40px_80px_-30px_rgb(0_0_0/0.35)]">
@@ -74,7 +62,7 @@ function ProductShot() {
             <StockDemoDesktop />
           </div>
         </div>
-        <Phone className="absolute right-0 -bottom-10 w-[24%] lg:w-[22%]" />
+        <PhoneDemo className="absolute right-0 -bottom-12 w-[25%] lg:w-[23%]" />
       </div>
     </div>
   );
