@@ -142,7 +142,7 @@ function Phone({ className, priority }: { className?: string; priority?: boolean
     <div className={cn("rounded-[2.4rem] bg-card p-2 shadow-[0_0_0_1px_rgb(0_0_0/0.08),0_30px_60px_-20px_rgb(0_0_0/0.35)]", className)}>
       <div className="relative overflow-hidden rounded-[1.9rem] bg-background ring-1 ring-border">
         <div aria-hidden className="flex h-8 items-center justify-center"><span className="h-[18px] w-[34%] rounded-full bg-foreground" /></div>
-        <Image src="/landing/stock-mobile.png" alt="L'écran Stock de Dexlane sur téléphone : des cartes en ligne, planifiées ou prêtes" width={824} height={1100} sizes="(min-width: 1024px) 280px, 80vw" priority={priority} className="h-auto w-full" />
+        <Image src="/landing/stock-mobile-v2.png" alt="L'écran Stock de Dexlane sur téléphone : des cartes en ligne, planifiées ou prêtes" width={824} height={1100} sizes="(min-width: 1024px) 280px, 80vw" priority={priority} className="h-auto w-full" />
       </div>
     </div>
   );
@@ -160,7 +160,7 @@ function ProductShot() {
         <div className="overflow-hidden rounded-2xl bg-card p-1.5 shadow-[0_0_0_1px_rgb(0_0_0/0.07),0_40px_80px_-30px_rgb(0_0_0/0.35)]">
           <div className="flex items-center gap-3 px-3 pt-1.5 pb-2.5"><WindowDots /></div>
           <div className="overflow-hidden rounded-xl ring-1 ring-border">
-            <Image src="/landing/stock-desktop.png" alt="L'écran Stock de Dexlane : des cartes en ligne, planifiées ou prêtes, avec leur prix et leur extension" width={2560} height={1440} sizes="(min-width: 1280px) 1060px, 90vw" priority className="h-auto w-full" />
+            <Image src="/landing/stock-desktop-v2.png" alt="L'écran Stock de Dexlane : des cartes en ligne, planifiées ou prêtes, avec leur prix et leur extension" width={2560} height={1440} sizes="(min-width: 1280px) 1060px, 90vw" priority className="h-auto w-full" />
           </div>
         </div>
         <Phone className="absolute right-0 -bottom-10 w-[24%] lg:w-[22%]" />
@@ -169,25 +169,44 @@ function ProductShot() {
   );
 }
 
-/* ——— Vignettes abstraites de « Pour qui » : formes seulement, aucun visuel de marque. ——— */
+/* ——— Vraies cartes et logo eBay ——— */
 
-function CardBack({ className, style }: { className?: string; style?: CSSProperties }) {
+/** Une vraie carte du set 151 (images du catalogue TCGdex, redimensionnées dans public/landing/cards). */
+function RealCard({ n, className, style, sizes = "120px" }: { n: string; className?: string; style?: CSSProperties; sizes?: string }) {
   return (
-    <span
-      aria-hidden
-      className={cn("block aspect-[63/88] rounded-[5px] border-[3px] border-card shadow-[0_0_0_1px_rgb(0_0_0/0.08),0_4px_10px_-4px_rgb(0_0_0/0.25)]", className)}
-      style={{ background: `linear-gradient(160deg, #f6a046, ${ORANGE} 45%, #b4501a)`, ...style }}
-    />
+    <span aria-hidden className={cn("block overflow-hidden rounded-[4.5%/3.3%] shadow-[0_0_0_1px_rgb(0_0_0/0.08),0_6px_14px_-6px_rgb(0_0_0/0.35)]", className)} style={style}>
+      <Image src={`/landing/cards/${n}.webp`} alt="" width={360} height={495} sizes={sizes} className="block h-auto w-full" />
+    </span>
   );
 }
 
+/** Le logo eBay officiel, posé sur la ligne de base du texte qui l'entoure. */
+function EbayLogo({ className }: { className?: string }) {
+  return (
+    <svg role="img" aria-label="eBay" viewBox="0 0 1000 400.75" className={cn("inline-block h-[0.9em] w-auto align-[-0.17em]", className)}>
+      <path fill="#f12c2d" d="m199.64 185.87c-1.95-46.88-35.78-64.42-71.95-64.42-38.99 0-70.12 19.73-75.58 64.42zM51.03 219.19c2.71 45.48 34.07 72.38 77.2 72.38 29.88 0 56.46-12.17 65.36-38.66h51.68c-10.05 53.74-67.15 71.98-116.3 71.98C39.61 324.9 0 275.68 0 209.31 0 136.24 40.97 88.12 129.79 88.12c70.7 0 122.5 37 122.5 117.76v13.31z" />
+      <path fill="#0968f6" d="m380.83 290.62c46.57 0 78.44-33.52 78.44-84.1 0-50.59-31.87-84.11-78.44-84.11-46.31 0-78.44 33.52-78.44 84.11 0 50.58 32.13 84.1 78.44 84.1zM252.29 0h50.1l-0.01 125.88c24.56-29.26 58.39-37.76 91.69-37.76 55.84 0 117.85 37.68 117.85 119.03 0 68.12-49.32 117.74-118.78 117.74-36.36 0-70.58-13.04-91.69-38.88 0 10.32-0.57 20.72-1.7 30.56h-49.17c0.85-15.91 1.71-35.72 1.71-51.75z" />
+      <path fill="#ffbc13" d="m633.08 212.53c-45.44 1.49-73.67 9.69-73.67 39.62 0 19.38 15.45 40.38 54.66 40.38 52.58 0 80.64-28.66 80.64-75.66v-5.17c-18.43 0-41.16 0.16-61.63 0.83zm111.75 62.1c0 14.59 0.42 28.98 1.69 41.94h-46.61c-1.24-10.67-1.7-21.28-1.7-31.56-25.2 30.98-55.18 39.88-96.76 39.88-61.68 0-94.7-32.6-94.7-70.3 0-54.62 44.91-73.87 122.89-75.66 21.32-0.49 45.27-0.56 65.07-0.56v-5.33c0-36.56-23.44-51.6-64.07-51.6-30.15 0-52.38 12.49-54.67 34.05h-52.65c5.57-53.77 62.06-67.37 111.74-67.37 59.51 0 109.77 21.17 109.77 84.11z" />
+      <path fill="#93c822" d="M1000 96.46 845.06 400.75h-57.11l44.55-84.49-116.61-219.8h58.63l85.8 171.73 85.56-171.73z" />
+    </svg>
+  );
+}
+
+/** Le texte, avec le logo eBay à la place du mot « eBay ». */
+function WithEbayLogo({ text }: { text: string }) {
+  const parts = text.split("eBay");
+  return <>{parts.map((part, i) => <span key={i}>{i > 0 && <EbayLogo />}{part}</span>)}</>;
+}
+
+/* ——— Vignettes de « Pour qui » : de vraies cartes en classeur et en étuis rigides. ——— */
+
 function BinderVignette() {
-  const filled = [0, 1, 2, 4, 5, 7];
+  const filled: Record<number, string> = { 0: "006", 1: "151", 2: "025", 4: "150", 5: "094", 7: "133" };
   return (
     <div className="grid w-[62%] grid-cols-3 gap-2 rounded-xl bg-card p-3 shadow-[0_0_0_1px_rgb(0_0_0/0.06),0_12px_30px_-12px_rgb(0_0_0/0.25)]">
       {Array.from({ length: 9 }, (_, i) => (
-        filled.includes(i)
-          ? <CardBack key={i} />
+        filled[i]
+          ? <RealCard key={i} n={filled[i]} />
           : <span key={i} className="aspect-[63/88] rounded-[5px] border border-dashed border-foreground/15 bg-muted" />
       ))}
     </div>
@@ -214,14 +233,14 @@ function RhythmVignette() {
 function ShopVignette() {
   return (
     <div className="relative h-36 w-[70%]">
-      {[0, 1, 2].map((i) => (
+      {["143", "149", "004"].map((n, i) => (
         <span
-          key={i}
+          key={n}
           className="absolute bottom-0 w-[34%] rounded-md border-2 border-foreground/10 bg-card/70 p-1.5 shadow-[0_10px_24px_-12px_rgb(0_0_0/0.35)] backdrop-blur-[1px]"
           style={{ left: `${i * 30}%`, transform: `translateY(${-i * 10}px) rotate(${(i - 1) * 4}deg)` }}
         >
           <span className="mb-1 block h-1.5 rounded-full bg-foreground/10" />
-          <CardBack className="border-[2px]" />
+          <RealCard n={n} />
         </span>
       ))}
       <span className="absolute -top-1 right-0 flex -space-x-2">
@@ -277,7 +296,7 @@ export function Landing({ review }: { review: boolean }) {
               {HERO.eyebrow}
             </p>
             <Pending confirmed={hero.confirmed} review={review}>
-              <h1 id="hero-title" className="max-w-4xl text-[2.45rem] leading-[1.02] font-[450] tracking-[-0.045em] text-balance sm:text-7xl">{hero.h1}</h1>
+              <h1 id="hero-title" className="max-w-4xl text-[2.45rem] leading-[1.02] font-[450] tracking-[-0.045em] text-balance sm:text-7xl"><WithEbayLogo text={hero.h1} /></h1>
             </Pending>
             <p className={LEAD}>{HERO.subtitle}</p>
             <div className="grid w-full gap-2.5 sm:w-auto">
@@ -532,6 +551,17 @@ export function Landing({ review }: { review: boolean }) {
         <section className="relative isolate overflow-hidden px-4 py-24 sm:px-8 sm:py-36" aria-labelledby="cta-final">
           <Glow className="top-1/2 left-1/2 -z-10 h-72 w-[42rem] -translate-x-1/2 -translate-y-1/2 opacity-30" />
           <div className="mx-auto grid max-w-4xl justify-items-center gap-6 text-center">
+            <div aria-hidden className="relative mb-4 h-36 w-64 sm:h-44 sm:w-80">
+              {[["025", -14, -34], ["006", 0, 0], ["151", 14, 34]].map(([n, r, x], i) => (
+                <RealCard
+                  key={n as string}
+                  n={n as string}
+                  sizes="140px"
+                  className="absolute top-0 left-1/2 w-24 sm:w-28"
+                  style={{ transform: `translateX(calc(-50% + ${x}%)) rotate(${r}deg) translateY(${i === 1 ? -6 : 6}px)`, transformOrigin: "50% 120%", zIndex: i === 1 ? 2 : 1 }}
+                />
+              ))}
+            </div>
             <h2 id="cta-final" className="text-[2.3rem] leading-[1.04] font-[450] tracking-[-0.04em] text-balance sm:text-6xl">{FINAL_CTA.title}</h2>
             <p className={cn(LEAD, "text-center")}>{FINAL_CTA.subtitle}</p>
             <Cta href={LINKS.signup} className="mt-2 w-full sm:w-auto">{CTA.primary} <ArrowRight /></Cta>

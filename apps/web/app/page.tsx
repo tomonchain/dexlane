@@ -28,9 +28,9 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: {
       type: "website", locale: "fr_FR", siteName: "Dexlane", url: "/",
       title: SEO.ogTitle, description: SEO.description,
-      images: [{ url: "/landing/stock-desktop.png", width: 2560, height: 1440, alt: "L'écran Stock de Dexlane" }],
+      images: [{ url: "/landing/stock-desktop-v2.png", width: 2560, height: 1440, alt: "L'écran Stock de Dexlane" }],
     },
-    twitter: { card: "summary_large_image", title: SEO.ogTitle, description: SEO.description, images: ["/landing/stock-desktop.png"] },
+    twitter: { card: "summary_large_image", title: SEO.ogTitle, description: SEO.description, images: ["/landing/stock-desktop-v2.png"] },
   };
 }
 

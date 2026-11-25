@@ -1147,8 +1147,10 @@ test("page d'accueil : landing publique sans session, puis « Aujourd'hui » ave
   await expect(page).toHaveTitle("Dexlane — Publie tes cartes Pokémon sur eBay en quelques secondes");
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /^index/);
   await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", "Tes cartes en vente sur eBay. Sans y passer tes soirées.");
-  const hero = page.getByRole("heading", { level: 1 });
-  await expect(hero).toHaveText("Tes cartes en vente sur eBay en quelques secondes. Pas en quelques soirées.");
+  // Le titre porte le logo eBay à la place du mot : son nom accessible reste la phrase du brief.
+  const hero = page.getByRole("heading", { level: 1, name: "Tes cartes en vente sur eBay en quelques secondes. Pas en quelques soirées." });
+  await expect(hero).toBeVisible();
+  await expect(hero.getByRole("img", { name: "eBay" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Navigation principale" })).toHaveCount(0);
   // Mobile d'abord : le CTA principal est visible sans défiler.
   const cta = page.getByRole("link", { name: "Essayer gratuitement" }).first();
