@@ -3,24 +3,24 @@ import {
   SlidersHorizontal, Boxes,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { NeutralCard, type CardType } from "./ui";
+import { RealCard } from "./ui";
 
 /**
- * Démonstration de l'écran Stock pour le site marketing, en HTML et avec des données fictives : les vignettes de
- * cartes sont neutres (une teinte par type), sans aucune illustration.
+ * Démonstration de l'écran Stock pour le site marketing, en HTML et avec des données fictives, et de vraies vignettes
+ * de cartes du set 151.
  */
 
 type Status = "listed" | "planned" | "ready";
-const ROWS: { name: string; number: string; finish: string; condition: string; price: string; status: Status; type: CardType }[] = [
-  { name: "Dracaufeu-ex", number: "006", finish: "Holo", condition: "NM", price: "64,90 €", status: "listed", type: "feu" },
-  { name: "Mew-ex", number: "151", finish: "Holo", condition: "NM", price: "22,90 €", status: "listed", type: "psy" },
-  { name: "Pikachu", number: "025", finish: "Reverse", condition: "NM", price: "5,90 €", status: "listed", type: "electrique" },
-  { name: "Mewtwo-ex", number: "150", finish: "Holo", condition: "EX", price: "14,50 €", status: "listed", type: "psy" },
-  { name: "Tortank", number: "009", finish: "Reverse", condition: "NM", price: "3,40 €", status: "listed", type: "eau" },
-  { name: "Évoli", number: "133", finish: "Reverse", condition: "NM", price: "2,90 €", status: "planned", type: "incolore" },
-  { name: "Florizarre", number: "003", finish: "Normale", condition: "EX", price: "1,80 €", status: "planned", type: "plante" },
-  { name: "Dracolosse", number: "149", finish: "Reverse", condition: "GD", price: "2,20 €", status: "ready", type: "dragon" },
-  { name: "Salamèche", number: "004", finish: "Normale", condition: "NM", price: "1,20 €", status: "ready", type: "feu" },
+const ROWS: { name: string; number: string; finish: string; condition: string; price: string; status: Status; }[] = [
+  { name: "Dracaufeu-ex", number: "006", finish: "Holo", condition: "NM", price: "64,90 €", status: "listed" },
+  { name: "Mew-ex", number: "151", finish: "Holo", condition: "NM", price: "22,90 €", status: "listed" },
+  { name: "Pikachu", number: "025", finish: "Reverse", condition: "NM", price: "5,90 €", status: "listed" },
+  { name: "Mewtwo-ex", number: "150", finish: "Holo", condition: "EX", price: "14,50 €", status: "listed" },
+  { name: "Ectoplasma", number: "094", finish: "Reverse", condition: "NM", price: "3,40 €", status: "listed" },
+  { name: "Évoli", number: "133", finish: "Reverse", condition: "NM", price: "2,90 €", status: "planned" },
+  { name: "Ronflex", number: "143", finish: "Normale", condition: "EX", price: "1,80 €", status: "planned" },
+  { name: "Dracolosse", number: "149", finish: "Reverse", condition: "GD", price: "2,20 €", status: "ready" },
+  { name: "Salamèche", number: "004", finish: "Normale", condition: "NM", price: "1,20 €", status: "ready" },
 ];
 const STATUS: Record<Status, { label: string; dot: string }> = {
   listed: { label: "En ligne sur eBay", dot: "bg-success" },
@@ -98,7 +98,7 @@ export function StockDemoDesktop() {
           {ROWS.map((row) => (
             <div key={row.name} className="grid grid-cols-[minmax(0,2.4fr)_minmax(0,0.9fr)_minmax(0,0.6fr)_minmax(0,0.9fr)_minmax(0,1.5fr)] items-center gap-3 border-b px-3 py-1.5 last:border-b-0">
               <span className="flex min-w-0 items-center gap-2">
-                <NeutralCard type={row.type} className="w-6 shrink-0 shadow-[0_0_0_1px_rgb(0_0_0/0.08)]" />
+                <RealCard n={row.number} sizes="48px" className="w-6 shrink-0 shadow-[0_0_0_1px_rgb(0_0_0/0.08)]" />
                 <span className="grid min-w-0">
                   <span className="truncate text-[12px] font-medium">{row.name}</span>
                   <span className="truncate text-muted-foreground">151 · {row.number} · {row.finish}</span>
@@ -127,7 +127,7 @@ export function StockDemoMobile() {
       <div className="mx-2 mb-2 overflow-hidden rounded-lg bg-card shadow-[0_0_0_1px_var(--border)]">
         {ROWS.map((row) => (
           <div key={row.name} className="flex items-center gap-2 border-b px-2.5 py-1.5 last:border-b-0">
-            <NeutralCard type={row.type} className="w-6 shrink-0 shadow-[0_0_0_1px_rgb(0_0_0/0.08)]" />
+            <RealCard n={row.number} sizes="48px" className="w-6 shrink-0 shadow-[0_0_0_1px_rgb(0_0_0/0.08)]" />
             <span className="grid min-w-0 flex-1">
               <span className="truncate text-[12px] font-medium">{row.name}</span>
               <span className="flex min-w-0 items-center gap-1 truncate text-muted-foreground">

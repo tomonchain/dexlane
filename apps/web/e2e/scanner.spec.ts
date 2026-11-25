@@ -1235,10 +1235,13 @@ test("page d'accueil : landing publique sans session, puis « Aujourd'hui » ave
   await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", "Tes cartes en vente sur eBay. Sans y passer tes soirées.");
   await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /\/og\.png$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Tes cartes en vente sur eBay en quelques secondes. Pas en quelques soirées.");
+  // Le titre porte le logo eBay à la place du mot : son nom accessible reste la phrase du brief.
+  const hero = page.getByRole("heading", { level: 1, name: "Tes cartes en vente sur eBay en quelques secondes. Pas en quelques soirées." });
+  await expect(hero).toBeVisible();
+  await expect(hero.getByRole("img", { name: "eBay" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Navigation principale" })).toHaveCount(0);
-  // Aucune image de carte ni logo tiers : la démonstration du produit est en HTML, vignettes neutres.
-  await expect(page.locator("img")).toHaveCount(0);
+  // La démonstration du produit (HTML) et les illustrations montrent de vraies cartes.
+  await expect(page.locator('img[src*="landing%2Fcards"]').first()).toBeAttached();
   // Mobile d'abord : le CTA principal est visible sans défiler.
   const cta = page.getByRole("link", { name: "Essayer gratuitement" }).first();
   await expect(cta).toBeInViewport();

@@ -5,7 +5,7 @@ import {
 import type { ComponentType } from "react";
 import { PlanGrid } from "@/components/marketing/plans";
 import { StockDemoDesktop, StockDemoMobile } from "@/components/marketing/product-demo";
-import { Cta, GitHubMark, Glow, LEAD, NeutralCard, ORANGE, SectionTitle, Streaks, TextLink, type CardType } from "@/components/marketing/ui";
+import { Cta, GitHubMark, Glow, LEAD, ORANGE, RealCard, SectionTitle, Streaks, TextLink, WithEbayLogo } from "@/components/marketing/ui";
 import { CONTACT_EMAIL, GITHUB_URL, SIGNUP_URL } from "@/config/site";
 import { cn } from "@/lib/utils";
 import {
@@ -80,16 +80,16 @@ function ProductShot() {
   );
 }
 
-/* ——— Vignettes de « Pour qui » : vignettes de cartes neutres, une teinte par type. ——— */
+/* ——— Vignettes de « Pour qui » : de vraies cartes en classeur et en étuis rigides. ——— */
 
 function BinderVignette() {
-  const filled: Partial<Record<number, CardType>> = { 0: "feu", 1: "psy", 2: "electrique", 4: "eau", 5: "plante", 7: "incolore" };
+  const filled: Partial<Record<number, string>> = { 0: "006", 1: "151", 2: "025", 4: "150", 5: "094", 7: "133" };
   return (
     <div className="grid w-[62%] grid-cols-3 gap-2 rounded-xl bg-card p-3 shadow-[0_0_0_1px_rgb(0_0_0/0.06),0_12px_30px_-12px_rgb(0_0_0/0.25)]">
       {Array.from({ length: 9 }, (_, i) => {
-        const type = filled[i];
-        return type
-          ? <NeutralCard key={i} type={type} />
+        const n = filled[i];
+        return n
+          ? <RealCard key={i} n={n} />
           : <span key={i} className="aspect-[63/88] rounded-[10%/7%] border border-dashed border-foreground/15 bg-muted" />;
       })}
     </div>
@@ -114,17 +114,17 @@ function RhythmVignette() {
 }
 
 function ShopVignette() {
-  const types: CardType[] = ["dragon", "eau", "feu"];
+  const cards = ["143", "149", "004"];
   return (
     <div className="relative h-36 w-[70%]">
-      {types.map((type, i) => (
+      {cards.map((n, i) => (
         <span
-          key={type}
+          key={n}
           className="absolute bottom-0 w-[34%] rounded-md border-2 border-foreground/10 bg-card/70 p-1.5 shadow-[0_10px_24px_-12px_rgb(0_0_0/0.35)] backdrop-blur-[1px]"
           style={{ left: `${i * 30}%`, transform: `translateY(${-i * 10}px) rotate(${(i - 1) * 4}deg)` }}
         >
           <span className="mb-1 block h-1.5 rounded-full bg-foreground/10" />
-          <NeutralCard type={type} />
+          <RealCard n={n} />
         </span>
       ))}
       <span className="absolute -top-1 right-0 flex -space-x-2">
@@ -221,7 +221,7 @@ export function Landing() {
             <span aria-hidden className="size-3 rounded-[3px]" style={{ background: ORANGE }} />
             {HERO.eyebrow}
           </p>
-          <h1 id="hero-titre" className="max-w-4xl text-[2.45rem] leading-[1.02] font-[450] tracking-[-0.045em] text-balance sm:text-7xl">{hero.h1}</h1>
+          <h1 id="hero-titre" className="max-w-4xl text-[2.45rem] leading-[1.02] font-[450] tracking-[-0.045em] text-balance sm:text-7xl"><WithEbayLogo text={hero.h1} /></h1>
           <p className={LEAD}>{HERO.subtitle}</p>
           <div className="grid w-full gap-2.5 sm:w-auto">
             <div className="grid gap-3 sm:flex sm:flex-wrap">
@@ -391,10 +391,11 @@ export function Landing() {
         <Glow className="top-1/2 left-1/2 -z-10 h-72 w-[42rem] -translate-x-1/2 -translate-y-1/2 opacity-30" />
         <div className="mx-auto grid max-w-4xl justify-items-center gap-6 text-center">
           <div aria-hidden className="relative mb-4 h-36 w-64 sm:h-44 sm:w-80">
-            {([["electrique", -14, -34], ["feu", 0, 0], ["psy", 14, 34]] as const).map(([type, r, x], i) => (
-              <NeutralCard
-                key={type}
-                type={type}
+            {([["025", -14, -34], ["006", 0, 0], ["151", 14, 34]] as const).map(([n, r, x], i) => (
+              <RealCard
+                key={n}
+                n={n}
+                sizes="140px"
                 className="absolute top-0 left-1/2 w-24 sm:w-28"
                 style={{ transform: `translateX(calc(-50% + ${x}%)) rotate(${r}deg) translateY(${i === 1 ? -6 : 6}px)`, transformOrigin: "50% 120%", zIndex: i === 1 ? 2 : 1 }}
               />
