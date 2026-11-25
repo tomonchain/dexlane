@@ -296,6 +296,8 @@ export const api = {
     await betterAuth("sign-in/email", { email, password: newPassword });
   },
   changePassword: (currentPassword: string, newPassword: string) => betterAuth("change-password", { currentPassword, newPassword, revokeOtherSessions: true }),
+  /** L'utilisateur de la session : adresse, rôle (admin pour le propriétaire de l'installation), forfait choisi. */
+  account: () => request<{ accountId: string; email: string | null; role: string; plan: string | null }>("GET", "/account"),
   logout: () => {
     clearCache(); // les données de ce compte ne restent pas sur l'appareil
     return betterAuth("sign-out").catch(() => undefined);

@@ -67,11 +67,11 @@ const onHand = (page: Page) => page.getByTestId("on-hand");
 /** Bandeau d'erreur de l'application (Next ajoute son propre role="alert" pour l'annonce des pages). */
 const errorBanner = (page: Page) => page.locator('[data-slot="alert"][data-variant="destructive"]');
 
-test("première utilisation : l'assistant crée le compte, règle le scan, importe une série, crée les emplacements, la stratégie de prix et un canal", async ({ page }) => {
+test("première utilisation : l'assistant crée le compte, la boutique, règle le scan, importe une série, crée les emplacements, les envois et la stratégie de prix", async ({ page }) => {
   test.setTimeout(60_000);
   await page.goto("/inventory");
   await page.waitForURL(/\/welcome$/);
-  await expect(page.getByRole("heading", { name: "Créez votre compte" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Crée ton compte" })).toBeVisible();
 
   // 1. Compte : un mauvais jeton est refusé, le bon crée le compte.
   await page.getByLabel("Jeton d'installation").fill("pas-le-bon-jeton-pas-le-bon-jeton");
@@ -83,14 +83,20 @@ test("première utilisation : l'assistant crée le compte, règle le scan, impor
   await page.getByLabel("Jeton d'installation").fill(E2E_TOKEN);
   await page.getByRole("button", { name: "Créer mon compte" }).click();
 
-  // 2. Mode de scan.
-  await expect(page.getByRole("heading", { name: "Comment scannez-vous vos cartes ?" })).toBeVisible();
+  // 2. Boutique : le nom et l'adresse imprimés sur les bons et les reçus.
+  await expect(page.getByRole("heading", { name: "Ta boutique" })).toBeVisible();
+  await page.getByLabel("Nom de la boutique").fill("Cartes du Lac");
+  await page.getByLabel("Adresse").fill("3 rue du Lac\n74000 Annecy");
+  await page.getByRole("button", { name: "Continuer" }).click();
+
+  // 3. Mode de scan.
+  await expect(page.getByRole("heading", { name: "Comment scannes-tu tes cartes ?" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Continuer" })).toBeDisabled();
   await page.getByRole("radio", { name: /Appareil photo du téléphone/ }).click();
   await page.getByRole("button", { name: "Continuer" }).click();
 
-  // 3. Séries : les séries déjà présentes sont cochées d'office, « 151 » s'importe avec une barre d'avancement.
-  await expect(page.getByRole("heading", { name: "Quelles séries avez-vous ?" })).toBeVisible();
+  // 4. Séries (propriétaire de l'installation) : les séries déjà présentes sont cochées d'office, « 151 » s'importe avec une barre d'avancement.
+  await expect(page.getByRole("heading", { name: "Quelles séries as-tu ?" })).toBeVisible();
   await expect(page.getByRole("checkbox", { name: /Ténèbres Embrasées/ })).toBeDisabled();
   // Les cartes anglaises ont leur propre catalogue : rien n'y est encore importé.
   await page.getByLabel("Langue des cartes").selectOption("en");
@@ -103,22 +109,20 @@ test("première utilisation : l'assistant crée le compte, règle le scan, impor
   await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "1");
   await page.getByRole("button", { name: "Continuer" }).click();
 
-  // 4. Emplacements : deux boîtes et un classeur, nommés d'office.
+  // 5. Emplacements : deux boîtes et un classeur, nommés d'office.
   await page.getByLabel("Nombre de boîtes").fill("2");
   await page.getByLabel("Nombre de classeurs").fill("1");
   await expect(page.getByTestId("location-preview")).toHaveText("BOITE-01  BOITE-02  CLASSEUR-01");
   await page.getByRole("button", { name: "Créer 3 emplacements" }).click();
 
-  // 5. Prix : la stratégie choisie est enregistrée.
-  await expect(page.getByRole("heading", { name: "Comment fixer vos prix ?" })).toBeVisible();
+  // 6. Envois et prix : l'affranchissement et la stratégie choisie sont enregistrés ; un montant illisible est refusé.
+  await expect(page.getByRole("heading", { name: "Tes envois et tes prix" })).toBeVisible();
   await expect(page.getByRole("radio", { name: /Équilibré/ })).toBeChecked();
   await page.getByRole("radio", { name: /Vendre vite/ }).click();
-  await page.getByRole("button", { name: "Continuer" }).click();
-
-  // 6. Canaux : étape passée, puis fin de l'assistant.
-  await expect(page.getByRole("heading", { name: "Où vendez-vous ?" })).toBeVisible();
-  await page.getByTestId("channel-card-ebay").getByRole("radio", { name: "Simulation" }).click();
-  await expect(page.getByText("eBay : simulation")).toBeVisible();
+  await page.getByLabel("Lettre suivie").fill("abc");
+  await page.getByRole("button", { name: "Terminer" }).click();
+  await expect(page.getByText("Lettre suivie : montant invalide.")).toBeVisible();
+  await page.getByLabel("Lettre suivie").fill("2,90");
   await page.getByRole("button", { name: "Terminer" }).click();
   await expect(page.getByRole("heading", { name: "Tout est prêt" })).toBeVisible();
   await page.getByRole("button", { name: "Aller au stock" }).click();
@@ -130,8 +134,10 @@ test("première utilisation : l'assistant crée le compte, règle le scan, impor
   expect(await json("/api/app-settings")).toMatchObject({ onboardingDone: true, intakeMode: "CAMERA" });
   expect((await json("/api/pricing/settings")).strategy).toBe("FAST");
   expect(((await json("/api/locations")).locations as { code: string }[]).map((l) => l.code)).toEqual(expect.arrayContaining(["BOITE-01", "BOITE-02", "CLASSEUR-01"]));
-  expect(((await json("/api/channels")).channels as { id: string; mode: string }[]).find((c) => c.id === "ebay")!.mode).toBe("SIMULATION");
-  await page.request.put("/api/channels/ebay", { data: { mode: "OFF" } });
+  expect((await json("/api/app-settings")).seller).toMatchObject({ name: "Cartes du Lac", address: "3 rue du Lac\n74000 Annecy" });
+  expect((await json("/api/shipping-costs")).postage).toEqual({ LETTER_UNTRACKED: null, LETTER_TRACKED: 290, PARCEL_TRACKED: null });
+  await page.request.put("/api/shipping-costs", { data: { postage: { LETTER_UNTRACKED: null, LETTER_TRACKED: null, PARCEL_TRACKED: null }, supplies: (await json("/api/shipping-costs")).supplies } });
+  await page.request.put("/api/app-settings", { data: { seller: { name: "", address: "", legal: "" } } });
   await page.request.put("/api/pricing/settings", { data: { ...(await json("/api/pricing/settings")), strategy: "BALANCED" } });
   await page.goto("/inventory");
   await expect(page.getByRole("heading", { name: "Inventaire" })).toBeVisible();
@@ -1195,7 +1201,30 @@ test("inscription : compte créé depuis /signup, adresse vérifiée par le lien
   await expect(page.getByLabel("Jeton d'installation")).toHaveCount(0);
   expect((await (await page.request.get("/api/account")).json()) as { email: string; plan: string }).toMatchObject({ email, plan: "solo", role: "user" });
   expect(((await (await page.request.get("/api/stock")).json()) as { items: unknown[] }).items).toEqual([]);
-  expect((await page.request.put("/api/app-settings", { data: { onboardingDone: true } })).ok()).toBe(true);
+
+  // L'onboarding du nouvel inscrit : boutique, scan, rangement, envois et prix — sans compte à créer ni séries à importer.
+  await expect(page.getByRole("list", { name: "Étapes de démarrage" }).getByRole("listitem")).toHaveCount(4);
+  await expect(page.getByRole("heading", { name: "Ta boutique" })).toBeVisible();
+  await page.getByLabel("Nom de la boutique").fill("Chez le vendeur");
+  await page.getByRole("button", { name: "Continuer" }).click();
+  await expect(page.getByRole("heading", { name: "Comment scannes-tu tes cartes ?" })).toBeVisible();
+  await page.getByRole("radio", { name: /Appareil photo du téléphone/ }).click();
+  await page.getByRole("button", { name: "Continuer" }).click();
+  await expect(page.getByRole("heading", { name: "Où ranges-tu tes cartes ?" })).toBeVisible();
+  await page.getByLabel("Nombre de boîtes").fill("1");
+  await page.getByLabel("Nombre de classeurs").fill("0");
+  await page.getByRole("button", { name: "Créer 1 emplacement" }).click();
+  await expect(page.getByRole("heading", { name: "Tes envois et tes prix" })).toBeVisible();
+  await page.getByLabel("Lettre simple").fill("1,39");
+  await page.getByRole("button", { name: "Terminer" }).click();
+  await expect(page.getByRole("heading", { name: "Tout est prêt" })).toBeVisible();
+  await page.getByRole("button", { name: "Aller au stock" }).click();
+  await page.waitForURL(/\/stock$/);
+  // Ses réglages sont les siens : la boutique du propriétaire de l'installation n'a pas bougé.
+  const mine = (await (await page.request.get("/api/app-settings")).json()) as { onboardingDone: boolean; seller: { name: string } };
+  expect(mine).toMatchObject({ onboardingDone: true, seller: { name: "Chez le vendeur" } });
+  expect(((await (await page.request.get("/api/locations")).json()) as { locations: { code: string }[] }).locations.map((l) => l.code)).toEqual(["BOITE-01"]);
+  expect(((await (await page.request.get("/api/shipping-costs")).json()) as { postage: Record<string, number | null> }).postage.LETTER_UNTRACKED).toBe(139);
   // Une fois l'adresse vérifiée, le lien n'ouvre plus de session.
   await page.request.post("/api/auth/sign-out", { data: {} });
   await page.goto(verification.path);

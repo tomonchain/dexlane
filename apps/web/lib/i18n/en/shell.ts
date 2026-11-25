@@ -80,6 +80,17 @@ export const SHELL: Record<string, string> = {
   "Toutes les statistiques": "All statistics",
 
   // Connexion
+  // Assistant de démarrage
+  "Ta boutique": "Your shop",
+  "Ton nom de vendeur et tes coordonnées sont imprimés sur chaque bon de livraison et chaque reçu.": "Your seller name and contact details are printed on every packing slip and receipt.",
+  "{label} : montant invalide.": "{label}: invalid amount.",
+  "Tes envois et tes prix": "Your shipping and prices",
+  "Ce que te coûte un envoi entre dans la marge de chaque vente. Chaque carte reçoit ensuite un prix dès son entrée en stock, d'après les ventes réussies sur Cardmarket.": "What a shipment costs you counts in the margin of every sale. Each card then gets a price as soon as it enters stock, based on completed sales on Cardmarket.",
+  "En euros.": "In euros.",
+  "Laisse vide ce que tu n'utilises pas. Sleeves, top-loaders et enveloppes se règlent dans Réglages → Envois.": "Leave empty what you don't use. Sleeves, toploaders and envelopes are set in Settings → Shipping.",
+  "Boutique": "Shop",
+  "Envois et prix": "Shipping and prices",
+  "Lettre simple": "Standard letter",
   "Connexion": "Sign in",
   "Saisissez votre adresse e-mail et votre mot de passe.": "Enter your email address and your password.",
   "Adresse e-mail": "Email address",
@@ -88,8 +99,7 @@ export const SHELL: Record<string, string> = {
     "The setup token (DEXLANE_API_TOKEN) lets you choose the email address and password of the installation owner. Their other devices will be signed out.",
   "Choisissez votre adresse e-mail et votre mot de passe. Le jeton d'installation (DEXLANE_API_TOKEN) prouve que vous administrez le serveur ; il ne sera plus demandé ensuite.":
     "Choose your email address and password. The setup token (DEXLANE_API_TOKEN) proves you run the server; it won't be asked for again.",
-  "Choisissez l'adresse e-mail et le mot de passe qui protégeront votre stock. Le jeton d'installation prouve que ce serveur est le vôtre ; il n'est demandé que cette fois.":
-    "Choose the email address and password that will protect your stock. The setup token proves this server is yours; it is only asked for this once.",
+  "Choisis l'adresse e-mail et le mot de passe qui protégeront ton stock. Le jeton d'installation prouve que ce serveur est le tien ; il n'est demandé que cette fois.": "Choose the email address and password that will protect your stock. The setup token proves this server is yours; it is only asked for this once.",
   "Adresse e-mail ou mot de passe incorrect.": "Incorrect email address or password.",
   "Cette adresse e-mail appartient déjà à un autre compte.": "This email address already belongs to another account.",
   "Vérifiez l'adresse e-mail.": "Check the email address.",
@@ -131,24 +141,23 @@ export const SHELL: Record<string, string> = {
 
   // Assistant de démarrage
   "Scan": "Scan",
-  "Canaux": "Channels",
   "Passer l'assistant": "Skip setup",
   "Étapes de démarrage": "Setup steps",
   "Tout est prêt": "All set",
-  "Chaque réglage reste modifiable dans Réglages. Il ne manque plus que vos cartes.": "Every setting can still be changed in Settings. All that's missing is your cards.",
+  "Chaque réglage reste modifiable dans Réglages. Il ne manque plus que tes cartes.": "Every setting can still be changed in Settings. All that's missing is your cards.",
   "Créer mon premier lot à photographier": "Create my first batch to photograph",
   "Créer mon premier lot d'images": "Create my first image batch",
   "Créer mon premier lot scanné": "Create my first scanned batch",
   "Aller au stock": "Go to stock",
   "Les deux mots de passe ne sont pas identiques.": "The two passwords aren't the same.",
-  "Créez votre compte": "Create your account",
+  "Crée ton compte": "Create your account",
   "Choisissez le mot de passe qui protégera votre stock. Le jeton d'installation prouve que ce serveur est le vôtre ; il n'est demandé que cette fois.":
     "Choose the password that will protect your stock. The setup token proves this server is yours; it's only asked for this once.",
   "Créer mon compte": "Create my account",
   "La valeur de DEXLANE_API_TOKEN, définie à l'installation.": "The value of DEXLANE_API_TOKEN, set during installation.",
   "10 caractères au moins.": "At least 10 characters.",
-  "Comment scannez-vous vos cartes ?": "How do you scan your cards?",
-  "L'écran d'ajout s'adapte à votre matériel. Vous pourrez toujours utiliser les autres façons.": "The add screen adapts to your equipment. You can always use the other ways too.",
+  "Comment scannes-tu tes cartes ?": "How do you scan your cards?",
+  "L'écran d'ajout s'adapte à ton matériel. Tu pourras toujours utiliser les autres façons.": "The add screen adapts to your equipment. You can always use the other ways too.",
   "Mode de scan": "Scan mode",
   "Scanner à défilement": "Sheet-fed scanner",
   "Les cartes passent une à une, les images arrivent seules depuis le dossier du scanner.": "Cards go through one by one; images arrive on their own from the scanner's folder.",
@@ -156,8 +165,7 @@ export const SHELL: Record<string, string> = {
   "Vous photographiez recto puis verso au téléphone ; la revue se fait sur l'ordinateur.": "You photograph the front then the back with your phone; the review happens on the computer.",
   "Envoi de fichiers": "File upload",
   "Les photos existent déjà : vous les déposez par lot.": "The photos already exist: you drop them in batches.",
-  "La liste des séries n'a pas pu être chargée (catalogue en ligne injoignable). Vous pourrez importer vos séries plus tard, depuis Réglages → Catalogue.":
-    "The set list couldn't be loaded (online catalog unreachable). You can import your sets later from Settings → Catalog.",
+  "La liste des séries n'a pas pu être chargée (catalogue en ligne injoignable). Tu pourras importer tes séries plus tard, depuis Réglages → Catalogue.": "The set list couldn't be loaded (online catalog unreachable). You can import your sets later from Settings → Catalog.",
   "Autres séries": "Other sets",
   "Import des séries": "Importing sets",
   "Les cartes, leurs variantes et leurs cotes sont téléchargées série par série.": "Cards, their variants and their market prices are downloaded set by set.",
@@ -168,9 +176,8 @@ export const SHELL: Record<string, string> = {
   "{n} cartes importées": "{n} cards imported",
   "{n} série en échec : {sets}": "{n} set failed: {sets}",
   "{n} séries en échec : {sets}": "{n} sets failed: {sets}",
-  "Quelles séries avez-vous ?": "Which sets do you have?",
-  "Une carte ne peut être reconnue que si sa série est importée. Choisissez celles que vous possédez ; d'autres pourront suivre plus tard.":
-    "A card can only be recognized if its set is imported. Choose the ones you own; others can follow later.",
+  "Quelles séries as-tu ?": "Which sets do you have?",
+  "Une carte ne peut être reconnue que si sa série est importée. Choisis celles que tu possèdes ; d'autres pourront suivre plus tard.": "A card can only be recognized if its set is imported. Choose the ones you own; others can follow later.",
   "Passer cette étape": "Skip this step",
   "Importer {n} série": "Import {n} set",
   "Importer {n} séries": "Import {n} sets",
@@ -190,27 +197,20 @@ export const SHELL: Record<string, string> = {
   "{n} séries": "{n} sets",
   "déjà importée": "already imported",
   "Aucune série ne correspond.": "No matching set.",
-  "Où rangez-vous vos cartes ?": "Where do you store your cards?",
+  "Où ranges-tu tes cartes ?": "Where do you store your cards?",
   "Chaque carte en stock a un emplacement, pour la retrouver le jour de la vente. Un lot scanné va dans une boîte, dans l'ordre du scan.":
     "Every card in stock has a location, so you can find it on the day of the sale. A scanned batch goes into a box, in scan order.",
   "Créer {n} emplacement": "Create {n} location",
   "Créer {n} emplacements": "Create {n} locations",
   "Nombre de boîtes": "Number of boxes",
   "Nombre de classeurs": "Number of binders",
-  "Écrivez ces codes sur vos boîtes et classeurs.": "Write these codes on your boxes and binders.",
+  "Écris ces codes sur tes boîtes et classeurs.": "Write these codes on your boxes and binders.",
   "Vous avez déjà {n} emplacement : ceux qui existent sont conservés.": "You already have {n} location: existing ones are kept.",
   "Vous avez déjà {n} emplacements : ceux qui existent sont conservés.": "You already have {n} locations: existing ones are kept.",
   "D'autres s'ajoutent à tout moment depuis Réglages → Emplacements.": "You can add more at any time from Settings → Locations.",
-  "Comment fixer vos prix ?": "How should your prices be set?",
-  "Chaque carte reçoit un prix dès son entrée en stock, d'après les ventes réussies sur Cardmarket : celles du mois, ajustées par celles de la semaine.":
-    "Each card gets a price as soon as it enters stock, based on completed sales on Cardmarket: the month's, adjusted by the week's.",
-  "Jamais sous votre prix d'achat : si le marché est en dessous, le prix est tenu au coût et la carte est signalée.":
-    "Never below your purchase price: if the market is lower, the price is held at cost and the card is flagged.",
+  "Jamais sous ton prix d'achat : si le marché est en dessous, le prix est tenu au coût et la carte est signalée.": "Never below your purchase price: if the market is lower, the price is held at cost and the card is flagged.",
   "Un pic isolé des ventes ne fait pas grimper le prix de plus de 25 %.": "A one-off spike in sales can't push the price up by more than 25%.",
-  "Un prix que vous fixez à la main n'est plus jamais modifié tout seul.": "A price you set by hand is never changed automatically again.",
-  "Où vendez-vous ?": "Where do you sell?",
-  "Activez un canal en simulation pour essayer la mise en ligne sans rien publier. Le mode réel s'ouvre quand l'accès à la marketplace est configuré.":
-    "Turn on a channel in simulation to try listing without publishing anything. Live mode opens once marketplace access is configured.",
+  "Un prix que tu fixes à la main n'est plus jamais modifié tout seul.": "A price you set by hand is never changed automatically again.",
   "Terminer": "Finish",
 
   // Stratégie de prix
