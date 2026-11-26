@@ -86,18 +86,54 @@ export interface PublicVariant {
   history: { day: string; cents: number }[];
 }
 
+/** Une carte d'une autre page : voisine dans la série, même Pokémon ou même illustrateur. */
+export interface PublicCardLink {
+  setId: string;
+  setName: string;
+  setReleaseDate: string | null;
+  setCardCountOfficial: number | null;
+  localNumber: string;
+  name: string;
+  imageUrl: string | null;
+  /** La plus basse des cotes des variantes, null sans cote. */
+  fromCents: number | null;
+}
+
 export interface PublicCard {
   localNumber: string;
   name: string;
   rarity: string | null;
   category: string | null;
   imageUrl: string | null;
+  /** Numéro(s) du Pokédex national ; null pour un Dresseur, une Énergie, ou une série pas encore reprise. */
+  dexIds: number[] | null;
+  illustrator: string | null;
+  hp: number | null;
+  types: string[] | null;
+  stage: string | null;
   set: PublicSet;
   variants: PublicVariant[];
   /** Cartes voisines dans la numérotation de la série, pour la navigation. */
-  previous: { localNumber: string; name: string } | null;
-  next: { localNumber: string; name: string } | null;
+  previous: PublicCardLink | null;
+  next: PublicCardLink | null;
+  /** Le même Pokémon dans d'autres séries (par numéro de Pokédex), ou, sans numéro, la même carte ailleurs (par nom). */
+  related: PublicCardLink[];
+  relatedBy: "pokedex" | "name";
+  /** D'autres cartes du même illustrateur. */
+  sameIllustrator: PublicCardLink[];
 }
+
+/** Colonnes d'un lien vers une carte (alias `c` pour la carte, `s` pour sa série). */
+const linkColumns = (sql: Db) => sql`
+  c.set_id, s.name as set_name, s.release_date::text as set_release_date, s.card_count_official as set_card_count_official,
+  c.local_number, c.name, c.image_url,
+  (select min(p.amount_cents)::int
+     from card_variants v
+     cross join lateral (
+       select ps.amount_cents from price_snapshots ps
+        where ps.variant_id = v.id and ps.quote_type = 'LISTED_TREND' and ps.currency = 'EUR'
+        order by ps.observed_at desc limit 1) p
+    where v.catalog_card_id = c.id) as from_cents`;
 
 /** Tri par numéro imprimé : 2 avant 10, puis les numéros à lettres (« TG01 »). */
 const numberOrder = (sql: Db) => sql`nullif(left(regexp_replace(c.local_number, '\\D', '', 'g'), 9), '')::int nulls last, c.local_number`;
@@ -153,8 +189,8 @@ export async function getPublicCard(sql: Db, language: string, setSegment: strin
   const found = await getPublicSet(sql, language, setSegment);
   if (!found) return null;
   const prefixes = slugPrefixes(cardSegment);
-  const [card] = await sql<(Omit<PublicCard, "set" | "variants" | "previous" | "next"> & { id: string })[]>`
-    select c.id, c.local_number, c.name, c.rarity, c.category, c.image_url
+  const [card] = await sql<(Omit<PublicCard, "set" | "variants" | "previous" | "next" | "related" | "relatedBy" | "sameIllustrator"> & { id: string })[]>`
+    select c.id, c.local_number, c.name, c.rarity, c.category, c.image_url, c.dex_ids, c.illustrator, c.hp, c.types, c.stage
       from catalog_cards c
      where c.set_id = ${found.set.id} and c.language = ${language} and lower(c.local_number) = any(${prefixes})
      order by length(c.local_number) desc limit 1`;
@@ -177,7 +213,36 @@ export async function getPublicCard(sql: Db, language: string, setSegment: strin
      order by v.finish, v.edition, v.subtype, v.stamp`;
 
   const index = found.cards.findIndex((c) => c.localNumber === card.localNumber);
-  const neighbour = (i: number) => (found.cards[i] ? { localNumber: found.cards[i]!.localNumber, name: found.cards[i]!.name } : null);
+  const neighbour = (i: number): PublicCardLink | null => {
+    const c = found.cards[i];
+    if (!c) return null;
+    return {
+      setId: found.set.id, setName: found.set.name, setReleaseDate: found.set.releaseDate, setCardCountOfficial: found.set.cardCountOfficial,
+      localNumber: c.localNumber, name: c.name, imageUrl: c.imageUrl, fromCents: c.fromCents,
+    };
+  };
+
+  // Le même Pokémon : un numéro de Pokédex en commun (une carte à deux Pokémon les retrouve tous les deux). Sans numéro
+  // (Dresseur, Énergie), la carte du même nom dans d'autres séries. Les plus récentes d'abord.
+  const relatedBy = card.dexIds?.length ? "pokedex" : "name";
+  const related = await sql<PublicCardLink[]>`
+    select ${linkColumns(sql)}
+      from catalog_cards c
+      join catalog_sets s on s.id = c.set_id and s.language = c.language
+     where c.language = ${language} and c.id <> ${card.id}
+       and ${relatedBy === "pokedex" ? sql`c.dex_ids && ${card.dexIds}::int[]` : sql`lower(c.name) = lower(${card.name})`}
+     order by s.release_date desc nulls last, c.set_id, c.local_number
+     limit 12`;
+  const sameIllustrator = card.illustrator
+    ? await sql<PublicCardLink[]>`
+        select ${linkColumns(sql)}
+          from catalog_cards c
+          join catalog_sets s on s.id = c.set_id and s.language = c.language
+         where c.language = ${language} and c.id <> ${card.id} and c.illustrator = ${card.illustrator}
+         order by s.release_date desc nulls last, c.set_id, c.local_number
+         limit 6`
+    : [];
+
   const { id: _id, ...rest } = card;
   return {
     ...rest,
@@ -185,6 +250,9 @@ export async function getPublicCard(sql: Db, language: string, setSegment: strin
     variants: variants.map((v) => ({ ...v, price: v.price ? { ...v.price, observedAt: new Date(v.price.observedAt) } : null })),
     previous: index > 0 ? neighbour(index - 1) : null,
     next: index >= 0 ? neighbour(index + 1) : null,
+    related,
+    relatedBy,
+    sameIllustrator,
   };
 }
 

@@ -1381,6 +1381,24 @@ test("séries et cotes publiques : index, série, carte, adresse canonique, plan
   await expect(prices.getByRole("row", { name: /Reverse/ })).toBeVisible();
   await expect(prices).toContainText("€");
   await expect(page.getByText(/Cote tendance Cardmarket, via TCGdex/)).toBeVisible();
+  // Détails repris de TCGdex, variation sur 30 jours, liens vers les places de marché.
+  await expect(page.getByTestId("card-facts")).toContainText("tetsuya koizumi");
+  await expect(page.getByTestId("card-facts")).toContainText("110");
+  await expect(prices.getByRole("columnheader", { name: "30 jours" })).toBeVisible();
+  await expect(prices.getByRole("row", { name: /Reverse/ })).toContainText("%");
+  await expect(page.getByTestId("card-external").getByRole("link", { name: /Cardmarket/ })).toHaveAttribute("href", /cardmarket\.com\/fr\/Pokemon\/Products\/Search\?searchString=Fouinar/);
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /assets\.tcgdex\.net\/.*\/136\/high\.webp$/);
+  // L'en-tête : « Cotes » est la section active, au téléphone comme sur grand écran, sans rien qui déborde.
+  await page.getByRole("button", { name: "Menu" }).click();
+  await expect(page.getByRole("navigation", { name: "Menu" }).getByRole("link", { name: "Cotes" })).toHaveAttribute("aria-current", "page");
+  await page.keyboard.press("Escape");
+  const phone = page.viewportSize()!;
+  for (const width of [1024, 1280]) {
+    await page.setViewportSize({ width, height: 800 });
+    await expect(page.getByRole("navigation", { name: "Navigation du site" }).getByRole("link", { name: "Cotes" })).toHaveAttribute("aria-current", "page");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBe(0);
+  }
+  await page.setViewportSize(phone);
   await expect(page.getByRole("link", { name: "Ténèbres Embrasées", exact: true }).first()).toHaveAttribute("href", "/series/swsh3-tenebres-embrasees");
   // Aucune donnée d'un compte : ni stock, ni ventes, ni navigation de l'application.
   await expect(page.getByText(/en stock|exemplaire/i)).toHaveCount(0);

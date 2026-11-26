@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { useTestDb } from "@dexlane/db/testing";
-import { syncSet, syncSetList } from "../src";
+import { importNextSets, syncSet, syncSetList } from "../src";
 import { card, fakeClient } from "./fixtures";
 
 const sql = useTestDb("catalog");
@@ -24,6 +24,32 @@ describe("syncSet", () => {
     expect(prices.map((p) => [p.finish, p.amountCents])).toEqual([["normal", 9], ["reverse", 28]]);
     const updated = card("swsh3-136").variants_detailed![0]!.pricing!.cardmarket!.updated!;
     expect(prices[0]!.observedAt.toISOString()).toBe(new Date(updated).toISOString());
+  });
+
+  it("keeps the card details: Pokédex number, illustrator, HP, types and stage", async () => {
+    await syncSet(sql, fakeClient([card("swsh3-136")]), "fr", "swsh3");
+    const [row] = await sql`select dex_ids, illustrator, hp, types, stage from catalog_cards where set_id = 'swsh3' and local_number = '136'`;
+    expect(row).toMatchObject({ dexIds: [162], illustrator: "tetsuya koizumi", hp: 110, types: ["Incolore"], stage: "Niveau 1" });
+    const [set] = await sql`select details_synced_at from catalog_sets where id = 'swsh3' and language = 'fr'`;
+    expect(set!.detailsSyncedAt).toBeInstanceOf(Date);
+  });
+
+  it("takes up again, after the missing sets, the sets imported before card details were kept", async () => {
+    const client = fakeClient([card("swsh3-136"), card("base1-4")], {
+      listSets: async () => [{ id: "base1", name: "Set de Base" }, { id: "swsh3", name: "Ténèbres Embrasées" }] as never,
+    });
+    await syncSetList(sql, client, "fr");
+    await syncSet(sql, client, "fr", "swsh3");
+    // Comme une série importée avant la migration 0036 : cartes présentes, détails absents.
+    await sql`update catalog_cards set dex_ids = null, illustrator = null where set_id = 'swsh3'`;
+    await sql`update catalog_sets set details_synced_at = null, import_attempted_at = null where id = 'swsh3'`;
+
+    const run = await importNextSets(sql, client, "fr", { budgetMs: 60_000 });
+    // La série absente d'abord, puis la reprise de l'ancienne.
+    expect(run.imported.map((x) => x.setId)).toEqual(["base1", "swsh3"]);
+    const [row] = await sql`select dex_ids, illustrator from catalog_cards where set_id = 'swsh3' and local_number = '136'`;
+    expect(row).toMatchObject({ dexIds: [162], illustrator: "tetsuya koizumi" });
+    expect((await importNextSets(sql, client, "fr", { budgetMs: 60_000 })).imported).toEqual([]);
   });
 
   it("falls back to the English image of the same card when the source has none in this language", async () => {

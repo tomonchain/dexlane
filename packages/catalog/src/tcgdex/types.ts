@@ -65,6 +65,13 @@ export interface TcgdexCard {
   rarity?: string;
   image?: string;
   updated?: string;
+  /** Numéro(s) du Pokédex national : plusieurs pour une carte à plusieurs Pokémon (« Pikachu & Zekrom-GX »). */
+  dexId?: number[];
+  illustrator?: string;
+  hp?: number;
+  types?: string[];
+  /** Stade d'évolution, dans la langue de la carte (« De base », « Niveau 1 »…). */
+  stage?: string;
   set: { id: string; name: string; cardCount?: { total?: number; official?: number } };
   variants?: { normal?: boolean; reverse?: boolean; holo?: boolean; firstEdition?: boolean; wPromo?: boolean };
   variants_detailed?: TcgdexVariantDetailed[];

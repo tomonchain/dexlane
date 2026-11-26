@@ -52,6 +52,8 @@ export const NAV = {
   pricing: "Tarifs",
   docs: "Docs",
   series: "Cotes des cartes",
+  /** Lien court de l'en-tête vers /series. */
+  quotes: "Cotes",
   guides: "Guides",
   github: "GitHub",
   login: "Se connecter",
