@@ -3,6 +3,8 @@ title: Vendre ses cartes Pokémon sur eBay, le guide complet
 description: Tout pour vendre ses cartes Pokémon sur eBay sans se tromper : compte vendeur, frais, photos, titre, prix, envoi et avis, avec les erreurs à éviter.
 date: 2026-12-01
 author: Thomas
+image: /guides/vendre-cartes-pokemon-ebay.webp
+imageAlt: Trois cartes Pokémon en éventail : Ectoplasma, Ronflex et Évoli
 draft: true
 ---
 

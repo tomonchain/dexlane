@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { pageMetadata } from "@/components/marketing/metadata";
 import { JsonLd, breadcrumb } from "@/components/marketing/structured-data";
@@ -20,9 +21,12 @@ export async function generateMetadata({ params }: Params) {
   const guide = getGuide((await params).slug);
   if (!guide) return {};
   const metadata = pageMetadata({ title: `${guide.title} — Dexlane`, description: guide.description }, `/guides/${guide.slug}`, { noindex: guide.draft });
+  // La bannière sert aussi d'image de partage ; sans bannière, l'image du site.
+  const share = guide.image ? [{ url: guide.image.src, alt: guide.image.alt }] : metadata.openGraph?.images;
   return {
     ...metadata,
-    openGraph: { ...metadata.openGraph, type: "article", publishedTime: guide.date, modifiedTime: guide.updated ?? guide.date, authors: [guide.author] },
+    openGraph: { ...metadata.openGraph, type: "article", publishedTime: guide.date, modifiedTime: guide.updated ?? guide.date, authors: [guide.author], images: share },
+    twitter: { ...metadata.twitter, images: guide.image ? [guide.image.src] : metadata.twitter?.images },
   };
 }
 
@@ -46,6 +50,7 @@ export default async function GuidePage({ params }: Params) {
             inLanguage: "fr-FR",
             url,
             mainEntityOfPage: url,
+            ...(guide.image && { image: new URL(guide.image.src, SITE_URL).toString() }),
             author: { "@type": "Person", name: guide.author },
             publisher: { "@id": new URL("/#organisation", SITE_URL).toString() },
           },
@@ -76,6 +81,11 @@ export default async function GuidePage({ params }: Params) {
               <span>{guide.readingMinutes} min de lecture</span>
             </p>
           </header>
+          {guide.image && (
+            <figure className="relative aspect-[1200/630] overflow-hidden rounded-2xl bg-muted ring-1 ring-border/60" data-testid="guide-banner">
+              <Image src={guide.image.src} alt={guide.image.alt} fill priority sizes="(min-width: 1024px) 760px, 100vw" className="object-cover" />
+            </figure>
+          )}
           {/* Contenu écrit par l'équipe dans content/guides : du Markdown du dépôt, pas une saisie d'utilisateur. */}
           <div className="guide-prose max-w-[68ch]" data-testid="guide-body" dangerouslySetInnerHTML={{ __html: guide.html }} />
         </article>

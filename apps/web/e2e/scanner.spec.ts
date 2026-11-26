@@ -1412,6 +1412,13 @@ test("guides : index, article rendu depuis le Markdown, sommaire, brouillon sign
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(title);
   // Le Markdown est rendu en titres de section ; le modèle (_modele.md) n'est jamais publié.
   await expect(page.getByTestId("guide-body").locator("h2").first()).toBeVisible();
+  // La bannière, quand le guide en a une : affichée, chargée, et reprise comme image de partage.
+  const banner = page.getByTestId("guide-banner").locator("img");
+  if (await banner.count()) {
+    await expect(banner).toHaveAttribute("alt", /.+/);
+    expect(await banner.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+    await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /\/guides\/[^/]+\.(webp|jpe?g|png)$/);
+  }
   await expect(page.locator('script[type="application/ld+json"]').nth(1)).toBeAttached();
   // Hors production, un brouillon se relit avec son bandeau ; il reste hors des moteurs.
   if (await page.getByTestId("guide-draft").count()) {

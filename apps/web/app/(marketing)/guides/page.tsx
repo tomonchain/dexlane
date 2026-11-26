@@ -1,4 +1,5 @@
 import { ArrowRight } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { pageMetadata } from "@/components/marketing/metadata";
 import { JsonLd, breadcrumb } from "@/components/marketing/structured-data";
@@ -33,7 +34,16 @@ export default function GuidesIndexPage() {
         <ul className="grid border-t" data-testid="guides-list">
           {guides.map((guide) => (
             <li key={guide.slug} className="border-b">
-              <Link href={`/guides/${guide.slug}`} className="group grid gap-2 py-6 outline-none focus-visible:underline">
+              <Link
+                href={`/guides/${guide.slug}`}
+                className={`group grid gap-4 py-6 outline-none focus-visible:underline ${guide.image ? "sm:grid-cols-[12rem_minmax(0,1fr)] sm:gap-6" : ""}`}
+              >
+                {guide.image && (
+                  <span className="relative block aspect-[1200/630] overflow-hidden rounded-xl bg-muted ring-1 ring-border/60">
+                    <Image src={guide.image.src} alt="" fill sizes="(min-width: 640px) 192px, 100vw" className="object-cover transition-transform group-hover:scale-[1.02]" />
+                  </span>
+                )}
+                <span className="grid content-start gap-2">
                 <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-muted-foreground">
                   <time dateTime={guide.updated ?? guide.date}>{formatGuideDate(guide.updated ?? guide.date)}</time>
                   <span aria-hidden>·</span>
@@ -46,6 +56,7 @@ export default function GuidesIndexPage() {
                     <span className="leading-relaxed text-muted-foreground">{guide.description}</span>
                   </span>
                   <ArrowRight className="mt-1.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
+                </span>
                 </span>
               </Link>
             </li>

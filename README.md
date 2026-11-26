@@ -218,7 +218,7 @@ Pages publiques du site, faites pour les moteurs de recherche et les assistants 
 
 Articles du site, écrits en Markdown : un fichier par guide dans `apps/web/content/guides`, dont le nom donne l'adresse (`prix-carte-pokemon.md` → `/guides/prix-carte-pokemon`). Modèle commenté : `_modele.md` (jamais publié).
 
-- **En-tête** : `title`, `description`, `date` (AAAA-MM-JJ), `author`, et au besoin `updated` et `draft: true`.
+- **En-tête** : `title`, `description`, `date` (AAAA-MM-JJ), `author`, et au besoin `updated`, `draft: true`, et une bannière : `image` (fichier dans `apps/web/public/guides`, 1600 × 840 px conseillé) avec son texte alternatif `imageAlt`. La bannière s'affiche en haut de l'article et en vignette dans l'index, et sert d'image de partage (Open Graph) et d'image de l'article dans le JSON-LD. Une image introuvable ou sans texte alternatif fait échouer le build.
 - **Brouillons** : visibles en local et en préversion (bandeau « Brouillon », `noindex`), jamais en production. Publier = retirer `draft: true` et livrer.
 - **Rendu** : statique (`marked`), sommaire des sections `##`, temps de lecture, JSON-LD `BlogPosting` (auteur, dates) et fil d'Ariane.
 - **Diffusion** : plan du site, flux RSS `/guides/rss.xml`, `llms.txt` et `llms-full.txt` (texte intégral). Le lien « Guides » du pied de page et l'indexation de `/guides` n'apparaissent qu'avec le premier guide publié.
