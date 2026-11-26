@@ -1,6 +1,7 @@
 # Dexlane — règles de travail
 
-Le README décrit l'application ; ce fichier dit comment y travailler.
+Le README décrit l'application ; ce fichier dit comment y travailler. Le dépôt est public, sous licence AGPL-3.0 :
+`CONTRIBUTING.md` est la version de ces règles pour les contributeurs extérieurs, à garder alignée avec celle-ci.
 
 ## Tout passe par une issue GitHub
 
@@ -10,6 +11,8 @@ Le README décrit l'application ; ce fichier dit comment y travailler.
   domaines y est rattachée comme sous-issue.
 - Le commit qui termine une issue la ferme : `Closes #n` dans son message. Un commit partiel la cite (`#n`) sans la fermer.
 - Ce qui reste à faire, une idée ou un bug vu en passant : une issue, pas un TODO dans le code ni une liste dans le README.
+- Dépôt public : jamais de secret, de donnée d'un vendeur ni d'information personnelle dans le code, les issues ou les
+  commits. Une faille se traite en privé (`SECURITY.md`), pas dans une issue.
 
 ## Livraison
 

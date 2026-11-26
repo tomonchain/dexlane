@@ -1440,8 +1440,8 @@ test("page d'accueil : landing publique sans session, puis « Aujourd'hui » ave
   await expect(page.getByTestId("plan-solo")).toContainText("≈ 35 cartes par semaine");
   await expect(page.locator("#tarifs").getByText("Un lot compte pour une seule carte.")).toBeVisible();
   await expect(page.getByRole("link", { name: "Voir le détail des tarifs →" })).toHaveAttribute("href", "/tarifs");
-  // Les éléments « à confirmer » sont affichés tels que rédigés ; pas de témoignages.
-  await expect(page.getByText("Licence [À CONFIRMER]")).toBeVisible();
+  // La licence du code mène au fichier LICENSE du dépôt ; pas de témoignages.
+  await expect(page.getByRole("link", { name: "Licence AGPL-3.0" })).toHaveAttribute("href", /\/blob\/main\/LICENSE$/);
   await expect(page.getByRole("heading", { name: "Ce qu'en disent les vendeurs" })).toHaveCount(0);
   // FAQ : une question s'ouvre sur sa réponse.
   await page.getByText("Est-ce que Dexlane prend une commission sur mes ventes ?").click();

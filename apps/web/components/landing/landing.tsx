@@ -363,7 +363,9 @@ export function Landing() {
                 </div>
               ))}
             </div>
-            <p className="font-mono text-xs text-white/55">{OPEN_SOURCE.licence}</p>
+            <a href={`${GITHUB_URL}/blob/main/LICENSE`} target="_blank" rel="noreferrer" className="justify-self-start font-mono text-xs text-white/55 underline-offset-4 outline-none hover:text-white/80 hover:underline focus-visible:underline">
+              {OPEN_SOURCE.licence}
+            </a>
           </div>
         </div>
       </section>

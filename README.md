@@ -4,6 +4,7 @@ Service en ligne de négoce de cartes Pokémon, sur https://dexlane.app : scan, 
 
 - Suivi du travail : les [issues GitHub](https://github.com/tomonchain/dexlane/issues) (go-live : #44, SEO / GEO : #55). Règles de travail : [`CLAUDE.md`](CLAUDE.md).
 - Versions : [`CHANGELOG.md`](CHANGELOG.md) ; la version déployée s'affiche en bas de Réglages.
+- Licence : [AGPL-3.0](LICENSE). Contribuer : [`CONTRIBUTING.md`](CONTRIBUTING.md) ; signaler une faille : [`SECURITY.md`](SECURITY.md).
 - Spécification d'origine (outil personnel, avant le passage multi-comptes ; ses numéros de section sont encore cités dans le code) : [`specs-pokemon-trading-automation.md`](specs-pokemon-trading-automation.md).
 
 ## État
