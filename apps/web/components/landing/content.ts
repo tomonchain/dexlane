@@ -182,6 +182,9 @@ export const PRICING = {
   subtitle:
     "Dexlane ne prend aucune commission sur tes ventes. Les modifications de prix, la mise à jour du stock et les republications ne sont jamais décomptées.",
   quotaLabel: "Cartes publiées par mois",
+  /** Grille courte : ce qu'inclut le premier forfait, puis ce que chaque forfait ajoute au précédent. */
+  includes: "Inclus",
+  includesAll: "Tout {plan}, plus :",
   notes: [
     "Un lot compte pour une seule carte.",
     `Tu dépasses ton forfait ? ${PACK_PRICE} les ${PACK} supplémentaires. On te prévient avant, on ne bloque jamais une publication en cours.`,

@@ -1378,7 +1378,12 @@ test("page d'accueil : landing publique sans session, puis « Aujourd'hui » ave
   await expect(page.getByRole("heading", { name: "Retrouve chaque carte en dix secondes" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Achats, ventes, marge" })).toBeVisible();
   await expect(page.getByTestId("plan-pro")).toContainText("Recommandé");
-  await expect(page.getByTestId("plan-pro")).not.toContainText("Suggestions de titre et de prix");
+  // Chaque forfait dit ce qu'il ajoute au précédent, et le rythme que permet son quota.
+  await expect(page.getByTestId("plan-pro")).toContainText("Tout Solo, plus :");
+  await expect(page.getByTestId("plan-pro")).toContainText("Suggestions de titre et de prix");
+  await expect(page.getByTestId("plan-pro")).not.toContainText("Publication en masse");
+  await expect(page.getByTestId("plan-solo")).toContainText("≈ 35 cartes par semaine");
+  await expect(page.locator("#tarifs").getByText("Un lot compte pour une seule carte.")).toBeVisible();
   await expect(page.getByRole("link", { name: "Voir le détail des tarifs →" })).toHaveAttribute("href", "/tarifs");
   // Les éléments « à confirmer » sont affichés tels que rédigés ; pas de témoignages.
   await expect(page.getByText("Licence [À CONFIRMER]")).toBeVisible();

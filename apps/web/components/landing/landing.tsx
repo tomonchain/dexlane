@@ -3,7 +3,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { ComponentType } from "react";
-import { PlanGrid } from "@/components/marketing/plans";
+import { PlanGrid, PlanNotes } from "@/components/marketing/plans";
 import { PhoneDemo, StockDemoDesktop } from "@/components/marketing/product-demo";
 import { Cta, GitHubMark, Glow, LEAD, ORANGE, RealCard, SectionTitle, Streaks, TextLink, WithEbayLogo } from "@/components/marketing/ui";
 import { CONTACT_EMAIL, GITHUB_URL, SIGNUP_URL } from "@/config/site";
@@ -301,8 +301,13 @@ export function Landing() {
             <SectionTitle id="tarifs-titre">{PRICING.title}</SectionTitle>
             <p className={LEAD}>{PRICING.subtitle}</p>
           </div>
-          <PlanGrid />
-          <TextLink href="/tarifs" className="justify-self-start">{PRICING.detailLink}</TextLink>
+          <div className="grid gap-8">
+            <PlanGrid />
+            <div className="grid gap-6 sm:flex sm:items-end sm:justify-between">
+              <PlanNotes />
+              <TextLink href="/tarifs" className="shrink-0 justify-self-start">{PRICING.detailLink}</TextLink>
+            </div>
+          </div>
         </div>
       </section>
 
