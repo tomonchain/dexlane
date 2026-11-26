@@ -51,7 +51,8 @@ export function TextLink({ href, children, external, className }: { href: string
 
 export function SectionTitle({ id, children, className, as: Tag = "h2" }: { id?: string; children: ReactNode; className?: string; as?: "h1" | "h2" }) {
   return (
-    <Tag id={id} className={cn("max-w-3xl text-[2rem] leading-[1.06] font-[450] tracking-[-0.035em] text-balance sm:text-[3.25rem]", className)}>
+    // L'interligne vient après : une taille passée dans `className` l'effacerait sinon (tailwind-merge).
+    <Tag id={id} className={cn("max-w-3xl text-[2rem] font-[450] tracking-[-0.035em] text-balance sm:text-[3.25rem]", className, !/\bleading-/.test(className ?? "") && "leading-[1.06]")}>
       {children}
     </Tag>
   );

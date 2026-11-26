@@ -3,7 +3,7 @@
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
-import { Logo } from "@/components/app-shell";
+import { AuthLayout } from "@/components/marketing/auth-layout";
 import { LocaleSwitch } from "@/components/locale-switch";
 import { PasswordInput } from "@/components/password-input";
 import { Alert } from "@/components/ui/alert";
@@ -14,8 +14,11 @@ import { api } from "@/lib/api";
 import { authMessage } from "@/lib/auth-messages";
 import { clearCache } from "@/lib/cache";
 import { t } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 
 type Mode = "loading" | "login" | "setup" | "reset";
+
+const LINK = "text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:underline";
 
 const COPY: Record<Exclude<Mode, "loading">, { title: string; description: string; submit: string }> = {
   login: { title: "Connexion", description: "Saisissez votre adresse e-mail et votre mot de passe.", submit: "Se connecter" },
@@ -89,19 +92,14 @@ export default function LoginPage() {
   const ready = email.trim() !== "" && (mode === "login" ? password !== "" : token.trim() !== "" && password !== "" && confirm !== "");
 
   return (
-    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden px-4 py-10">
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-40 mx-auto h-[28rem] max-w-3xl rounded-full bg-primary/15 blur-3xl" />
-      <div className="relative w-full max-w-sm">
-        <div className="mb-8 flex justify-center">
-          <Logo className="scale-110" />
-        </div>
+    <AuthLayout tagline={t("Du classeur à l'annonce eBay, en quelques secondes.")} footer={<LocaleSwitch />}>
         {mode === "loading" ? (
-          <div className="flex justify-center rounded-2xl border bg-card p-8 shadow-xl shadow-black/5"><Loading /></div>
+          <div className="flex justify-center py-10"><Loading /></div>
         ) : (
-          <form onSubmit={submit} className="grid gap-5 rounded-2xl border bg-card p-6 shadow-xl shadow-black/5">
-            <div className="grid gap-1.5">
-              <h1 className="text-xl font-semibold tracking-tight">{t(COPY[mode].title)}</h1>
-              <p className="text-sm text-muted-foreground">{t(COPY[mode].description)}</p>
+          <form onSubmit={submit} className="grid gap-5">
+            <div className="mb-2 grid gap-2.5">
+              <h1 className="text-[2rem] leading-[1.06] font-[450] tracking-[-0.035em] text-balance sm:text-[2.25rem]">{t(COPY[mode].title)}</h1>
+              <p className="text-[15px] leading-relaxed text-muted-foreground">{t(COPY[mode].description)}</p>
             </div>
             {choosing && (
               <Field label={t("Jeton d'installation")}>
@@ -130,22 +128,21 @@ export default function LoginPage() {
               {busy ? <><Spinner className="text-primary-foreground" /> {t("Vérification…")}</> : <>{t(COPY[mode].submit)} <ArrowRight /></>}
             </Button>
             {mode === "login" && (
-              <div className="grid justify-items-center gap-1 text-sm">
-                <Link href="/forgot-password" className="text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:underline">{t("Mot de passe oublié ?")}</Link>
-                <Link href="/signup" className="text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:underline">{t("Créer un compte")}</Link>
-                <Button variant="link" size="sm" onClick={() => switchTo("reset")} className="text-muted-foreground">{t("Réinitialiser avec le jeton d'installation")}</Button>
+              <div className="grid gap-4 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                  <Link href="/forgot-password" className={LINK}>{t("Mot de passe oublié ?")}</Link>
+                  <Link href="/signup" className={cn(LINK, "font-medium text-foreground")}>{t("Créer un compte")}</Link>
+                </div>
+                <button type="button" onClick={() => switchTo("reset")} className={cn(LINK, "justify-self-start border-t pt-4 text-[13px]")}>
+                  {t("Réinitialiser avec le jeton d'installation")}
+                </button>
               </div>
             )}
             {mode === "reset" && (
-              <Button variant="link" size="sm" onClick={() => switchTo("login")} className="justify-self-center text-muted-foreground">{t("Retour à la connexion")}</Button>
+              <button type="button" onClick={() => switchTo("login")} className={cn(LINK, "justify-self-start text-sm")}>{t("Retour à la connexion")}</button>
             )}
           </form>
         )}
-        <p className="mt-6 text-center text-xs text-muted-foreground">{t("Stock et négoce de cartes Pokémon")}</p>
-        <div className="mt-3 flex justify-center">
-          <LocaleSwitch />
-        </div>
-      </div>
-    </div>
+    </AuthLayout>
   );
 }

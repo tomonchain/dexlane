@@ -61,3 +61,19 @@ export const formatCards = (n: number) => new Intl.NumberFormat("fr-FR").format(
 export const formatEuros = (n: number) => `${new Intl.NumberFormat("fr-FR").format(n)}${NBSP}€`;
 /** « Gratuit » ou « 9 € / mois ». */
 export const formatPlanPrice = (plan: Plan) => (plan.monthlyPriceEur === 0 ? "Gratuit" : `${formatEuros(plan.monthlyPriceEur)} / mois`);
+
+/** Rythme moyen que le quota permet : « ≈ 35 cartes par semaine » (un mois compte 52 / 12 semaines). */
+export const formatWeeklyPace = (plan: Plan) => `≈ ${formatCards(Math.round(plan.cardsPerMonth / (52 / 12)))} cartes par semaine`;
+
+/** Coût d'une carte publiée quand le quota est utilisé en entier : « soit 0,06 € la carte » ; null pour le gratuit. */
+export function formatPricePerCard(plan: Plan): string | null {
+  if (plan.monthlyPriceEur === 0) return null;
+  const perCard = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(plan.monthlyPriceEur / plan.cardsPerMonth);
+  return `soit ${perCard}${NBSP}€ la carte`;
+}
+
+/** Ce qu'un forfait ajoute au précédent dans la grille : la grille courte le présente en « Tout Solo, plus : … ». */
+export function planIncrement(plan: Plan): { previous: Plan | null; added: PlanFeature[] } {
+  const previous = PLANS[PLANS.indexOf(plan) - 1] ?? null;
+  return { previous, added: plan.features.filter((f) => !previous?.features.includes(f)) };
+}

@@ -31,7 +31,7 @@ export const SEO = {
     description:
       "Dexlane ne prend aucune commission sur tes ventes. Les modifications de prix, la mise à jour du stock et les republications ne sont jamais décomptées.",
   },
-  docs: { title: "Docs — Dexlane", description: "[À COMPLÉTER]" },
+  /** La copy des docs est dans components/docs/content.ts (DOCS_INDEX.seo pour la page d'accueil des docs). */
   contact: { title: "Contact — Dexlane", description: "Une question, un bug, une idée ? Écris-nous, c'est le fondateur qui répond." },
   mentionsLegales: { title: "Mentions légales — Dexlane", description: "[À COMPLÉTER]" },
   cgu: { title: "CGU — Dexlane", description: "[À COMPLÉTER]" },
@@ -182,6 +182,9 @@ export const PRICING = {
   subtitle:
     "Dexlane ne prend aucune commission sur tes ventes. Les modifications de prix, la mise à jour du stock et les republications ne sont jamais décomptées.",
   quotaLabel: "Cartes publiées par mois",
+  /** Grille courte : ce qu'inclut le premier forfait, puis ce que chaque forfait ajoute au précédent. */
+  includes: "Inclus",
+  includesAll: "Tout {plan}, plus :",
   notes: [
     "Un lot compte pour une seule carte.",
     `Tu dépasses ton forfait ? ${PACK_PRICE} les ${PACK} supplémentaires. On te prévient avant, on ne bloque jamais une publication en cours.`,
@@ -297,11 +300,6 @@ export const CONTACT = {
 export const PARCEL = {
   title: "Tu viens de recevoir une carte vendue avec Dexlane.",
   subtitle: `Les tiennes peuvent partir aussi vite. Ton code ${PARCEL_OFFER.code} t'offre ${PARCEL_OFFER.offer}.`,
-};
-
-export const DOCS = {
-  title: "Docs",
-  entries: ["Démarrer avec la version hébergée", "Installer la version Community"],
 };
 
 /**

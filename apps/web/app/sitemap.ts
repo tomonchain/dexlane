@@ -1,8 +1,11 @@
 import type { MetadataRoute } from "next";
+import { DOC_PAGES } from "@/components/docs/content";
 import { SITE_URL } from "@/config/site";
 
-/** Pages publiques indexables. /colis (page d'arrivée du flyer) n'y figure pas. */
-const PAGES = ["/", "/tarifs", "/signup", "/docs", "/contact", "/mentions-legales", "/cgu", "/confidentialite"];
+/** Pages publiques indexables, docs comprises. /colis (page d'arrivée du flyer) n'y figure pas. */
+const PAGES = [
+  "/", "/tarifs", "/signup", "/docs", ...DOC_PAGES.map((p) => `/docs/${p.slug}`), "/contact", "/mentions-legales", "/cgu", "/confidentialite",
+];
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return PAGES.map((path) => ({
