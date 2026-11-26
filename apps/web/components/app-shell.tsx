@@ -19,7 +19,7 @@ const NAV: { href: string; label: string; short?: string; icon: LucideIcon; matc
   { href: "/buying", label: "Achats", icon: ShoppingBasket, match: ["/buying"] },
   { href: "/sales", label: "Ventes", icon: Receipt, match: ["/sales"] },
   { href: "/stats", label: "Statistiques", short: "Stats", icon: ChartColumn, match: ["/stats"] },
-  { href: "/settings", label: "Réglages", icon: Settings, match: ["/settings", "/pricing", "/locations", "/catalog", "/account"] },
+  { href: "/settings", label: "Réglages", icon: Settings, match: ["/settings", "/pricing", "/locations", "/catalog", "/account", "/lots", "/join"] },
 ];
 /**
  * Sur téléphone, quatre onglets et « Plus » (achats, statistiques, réglages et le reste) ; la recherche est en haut

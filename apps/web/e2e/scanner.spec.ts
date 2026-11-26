@@ -2048,3 +2048,62 @@ test("mémoire de l'appareil : des données gardées par une version précédent
   expect(errors).toEqual([]);
   expect(await page.evaluate(() => localStorage.getItem("dexlane-cache-v1"))).toBeNull();
 });
+
+test("forfait, gradation, suggestions et lots : le compte d'installation sans limite, une carte gradée, deux cartes vendues en un lot", async ({ page }) => {
+  await login(page);
+  // Le compte d'installation n'a pas de forfait : tout est ouvert, sans quota.
+  await page.goto("/settings/plan");
+  await expect(page.getByTestId("plan-current")).toContainText("Forfait Community");
+  await expect(page.getByTestId("quota-meter")).toContainText("sans limite");
+  await expect(page.getByText("Installation sans limite")).toBeVisible();
+
+  const variant = async (name: string) => ((await (await page.request.get(`/api/catalog/cards?name=${name}`)).json()) as { candidates: { variants: { id: string }[] }[] }).candidates[0]!.variants[0]!.id;
+  await page.request.post("/api/locations", { data: { code: "BOX-LOT" } });
+  const receive = async (variantId: string, condition: string, unique: boolean) => (await (await page.request.post("/api/inventory/receive", {
+    data: { variantId, condition, quantity: 1, locationCode: "BOX-LOT", unitCostCents: 20, unique },
+    headers: { "Idempotency-Key": `e2e-lot-${condition}-${Date.now()}-${Math.random()}` },
+  })).json()) as { offer: { id: string; offerSku: string } };
+  const graded = await receive(await variant("dracaufeu"), "NM", true);
+  const [first, second] = [await receive(await variant("fouinar"), "GD", true), await receive(await variant("fouinar"), "EX", true)];
+  for (const o of [graded, first, second]) await page.request.post(`/api/pricing/offers/${o.offer.id}/price`, { data: { targetPriceCents: 400 } });
+
+  // Une carte gradée : la note remplace l'état dans le titre de l'annonce.
+  const panel = await openStockCard(page, graded.offer.offerSku);
+  await panel.getByRole("button", { name: "Noter une gradation" }).click();
+  await panel.getByTestId("grading-grader").selectOption("PSA");
+  await panel.getByTestId("grading-grade").selectOption("10");
+  await panel.getByLabel("Numéro de certificat").fill("87654321");
+  await panel.getByRole("button", { name: "Enregistrer", exact: true }).last().click();
+  await expect(panel.getByTestId("stock-grading")).toContainText("PSA 10");
+  await expect(panel.getByTestId("stock-listing-title")).toContainText("PSA 10");
+  // Suggestions : un titre pour la recherche, appliqué d'un clic, puis retour au modèle.
+  const suggestions = panel.getByTestId("stock-suggestions");
+  await expect(suggestions).toContainText("Dracaufeu 4/102");
+  await suggestions.getByRole("button", { name: "Utiliser ce titre" }).click();
+  await expect(page.getByText("Titre appliqué")).toBeVisible();
+  await suggestions.getByRole("button", { name: "Revenir au modèle" }).click();
+  await expect(page.getByText("Retour au modèle de titre")).toBeVisible();
+
+  // Deux cartes cochées deviennent un lot : elles quittent le stock à l'unité.
+  await page.goto("/stock");
+  await page.getByLabel("Rechercher dans le stock").fill("fouinar");
+  await page.getByTestId(`stock-${first.offer.offerSku}`).getByRole("checkbox").check();
+  await page.getByTestId(`stock-${second.offer.offerSku}`).getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Actions" }).click();
+  await page.getByRole("menuitem", { name: "Créer un lot" }).click();
+  const dialog = page.getByRole("dialog", { name: "Créer un lot" });
+  await dialog.getByTestId("lot-title").fill("Lot Fouinar x2");
+  await dialog.getByTestId("lot-price").fill("6");
+  await dialog.getByTestId("lot-create").click();
+  await expect(page.getByText("Lot créé : Lot Fouinar x2")).toBeVisible();
+  await expect(page.getByTestId(`stock-${first.offer.offerSku}`)).toHaveCount(0);
+
+  await page.goto("/lots");
+  const lot = page.getByTestId("sale-lots").locator("li").filter({ hasText: "Lot Fouinar x2" }).first();
+  await expect(lot).toContainText("2 cartes");
+  await expect(lot).toContainText("À vendre");
+  page.once("dialog", (d) => void d.accept());
+  await lot.getByRole("button", { name: "Défaire" }).click();
+  await expect(page.getByText("Lot défait : les cartes sont de retour dans le stock")).toBeVisible();
+  await expect(lot).toContainText("Défait");
+});

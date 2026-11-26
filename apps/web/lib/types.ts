@@ -212,3 +212,100 @@ export interface PublicationDay {
     priceCents: number | null; photoUrl: string | null; channel: ChannelId; status: "PENDING" | "DONE" | "FAILED" | "PUBLISHED"; errorCode: string | null;
   }[];
 }
+
+// ───────────────────────── Forfait, équipe, support ─────────────────────────
+
+export type PlanFeature = "ebay" | "bulk" | "sync" | "suggestions" | "team" | "support";
+export type PlanId = "decouverte" | "solo" | "pro" | "boutique" | "community";
+
+export interface PlanRule {
+  id: PlanId;
+  name: string;
+  monthlyPriceEur: number;
+  /** null : sans limite. */
+  cardsPerMonth: number | null;
+  features: PlanFeature[];
+  selectable: boolean;
+}
+
+export interface AccountSummary {
+  accountId: string;
+  email: string | null;
+  role: string;
+  /** Forfait choisi sur le site avant l'inscription. */
+  requestedPlan: string | null;
+  isOwner: boolean;
+  plansEnforced: boolean;
+  plan: PlanRule;
+  quota: {
+    month: string;
+    used: number;
+    included: number | null;
+    packCards: number;
+    limit: number | null;
+    remaining: number | null;
+    packs: { id: string; cards: number; priceCents: number; automatic: boolean; createdAt: string }[];
+  };
+  members: number;
+  plans: PlanRule[];
+}
+
+export interface TeamView {
+  members: { id: string; email: string; name: string; createdAt: string; isOwner: boolean; isYou: boolean }[];
+  invitations: { id: string; email: string; invitedBy: string; createdAt: string; expiresAt: string }[];
+  canManage: boolean;
+}
+
+export interface SupportRequest {
+  id: string;
+  subject: string;
+  message: string;
+  priority: boolean;
+  status: "OPEN" | "ANSWERED" | "CLOSED";
+  createdAt: string;
+}
+
+// ───────────────────────── Lots, gradation, suggestions ─────────────────────────
+
+export interface SaleLot {
+  offerId: string;
+  offerSku: string;
+  title: string;
+  description: string | null;
+  priceCents: number | null;
+  condition: CardCondition;
+  cards: number;
+  costCents: number;
+  locationCode: string | null;
+  status: "IN_STOCK" | "RESERVED" | "SOLD" | "DISSOLVED";
+  createdAt: string;
+  members: {
+    stockItemId: string;
+    offerId: string;
+    offerSku: string;
+    name: string;
+    setName: string | null;
+    localNumber: string;
+    condition: CardCondition;
+    imageUrl: string | null;
+    qty: number;
+    unitCostCents: number;
+  }[];
+}
+
+export interface Grading {
+  grader: string;
+  grade: string;
+  certNumber?: string | null;
+}
+
+export interface StockSuggestions {
+  title: { current: string; suggested: string; custom: boolean };
+  price: {
+    currentCents: number | null;
+    suggestedCents: number | null;
+    reference: { quoteType: string; amountCents: number; observedAt: string } | null;
+    sales: { cents: number; confidence: "HIGH" | "MEDIUM" | "LOW" } | null;
+    reasons: string[];
+  };
+}

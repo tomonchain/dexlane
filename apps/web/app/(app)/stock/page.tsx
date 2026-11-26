@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgeCheck, CalendarClock, Check, ChevronUp, Copy, Download, Images, Megaphone, MoveRight, RefreshCw, ScanLine, Search, ShoppingCart, SlidersHorizontal, Wand2, X } from "lucide-react";
+import { BadgeCheck, CalendarClock, Check, ChevronUp, Copy, Download, Images, Megaphone, MoveRight, Package, RefreshCw, ScanLine, Search, ShoppingCart, SlidersHorizontal, Wand2, X } from "lucide-react";
 import { DropdownMenu, Popover } from "radix-ui";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -12,6 +12,8 @@ import { LocationPicker } from "@/components/location-picker";
 import { OfferPhotos } from "@/components/offer-photos";
 import { PhotoStack, PhotoViewer, type ViewerPhoto } from "@/components/photo-viewer";
 import { PlanModal } from "@/components/plan-modal";
+import { useAccount } from "@/components/plan";
+import { CreateLotModal, GradingEditor, SuggestionsPanel } from "@/components/stock-extras";
 import { PriceHistory } from "@/components/price-history";
 import { SalesBasis } from "@/components/sales-basis";
 import { Button } from "@/components/ui/button";
@@ -25,7 +27,7 @@ import { useCardImage } from "@/lib/card-image";
 import { dayLabel, formatEuros, formatNumber, parseEuros, variantLabel } from "@/lib/format";
 import { t, tn } from "@/lib/i18n";
 import { CONFIDENCE_LABEL, age, eurosInput, quoteLabel, reasonLabel } from "@/lib/pricing";
-import { CONDITIONS, type ChannelState, type ListingBlocker, type StockDetail, type StockFacets, type StockPage, type StockRow, type StockStatus } from "@/lib/types";
+import { CONDITIONS, type AccountSummary, type ChannelState, type ListingBlocker, type StockDetail, type StockFacets, type StockPage, type StockRow, type StockStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { composeMissingVisuals } from "@/lib/visuals";
 import { exportStockCsv } from "@/lib/export";
@@ -265,13 +267,14 @@ function FiltersPopover({ facets, filters, onChange, onClear, sort, onSort, desk
  * Actions sur les cartes cochées, dans une barre fixée en bas : ce qu'elles permettent dépend de leur état
  * (prix suggéré à accepter, brouillons à valider). Sur téléphone, les actions se replient dans un menu.
  */
-function SelectionBar({ rows, busy, onClear, onBulk, onMove, onPlan }: {
+function SelectionBar({ rows, busy, onClear, onBulk, onMove, onPlan, onLot }: {
   rows: StockRow[];
   busy: boolean;
   onClear: () => void;
   onBulk: (action: "ACCEPT_PRICE" | "ACTIVATE") => void;
   onMove: () => void;
   onPlan: () => void;
+  onLot: () => void;
 }) {
   const toPrice = rows.filter((r) => r.targetPriceCents === null && r.suggestedPriceCents !== null).length;
   const drafts = rows.filter((r) => r.draft > 0).length;
@@ -279,6 +282,7 @@ function SelectionBar({ rows, busy, onClear, onBulk, onMove, onPlan }: {
     ...(toPrice > 0 ? [{ key: "price", label: t("Accepter les prix ({n})", { n: formatNumber(toPrice) }), icon: <Check />, onSelect: () => onBulk("ACCEPT_PRICE") }] : []),
     ...(drafts > 0 ? [{ key: "activate", label: t("Valider les brouillons ({n})", { n: formatNumber(drafts) }), icon: <BadgeCheck />, onSelect: () => onBulk("ACTIVATE") }] : []),
     { key: "move", label: t("Déplacer"), icon: <MoveRight />, onSelect: onMove },
+    ...(rows.filter((r) => r.available > 0).length >= 2 ? [{ key: "lot", label: t("Créer un lot"), icon: <Package />, onSelect: onLot }] : []),
     { key: "csv", label: t("Exporter"), icon: <Download />, onSelect: () => exportStockCsv(rows) },
     { key: "plan", label: t("Mettre en ligne"), icon: <CalendarClock />, onSelect: onPlan, primary: true },
   ];
@@ -371,6 +375,8 @@ function Stock({ tabs }: { tabs: ReactNode }) {
   const [accepting, setAccepting] = useState(false);
   // La sélection garde les lignes elles-mêmes : les actions groupées en ont besoin, même d'une page à l'autre.
   const [checked, setChecked] = useState<Map<string, StockRow>>(new Map());
+  const [lotting, setLotting] = useState(false);
+  const { account } = useAccount();
   const [scheduled, setScheduled] = useState(0);
   const [planning, setPlanning] = useState(false);
   const [moving, setMoving] = useState(false);
@@ -489,7 +495,7 @@ function Stock({ tabs }: { tabs: ReactNode }) {
     setPage(1);
   };
   const inspector = selected && (
-    <Inspector key={selected} offerId={selected} version={version} channels={channels} onChanged={changed} onClose={() => setSelected(null)} />
+    <Inspector key={selected} offerId={selected} version={version} channels={channels} account={account} onChanged={changed} onClose={() => setSelected(null)} />
   );
 
   return (
@@ -692,6 +698,7 @@ function Stock({ tabs }: { tabs: ReactNode }) {
           onClear={() => setChecked(new Map())}
           onBulk={bulk}
           onMove={() => setMoving(true)}
+          onLot={() => setLotting(true)}
           onPlan={() => {
             if (channels.length > 0) setPlanning(true);
             else toast.error(t("Aucun canal de vente actif"), { description: t("Activez eBay ou CardTrader, en simulation ou en réel, dans Réglages › Canaux de vente.") });
@@ -703,6 +710,17 @@ function Stock({ tabs }: { tabs: ReactNode }) {
           setMoving(false);
           void bulk("MOVE", code);
         }} />
+      )}
+      {lotting && (
+        <CreateLotModal
+          rows={[...checked.values()]}
+          onClose={() => setLotting(false)}
+          onCreated={() => {
+            setLotting(false);
+            setChecked(new Map());
+            changed();
+          }}
+        />
       )}
       {planning && data && (
         <PlanModal
@@ -755,10 +773,11 @@ function Figure({ label, hint, children }: { label: string; hint?: string; child
 }
 
 /** Panneau d'une carte : tout ce qui sert à la vendre, au même endroit. */
-function Inspector({ offerId, version, channels, onChanged, onClose }: {
+function Inspector({ offerId, version, channels, account, onChanged, onClose }: {
   offerId: string;
   version: number;
   channels: ChannelState[];
+  account: AccountSummary | null;
   onChanged: () => void;
   onClose: () => void;
 }) {
@@ -900,11 +919,16 @@ function Inspector({ offerId, version, channels, onChanged, onClose }: {
         <PriceHistory variantId={d.variantId} />
       </section>
 
+      <Section title={t("Gradation")}>
+        <GradingEditor detail={d} onSaved={(next) => { setDetail(next); onChanged(); }} />
+      </Section>
+
       <Section title={t("Annonce")} aside={<Link href="/settings/listing" className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">{t("Modèle et photos")}</Link>}>
         <div className="flex items-start gap-2">
           <p className="flex-1 text-sm leading-snug [overflow-wrap:anywhere]" data-testid="stock-listing-title">{d.text.title}</p>
           <Button variant="ghost" size="icon-sm" onClick={() => copy(d.text.title, t("Titre copié"))} aria-label={t("Copier le titre")}><Copy /></Button>
         </div>
+        <SuggestionsPanel detail={d} account={account} onChanged={(next) => { if (next) setDetail(next); onChanged(); }} />
         <details className="text-[13px]">
           <summary className="cursor-pointer text-muted-foreground outline-none select-none hover:text-foreground focus-visible:underline">{t("Description")}</summary>
           <div className="mt-2 flex items-start gap-2">

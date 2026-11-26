@@ -3,10 +3,6 @@
  *
  * Mise en forme dans les textes : `**gras**`, `` `code` `` et `[lien](/adresse)` (voir components/docs/prose.tsx).
  * Les forfaits, prix et quotas viennent de config/plans.ts : rien n'est recopié à la main.
- *
- * [À CONFIRMER] : les passages repérés ainsi décrivent des fonctionnalités des forfaits en cours de livraison dans
- * l'application (quota mensuel et packs, plusieurs utilisateurs, support prioritaire, synchronisation des prix,
- * cartes gradées, vente en lots). À relire quand elles sont en ligne.
  */
 import { FREE_PLAN, OVERAGE_PACK, PLANS, PLAN_FEATURES, formatCards, formatEuros, formatPlanPrice } from "@/config/plans";
 import { GITHUB_ISSUES_URL, GITHUB_URL } from "@/config/site";
@@ -183,17 +179,15 @@ export const DOC_PAGES: DocPage[] = [
               ],
             },
           },
-          /* [À CONFIRMER] */
-          { p: "**Cartes gradées** : indique la société de gradation et la note sur l'exemplaire ; Dexlane les renseigne dans les champs prévus par eBay pour les cartes gradées." },
+          { p: "**Cartes gradées** : sur la fiche d'un exemplaire unique, section **Gradation**, choisis la société (PSA, BGS, CGC, SGC…), la note (de 1 à 10 par demi-point, ou Authentique) et, si tu veux, le numéro de certificat. L'annonce eBay passe en état « Gradée » avec ces trois informations, et la note remplace l'état dans le titre (« PSA 10 »)." },
         ],
       },
       {
         id: "synchro",
         title: "Stock, prix et commandes synchronisés",
         blocks: [
-          { p: "Après chaque vente ou correction de stock, la quantité annoncée sur eBay est réalignée sur ton stock vendable. Une carte vendue ailleurs disparaît d'eBay ; à zéro, l'annonce est mise en pause, et revient au réassort." },
-          /* [À CONFIRMER] */
-          { p: `Avec la synchronisation des prix (${PLANS.filter((p) => p.features.includes("sync")).map((p) => p.name).join(", ")}), un prix changé dans Dexlane est renvoyé à l'annonce eBay. Ces mises à jour ne comptent jamais dans ton quota.` },
+          { p: `Avec la synchronisation (${PLANS.filter((p) => p.features.includes("sync")).map((p) => p.name).join(", ")}), tout suit tout seul : après chaque vente ou correction de stock, la quantité annoncée sur eBay est réalignée sur ton stock vendable ; un prix changé dans Dexlane, ou un titre choisi pour une carte, révise l'annonce en ligne. Ces mises à jour ne comptent jamais dans ton quota.` },
+          { p: "Sur tous les forfaits, une carte vendue n'est jamais revendue : quand son stock tombe à zéro, l'annonce passe à zéro et se met en pause. Sans la synchronisation, les autres changements partent quand tu le décides, avec **Mettre à jour** sur la fiche de la carte." },
           { p: "Les commandes payées sur eBay arrivent dans **Ventes** avec le nom et l'adresse de l'acheteur, la date limite d'expédition et le mode d'envoi. Seules les annonces publiées par Dexlane sont reprises : une annonce créée à la main sur eBay n'est pas touchée." },
         ],
       },
@@ -292,8 +286,7 @@ export const DOC_PAGES: DocPage[] = [
         id: "suggestions",
         title: "Suggestions de titre et de prix",
         blocks: [
-          /* [À CONFIRMER] */
-          { p: `Avec les forfaits ${PLANS.filter((p) => p.features.includes("suggestions")).map((p) => p.name).join(" et ")}, Dexlane propose un titre que les acheteurs trouvent et un prix cohérent avec le marché. Tu décides : rien n'est publié sans toi.` },
+          { p: `Avec les forfaits ${PLANS.filter((p) => p.features.includes("suggestions")).map((p) => p.name).join(" et ")}, la fiche d'une carte du stock montre un encadré **Suggestions** : un titre construit pour la recherche (nom, numéro, extension, état ou note de gradation, variante, langue, sans dépasser les 80 caractères d'eBay) et le prix que soutiennent tes règles et les ventes réussies. **Utiliser ce titre** le garde pour cette carte à la place du modèle ; **Revenir au modèle** l'annule. Tu décides : rien n'est publié sans toi.` },
         ],
       },
     ],
@@ -336,8 +329,15 @@ export const DOC_PAGES: DocPage[] = [
         id: "lots",
         title: "Vendre en lots",
         blocks: [
-          /* [À CONFIRMER] */
           { p: "Regroupe tes communes et tes doubles en un lot : une annonce pour tout le lot. Un lot compte pour une seule carte publiée dans ton forfait, quel que soit le nombre de cartes qu'il contient." },
+          {
+            steps: [
+              "Dans **Stock**, coche au moins deux cartes, puis **Créer un lot**.",
+              "Choisis combien d'exemplaires de chacune y mettre, le titre de l'annonce et le prix du lot.",
+              "Les cartes quittent le stock à l'unité : elles ne peuvent plus être vendues séparément. Le lot apparaît dans **Lots de vente**, d'où tu le publies : une photo par carte, et la liste des cartes dans la description.",
+              "Vendu, il se prépare et s'expédie comme une carte. Pas encore vendu, il se défait : ses annonces sont retirées et ses cartes reviennent dans le stock.",
+            ],
+          },
         ],
       },
       {
@@ -412,39 +412,36 @@ export const DOC_PAGES: DocPage[] = [
               "**Ne compte pas** : modifier un prix, mettre à jour une quantité, republier une annonce expirée, réviser le texte ou les photos.",
             ],
           },
-          /* [À CONFIRMER] */
-          { p: "Le compteur repart de zéro chaque mois. Tu suis où tu en es depuis ton compte." },
+          { p: "Le compteur repart de zéro le premier de chaque mois (heure de Paris). Tu suis où tu en es dans **Réglages › Forfait** ; si les notifications sont activées sur ton téléphone, tu es prévenu à 80 % puis à 100 %." },
         ],
       },
       {
         id: "depassement",
         title: "Si tu dépasses",
         blocks: [
-          { p: `On te prévient quand tu approches de la limite. Tu peux alors ajouter un pack de ${PACK} pour ${PACK_PRICE}, ou passer au forfait supérieur. Une publication en cours n'est jamais bloquée, et tes annonces déjà en ligne ne sont jamais touchées.` },
+          { p: `On te prévient quand tu approches de la limite. Tu peux alors ajouter un pack de ${PACK} pour ${PACK_PRICE} (valable jusqu'à la fin du mois), ou passer au forfait supérieur. Tes annonces déjà en ligne ne sont jamais touchées.` },
+          { p: "Une fois la limite atteinte, une nouvelle publication à l'unité attend le pack ou le forfait supérieur. Une mise en ligne planifiée qui a commencé sous la limite n'est jamais bloquée en cours de route : sur un forfait payant, elle va au bout et les packs nécessaires sont ajoutés à la fin ; sur le forfait gratuit, les cartes qui dépassent sont reportées au premier jour du mois suivant." },
         ],
       },
       {
         id: "changer",
         title: "Changer de forfait ou arrêter",
         blocks: [
-          /* [À CONFIRMER] */
-          { p: "Sans engagement : tu changes de forfait ou tu arrêtes quand tu veux, depuis ton compte. Si tu arrêtes, tes annonces restent en ligne sur eBay et tu peux exporter ton inventaire." },
+          { p: "Sans engagement : tu changes de forfait ou tu reviens au forfait gratuit quand tu veux, dans **Réglages › Forfait**. Le changement prend effet tout de suite. Seul le propriétaire du compte peut le faire, et une boutique avec une équipe retire d'abord ses autres membres avant de passer à un forfait à un seul utilisateur. Si tu arrêtes, tes annonces restent en ligne sur eBay et tu peux exporter ton inventaire." },
         ],
       },
       {
         id: "equipe",
         title: "Plusieurs utilisateurs",
         blocks: [
-          /* [À CONFIRMER] */
-          { p: `Avec ${PLANS.filter((p) => p.features.includes("team")).map((p) => p.name).join(", ")}, invite les personnes de ton équipe sur ton compte : chacune a sa propre connexion et travaille sur le même stock. Les actions restent enregistrées au nom de qui les a faites.` },
+          { p: `Avec ${PLANS.filter((p) => p.features.includes("team")).map((p) => p.name).join(", ")}, invite les personnes de ton équipe depuis **Réglages › Équipe** : elles reçoivent un lien valable 7 jours, créent leur compte (ou se connectent) avec l'adresse invitée, puis rejoignent le tien. Chacune a sa propre connexion et travaille sur le même stock, les mêmes annonces et les mêmes ventes. Le propriétaire du compte peut retirer un membre à tout moment : ses sessions sont fermées.` },
         ],
       },
       {
         id: "support",
         title: "Support prioritaire",
         blocks: [
-          /* [À CONFIRMER] */
-          { p: `Avec ${PLANS.filter((p) => p.features.includes("support")).map((p) => p.name).join(", ")}, tes demandes passent en premier. Pour tous les forfaits, [la page Contact](/contact) mène directement au fondateur.` },
+          { p: `Écris au support depuis **Réglages › Support**. Avec ${PLANS.filter((p) => p.features.includes("support")).map((p) => p.name).join(", ")}, tes demandes arrivent marquées prioritaires et passent en premier. Pour tous les forfaits, [la page Contact](/contact) mène aussi directement au fondateur.` },
         ],
       },
     ],
@@ -538,6 +535,8 @@ pnpm db:migrate`,
                 ["`BLOB_READ_WRITE_TOKEN`", "Stockage des photos (Vercel Blob)."],
                 ["`CRON_SECRET`", "Protège les tâches planifiées."],
                 ["`DEXLANE_PUBLIC_URL`", "Adresse publique utilisée dans les liens des e-mails."],
+                ["`DEXLANE_PLANS`", "`off` : pas de forfaits ni de quota, toutes les fonctionnalités pour tous les comptes. Le compte d'installation n'a de toute façon aucune limite."],
+                ["`SUPPORT_EMAIL`", "Adresse qui reçoit les demandes envoyées depuis Réglages › Support."],
               ],
             },
           },

@@ -2,10 +2,13 @@ import type {
   AcquisitionLot, Activity, CardPage, CatalogHit, Deal, DealList, TopCard, WatchedCard, AlertSettings, AppSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, SalesInsights, PriceMoves, ChannelMode, ChannelState, EbayAccountOptions, EbayConnection, EbayDefaultsInput, EbaySettings, EbayShippingService, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
   Location, Photo, PositionDetail, Received,
   OfferPricing, OrderDetail, PriceHistory, OrderList, OrderStage, PricingSettings, ShippingCosts, ShippingRun, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
+  AccountSummary, Grading, PlanId, SaleLot, StockSuggestions, SupportRequest, TeamView,
   PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockFacets, StockPage, StockStatus, StoredPhoto, VariantQuote, SupplyDetail, SupplyInput, SupplyList, ShippingCostsView, CatalogImportStatus, PublicationCalendar, PublicationDay, AgentToken, Carrier, MovementPage, MovementKind, MovementCategory,
 } from "./types";
 import { clearCache } from "./cache";
 import { t } from "./i18n";
+
+const PLAN_NAMES: Record<string, string> = { decouverte: "Découverte", solo: "Solo", pro: "Pro", boutique: "Boutique" };
 
 export class ApiError extends Error {
   constructor(
@@ -55,6 +58,14 @@ async function request<T>(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", p
   if (!res.ok) {
     const e = data?.error;
     if (e?.code === "DATABASE_UNAVAILABLE") throw new ApiError(res.status, e.code, t("La base de données ne répond pas pour l'instant. Réessayez dans quelques secondes."));
+    // Forfait : le message du serveur est remplacé par un texte de l'interface, qui dit où agir.
+    if (e?.code === "QUOTA_EXCEEDED") {
+      throw new ApiError(res.status, e.code, t("Quota du mois atteint : ajoutez un pack de cartes ou changez de forfait (Réglages › Forfait). Vos annonces en ligne ne bougent pas."), e.details);
+    }
+    if (e?.code === "FEATURE_NOT_IN_PLAN") {
+      const required = (e.details as { requiredPlan?: string } | undefined)?.requiredPlan ?? "";
+      throw new ApiError(res.status, e.code, t("Disponible à partir du forfait {plan} (Réglages › Forfait).", { plan: PLAN_NAMES[required] ?? required }), e.details);
+    }
     throw new ApiError(res.status, e?.code ?? "HTTP_ERROR", e?.message ?? t("Erreur {status}", { status: res.status }), e?.details);
   }
   return data as T;
@@ -305,7 +316,27 @@ export const api = {
   },
   changePassword: (currentPassword: string, newPassword: string) => betterAuth("change-password", { currentPassword, newPassword, revokeOtherSessions: true }),
   /** L'utilisateur de la session : adresse, rôle (admin pour le propriétaire de l'installation), forfait choisi. */
-  account: () => request<{ accountId: string; email: string | null; role: string; plan: string | null }>("GET", "/account"),
+  account: () => request<AccountSummary>("GET", "/account"),
+  changePlan: (plan: Exclude<PlanId, "community">) => request<AccountSummary>("PUT", "/account/plan", { json: { plan } }),
+  addPacks: (packs = 1) => request<AccountSummary>("POST", "/account/packs", { json: { packs }, idempotencyKey: crypto.randomUUID() }),
+  team: () => request<TeamView>("GET", "/team"),
+  invite: (email: string) => request<{ id: string; email: string }>("POST", "/team/invitations", { json: { email }, idempotencyKey: crypto.randomUUID() }),
+  revokeInvitation: (id: string) => request<{ ok: true }>("DELETE", `/team/invitations/${id}`),
+  removeMember: (id: string) => request<{ ok: true }>("DELETE", `/team/members/${encodeURIComponent(id)}`),
+  previewInvitation: (token: string) =>
+    request<{ email: string; invitedBy: string; matches: boolean }>("POST", "/team/invitations/preview", { json: { token }, idempotencyKey: crypto.randomUUID() }),
+  acceptInvitation: (token: string) => request<{ ok: true; accountId: string }>("POST", "/team/invitations/accept", { json: { token }, idempotencyKey: crypto.randomUUID() }),
+  supportRequests: () => request<{ requests: SupportRequest[]; priority: boolean }>("GET", "/support"),
+  contactSupport: (subject: string, message: string) =>
+    request<{ id: string; priority: boolean }>("POST", "/support", { json: { subject, message }, idempotencyKey: crypto.randomUUID() }),
+  saleLots: () => request<{ lots: SaleLot[] }>("GET", "/lots"),
+  createSaleLot: (input: { title: string; description?: string | null; priceCents: number; items: { offerId: string; qty: number }[]; locationCode?: string }) =>
+    request<SaleLot>("POST", "/lots", { json: input, idempotencyKey: crypto.randomUUID() }),
+  updateSaleLot: (id: string, input: { title?: string; description?: string | null; priceCents?: number }) => request<SaleLot>("PATCH", `/lots/${id}`, { json: input }),
+  dissolveSaleLot: (id: string) => request<{ ok: true }>("DELETE", `/lots/${id}`),
+  setGrading: (offerId: string, grading: Grading | null) => request<StockDetail>("PUT", `/stock/${offerId}/grading`, { json: { grading } }),
+  setTitle: (offerId: string, title: string | null) => request<StockDetail>("PUT", `/stock/${offerId}/title`, { json: { title } }),
+  suggestions: (offerId: string) => request<StockSuggestions>("GET", `/stock/${offerId}/suggestions`),
   logout: () => {
     clearCache(); // les données de ce compte ne restent pas sur l'appareil
     return betterAuth("sign-out").catch(() => undefined);

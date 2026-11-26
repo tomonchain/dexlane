@@ -1,11 +1,13 @@
 /**
- * Forfaits, prix et quotas : le seul endroit où ils sont écrits. La landing (grille courte), la page /tarifs, la FAQ
- * et les mentions « 20 cartes offertes » lisent ce fichier.
+ * Forfaits du site : les textes de vente (accroche, bouton, mise en avant). Les prix, les quotas, les fonctionnalités et
+ * le pack de dépassement sont ceux que l'API applique (@dexlane/shared, plans.ts) : la landing, /tarifs, la FAQ et les
+ * mentions « 20 cartes offertes » les lisent d'ici.
  *
  * [À CONFIRMER] : toute la grille (noms des forfaits, prix, quotas, fonctionnalités incluses) et le pack de dépassement.
  */
+import { OVERAGE_PACK as PACK_RULE, PLAN_RULES, type PlanFeature, type PlanId } from "@dexlane/shared";
 
-export type PlanFeature = "ebay" | "bulk" | "sync" | "suggestions" | "team" | "support";
+export type { PlanFeature };
 
 /** Lignes de la grille, dans l'ordre d'affichage. */
 export const PLAN_FEATURES: { id: PlanFeature; label: string }[] = [
@@ -31,24 +33,24 @@ export interface Plan {
   featured?: boolean;
 }
 
-export const PLANS: Plan[] = [
-  { id: "decouverte", name: "Découverte", monthlyPriceEur: 0, cardsPerMonth: 20, pitch: "Pour tester sur tes vraies cartes", button: "Commencer", features: ["ebay"] },
-  { id: "solo", name: "Solo", monthlyPriceEur: 9, cardsPerMonth: 150, pitch: "Pour écouler ta collection", button: "Choisir Solo", features: ["ebay", "bulk", "sync"] },
-  {
-    id: "pro", name: "Pro", monthlyPriceEur: 29, cardsPerMonth: 750, pitch: "Pour vendre toutes les semaines", button: "Choisir Pro",
-    features: ["ebay", "bulk", "sync", "suggestions"], featured: true,
-  },
-  {
-    id: "boutique", name: "Boutique", monthlyPriceEur: 79, cardsPerMonth: 3000, pitch: "Pour les équipes et les gros stocks", button: "Choisir Boutique",
-    features: ["ebay", "bulk", "sync", "suggestions", "team", "support"],
-  },
+/** Ce que le site dit de chaque forfait ; le reste vient de la règle appliquée. */
+const COPY: { id: Exclude<PlanId, "community">; pitch: string; button: string; featured?: boolean }[] = [
+  { id: "decouverte", pitch: "Pour tester sur tes vraies cartes", button: "Commencer" },
+  { id: "solo", pitch: "Pour écouler ta collection", button: "Choisir Solo" },
+  { id: "pro", pitch: "Pour vendre toutes les semaines", button: "Choisir Pro", featured: true },
+  { id: "boutique", pitch: "Pour les équipes et les gros stocks", button: "Choisir Boutique" },
 ];
+
+export const PLANS: Plan[] = COPY.map((copy) => {
+  const rule = PLAN_RULES[copy.id];
+  return { ...copy, name: rule.name, monthlyPriceEur: rule.monthlyPriceEur, cardsPerMonth: rule.cardsPerMonth!, features: rule.features };
+});
 
 /** « Le plus choisi » seulement quand ce sera vrai ; d'ici là, « Recommandé ». */
 export const FEATURED_BADGE = "Recommandé";
 
 /** Dépassement de forfait : un pack de cartes supplémentaires. */
-export const OVERAGE_PACK = { cards: 500, priceEur: 10 };
+export const OVERAGE_PACK = PACK_RULE;
 
 /** Le forfait gratuit : ses cartes offertes alimentent le hero et le CTA final. */
 export const FREE_PLAN = PLANS.find((p) => p.monthlyPriceEur === 0)!;

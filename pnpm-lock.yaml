@@ -99,6 +99,9 @@ importers:
       '@dexlane/scan':
         specifier: workspace:*
         version: link:../../packages/scan
+      '@dexlane/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@tailwindcss/postcss':
         specifier: ^4.3.5
         version: 4.3.5

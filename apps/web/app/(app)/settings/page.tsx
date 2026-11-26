@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Bot, PackageOpen, BellDot, BellRing, BookOpen, Boxes, ChevronRight, CircleUserRound, Mail, Megaphone, Printer, ScanLine, Sparkles, Store, Tags, type LucideIcon } from "lucide-react";
+import { Archive, Bot, CreditCard, LifeBuoy, Package, PackageOpen, Users, BellDot, BellRing, BookOpen, Boxes, ChevronRight, CircleUserRound, Mail, Megaphone, Printer, ScanLine, Sparkles, Store, Tags, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { ExportStockRow } from "@/components/export-stock";
 import Link from "next/link";
@@ -14,6 +14,7 @@ const SECTIONS: { title: string; items: { href: string; label: string; hint: str
       { href: "/pricing", label: "Règles de prix", hint: "Seuils de catégorie, arrondis, coefficients d'état, file de revue", icon: Tags },
       { href: "/settings/listing", label: "Modèle d'annonce et photos", hint: "Titre, description, fond des photos, image de fin d'annonce", icon: Megaphone },
       { href: "/settings/channels", label: "Canaux de vente", hint: "eBay et CardTrader : désactivé, simulation ou réel", icon: Store },
+      { href: "/lots", label: "Lots de vente", hint: "Des cartes vendues ensemble, en une seule annonce", icon: Package },
       { href: "/settings/alerts", label: "Alertes de prix", hint: "À partir de quelle variation de cote une carte vous est signalée", icon: BellRing },
     ],
   },
@@ -31,6 +32,14 @@ const SECTIONS: { title: string; items: { href: string; label: string; hint: str
       { href: "/settings/intake", label: "Saisie des cartes", hint: "Scanner à défilement, appareil photo ou fichiers", icon: ScanLine },
       { href: "/locations", label: "Emplacements", hint: "Boîtes, classeurs, lots d'acquisition", icon: Archive },
       { href: "/inventory", label: "Positions physiques", hint: "Chaque position par code, pour retrouver ou corriger un exemplaire", icon: Boxes },
+    ],
+  },
+  {
+    title: "Compte et forfait",
+    items: [
+      { href: "/settings/plan", label: "Forfait", hint: "Cartes publiées ce mois-ci, packs, changement de forfait", icon: CreditCard },
+      { href: "/settings/team", label: "Équipe", hint: "Inviter les personnes qui travaillent avec vous", icon: Users },
+      { href: "/settings/support", label: "Support", hint: "Une question, un bug, une idée : écrire au support", icon: LifeBuoy },
     ],
   },
   {
