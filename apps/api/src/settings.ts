@@ -46,6 +46,6 @@ export async function saveAppSettings(sql: Db, change: Partial<AppSettings>): Pr
   const next = { ...(await getAppSettings(sql)), ...change };
   await sql`
     insert into app_settings (settings) values (${sql.json(next as never)})
-    on conflict (id) do update set settings = excluded.settings, updated_at = now()`;
+    on conflict (account_id) do update set settings = excluded.settings, updated_at = now()`;
   return next;
 }

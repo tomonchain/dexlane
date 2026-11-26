@@ -152,7 +152,7 @@ describe("orders coming from a channel", () => {
     await publishListing(sql, live, { offerId: o.id, channel: "ebay", actor: ACTOR });
 
     ebay.pending.push(order(o.sku, 2), order(o.sku, 2)); // le canal renvoie deux fois la même commande
-    expect(await syncChannels(sql, live, ACTOR)).toEqual({ orders: 1, updated: 1, errors: 0 });
+    expect(await syncChannels(sql, live, ACTOR)).toEqual({ orders: 1, updated: 1, revised: 0, errors: 0 });
     expect(ebay.calls.quantities).toEqual([[o.sku, 1]]);
     const [row] = await sql<{ id: string }[]>`select id from orders where channel = 'ebay'`;
     const detail = await getOrderDetail(sql, row!.id);

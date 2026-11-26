@@ -78,7 +78,7 @@ export async function saveSubscription(sql: Db, input: PushSubscriptionInput): P
   await sql`
     insert into push_subscriptions (endpoint, p256dh, auth, locale, user_agent)
     values (${input.endpoint}, ${input.keys.p256dh}, ${input.keys.auth}, ${input.locale}, ${input.userAgent ?? null})
-    on conflict (endpoint) do update set p256dh = excluded.p256dh, auth = excluded.auth, locale = excluded.locale, user_agent = excluded.user_agent`;
+    on conflict (account_id, endpoint) do update set p256dh = excluded.p256dh, auth = excluded.auth, locale = excluded.locale, user_agent = excluded.user_agent`;
 }
 
 export async function removeSubscription(sql: Db, endpoint: string): Promise<void> {
@@ -202,7 +202,7 @@ export async function sendDigest(sql: Db, send: PushSender, preferences: Notific
   const result = anything ? await broadcast(sql, send, (locale) => digestMessage(digest, locale)!) : { sent: 0, removed: 0, failed: 0 };
   await sql`
     insert into notification_state (last_digest_at, notified) values (now(), ${sql.json({ targets: notified })})
-    on conflict (id) do update set last_digest_at = excluded.last_digest_at, notified = excluded.notified`;
+    on conflict (account_id) do update set last_digest_at = excluded.last_digest_at, notified = excluded.notified`;
   return { ...result, digest };
 }
 
@@ -248,3 +248,22 @@ export function reviewsMessage(items: { orderId: string; externalId: string; buy
 export const testMessage = (locale: PushLocale): PushMessage => locale === "en"
   ? { title: "Dexlane", body: "Notifications are on for this device.", url: "/settings/notifications", tag: "test" }
   : { title: "Dexlane", body: "Les notifications sont activées sur cet appareil.", url: "/settings/notifications", tag: "test" };
+
+/** Quota du mois : 80 % atteints, ou tout consommé. */
+export function quotaMessage(level: 80 | 100, used: number, limit: number, locale: PushLocale): PushMessage {
+  const url = "/settings/plan";
+  if (level === 100) {
+    return {
+      title: locale === "en" ? "Monthly quota reached" : "Quota du mois atteint",
+      body: locale === "en"
+        ? `You have published your ${limit} cards this month. Add a pack or upgrade to keep publishing; listings already online are not affected.`
+        : `Tu as publié tes ${limit} cartes du mois. Ajoute un pack ou change de forfait pour continuer ; tes annonces en ligne ne bougent pas.`,
+      url, tag: "quota",
+    };
+  }
+  return {
+    title: locale === "en" ? "80% of your quota used" : "80 % de ton quota",
+    body: locale === "en" ? `${used} of ${limit} cards published this month.` : `${used} cartes publiées sur ${limit} ce mois-ci.`,
+    url, tag: "quota",
+  };
+}

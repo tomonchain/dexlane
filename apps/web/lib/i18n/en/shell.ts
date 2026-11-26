@@ -79,51 +79,34 @@ export const SHELL: Record<string, string> = {
   "{n} ventes remises": "{n} sales handed over",
   "Toutes les statistiques": "All statistics",
 
-  // Page de présentation
-  "Se connecter": "Sign in",
-  "Du carton de cartes à l'annonce en ligne.": "From a box of cards to a live listing.",
-  "Dexlane transforme une pile de cartes Pokémon en stock rangé, tarifé et prêt à vendre. Vous scannez, vous corrigez l'essentiel, la mise en ligne s'étale toute seule.":
-    "Dexlane turns a pile of Pokémon cards into organized, priced, ready-to-sell stock. You scan, you fix what matters, and listings roll out on their own.",
-  "Ouvrir Dexlane": "Open Dexlane",
-  "Voir le parcours": "See how it works",
-  "Le parcours": "How it works",
-  "Quatre gestes, dans l'ordre.": "Four steps, in order.",
-  "Scannez la pile": "Scan the pile",
-  "Un lot au scanner à défilement, ou au téléphone recto puis verso. Chaque carte est reconnue et prend son rang.":
-    "A batch through a sheet-fed scanner, or by phone, front then back. Each card is recognized and gets its position.",
-  "Corrigez l'essentiel": "Fix what matters",
-  "Les lectures sûres sont déjà remplies. Vous ne revoyez que les cartes signalées, dans l'ordre du scan.":
-    "Confident reads are already filled in. You only review flagged cards, in scan order.",
-  "Le prix se pose": "Prices set themselves",
-  "D'après les ventes réussies, selon votre stratégie, et jamais sous votre prix d'achat.":
-    "Based on completed sales, following your strategy, and never below your purchase price.",
-  "Planifiez la mise en ligne": "Schedule your listings",
-  "Tant de cartes par jour, avec vos photos mises en scène et votre image de fin d'annonce.":
-    "So many cards a day, with your styled photos and your closing listing image.",
-  "Ce qui compte": "What matters",
-  "Pensé pour vendre, pas pour collectionner.": "Built for selling, not collecting.",
-  "L'ordre de la boîte": "Box order",
-  "Les codes suivent l'ordre du scan : le jour de la vente, la carte se retrouve à son rang dans sa boîte.":
-    "Codes follow scan order: on the day of the sale, the card is found at its position in its box.",
-  "Des prix explicables": "Explainable prices",
-  "Vendre vite, équilibré ou marge maximale. Chaque prix montre la cote dont il vient et sa date.":
-    "Sell fast, balanced or maximum margin. Each price shows the market price it comes from and its date.",
-  "Des photos prêtes": "Ready-made photos",
-  "Le scan devient un visuel carré sur le fond de votre choix. Une photo manquante s'ajoute après coup.":
-    "The scan becomes a square image on the background of your choice. A missing photo can be added later.",
-  "Une mise en ligne étalée": "Spread-out listings",
-  "Le planning publie chaque matin ce qui est dû et signale ce qui n'a pas pu partir.":
-    "The schedule publishes what's due every morning and flags what couldn't go out.",
-  "Pas de double vente": "No double sales",
-  "Une carte vendue quelque part est retirée partout. Le stock réservé ne peut pas être revendu.":
-    "A card sold somewhere is removed everywhere. Reserved stock can't be sold again.",
-  "Canaux de vente : eBay et CardTrader sont prévus. Aujourd'hui, la mise en ligne tourne en simulation ; la publication réelle arrive avec le raccordement aux marketplaces.":
-    "Sales channels: eBay and CardTrader are planned. For now, listing runs in simulation; real publishing comes with the marketplace connections.",
-  "Dexlane — stock et vente de cartes Pokémon.": "Dexlane — Pokémon card stock and sales.",
-  "Planifiée mer. 19": "Scheduled Wed 19",
-
   // Connexion
+  // Assistant de démarrage
+  "Ta boutique": "Your shop",
+  "Ton nom de vendeur et tes coordonnées sont imprimés sur chaque bon de livraison et chaque reçu.": "Your seller name and contact details are printed on every packing slip and receipt.",
+  "{label} : montant invalide.": "{label}: invalid amount.",
+  "Tes envois et tes prix": "Your shipping and prices",
+  "Ce que te coûte un envoi entre dans la marge de chaque vente. Chaque carte reçoit ensuite un prix dès son entrée en stock, d'après les ventes réussies sur Cardmarket.": "What a shipment costs you counts in the margin of every sale. Each card then gets a price as soon as it enters stock, based on completed sales on Cardmarket.",
+  "En euros.": "In euros.",
+  "Laisse vide ce que tu n'utilises pas. Sleeves, top-loaders et enveloppes se règlent dans Réglages → Envois.": "Leave empty what you don't use. Sleeves, toploaders and envelopes are set in Settings → Shipping.",
+  "Boutique": "Shop",
+  "Envois et prix": "Shipping and prices",
+  "Lettre simple": "Standard letter",
   "Connexion": "Sign in",
+  "Saisissez votre adresse e-mail et votre mot de passe.": "Enter your email address and your password.",
+  "Adresse e-mail": "Email address",
+  "Créer un compte": "Create an account",
+  "Le jeton d'installation (DEXLANE_API_TOKEN) permet de choisir l'adresse e-mail et le mot de passe du propriétaire de l'installation. Ses autres appareils seront déconnectés.":
+    "The setup token (DEXLANE_API_TOKEN) lets you choose the email address and password of the installation owner. Their other devices will be signed out.",
+  "Choisissez votre adresse e-mail et votre mot de passe. Le jeton d'installation (DEXLANE_API_TOKEN) prouve que vous administrez le serveur ; il ne sera plus demandé ensuite.":
+    "Choose your email address and password. The setup token (DEXLANE_API_TOKEN) proves you run the server; it won't be asked for again.",
+  "Choisis l'adresse e-mail et le mot de passe qui protégeront ton stock. Le jeton d'installation prouve que ce serveur est le tien ; il n'est demandé que cette fois.": "Choose the email address and password that will protect your stock. The setup token proves this server is yours; it is only asked for this once.",
+  "Adresse e-mail ou mot de passe incorrect.": "Incorrect email address or password.",
+  "Cette adresse e-mail appartient déjà à un autre compte.": "This email address already belongs to another account.",
+  "Vérifiez l'adresse e-mail.": "Check the email address.",
+  "Ce compte est suspendu.": "This account is suspended.",
+  "Réinitialiser avec le jeton d'installation": "Reset with the setup token",
+  "Compte d'installation": "Setup account",
+  "Cette adresse e-mail n'a pas encore été vérifiée : suivez le lien reçu par e-mail.": "This email address has not been verified yet: follow the link you received by email.",
   "Saisissez votre mot de passe.": "Enter your password.",
   "Première connexion": "First sign-in",
   "Choisissez votre mot de passe. Le jeton d'installation (DEXLANE_API_TOKEN) prouve que vous administrez le serveur ; il ne sera plus demandé ensuite.":
@@ -143,6 +126,12 @@ export const SHELL: Record<string, string> = {
   "Mot de passe oublié ?": "Forgot password?",
   "Retour à la connexion": "Back to sign-in",
   "Stock et négoce de cartes Pokémon": "Pokémon card stock and trading",
+  "Du classeur à l'annonce eBay, en quelques secondes.": "From binder to eBay listing, in seconds.",
+  // Écrans de compte : logo et liens du bas (components/marketing/auth-layout.tsx)
+  "Dexlane, accueil": "Dexlane, home",
+  "CGU": "Terms",
+  "Confidentialité": "Privacy",
+  "Contact": "Contact",
 
   // Messages d'authentification et de réseau
   "Mot de passe incorrect. Trop d'essais : nouvel essai possible dans {wait}.": "Incorrect password. Too many attempts: try again in {wait}.",
@@ -158,24 +147,23 @@ export const SHELL: Record<string, string> = {
 
   // Assistant de démarrage
   "Scan": "Scan",
-  "Canaux": "Channels",
   "Passer l'assistant": "Skip setup",
   "Étapes de démarrage": "Setup steps",
   "Tout est prêt": "All set",
-  "Chaque réglage reste modifiable dans Réglages. Il ne manque plus que vos cartes.": "Every setting can still be changed in Settings. All that's missing is your cards.",
+  "Chaque réglage reste modifiable dans Réglages. Il ne manque plus que tes cartes.": "Every setting can still be changed in Settings. All that's missing is your cards.",
   "Créer mon premier lot à photographier": "Create my first batch to photograph",
   "Créer mon premier lot d'images": "Create my first image batch",
   "Créer mon premier lot scanné": "Create my first scanned batch",
   "Aller au stock": "Go to stock",
   "Les deux mots de passe ne sont pas identiques.": "The two passwords aren't the same.",
-  "Créez votre compte": "Create your account",
+  "Crée ton compte": "Create your account",
   "Choisissez le mot de passe qui protégera votre stock. Le jeton d'installation prouve que ce serveur est le vôtre ; il n'est demandé que cette fois.":
     "Choose the password that will protect your stock. The setup token proves this server is yours; it's only asked for this once.",
   "Créer mon compte": "Create my account",
   "La valeur de DEXLANE_API_TOKEN, définie à l'installation.": "The value of DEXLANE_API_TOKEN, set during installation.",
   "10 caractères au moins.": "At least 10 characters.",
-  "Comment scannez-vous vos cartes ?": "How do you scan your cards?",
-  "L'écran d'ajout s'adapte à votre matériel. Vous pourrez toujours utiliser les autres façons.": "The add screen adapts to your equipment. You can always use the other ways too.",
+  "Comment scannes-tu tes cartes ?": "How do you scan your cards?",
+  "L'écran d'ajout s'adapte à ton matériel. Tu pourras toujours utiliser les autres façons.": "The add screen adapts to your equipment. You can always use the other ways too.",
   "Mode de scan": "Scan mode",
   "Scanner à défilement": "Sheet-fed scanner",
   "Les cartes passent une à une, les images arrivent seules depuis le dossier du scanner.": "Cards go through one by one; images arrive on their own from the scanner's folder.",
@@ -183,8 +171,7 @@ export const SHELL: Record<string, string> = {
   "Vous photographiez recto puis verso au téléphone ; la revue se fait sur l'ordinateur.": "You photograph the front then the back with your phone; the review happens on the computer.",
   "Envoi de fichiers": "File upload",
   "Les photos existent déjà : vous les déposez par lot.": "The photos already exist: you drop them in batches.",
-  "La liste des séries n'a pas pu être chargée (catalogue en ligne injoignable). Vous pourrez importer vos séries plus tard, depuis Réglages → Catalogue.":
-    "The set list couldn't be loaded (online catalog unreachable). You can import your sets later from Settings → Catalog.",
+  "La liste des séries n'a pas pu être chargée (catalogue en ligne injoignable). Tu pourras importer tes séries plus tard, depuis Réglages → Catalogue.": "The set list couldn't be loaded (online catalog unreachable). You can import your sets later from Settings → Catalog.",
   "Autres séries": "Other sets",
   "Import des séries": "Importing sets",
   "Les cartes, leurs variantes et leurs cotes sont téléchargées série par série.": "Cards, their variants and their market prices are downloaded set by set.",
@@ -195,9 +182,8 @@ export const SHELL: Record<string, string> = {
   "{n} cartes importées": "{n} cards imported",
   "{n} série en échec : {sets}": "{n} set failed: {sets}",
   "{n} séries en échec : {sets}": "{n} sets failed: {sets}",
-  "Quelles séries avez-vous ?": "Which sets do you have?",
-  "Une carte ne peut être reconnue que si sa série est importée. Choisissez celles que vous possédez ; d'autres pourront suivre plus tard.":
-    "A card can only be recognized if its set is imported. Choose the ones you own; others can follow later.",
+  "Quelles séries as-tu ?": "Which sets do you have?",
+  "Une carte ne peut être reconnue que si sa série est importée. Choisis celles que tu possèdes ; d'autres pourront suivre plus tard.": "A card can only be recognized if its set is imported. Choose the ones you own; others can follow later.",
   "Passer cette étape": "Skip this step",
   "Importer {n} série": "Import {n} set",
   "Importer {n} séries": "Import {n} sets",
@@ -217,27 +203,20 @@ export const SHELL: Record<string, string> = {
   "{n} séries": "{n} sets",
   "déjà importée": "already imported",
   "Aucune série ne correspond.": "No matching set.",
-  "Où rangez-vous vos cartes ?": "Where do you store your cards?",
+  "Où ranges-tu tes cartes ?": "Where do you store your cards?",
   "Chaque carte en stock a un emplacement, pour la retrouver le jour de la vente. Un lot scanné va dans une boîte, dans l'ordre du scan.":
     "Every card in stock has a location, so you can find it on the day of the sale. A scanned batch goes into a box, in scan order.",
   "Créer {n} emplacement": "Create {n} location",
   "Créer {n} emplacements": "Create {n} locations",
   "Nombre de boîtes": "Number of boxes",
   "Nombre de classeurs": "Number of binders",
-  "Écrivez ces codes sur vos boîtes et classeurs.": "Write these codes on your boxes and binders.",
+  "Écris ces codes sur tes boîtes et classeurs.": "Write these codes on your boxes and binders.",
   "Vous avez déjà {n} emplacement : ceux qui existent sont conservés.": "You already have {n} location: existing ones are kept.",
   "Vous avez déjà {n} emplacements : ceux qui existent sont conservés.": "You already have {n} locations: existing ones are kept.",
   "D'autres s'ajoutent à tout moment depuis Réglages → Emplacements.": "You can add more at any time from Settings → Locations.",
-  "Comment fixer vos prix ?": "How should your prices be set?",
-  "Chaque carte reçoit un prix dès son entrée en stock, d'après les ventes réussies sur Cardmarket : celles du mois, ajustées par celles de la semaine.":
-    "Each card gets a price as soon as it enters stock, based on completed sales on Cardmarket: the month's, adjusted by the week's.",
-  "Jamais sous votre prix d'achat : si le marché est en dessous, le prix est tenu au coût et la carte est signalée.":
-    "Never below your purchase price: if the market is lower, the price is held at cost and the card is flagged.",
+  "Jamais sous ton prix d'achat : si le marché est en dessous, le prix est tenu au coût et la carte est signalée.": "Never below your purchase price: if the market is lower, the price is held at cost and the card is flagged.",
   "Un pic isolé des ventes ne fait pas grimper le prix de plus de 25 %.": "A one-off spike in sales can't push the price up by more than 25%.",
-  "Un prix que vous fixez à la main n'est plus jamais modifié tout seul.": "A price you set by hand is never changed automatically again.",
-  "Où vendez-vous ?": "Where do you sell?",
-  "Activez un canal en simulation pour essayer la mise en ligne sans rien publier. Le mode réel s'ouvre quand l'accès à la marketplace est configuré.":
-    "Turn on a channel in simulation to try listing without publishing anything. Live mode opens once marketplace access is configured.",
+  "Un prix que tu fixes à la main n'est plus jamais modifié tout seul.": "A price you set by hand is never changed automatically again.",
   "Terminer": "Finish",
 
   // Stratégie de prix

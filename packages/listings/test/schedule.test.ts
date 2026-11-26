@@ -48,7 +48,7 @@ describe("queueing publications one card after another", () => {
     ]);
 
     // Les publications faites dans la journée comptent dans le rythme du jour.
-    expect(await runDuePublications(sql, {}, ACTOR)).toEqual({ published: 2, failed: 0 });
+    expect(await runDuePublications(sql, {}, ACTOR)).toEqual({ published: 2, failed: 0, postponed: 0, packsAdded: 0 });
     const late = await ready("E");
     expect(await queuePublications(sql, { offerIds: [late], channel: "ebay", perDay: 2, actor: ACTOR })).toEqual({ queued: 1, lastDay: day(2) });
     // Sans rythme : le jour même, quel que soit le nombre déjà publié ; une carte déjà en ligne n'est pas remise en file.
@@ -109,7 +109,7 @@ describe("scheduling publications", () => {
     await ready("C");
     await planPublications(sql, { channel: "ebay", startOn: day(0), perDay: 2, actor: ACTOR });
 
-    expect(await runDuePublications(sql, live, ACTOR)).toEqual({ published: 1, failed: 1 });
+    expect(await runDuePublications(sql, live, ACTOR)).toEqual({ published: 1, failed: 1, postponed: 0, packsAdded: 0 });
     // Les photos de la carte d'abord, l'image commerciale en dernier.
     expect(published[0]!.imageUrls).toEqual([expect.stringContaining("scan-"), "https://blob.test/promo.jpg"]);
     const schedule = await getSchedule(sql);
@@ -118,8 +118,8 @@ describe("scheduling publications", () => {
     expect((await listStock(sql, { sort: "name" })).items.find((r) => r.offerId === a)).toMatchObject({ status: "LISTED", planned: null });
 
     // Le lendemain, la suite part ; rejouer la tâche le même jour ne publie rien deux fois.
-    expect(await runDuePublications(sql, live, ACTOR, day(1))).toEqual({ published: 1, failed: 0 });
-    expect(await runDuePublications(sql, live, ACTOR, day(1))).toEqual({ published: 0, failed: 0 });
+    expect(await runDuePublications(sql, live, ACTOR, day(1))).toEqual({ published: 1, failed: 0, postponed: 0, packsAdded: 0 });
+    expect(await runDuePublications(sql, live, ACTOR, day(1))).toEqual({ published: 0, failed: 0, postponed: 0, packsAdded: 0 });
     expect(published).toHaveLength(2);
   });
 });

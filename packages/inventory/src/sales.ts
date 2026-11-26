@@ -30,16 +30,16 @@ export function searchSellableOffers(sql: Db, opts: { q?: string; limit?: number
   return sql<SellableOffer[]>`
     select o.id as offer_id, o.offer_sku, o.condition, o.is_unique, o.category, o.target_price_cents, o.floor_price_cents,
            a.available_to_sell,
-           jsonb_build_object('name', c.name, 'setId', c.set_id, 'localNumber', c.local_number, 'language', c.language,
-                              'imageUrl', c.image_url, 'finish', v.finish, 'edition', v.edition) as card
+           jsonb_build_object('name', coalesce(o.lot_title, c.name), 'setId', c.set_id, 'localNumber', c.local_number, 'language', c.language,
+                              'imageUrl', c.image_url, 'finish', v.finish, 'edition', v.edition, 'lot', o.kind = 'LOT') as card
       from offers o
       join offer_availability a on a.offer_id = o.id
       join card_variants v on v.id = o.variant_id
       join catalog_cards c on c.id = v.catalog_card_id
      where a.available_to_sell > 0
        ${q ? sql`and (upper(o.offer_sku) like upper(${likePrefix(q)}) || '%'
-                   or f_unaccent(lower(c.name)) like '%' || f_unaccent(lower(${likePrefix(q)})) || '%')` : sql``}
-     order by f_unaccent(lower(c.name)), o.offer_sku
+                   or f_unaccent(lower(coalesce(o.lot_title, c.name))) like '%' || f_unaccent(lower(${likePrefix(q)})) || '%')` : sql``}
+     order by f_unaccent(lower(coalesce(o.lot_title, c.name))), o.offer_sku
      limit ${Math.min(Math.max(opts.limit ?? 20, 1), 50)}`;
 }
 
@@ -181,7 +181,7 @@ export async function listOrders(
            ${DELIVERY(sql)} as delivery
       from orders o
       left join lateral (
-        select sum(ol.qty) as cards, (array_agg(c.name order by ol.external_line_id))[1:3] as card_names
+        select sum(ol.qty) as cards, (array_agg(coalesce(f.lot_title, c.name) order by ol.external_line_id))[1:3] as card_names
           from order_lines ol
           join offers f on f.id = ol.offer_id
           join card_variants v on v.id = f.variant_id
@@ -284,8 +284,8 @@ export async function getOrderDetail(sql: Db, orderId: string): Promise<OrderDet
       from orders where id = ${orderId}`;
   const lines = await sql<OrderDetail["lines"]>`
     select ol.id, ol.offer_id, f.offer_sku, f.condition, ol.qty, ol.unit_price_cents,
-           jsonb_build_object('name', c.name, 'setId', c.set_id, 'localNumber', c.local_number, 'language', c.language,
-                              'imageUrl', c.image_url, 'finish', v.finish, 'edition', v.edition) as card,
+           jsonb_build_object('name', coalesce(f.lot_title, c.name), 'setId', c.set_id, 'localNumber', c.local_number, 'language', c.language,
+                              'imageUrl', c.image_url, 'finish', v.finish, 'edition', v.edition, 'lot', f.kind = 'LOT') as card,
            coalesce((select jsonb_agg(jsonb_build_object(
                        'id', a.id, 'status', a.status, 'qty', a.qty, 'unitSku', s.unit_sku,
                        'locationCode', loc.code, 'unitCostCents', s.unit_cost_cents,
@@ -340,7 +340,7 @@ async function listOrdersById(sql: Db, orderId: string) {
      where o.id = ${orderId}`;
   const [agg] = await sql<{ cards: number; cardNames: string[]; shippingMode: ShippingMode | null }[]>`
     select coalesce(sum(ol.qty), 0)::int as cards,
-           coalesce((array_agg(c.name order by ol.external_line_id))[1:3], '{}') as card_names,
+           coalesce((array_agg(coalesce(f.lot_title, c.name) order by ol.external_line_id))[1:3], '{}') as card_names,
            (select mode from shipments where order_id = ${orderId} order by created_at desc limit 1) as shipping_mode
       from order_lines ol
       join offers f on f.id = ol.offer_id

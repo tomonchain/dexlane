@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { syncSet, type TcgdexClient } from "@dexlane/catalog";
-import { useTestDb } from "@dexlane/db/testing";
+import { OWNER_ACCOUNT_ID } from "@dexlane/db";
+import { testDatabaseUrl, useTestDb } from "@dexlane/db/testing";
 import type { CardReadingRaw, CardRecognizer } from "@dexlane/scan";
 import { card, fakeClient } from "../../../packages/catalog/test/fixtures";
 import { createApp } from "../src/app";
+import type { Mail } from "../src/mailer";
 import { createMemoryPhotoStore } from "../src/photos";
 
 const sql = useTestDb("api");
@@ -929,7 +931,7 @@ describe("scheduled publications", () => {
     expect((await call("GET", "/api/publications")).json).toMatchObject({ pending: 1, days: [{ plannedOn: today, count: 1, cardNames: ["Fouinar"] }] });
     expect((await call("GET", "/api/stock")).json.items[0].planned).toMatchObject({ channel: "ebay", plannedOn: today });
 
-    expect((await call("POST", "/api/publications/run")).json).toEqual({ published: 1, failed: 0 });
+    expect((await call("POST", "/api/publications/run")).json).toEqual({ published: 1, failed: 0, postponed: 0, packsAdded: 0 });
     const stock = (await call("GET", "/api/stock")).json.items[0];
     expect([stock.status, stock.planned, stock.offerId]).toEqual(["LISTED", null, received.json.offer.id]);
     expect((await call("POST", "/api/publications/cancel", { body: {} })).json).toEqual({ cancelled: 0 });
@@ -966,7 +968,7 @@ describe("publication calendar", () => {
     expect(await calendar()).toEqual([{ date: today, planned: { ebay: 2 }, published: 0, failed: 0 }]);
 
     // Publiées : le jour les montre publiées ; un échec se replanifie.
-    expect((await call("POST", "/api/publications/run")).json).toEqual({ published: 2, failed: 0 });
+    expect((await call("POST", "/api/publications/run")).json).toEqual({ published: 2, failed: 0, postponed: 0, packsAdded: 0 });
     expect(await calendar()).toEqual([{ date: today, planned: {}, published: 2, failed: 0 }]);
     expect((await call("GET", `/api/publications/day/${today}`)).json.entries.map((e: { status: string }) => e.status)).toEqual(["DONE", "DONE"]);
     expect((await call("PATCH", `/api/publications/${id}`, { body: { plannedOn: plus(2) } })).json.error.code).toBe("PUBLICATION_DONE");
@@ -1088,6 +1090,19 @@ describe("sales channels", () => {
     expect((await call("POST", `/api/listings/${published.json.id}/end`)).status).toBe(404);
     expect(await call("POST", "/api/channels/sync")).toMatchObject({ status: 200, json: { orders: 0, updated: 0, errors: 0 } });
   });
+
+  it("says when the eBay application keys are missing, and keeps the eBay settings", async () => {
+    expect((await call("GET", "/api/channels/ebay/connection")).json).toMatchObject({
+      configured: false, account: null, missing: ["FULFILLMENT_POLICY", "PAYMENT_POLICY", "RETURN_POLICY", "LOCATION"],
+    });
+    expect((await call("POST", "/api/channels/ebay/connect")).json.error.code).toBe("CHANNEL_NOT_CONFIGURED");
+    expect((await call("GET", "/api/channels/ebay/options")).status).toBe(409);
+    const saved = await call("PUT", "/api/channels/ebay/settings", { body: { marketplaceId: "EBAY_DE", paymentPolicyId: "P1" } });
+    expect(saved.json.settings).toMatchObject({ marketplaceId: "EBAY_DE", paymentPolicyId: "P1", categoryId: "183454" });
+    expect((await call("PUT", "/api/channels/ebay/settings", { body: { marketplaceId: "EBAY_US" } })).status).toBe(400);
+    // Les réglages eBay ne changent rien au mode du canal.
+    expect((await call("GET", "/api/channels")).json.channels[0]).toMatchObject({ mode: "OFF", liveAvailable: false, liveBlocker: null });
+  });
 });
 
 describe("direct sales", () => {
@@ -1150,57 +1165,6 @@ describe("direct sales", () => {
     expect(cancelled.json).toMatchObject({ stage: "CANCELLED", shipment: null });
     expect((await call("GET", "/api/offers/sellable")).json.offers[0].availableToSell).toBe(1);
     expect((await call("GET", "/api/orders/00000000-0000-4000-8000-000000000000")).status).toBe(404);
-  });
-});
-
-describe("owner password", () => {
-  const post = (path: string, body: unknown, headers?: Record<string, string>) => call("POST", `/api/auth/password/${path}`, { body, key: null, headers });
-
-  it("is set with the token, then verified, changed, and invalidates older sessions", async () => {
-    expect((await call("GET", "/api/auth/status")).json).toEqual({ passwordSet: false });
-    expect((await post("verify", { password: "peu importe" })).json.error.code).toBe("PASSWORD_NOT_SET");
-    expect((await post("reset", { newPassword: "court" })).json.error.code).toBe("WEAK_PASSWORD");
-
-    const set = await post("reset", { newPassword: "premier-secret" });
-    expect([set.status, set.json]).toEqual([200, { sessionVersion: 1 }]);
-    expect((await call("GET", "/api/auth/status")).json).toEqual({ passwordSet: true });
-    expect((await post("verify", { password: "premier-secret" })).json).toEqual({ sessionVersion: 1 });
-
-    const wrong = await post("change", { currentPassword: "mauvais", newPassword: "deuxieme-secret" });
-    expect([wrong.status, wrong.json.error.code]).toEqual([401, "INVALID_PASSWORD"]);
-    expect((await post("change", { currentPassword: "premier-secret", newPassword: "deuxieme-secret" })).json).toEqual({ sessionVersion: 2 });
-    expect((await post("verify", { password: "premier-secret" })).status).toBe(401);
-    expect((await post("verify", { password: "deuxieme-secret" })).json).toEqual({ sessionVersion: 2 });
-
-    // Une session ouverte avant le changement n'est plus acceptée ; un appel direct par jeton l'est toujours.
-    const stale = await call("GET", "/api/inventory", { headers: { "X-Dexlane-Session-Version": "1" } });
-    expect([stale.status, stale.json.error.code]).toEqual([401, "SESSION_EXPIRED"]);
-    expect((await call("GET", "/api/inventory", { headers: { "X-Dexlane-Session-Version": "2" } })).status).toBe(200);
-    expect((await call("GET", "/api/inventory")).status).toBe(200);
-    expect(await count("audit_events")).toBe(2);
-    const [stored] = await sql<{ passwordHash: string }[]>`select password_hash from owner_credentials`;
-    expect(stored!.passwordHash).toMatch(/^scrypt\$/);
-    expect(stored!.passwordHash).not.toContain("deuxieme-secret");
-  });
-
-  it("locks out after repeated failures, even for the right password, until the delay has passed", async () => {
-    await post("reset", { newPassword: "bon-mot-de-passe" });
-    for (let i = 0; i < 4; i++) expect((await post("verify", { password: `essai-${i}` })).status).toBe(401);
-    const fifth = await post("verify", { password: "essai-5" });
-    expect(fifth.json.error).toMatchObject({ code: "INVALID_PASSWORD", details: { retryAfterS: 30 } });
-
-    const locked = await post("verify", { password: "bon-mot-de-passe" });
-    expect([locked.status, locked.json.error.code]).toEqual([429, "TOO_MANY_ATTEMPTS"]);
-    expect(locked.json.error.details.retryAfterS).toBeGreaterThan(0);
-
-    await sql`update owner_credentials set locked_until = now() - interval '1 second'`;
-    expect((await post("verify", { password: "bon-mot-de-passe" })).status).toBe(200);
-    expect((await sql`select failed_attempts, locked_until from owner_credentials`)[0]).toEqual({ failedAttempts: 0, lockedUntil: null });
-
-    // Le jeton reste la clé de secours : il réinitialise le mot de passe et lève le verrou.
-    for (let i = 0; i < 5; i++) await post("verify", { password: "non" });
-    expect((await post("reset", { newPassword: "nouveau-depart" })).status).toBe(200);
-    expect((await post("verify", { password: "nouveau-depart" })).status).toBe(200);
   });
 });
 
@@ -1386,5 +1350,435 @@ describe("scan upload", () => {
     expect([res.status, res.json.error.code]).toEqual([502, "SCAN_UNAVAILABLE"]);
     expect(JSON.stringify(res.json)).not.toContain("sk-secret");
     expect(errors).toHaveLength(1);
+  });
+});
+
+describe("accounts", () => {
+  const mails: Mail[] = [];
+  const BASE = "https://dexlane.test";
+  const accountsApp = createApp({
+    sql, token: TOKEN, recognizer: () => ({ recognize: (image) => recognize(image) }), tcgdex: () => tcgdex, photos: createMemoryPhotoStore(),
+    databaseUrl: testDatabaseUrl("api"), baseUrl: BASE,
+    mailer: { send: async (mail) => void mails.push(mail) }, onError: (e) => errors.push(e),
+  });
+  let seq = 0;
+  /** Requête du serveur web : pour un navigateur (`cookie`), ou en son nom propre. */
+  async function req(method: string, path: string, opts: { body?: unknown; cookie?: string; account?: string } = {}) {
+    const headers: Record<string, string> = { Authorization: `Bearer ${TOKEN}`, Origin: BASE };
+    if (opts.cookie !== undefined) Object.assign(headers, { Cookie: opts.cookie, "X-Dexlane-Browser": "1" });
+    if (opts.account) headers["X-Dexlane-Account"] = opts.account;
+    if (method === "POST" && !path.startsWith("/api/auth/")) headers["Idempotency-Key"] = `acc-key-${++seq}`;
+    if (opts.body !== undefined) headers["Content-Type"] = "application/json";
+    const res = await accountsApp.request(path, { method, headers, body: opts.body === undefined ? undefined : JSON.stringify(opts.body), redirect: "manual" });
+    const cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return { status: res.status, cookie, location: res.headers.get("location"), json: (await res.json().catch(() => null)) as any };
+  }
+  const linkIn = (mail: Mail) => {
+    const url = new URL(mail.text.match(/https:\/\/\S+/)![0]);
+    return url.pathname + url.search;
+  };
+  beforeEach(() => void (mails.length = 0));
+
+  /** Inscription complète : le lien reçu vérifie l'adresse et ouvre la session. */
+  async function register(email: string, password = "un-bon-mot-de-passe", extra: Record<string, string> = {}): Promise<{ cookie: string; accountId: string }> {
+    const signup = await req("POST", "/api/auth/sign-up/email", { body: { name: email.split("@")[0], email, password, callbackURL: "/signup/verify", ...extra } });
+    expect(signup.status).toBe(200);
+    const verified = await req("GET", linkIn(mails.at(-1)!));
+    expect(verified.status).toBe(302);
+    const account = await req("GET", "/api/account", { cookie: verified.cookie });
+    expect(account.status).toBe(200);
+    return { cookie: verified.cookie, accountId: account.json.accountId };
+  }
+
+  it("sets up the installation owner with the setup flow, as an administrator on the installation account", async () => {
+    expect((await req("GET", "/api/setup/status")).json).toEqual({ passwordSet: false });
+    expect((await req("POST", "/api/setup/owner", { body: { email: "proprio@example.com", password: "court" } })).json.error.code).toBe("WEAK_PASSWORD");
+    expect((await req("POST", "/api/setup/owner", { body: { email: "Proprio@Example.com", password: "premier-secret" } })).json).toEqual({ ok: true });
+    expect((await req("GET", "/api/setup/status")).json).toEqual({ passwordSet: true });
+    expect(mails).toHaveLength(0);
+
+    const signedIn = await req("POST", "/api/auth/sign-in/email", { body: { email: "proprio@example.com", password: "premier-secret" } });
+    expect(signedIn.status).toBe(200);
+    expect((await req("GET", "/api/account", { cookie: signedIn.cookie })).json).toMatchObject({
+      accountId: OWNER_ACCOUNT_ID, email: "proprio@example.com", role: "admin", requestedPlan: null, isOwner: true,
+      // Le compte d'installation n'a pas de limite.
+      plan: { id: "community", cardsPerMonth: null }, quota: { used: 0, limit: null, remaining: null },
+    });
+    expect((await req("POST", "/api/auth/sign-in/email", { body: { email: "proprio@example.com", password: "mauvais-secret" } })).status).toBe(401);
+
+    // Clé de secours : le même flux remplace l'adresse et le mot de passe, et ferme les sessions ouvertes.
+    expect((await req("POST", "/api/setup/owner", { body: { email: "nouveau@example.com", password: "deuxieme-secret" } })).status).toBe(200);
+    expect((await req("GET", "/api/stock", { cookie: signedIn.cookie })).status).toBe(401);
+    expect((await req("POST", "/api/auth/sign-in/email", { body: { email: "nouveau@example.com", password: "deuxieme-secret" } })).status).toBe(200);
+    expect(await sql`select count(*)::int as n from auth_users`).toEqual([{ n: 1 }]);
+    // Le navigateur ne peut pas appeler l'installation lui-même.
+    expect((await req("POST", "/api/setup/owner", { body: { email: "x@example.com", password: "troisieme-secret" }, cookie: "" })).status).toBeGreaterThanOrEqual(401);
+  });
+
+  it("signs up with an email link, refuses to sign in before verification, and never reveals which emails exist", async () => {
+    const signup = await req("POST", "/api/auth/sign-up/email", { body: { name: "Camille", email: "Camille@Example.com", password: "un-bon-mot-de-passe", callbackURL: "/signup/verify", plan: "solo", signupCode: "FLYER" } });
+    expect(signup.status).toBe(200);
+    expect(mails).toHaveLength(1);
+    expect(mails[0]).toMatchObject({ to: "camille@example.com", subject: "Confirme ton adresse e-mail" });
+    expect(mails[0]!.text).toContain(`${BASE}/api/auth/verify-email?token=`);
+
+    // Avant la vérification : le bon mot de passe ne suffit pas, et un navigateur sans session n'a accès à rien.
+    const early = await req("POST", "/api/auth/sign-in/email", { body: { email: "camille@example.com", password: "un-bon-mot-de-passe" } });
+    expect([early.status, early.json.code]).toEqual([403, "EMAIL_NOT_VERIFIED"]);
+    expect((await req("GET", "/api/stock", { cookie: "" })).json.error.code).toBe("SESSION_EXPIRED");
+
+    // Le lien vérifie l'adresse, ouvre la session et renvoie vers le site.
+    const verified = await req("GET", linkIn(mails[0]!));
+    expect([verified.status, verified.location]).toEqual([302, "/signup/verify"]);
+    const account = (await req("GET", "/api/account", { cookie: verified.cookie })).json;
+    // Le forfait choisi sur le site est retenu ; le compte démarre en Découverte (20 cartes par mois).
+    expect(account).toMatchObject({
+      accountId: expect.stringMatching(/^[0-9a-f-]{36}$/), email: "camille@example.com", role: "user", requestedPlan: "solo",
+      plan: { id: "decouverte", cardsPerMonth: 20 }, quota: { used: 0, limit: 20, remaining: 20 },
+    });
+    expect(account.accountId).not.toBe(OWNER_ACCOUNT_ID);
+
+    const signedIn = await req("POST", "/api/auth/sign-in/email", { body: { email: "camille@example.com", password: "un-bon-mot-de-passe" } });
+    expect(signedIn.status).toBe(200);
+    expect((await req("GET", "/api/account", { cookie: signedIn.cookie })).json.accountId).toBe(account.accountId);
+    expect((await req("POST", "/api/auth/sign-in/email", { body: { email: "camille@example.com", password: "mauvais-mot-de-passe" } })).status).toBe(401);
+    expect((await req("POST", "/api/auth/sign-in/email", { body: { email: "inconnue@example.com", password: "un-bon-mot-de-passe" } })).status).toBe(401);
+
+    // Adresse déjà inscrite : même réponse, un e-mail qui le dit à son propriétaire, et le mot de passe ne change pas.
+    const again = await req("POST", "/api/auth/sign-up/email", { body: { name: "X", email: "camille@example.com", password: "un-autre-mot-de-passe", callbackURL: "/signup/verify" } });
+    expect(again.status).toBe(200);
+    expect(mails.at(-1)).toMatchObject({ subject: "Tu as déjà un compte Dexlane" });
+    expect((await req("POST", "/api/auth/sign-in/email", { body: { email: "camille@example.com", password: "un-autre-mot-de-passe" } })).status).toBe(401);
+    expect((await req("POST", "/api/auth/sign-up/email", { body: { name: "X", email: "court@example.com", password: "court" } })).status).toBe(400);
+    // Déconnexion : la session ne vaut plus rien.
+    expect((await req("POST", "/api/auth/sign-out", { body: {}, cookie: signedIn.cookie })).status).toBe(200);
+    expect((await req("GET", "/api/stock", { cookie: signedIn.cookie })).status).toBe(401);
+  });
+
+  it("resets a forgotten password from an email link, which closes the older sessions", async () => {
+    const lea = await register("lea@example.com");
+    expect((await req("POST", "/api/auth/request-password-reset", { body: { email: "lea@example.com", redirectTo: "/reset-password" } })).status).toBe(200);
+    expect(mails.at(-1)).toMatchObject({ subject: "Réinitialise ton mot de passe" });
+    const count = mails.length;
+    expect((await req("POST", "/api/auth/request-password-reset", { body: { email: "inconnue@example.com", redirectTo: "/reset-password" } })).status).toBe(200);
+    expect(mails).toHaveLength(count);
+
+    // Le lien renvoie vers la page du site avec son jeton.
+    const followed = await req("GET", linkIn(mails.at(-1)!));
+    expect(followed.status).toBe(302);
+    const token = new URL(followed.location!, BASE).searchParams.get("token")!;
+    expect(new URL(followed.location!, BASE).pathname).toBe("/reset-password");
+    expect((await req("POST", "/api/auth/reset-password", { body: { token, newPassword: "nouveau-mot-de-passe" } })).status).toBe(200);
+    expect((await req("POST", "/api/auth/sign-in/email", { body: { email: "lea@example.com", password: "un-bon-mot-de-passe" } })).status).toBe(401);
+    expect((await req("POST", "/api/auth/sign-in/email", { body: { email: "lea@example.com", password: "nouveau-mot-de-passe" } })).status).toBe(200);
+    expect((await req("GET", "/api/stock", { cookie: lea.cookie })).status).toBe(401);
+    expect((await req("POST", "/api/auth/reset-password", { body: { token, newPassword: "encore-un-mot-de-passe" } })).status).toBe(400);
+  });
+
+  it("keeps each account's data apart: stock, locations, settings, sales and agents", async () => {
+    const [alice, bob] = [await register("alice@example.com"), await register("bob@example.com")];
+    expect((await req("GET", "/api/accounts/active")).json.accountIds).toEqual([alice.accountId, bob.accountId]);
+    expect((await req("GET", "/api/accounts/active", { cookie: alice.cookie })).status).toBe(403);
+
+    // Le même code d'emplacement et la même carte dans deux comptes : aucune collision.
+    const variantId = await fouinarReverse();
+    const stocked = new Map<string, string>();
+    for (const [who, quantity] of [[alice, 3], [bob, 1]] as const) {
+      expect((await req("POST", "/api/locations", { body: { code: "BOX-01" }, cookie: who.cookie })).status).toBe(201);
+      const received = await req("POST", "/api/inventory/receive", { body: { variantId, condition: "NM", quantity, locationCode: "BOX-01", unitCostCents: 10 }, cookie: who.cookie });
+      expect(received.status).toBe(201);
+      stocked.set(who.accountId, received.json.offer.id);
+    }
+    const [aliceOffer, bobOffer] = [stocked.get(alice.accountId)!, stocked.get(bob.accountId)!];
+    expect(aliceOffer).not.toBe(bobOffer);
+    const stockOf = async (opts: { cookie?: string }) => (await req("GET", "/api/stock", opts)).json.items.map((i: { offerId: string; onHand: number }) => [i.offerId, i.onHand]);
+    expect(await stockOf(alice)).toEqual([[aliceOffer, 3]]);
+    expect(await stockOf(bob)).toEqual([[bobOffer, 1]]);
+    // Le compte d'installation ne voit rien de tout cela.
+    expect(await stockOf({})).toEqual([]);
+    // Un navigateur ne choisit pas son compte : l'en-tête est ignoré au profit de la session.
+    expect((await req("GET", "/api/stock", { cookie: bob.cookie, account: alice.accountId })).json.items.map((i: { offerId: string }) => i.offerId)).toEqual([bobOffer]);
+
+    // Une ressource d'un autre compte n'existe pas pour moi.
+    expect((await req("GET", `/api/stock/${aliceOffer}`, { cookie: bob.cookie })).status).toBe(404);
+    expect((await req("POST", "/api/orders", { body: { lines: [{ offerId: aliceOffer, qty: 1, unitPriceCents: 500 }], shippingMode: "HAND_DELIVERY" }, cookie: bob.cookie })).status).toBeGreaterThanOrEqual(400);
+    expect(await stockOf(alice)).toEqual([[aliceOffer, 3]]);
+
+    // Réglages : une ligne par compte.
+    expect((await req("PUT", "/api/app-settings", { body: { onboardingDone: true }, cookie: alice.cookie })).status).toBe(200);
+    expect((await req("GET", "/api/app-settings", { cookie: alice.cookie })).json.onboardingDone).toBe(true);
+    expect((await req("GET", "/api/app-settings", { cookie: bob.cookie })).json.onboardingDone).toBe(false);
+    expect((await req("PUT", "/api/channels/ebay", { body: { mode: "SIMULATION" }, cookie: alice.cookie })).status).toBe(200);
+    const mode = async (who: { cookie: string }) => (await req("GET", "/api/channels", { cookie: who.cookie })).json.channels.find((ch: { id: string }) => ch.id === "ebay").mode;
+    expect([await mode(alice), await mode(bob)]).toEqual(["SIMULATION", "OFF"]);
+
+    // Une vente d'Alice n'apparaît que chez elle.
+    expect((await req("POST", "/api/orders", { body: { lines: [{ offerId: aliceOffer, qty: 1, unitPriceCents: 500 }], shippingMode: "HAND_DELIVERY" }, cookie: alice.cookie })).status).toBe(201);
+    expect((await req("GET", "/api/orders", { cookie: alice.cookie })).json.items).toHaveLength(1);
+    expect((await req("GET", "/api/orders", { cookie: bob.cookie })).json.items).toHaveLength(0);
+
+    // Un jeton d'agent n'ouvre que le stock du compte qui l'a créé.
+    const created = await req("POST", "/api/agent-tokens", { body: { name: "Airth" }, cookie: bob.cookie });
+    expect(created.status).toBe(201);
+    const mcp = await accountsApp.request("/api/mcp", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${created.json.token}`, "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "search_stock", arguments: {} } }),
+    });
+    const text = JSON.stringify(await mcp.json());
+    expect(text).toContain(bobOffer);
+    expect(text).not.toContain(aliceOffer);
+
+    // En base, chaque ligne porte son compte.
+    const owners = await sql<{ accountId: string; n: number }[]>`select account_id, count(*)::int as n from offers group by 1`;
+    expect(owners).toHaveLength(2);
+    expect(owners).toEqual(expect.arrayContaining([{ accountId: alice.accountId, n: 1 }, { accountId: bob.accountId, n: 1 }]));
+    expect(errors).toEqual([]);
+  });
+
+  it("lets a Boutique owner invite teammates by email, who then work in the same stock, and remove them", async () => {
+    const owner = await register("gerant@example.com");
+    const clerk = await register("vendeur@example.com");
+    // Sans le forfait Boutique, pas d'équipe.
+    const refused = await req("POST", "/api/team/invitations", { body: { email: "vendeur@example.com" }, cookie: owner.cookie });
+    expect([refused.status, refused.json.error.details.requiredPlan]).toEqual([403, "boutique"]);
+    expect((await req("PUT", "/api/account/plan", { body: { plan: "boutique" }, cookie: owner.cookie })).json.plan.id).toBe("boutique");
+    // Le futur vendeur est encore seul sur son propre compte : il y gère son forfait.
+    expect((await req("PUT", "/api/account/plan", { body: { plan: "pro" }, cookie: clerk.cookie })).status).toBe(200);
+
+    const invited = await req("POST", "/api/team/invitations", { body: { email: "Vendeur@Example.com" }, cookie: owner.cookie });
+    expect(invited.status).toBe(201);
+    expect(mails.at(-1)).toMatchObject({ to: "vendeur@example.com", subject: "Tu es invité sur Dexlane" });
+    const token = new URL(mails.at(-1)!.text.match(/https:\/\/\S+/)![0]).searchParams.get("token")!;
+    expect((await req("GET", "/api/team", { cookie: owner.cookie })).json.invitations).toEqual([expect.objectContaining({ email: "vendeur@example.com" })]);
+
+    // Une autre adresse ne peut pas utiliser le lien.
+    const intruder = await register("intrus@example.com");
+    expect((await req("POST", "/api/team/invitations/accept", { body: { token }, cookie: intruder.cookie })).json.error.code).toBe("INVITATION_OTHER_EMAIL");
+    expect((await req("POST", "/api/team/invitations/preview", { body: { token }, cookie: clerk.cookie })).json).toEqual({ email: "vendeur@example.com", invitedBy: "gerant@example.com", matches: true });
+    expect((await req("POST", "/api/team/invitations/accept", { body: { token }, cookie: clerk.cookie })).json).toEqual({ ok: true, accountId: owner.accountId });
+    expect((await req("POST", "/api/team/invitations/accept", { body: { token }, cookie: clerk.cookie })).status).toBe(404);
+
+    // Le vendeur voit maintenant le stock de la boutique, et pas l'inverse.
+    expect((await req("POST", "/api/locations", { body: { code: "VITRINE" }, cookie: owner.cookie })).status).toBe(201);
+    expect((await req("GET", "/api/locations", { cookie: clerk.cookie })).json.locations.map((l: { code: string }) => l.code)).toContain("VITRINE");
+    const team = (await req("GET", "/api/team", { cookie: clerk.cookie })).json;
+    expect(team.members.map((m: { email: string; isOwner: boolean }) => [m.email, m.isOwner])).toEqual([["gerant@example.com", true], ["vendeur@example.com", false]]);
+    expect(team.canManage).toBe(false);
+    expect((await req("PUT", "/api/account/plan", { body: { plan: "pro" }, cookie: clerk.cookie })).json.error.code).toBe("OWNER_ONLY");
+    // Une boutique avec une équipe ne redescend pas sans elle.
+    expect((await req("PUT", "/api/account/plan", { body: { plan: "pro" }, cookie: owner.cookie })).json.error.code).toBe("TEAM_HAS_MEMBERS");
+
+    // Retiré : ses sessions sont fermées et il repart sur un compte vide.
+    const clerkId = team.members[1].id;
+    expect((await req("DELETE", `/api/team/members/${clerkId}`, { cookie: owner.cookie })).status).toBe(200);
+    expect((await req("GET", "/api/stock", { cookie: clerk.cookie })).status).toBe(401);
+    const back = await req("POST", "/api/auth/sign-in/email", { body: { email: "vendeur@example.com", password: "un-bon-mot-de-passe" } });
+    const fresh = (await req("GET", "/api/account", { cookie: back.cookie })).json.accountId;
+    expect([fresh === owner.accountId, fresh === clerk.accountId]).toEqual([false, false]);
+    expect((await req("GET", "/api/locations", { cookie: back.cookie })).json.locations).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+});
+
+describe("plans", () => {
+  // Un canal réel factice : les publications simulées ne comptent pas dans le quota, les réelles si.
+  const sent: { sku: string; title: string; priceCents: number }[] = [];
+  const liveApp = createApp({
+    sql, token: TOKEN, recognizer: () => ({ recognize: (image) => recognize(image) }), tcgdex: () => tcgdex, photos: createMemoryPhotoStore(),
+    onError: (e) => errors.push(e),
+    channels: {
+      ebay: {
+        publish: async (i) => {
+          sent.push({ sku: i.offerSku, title: i.title, priceCents: i.priceCents });
+          return { externalId: `EB-${i.offerSku}`, url: null };
+        },
+        setQuantity: async () => undefined, end: async () => undefined, fetchOrders: async () => [],
+      },
+    },
+  });
+  beforeEach(() => void (sent.length = 0));
+
+  /** Requête du serveur pour un compte donné (comme la tâche planifiée). */
+  async function as(accountId: string, method: string, path: string, body?: unknown) {
+    const headers: Record<string, string> = { Authorization: `Bearer ${TOKEN}`, "X-Dexlane-Account": accountId };
+    if (method === "POST") headers["Idempotency-Key"] = crypto.randomUUID();
+    if (body !== undefined) headers["Content-Type"] = "application/json";
+    const res = await liveApp.request(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    return { status: res.status, json: (await res.json()) as any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+  }
+
+  /** Un compte au forfait donné, avec `n` cartes différentes prêtes à publier (prix et photo), et eBay en réel. */
+  async function account(plan: string, n: number) {
+    const [{ id }] = await sql<[{ id: string }]>`insert into accounts (plan) values (${plan}) returning id`;
+    await as(id, "POST", "/api/locations", { code: "BOX-01" });
+    const offers: string[] = [];
+    const variants = (await as(id, "GET", "/api/catalog/cards?name=fouinar")).json.candidates[0].variants as { id: string }[];
+    const dracaufeu = (await as(id, "GET", "/api/catalog/cards?name=dracaufeu")).json.candidates[0].variants as { id: string }[];
+    const pool = [...variants, ...dracaufeu].map((v) => v.id);
+    const conditions = ["MT", "NM", "EX", "GD", "LP", "PL", "PO"];
+    for (let i = 0; i < n; i++) {
+      // La photo du scan appartient au compte qui scanne.
+      const res = await liveApp.request("/api/scans", {
+        method: "POST", headers: { Authorization: `Bearer ${TOKEN}`, "X-Dexlane-Account": id, "Content-Type": "image/jpeg" }, body: new Uint8Array([0xff, 0xd8, 0xff, i]),
+      });
+      const scanned = { json: (await res.json()) as { photo: { id: string } } };
+      const received = await as(id, "POST", "/api/inventory/receive", {
+        variantId: pool[i % pool.length], condition: conditions[Math.floor(i / pool.length)], quantity: 1, locationCode: "BOX-01", unitCostCents: 50,
+        unique: true, photoIds: [scanned.json.photo.id],
+      });
+      expect(received.status).toBe(201);
+      await as(id, "POST", `/api/pricing/offers/${received.json.offer.id}/price`, { targetPriceCents: 300 + i });
+      offers.push(received.json.offer.id);
+    }
+    expect((await as(id, "PUT", "/api/channels/ebay", { mode: "LIVE" })).status).toBe(200);
+    return { id, offers };
+  }
+
+  it("counts each first publication against the monthly quota, refuses past it until a pack or an upgrade, and never counts a revision", async () => {
+    const { id, offers } = await account("decouverte", 3);
+    await sql`update accounts set plan = 'decouverte' where id = ${id}`;
+    // Quota réduit à 2 pour le test : on simule 18 cartes déjà publiées ce mois-ci.
+    const month = (await as(id, "GET", "/api/account")).json.quota.month;
+    for (let i = 0; i < 18; i++) {
+      const [{ id: fake }] = await sql<[{ id: string }]>`
+        insert into offers (account_id, offer_sku, variant_id, condition, is_unique)
+        select ${id}, ${`FAKE-${i}`}, variant_id, condition, true from offers where id = ${offers[0]!} returning id`;
+      await sql`insert into publication_usage (account_id, offer_id, channel, month) values (${id}, ${fake}, 'ebay', ${month})`;
+    }
+    expect((await as(id, "GET", "/api/account")).json.quota).toMatchObject({ used: 18, included: 20, limit: 20, remaining: 2 });
+
+    for (const offerId of offers.slice(0, 2)) expect((await as(id, "POST", `/api/listings/offers/${offerId}/publish`, { channel: "ebay" })).status).toBe(200);
+    const refused = await as(id, "POST", `/api/listings/offers/${offers[2]}/publish`, { channel: "ebay" });
+    expect([refused.status, refused.json.error.code]).toEqual([402, "QUOTA_EXCEEDED"]);
+    expect(refused.json.error.details).toMatchObject({ used: 20, limit: 20, pack: { cards: 500, priceEur: 10 } });
+
+    // Réviser une annonce déjà en ligne (son prix) ne compte pas, même quota atteint.
+    expect((await as(id, "POST", `/api/listings/offers/${offers[0]}/publish`, { channel: "ebay" })).status).toBe(200);
+    // Un pack rouvre le quota pour le mois.
+    const withPack = await as(id, "POST", "/api/account/packs", {});
+    expect(withPack.json.quota).toMatchObject({ used: 20, packCards: 500, limit: 520, remaining: 500 });
+    expect((await as(id, "POST", `/api/listings/offers/${offers[2]}/publish`, { channel: "ebay" })).status).toBe(200);
+    expect((await as(id, "GET", "/api/account")).json.quota.used).toBe(21);
+    expect(await sql`select action, after->>'priceEur' as price from audit_events where account_id = ${id} and action = 'quota_pack_added'`).toEqual([{ action: "quota_pack_added", price: "10" }]);
+  });
+
+  it("keeps bulk publication, price sync and suggestions to the plans that include them, and changes plan on request", async () => {
+    const { id, offers } = await account("decouverte", 2);
+    await sql`update accounts set plan = 'decouverte' where id = ${id}`;
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date());
+
+    const bulk = await as(id, "POST", "/api/publications/plan", { channel: "ebay", startOn: today, perDay: 5, offerIds: offers });
+    expect([bulk.status, bulk.json.error.code, bulk.json.error.details.requiredPlan]).toEqual([403, "FEATURE_NOT_IN_PLAN", "solo"]);
+    // Une carte à la fois reste possible.
+    expect((await as(id, "POST", "/api/publications/plan", { channel: "ebay", startOn: today, perDay: 5, offerIds: [offers[0]] })).status).toBe(200);
+    const suggestions = await as(id, "GET", `/api/stock/${offers[0]}/suggestions`);
+    expect([suggestions.status, suggestions.json.error.details.requiredPlan]).toEqual([403, "pro"]);
+
+    // Sans synchronisation : un nouveau prix ne part pas sur l'annonce en ligne.
+    expect((await as(id, "POST", `/api/listings/offers/${offers[1]}/publish`, { channel: "ebay" })).status).toBe(200);
+    sent.length = 0;
+    await as(id, "POST", `/api/pricing/offers/${offers[1]}/price`, { targetPriceCents: 999 });
+    expect(sent).toEqual([]);
+
+    // Passage en Pro : la synchronisation et les suggestions s'ouvrent ; le prix suivant part tout seul.
+    const upgraded = await as(id, "PUT", "/api/account/plan", { plan: "pro" });
+    expect(upgraded.json.plan).toMatchObject({ id: "pro", cardsPerMonth: 750, features: ["ebay", "bulk", "sync", "suggestions"] });
+    await as(id, "POST", `/api/pricing/offers/${offers[1]}/price`, { targetPriceCents: 1099 });
+    expect(sent).toEqual([expect.objectContaining({ priceCents: 1099 })]);
+    const ok = await as(id, "GET", `/api/stock/${offers[0]}/suggestions`);
+    expect(ok.json.title.suggested).toMatch(/^Fouinar 136\/189 Ténèbres Embrasées/);
+    expect(ok.json.title.suggested.length).toBeLessThanOrEqual(80);
+    // Le titre suggéré, une fois appliqué, part aussi sur l'annonce.
+    sent.length = 0;
+    const titled = await as(id, "PUT", `/api/stock/${offers[1]}/title`, { title: "Dracaufeu holo set de base" });
+    expect(titled.json.text.title).toBe("Dracaufeu holo set de base");
+    expect(sent.map((x) => x.title)).toEqual(["Dracaufeu holo set de base"]);
+
+    // La boutique ne peut pas redescendre tant qu'elle a une équipe ; le compte d'installation n'a pas de forfait.
+    expect((await call("PUT", "/api/account/plan", { body: { plan: "solo" } })).json.error.code).toBe("INSTALLATION_PLAN");
+    expect((await as(id, "PUT", "/api/account/plan", { plan: "community" })).status).toBe(400);
+    expect(errors).toEqual([]);
+  });
+
+  it("finishes a scheduled run started under the quota: packs cover the overrun on a paid plan, the free plan postpones it", async () => {
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date());
+    for (const plan of ["solo", "decouverte"]) {
+      const { id, offers } = await account("solo", 3);
+      const month = (await as(id, "GET", "/api/account")).json.quota.month;
+      // Plus qu'une carte de quota.
+      const limit = plan === "solo" ? 150 : 20;
+      for (let i = 0; i < limit - 1; i++) {
+        const [{ id: fake }] = await sql<[{ id: string }]>`
+          insert into offers (account_id, offer_sku, variant_id, condition, is_unique)
+          select ${id}, ${`FAKE-${i}`}, variant_id, condition, true from offers where id = ${offers[0]!} returning id`;
+        await sql`insert into publication_usage (account_id, offer_id, channel, month) values (${id}, ${fake}, 'ebay', ${month})`;
+      }
+      expect((await as(id, "POST", "/api/publications/plan", { channel: "ebay", startOn: today, perDay: 10, offerIds: offers })).json.planned).toBe(3);
+      await sql`update accounts set plan = ${plan} where id = ${id}`;
+      const run = (await as(id, "POST", "/api/publications/run")).json;
+      if (plan === "solo") {
+        expect(run).toEqual({ published: 3, failed: 0, postponed: 0, packsAdded: 1 });
+        expect((await as(id, "GET", "/api/account")).json.quota).toMatchObject({ used: 152, limit: 650, packs: [expect.objectContaining({ automatic: true, cards: 500 })] });
+      } else {
+        expect(run).toEqual({ published: 1, failed: 0, postponed: 2, packsAdded: 0 });
+        const pending = await sql<{ plannedOn: string }[]>`select to_char(planned_on, 'YYYY-MM-DD') as planned_on from scheduled_publications where account_id = ${id} and status = 'PENDING'`;
+        expect(pending.map((p) => p.plannedOn)).toEqual([expect.stringMatching(/-01$/), expect.stringMatching(/-01$/)]);
+        expect(pending[0]!.plannedOn > today).toBe(true);
+      }
+    }
+  });
+
+  it("bundles cards into a lot sold as one listing, which counts as one card, and dissolves it back", async () => {
+    const { id, offers } = await account("decouverte", 3);
+    const lot = await as(id, "POST", "/api/lots", { title: "Lot de 3 cartes Pokémon", priceCents: 1500, items: offers.map((offerId) => ({ offerId, qty: 1 })) });
+    expect(lot.status).toBe(201);
+    expect(lot.json).toMatchObject({ title: "Lot de 3 cartes Pokémon", cards: 3, costCents: 150, status: "IN_STOCK", priceCents: 1500 });
+    expect(lot.json.offerSku).toMatch(/^LOT-\d{6}$/);
+    // Les cartes ont quitté le stock à l'unité ; le lot n'y apparaît pas comme une carte.
+    expect((await as(id, "GET", "/api/stock")).json.items).toEqual([]);
+    expect((await as(id, "POST", "/api/lots", { title: "Une seule", priceCents: 100, items: [{ offerId: offers[0], qty: 1 }] })).status).toBe(422);
+
+    // Une annonce, une carte du quota ; la description liste les cartes.
+    const published = await as(id, "POST", `/api/listings/offers/${lot.json.offerId}/publish`, { channel: "ebay" });
+    expect(published.status).toBe(200);
+    expect(sent.at(-1)).toMatchObject({ title: "Lot de 3 cartes Pokémon", priceCents: 1500 });
+    expect((await as(id, "GET", "/api/account")).json.quota.used).toBe(1);
+    const offer = (await as(id, "GET", "/api/listings/offers")).json.items.find((o: { kind: string }) => o.kind === "LOT");
+    expect(offer.text.description).toContain("Lot de 3 cartes Pokémon :");
+    expect(offer.text.description).toContain("- Fouinar");
+    expect(offer.photos).toHaveLength(3);
+
+    // Défait : l'annonce est retirée et les cartes reviennent.
+    expect((await as(id, "DELETE", `/api/lots/${lot.json.offerId}`)).status).toBe(200);
+    expect((await as(id, "GET", "/api/stock")).json.items).toHaveLength(3);
+    expect((await as(id, "GET", "/api/lots")).json.lots[0].status).toBe("DISSOLVED");
+    expect((await as(id, "DELETE", `/api/lots/${lot.json.offerId}`)).status).toBe(409);
+
+    // Un lot vendu suit le circuit habituel des ventes, sous son titre.
+    const again = await as(id, "POST", "/api/lots", { title: "Lot commun", priceCents: 800, items: offers.slice(0, 2).map((offerId) => ({ offerId, qty: 1 })) });
+    const sale = await as(id, "POST", "/api/orders", { lines: [{ offerId: again.json.offerId, qty: 1, unitPriceCents: 800 }], shippingMode: "HAND_DELIVERY" });
+    expect(sale.status).toBe(201);
+    expect(sale.json).toMatchObject({ cardNames: ["Lot commun"], lines: [{ card: { name: "Lot commun", lot: true }, allocations: [{ qty: 1 }] }] });
+    expect((await as(id, "GET", "/api/lots")).json.lots.find((l: { offerId: string }) => l.offerId === again.json.offerId).status).toBe("RESERVED");
+  });
+
+  it("records a graded card's grader, grade and certificate, and puts the grade in its title", async () => {
+    const { id, offers } = await account("decouverte", 1);
+    const graded = await as(id, "PUT", `/api/stock/${offers[0]}/grading`, { grading: { grader: "PSA", grade: "9.5", certNumber: "12345678" } });
+    expect(graded.json).toMatchObject({ grader: "PSA", grade: "9.5", certNumber: "12345678" });
+    expect(graded.json.text.title).toContain("PSA 9.5");
+    expect(graded.json.text.description).toContain("Gradée PSA 9.5, certificat n° 12345678");
+    expect((await as(id, "PUT", `/api/stock/${offers[0]}/grading`, { grading: { grader: "PSA", grade: "11" } })).status).toBe(400);
+    expect((await as(id, "PUT", `/api/stock/${offers[0]}/grading`, { grading: null })).json.grader).toBeNull();
+  });
+
+  it("files support requests, marked priority on the Boutique plan", async () => {
+    const { id } = await account("solo", 0);
+    expect((await as(id, "POST", "/api/support", { subject: "Question", message: "Comment exporter mon stock ?" })).json.priority).toBe(false);
+    await as(id, "PUT", "/api/account/plan", { plan: "boutique" });
+    expect((await as(id, "POST", "/api/support", { subject: "Urgent", message: "Une annonce est partie au mauvais prix." })).json.priority).toBe(true);
+    expect((await as(id, "GET", "/api/support")).json).toMatchObject({ priority: true, requests: [{ subject: "Urgent", priority: true }, { subject: "Question", priority: false }] });
   });
 });

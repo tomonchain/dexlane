@@ -14,3 +14,4 @@ export * from "./costs";
 export * from "./supplies";
 export * from "./movements";
 export * from "./delivery";
+export * from "./lots";

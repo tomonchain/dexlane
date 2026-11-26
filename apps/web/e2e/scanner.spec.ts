@@ -1,6 +1,6 @@
 import { deflateSync, crc32 } from "node:zlib";
 import { expect, test, type Page } from "@playwright/test";
-import { E2E_PASSWORD, E2E_TOKEN } from "./constants";
+import { E2E_API_PORT, E2E_EMAIL, E2E_PASSWORD, E2E_TOKEN } from "./constants";
 
 /** PNG valide de la largeur voulue : la largeur choisit le scénario du lecteur factice (e2e/harness.ts). */
 function png(width: number, height = 14): Buffer {
@@ -35,9 +35,10 @@ const takePhoto = (page: Page, scenario: number) =>
 
 /** Ouvre une session ; définit le mot de passe au passage si le parcours est lancé seul sur une base neuve. */
 async function login(page: Page) {
+  // Le propriétaire de l'installation : créé avec le jeton d'installation s'il n'existe pas encore, puis connecté.
   const { passwordSet } = (await (await page.request.get("/auth")).json()) as { passwordSet: boolean };
-  const data = passwordSet ? { password: E2E_PASSWORD } : { setupToken: E2E_TOKEN, newPassword: E2E_PASSWORD };
-  expect((await page.request.post("/auth", { data })).ok()).toBe(true);
+  if (!passwordSet) expect((await page.request.post("/auth", { data: { setupToken: E2E_TOKEN, email: E2E_EMAIL, newPassword: E2E_PASSWORD } })).ok()).toBe(true);
+  expect((await page.request.post("/api/auth/sign-in/email", { data: { email: E2E_EMAIL, password: E2E_PASSWORD } })).ok()).toBe(true);
   // L'assistant de démarrage a son propre parcours : ailleurs, il est considéré comme terminé.
   expect((await page.request.put("/api/app-settings", { data: { onboardingDone: true } })).ok()).toBe(true);
 }
@@ -66,14 +67,15 @@ const onHand = (page: Page) => page.getByTestId("on-hand");
 /** Bandeau d'erreur de l'application (Next ajoute son propre role="alert" pour l'annonce des pages). */
 const errorBanner = (page: Page) => page.locator('[data-slot="alert"][data-variant="destructive"]');
 
-test("première utilisation : l'assistant crée le compte, règle le scan, importe une série, crée les emplacements, la stratégie de prix et un canal", async ({ page }) => {
+test("première utilisation : l'assistant crée le compte, la boutique, règle le scan, importe une série, crée les emplacements, les envois et la stratégie de prix", async ({ page }) => {
   test.setTimeout(60_000);
   await page.goto("/inventory");
   await page.waitForURL(/\/welcome$/);
-  await expect(page.getByRole("heading", { name: "Créez votre compte" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Crée ton compte" })).toBeVisible();
 
   // 1. Compte : un mauvais jeton est refusé, le bon crée le compte.
   await page.getByLabel("Jeton d'installation").fill("pas-le-bon-jeton-pas-le-bon-jeton");
+  await page.getByLabel("Adresse e-mail").fill(E2E_EMAIL);
   await page.getByLabel(/^Mot de passe/).fill(E2E_PASSWORD);
   await page.getByLabel("Confirmer le mot de passe").fill(E2E_PASSWORD);
   await page.getByRole("button", { name: "Créer mon compte" }).click();
@@ -81,14 +83,20 @@ test("première utilisation : l'assistant crée le compte, règle le scan, impor
   await page.getByLabel("Jeton d'installation").fill(E2E_TOKEN);
   await page.getByRole("button", { name: "Créer mon compte" }).click();
 
-  // 2. Mode de scan.
-  await expect(page.getByRole("heading", { name: "Comment scannez-vous vos cartes ?" })).toBeVisible();
+  // 2. Boutique : le nom et l'adresse imprimés sur les bons et les reçus.
+  await expect(page.getByRole("heading", { name: "Ta boutique" })).toBeVisible();
+  await page.getByLabel("Nom de la boutique").fill("Cartes du Lac");
+  await page.getByLabel("Adresse").fill("3 rue du Lac\n74000 Annecy");
+  await page.getByRole("button", { name: "Continuer" }).click();
+
+  // 3. Mode de scan.
+  await expect(page.getByRole("heading", { name: "Comment scannes-tu tes cartes ?" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Continuer" })).toBeDisabled();
   await page.getByRole("radio", { name: /Appareil photo du téléphone/ }).click();
   await page.getByRole("button", { name: "Continuer" }).click();
 
-  // 3. Séries : les séries déjà présentes sont cochées d'office, « 151 » s'importe avec une barre d'avancement.
-  await expect(page.getByRole("heading", { name: "Quelles séries avez-vous ?" })).toBeVisible();
+  // 4. Séries (propriétaire de l'installation) : les séries déjà présentes sont cochées d'office, « 151 » s'importe avec une barre d'avancement.
+  await expect(page.getByRole("heading", { name: "Quelles séries as-tu ?" })).toBeVisible();
   await expect(page.getByRole("checkbox", { name: /Ténèbres Embrasées/ })).toBeDisabled();
   // Les cartes anglaises ont leur propre catalogue : rien n'y est encore importé.
   await page.getByLabel("Langue des cartes").selectOption("en");
@@ -101,22 +109,20 @@ test("première utilisation : l'assistant crée le compte, règle le scan, impor
   await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "1");
   await page.getByRole("button", { name: "Continuer" }).click();
 
-  // 4. Emplacements : deux boîtes et un classeur, nommés d'office.
+  // 5. Emplacements : deux boîtes et un classeur, nommés d'office.
   await page.getByLabel("Nombre de boîtes").fill("2");
   await page.getByLabel("Nombre de classeurs").fill("1");
   await expect(page.getByTestId("location-preview")).toHaveText("BOITE-01  BOITE-02  CLASSEUR-01");
   await page.getByRole("button", { name: "Créer 3 emplacements" }).click();
 
-  // 5. Prix : la stratégie choisie est enregistrée.
-  await expect(page.getByRole("heading", { name: "Comment fixer vos prix ?" })).toBeVisible();
+  // 6. Envois et prix : l'affranchissement et la stratégie choisie sont enregistrés ; un montant illisible est refusé.
+  await expect(page.getByRole("heading", { name: "Tes envois et tes prix" })).toBeVisible();
   await expect(page.getByRole("radio", { name: /Équilibré/ })).toBeChecked();
   await page.getByRole("radio", { name: /Vendre vite/ }).click();
-  await page.getByRole("button", { name: "Continuer" }).click();
-
-  // 6. Canaux : étape passée, puis fin de l'assistant.
-  await expect(page.getByRole("heading", { name: "Où vendez-vous ?" })).toBeVisible();
-  await page.getByTestId("channel-card-ebay").getByRole("radio", { name: "Simulation" }).click();
-  await expect(page.getByText("eBay : simulation")).toBeVisible();
+  await page.getByLabel("Lettre suivie").fill("abc");
+  await page.getByRole("button", { name: "Terminer" }).click();
+  await expect(page.getByText("Lettre suivie : montant invalide.")).toBeVisible();
+  await page.getByLabel("Lettre suivie").fill("2,90");
   await page.getByRole("button", { name: "Terminer" }).click();
   await expect(page.getByRole("heading", { name: "Tout est prêt" })).toBeVisible();
   await page.getByRole("button", { name: "Aller au stock" }).click();
@@ -128,13 +134,15 @@ test("première utilisation : l'assistant crée le compte, règle le scan, impor
   expect(await json("/api/app-settings")).toMatchObject({ onboardingDone: true, intakeMode: "CAMERA" });
   expect((await json("/api/pricing/settings")).strategy).toBe("FAST");
   expect(((await json("/api/locations")).locations as { code: string }[]).map((l) => l.code)).toEqual(expect.arrayContaining(["BOITE-01", "BOITE-02", "CLASSEUR-01"]));
-  expect(((await json("/api/channels")).channels as { id: string; mode: string }[]).find((c) => c.id === "ebay")!.mode).toBe("SIMULATION");
-  await page.request.put("/api/channels/ebay", { data: { mode: "OFF" } });
+  expect((await json("/api/app-settings")).seller).toMatchObject({ name: "Cartes du Lac", address: "3 rue du Lac\n74000 Annecy" });
+  expect((await json("/api/shipping-costs")).postage).toEqual({ LETTER_UNTRACKED: null, LETTER_TRACKED: 290, PARCEL_TRACKED: null });
+  await page.request.put("/api/shipping-costs", { data: { postage: { LETTER_UNTRACKED: null, LETTER_TRACKED: null, PARCEL_TRACKED: null }, supplies: (await json("/api/shipping-costs")).supplies } });
+  await page.request.put("/api/app-settings", { data: { seller: { name: "", address: "", legal: "" } } });
   await page.request.put("/api/pricing/settings", { data: { ...(await json("/api/pricing/settings")), strategy: "BALANCED" } });
   await page.goto("/inventory");
   await expect(page.getByRole("heading", { name: "Inventaire" })).toBeVisible();
 
-  // Déconnexion depuis le compte, puis retour par le seul mot de passe.
+  // Déconnexion depuis le compte, puis retour par l'adresse e-mail et le mot de passe.
   await page.getByTestId("more-button").click();
   await page.getByTestId("more-sheet").getByRole("link", { name: "Réglages" }).click();
   await page.getByRole("link", { name: /^Compte/ }).click();
@@ -143,9 +151,10 @@ test("première utilisation : l'assistant crée le compte, règle le scan, impor
   await expect(page.getByRole("heading", { name: "Connexion" })).toBeVisible();
   await expect(page.getByLabel("Jeton d'installation")).toHaveCount(0);
 
+  await page.getByLabel("Adresse e-mail").fill(E2E_EMAIL);
   await page.getByLabel("Mot de passe", { exact: true }).fill("ce-n-est-pas-ca");
   await page.getByRole("button", { name: "Se connecter" }).click();
-  await expect(errorBanner(page)).toHaveText("Mot de passe incorrect.");
+  await expect(errorBanner(page)).toHaveText("Adresse e-mail ou mot de passe incorrect.");
   await page.getByLabel("Mot de passe", { exact: true }).fill(E2E_PASSWORD);
   await page.getByRole("button", { name: "Se connecter" }).click();
   await expect(page.getByRole("heading", { name: "Aujourd'hui" })).toBeVisible();
@@ -1141,13 +1150,266 @@ test("lot sans temps mort : variante appliquée en masse, corrections enchaîné
   await page.request.post("/api/publications/cancel", { data: {} });
 });
 
-test("page d'accueil : vitrine publique sans session, puis « Aujourd'hui » avec ce qui attend une fois connecté", async ({ page }) => {
-  // Visiteur : la présentation du produit, sans navigation d'application ni donnée du stock.
+/** Le dernier e-mail envoyé à cette adresse, et le chemin du lien qu'il contient. */
+async function lastMail(page: Page, to: string) {
+  const mails = (await (await page.request.get(`http://127.0.0.1:${E2E_API_PORT}/__test/mails`)).json()) as { to: string; subject: string; text: string }[];
+  const mail = mails.filter((m) => m.to === to).at(-1)!;
+  const url = new URL(mail.text.match(/https?:\/\/\S+/)![0]);
+  return { subject: mail.subject, path: url.pathname + url.search };
+}
+
+test("inscription : compte créé depuis /signup, adresse vérifiée par le lien reçu, stock à soi, connexion par e-mail et mot de passe oublié", async ({ page }) => {
+  // Le compte d'installation a déjà du stock : le nouveau compte ne doit pas le voir.
+  await login(page);
+  await page.request.post("/api/locations", { data: { code: "BOITE-INS" } });
+  const { candidates } = (await (await page.request.get("/api/catalog/cards?name=fouinar")).json()) as { candidates: { variants: { id: string }[] }[] };
+  await page.request.post("/api/inventory/receive", {
+    data: { variantId: candidates[0]!.variants[0]!.id, condition: "NM", quantity: 1, locationCode: "BOITE-INS", unitCostCents: 5 },
+    headers: { "Idempotency-Key": `e2e-inscription-${Date.now()}` },
+  });
+  expect(((await (await page.request.get("/api/stock")).json()) as { items: unknown[] }).items.length).toBeGreaterThan(0);
+  await page.request.post("/api/auth/sign-out", { data: {} });
+
+  const email = `vendeur-${Date.now()}@example.com`;
+  const password = "mot-de-passe-vendeur";
+  // Le bouton d'un forfait mène à l'inscription, forfait retenu.
+  await page.goto("/tarifs");
+  await page.getByTestId("plan-solo").getByRole("link", { name: "Choisir Solo" }).click();
+  await page.waitForURL(/\/signup\?plan=solo$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Crée ton compte");
+  await page.getByLabel("Adresse e-mail").fill(email);
+  await page.getByLabel(/^Mot de passe/).fill("court");
+  await page.getByRole("button", { name: "Créer mon compte" }).click();
+  await expect(page.getByTestId("signup-sent")).toHaveCount(0);
+  await page.getByLabel(/^Mot de passe/).fill(password);
+  await page.getByRole("button", { name: "Créer mon compte" }).click();
+  await expect(page.getByTestId("signup-sent")).toContainText(email);
+
+  // Tant que l'adresse n'est pas vérifiée, la connexion est refusée.
+  await page.goto("/login");
+  await page.getByLabel("Adresse e-mail").fill(email);
+  await page.getByLabel("Mot de passe", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Se connecter" }).click();
+  await expect(errorBanner(page)).toContainText("n'a pas encore été vérifiée");
+
+  // Le lien reçu vérifie l'adresse et ouvre le compte : l'assistant de démarrage, sans compte à créer, et un stock vide.
+  const verification = await lastMail(page, email);
+  expect(verification.subject).toBe("Confirme ton adresse e-mail");
+  expect(verification.path).toContain("/api/auth/verify-email?token=");
+  await page.goto(verification.path);
+  await page.waitForURL(/\/welcome$/);
+  await expect(page.getByLabel("Jeton d'installation")).toHaveCount(0);
+  // Le forfait choisi sur le site est retenu ; le compte démarre en Découverte.
+  expect((await (await page.request.get("/api/account")).json()) as { email: string; requestedPlan: string }).toMatchObject({ email, requestedPlan: "solo", role: "user", plan: { id: "decouverte" } });
+  expect(((await (await page.request.get("/api/stock")).json()) as { items: unknown[] }).items).toEqual([]);
+
+  // L'onboarding du nouvel inscrit : boutique, scan, rangement, envois et prix — sans compte à créer ni séries à importer.
+  await expect(page.getByRole("list", { name: "Étapes de démarrage" }).getByRole("listitem")).toHaveCount(4);
+  await expect(page.getByRole("heading", { name: "Ta boutique" })).toBeVisible();
+  await page.getByLabel("Nom de la boutique").fill("Chez le vendeur");
+  await page.getByRole("button", { name: "Continuer" }).click();
+  await expect(page.getByRole("heading", { name: "Comment scannes-tu tes cartes ?" })).toBeVisible();
+  await page.getByRole("radio", { name: /Appareil photo du téléphone/ }).click();
+  await page.getByRole("button", { name: "Continuer" }).click();
+  await expect(page.getByRole("heading", { name: "Où ranges-tu tes cartes ?" })).toBeVisible();
+  await page.getByLabel("Nombre de boîtes").fill("1");
+  await page.getByLabel("Nombre de classeurs").fill("0");
+  await page.getByRole("button", { name: "Créer 1 emplacement" }).click();
+  await expect(page.getByRole("heading", { name: "Tes envois et tes prix" })).toBeVisible();
+  await page.getByLabel("Lettre simple").fill("1,39");
+  await page.getByRole("button", { name: "Terminer" }).click();
+  await expect(page.getByRole("heading", { name: "Tout est prêt" })).toBeVisible();
+  await page.getByRole("button", { name: "Aller au stock" }).click();
+  await page.waitForURL(/\/stock$/);
+  // Ses réglages sont les siens : la boutique du propriétaire de l'installation n'a pas bougé.
+  const mine = (await (await page.request.get("/api/app-settings")).json()) as { onboardingDone: boolean; seller: { name: string } };
+  expect(mine).toMatchObject({ onboardingDone: true, seller: { name: "Chez le vendeur" } });
+  expect(((await (await page.request.get("/api/locations")).json()) as { locations: { code: string }[] }).locations.map((l) => l.code)).toEqual(["BOITE-01"]);
+  expect(((await (await page.request.get("/api/shipping-costs")).json()) as { postage: Record<string, number | null> }).postage.LETTER_UNTRACKED).toBe(139);
+  // Une fois l'adresse vérifiée, le lien n'ouvre plus de session.
+  await page.request.post("/api/auth/sign-out", { data: {} });
+  await page.goto(verification.path);
+  await page.goto("/stock");
+  await page.waitForURL(/\/login/);
+
+  // Connexion par adresse e-mail et mot de passe.
+  await page.goto("/login");
+  await page.getByLabel("Adresse e-mail").fill(email);
+  await page.getByLabel("Mot de passe", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Se connecter" }).click();
+  await expect(page.getByRole("heading", { name: "Aujourd'hui" })).toBeVisible();
+  await page.request.post("/api/auth/sign-out", { data: {} });
+
+  // Mot de passe oublié : lien par e-mail, nouveau mot de passe, session ouverte.
+  await page.goto("/login");
+  await page.getByRole("link", { name: "Mot de passe oublié ?" }).click();
+  await page.waitForURL(/\/forgot-password$/);
+  await page.getByLabel("Adresse e-mail").fill(email);
+  await page.getByRole("button", { name: "Envoyer le lien" }).click();
+  await expect(page.getByTestId("forgot-sent")).toBeVisible();
+  const reset = await lastMail(page, email);
+  expect(reset.subject).toBe("Réinitialise ton mot de passe");
+  await page.goto(reset.path);
+  await page.waitForURL(/\/reset-password\?token=/);
+  await page.getByLabel(/^Nouveau mot de passe/).fill("nouveau-mot-de-passe-vendeur");
+  await page.getByRole("button", { name: "Enregistrer le mot de passe" }).click();
+  // Le nouveau mot de passe ferme les sessions : on se connecte avec lui, et on retrouve son stock, toujours vide.
+  await page.waitForURL(/\/login$/);
+  await page.getByLabel("Adresse e-mail").fill(email);
+  await page.getByLabel("Mot de passe", { exact: true }).fill("nouveau-mot-de-passe-vendeur");
+  await page.getByRole("button", { name: "Se connecter" }).click();
+  await expect(page.getByRole("heading", { name: "Aujourd'hui" })).toBeVisible();
+  expect(((await (await page.request.get("/api/stock")).json()) as { items: unknown[] }).items).toEqual([]);
+});
+
+test("site marketing : en-tête et menu mobile, tarifs, pages légales, contact, colis, docs, 404, sitemap et robots", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Du carton de cartes à l'annonce en ligne." })).toBeVisible();
+  const header = page.getByRole("banner");
+  // En-tête : opaque, bordure basse une fois qu'on a défilé.
+  await expect(header).toHaveClass(/border-transparent/);
+  await page.mouse.wheel(0, 600);
+  await expect(header).toHaveClass(/border-border/);
+
+  // Menu mobile : aria-expanded, fermeture avec Échap, puis à la navigation ; lien actif.
+  const menuButton = page.getByRole("button", { name: "Menu" });
+  const menu = page.getByRole("navigation", { name: "Menu" });
+  await expect(menuButton).toHaveAttribute("aria-expanded", "false");
+  await expect(menu).toBeHidden();
+  await menuButton.click();
+  await expect(menuButton).toHaveAttribute("aria-expanded", "true");
+  await expect(menu.getByRole("link", { name: "GitHub" })).toHaveAttribute("target", "_blank");
+  await page.keyboard.press("Escape");
+  await expect(menuButton).toHaveAttribute("aria-expanded", "false");
+  await expect(menu).toBeHidden();
+  await menuButton.click();
+  await menu.getByRole("link", { name: "Tarifs" }).click();
+  await page.waitForURL(/\/tarifs$/);
+  await expect(menuButton).toHaveAttribute("aria-expanded", "false");
+  await menuButton.click();
+  await expect(menu.getByRole("link", { name: "Tarifs" })).toHaveAttribute("aria-current", "page");
+  await page.keyboard.press("Escape");
+
+  // /tarifs : grille complète lue dans la configuration, trois lignes, encart, FAQ du prix.
+  await expect(page).toHaveTitle("Tarifs — Dexlane");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Tu paies selon ce que tu publies. Rien sur ce que tu vends.");
+  await expect(page.locator("[data-testid^=plan-]")).toHaveCount(4);
+  await expect(page.getByTestId("plan-pro")).toContainText("Recommandé");
+  await expect(page.getByTestId("plan-pro")).toContainText(/29\s€ \/ mois/);
+  await expect(page.getByTestId("plan-boutique")).toContainText("Support prioritaire");
+  await expect(page.getByText("Un lot compte pour une seule carte.")).toBeVisible();
+  await expect(page.getByText(/10\s€ les 500 cartes supplémentaires/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tu préfères l'héberger toi-même ?" })).toBeVisible();
+  await expect(page.locator("details")).toHaveCount(4);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBe(0);
+
+  // Pages légales : un seul titre, un sommaire, des champs à compléter.
+  for (const [path, title] of [["/mentions-legales", "Mentions légales"], ["/cgu", "CGU"], ["/confidentialite", "Confidentialité"]] as const) {
+    await page.goto(path);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(title);
+    await expect(page.getByRole("navigation", { name: "Sommaire" })).toBeVisible();
+    await expect(page.getByText("[À COMPLÉTER]").first()).toBeVisible();
+  }
+  await expect(page.getByRole("heading", { name: "Suppression du compte et des données eBay associées" })).toBeVisible();
+
+  // Pied de page : trois groupes.
+  for (const group of ["Produit", "Projet", "Légal"]) await expect(page.getByRole("navigation", { name: group })).toBeVisible();
+
+  await page.goto("/contact");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Contact");
+  await expect(page.getByText("Une question, un bug, une idée ? Écris-nous, c'est le fondateur qui répond.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "[À COMPLÉTER]" })).toHaveAttribute("href", "mailto:[À COMPLÉTER]");
+  await expect(page.getByRole("link", { name: "github.com/tomonchain/dexlane/issues" })).toBeVisible();
+
+  await page.goto("/colis");
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Tu viens de recevoir une carte vendue avec Dexlane.");
+  await expect(page.getByRole("main").getByRole("link", { name: "Essayer gratuitement" })).toHaveAttribute("href", /^\/signup\?code=/);
+  await expect(page.getByRole("heading", { name: "Connecte ton compte eBay" })).toBeVisible();
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /\/og\.png$/);
+  const og = await page.request.get("/og.png");
+  expect(og.headers()["content-type"]).toBe("image/png");
+
+  // Docs : un sommaire repliable sur téléphone, des pages statiques, page suivante ; une page inconnue est une 404.
+  await page.goto("/docs");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Documentation");
+  await page.getByRole("main").getByRole("link", { name: /Installer la version Community/ }).first().click();
+  await page.waitForURL(/\/docs\/community$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Installer la version Community");
+  await expect(page.getByText("EBAY_RU_NAME").first()).toBeVisible();
+  await page.getByText("Sommaire de la documentation").click();
+  await page.getByRole("navigation", { name: "Sommaire de la documentation" }).getByRole("link", { name: "Forfaits et quotas" }).click();
+  await page.waitForURL(/\/docs\/forfaits$/);
+  await expect(page.getByRole("heading", { level: 2, name: "Ce qui compte comme une carte publiée" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Sommaire de la documentation" })).toBeHidden();
+  await page.getByRole("link", { name: /Suivant/ }).click();
+  await page.waitForURL(/\/docs\/community$/);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBe(0);
+  expect((await page.goto("/docs/inconnue"))?.status()).toBe(404);
+
+  const missing = await page.goto("/cette-page-n-existe-pas");
+  expect(missing?.status()).toBe(404);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Cette page n'existe pas.");
+  await page.getByRole("main").getByRole("link", { name: "Accueil" }).click();
+  await page.waitForURL(/\/$/);
+
+  const sitemap = await (await page.request.get("/sitemap.xml")).text();
+  expect(sitemap).toContain("/tarifs</loc>");
+  expect(sitemap).not.toContain("/colis");
+  const robots = await (await page.request.get("/robots.txt")).text();
+  expect(robots).toMatch(/Sitemap: .*\/sitemap\.xml/);
+  expect(robots).toContain("Disallow: /api/");
+});
+
+test("page d'accueil : landing publique sans session, puis « Aujourd'hui » avec ce qui attend une fois connecté", async ({ page }) => {
+  // Visiteur : la landing statique, sans navigation d'application ni donnée du stock, référencée.
+  await page.goto("/");
+  await expect(page).toHaveTitle("Dexlane — Publie tes cartes Pokémon sur eBay en quelques secondes");
+  await expect(page.locator("html")).toHaveAttribute("lang", "fr");
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /^index/);
+  await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", "Tes cartes en vente sur eBay. Sans y passer tes soirées.");
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /\/og\.png$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+  // Le titre porte le logo eBay à la place du mot : son nom accessible reste la phrase du brief.
+  const hero = page.getByRole("heading", { level: 1, name: "Tes cartes en vente sur eBay en quelques secondes. Pas en quelques soirées." });
+  await expect(hero).toBeVisible();
+  await expect(hero.getByRole("img", { name: "eBay" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Navigation principale" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Quatre gestes, dans l'ordre." })).toBeVisible();
-  await page.getByRole("link", { name: "Ouvrir Dexlane" }).click();
+  // La démonstration du produit (HTML) et les illustrations montrent de vraies cartes.
+  await expect(page.locator('img[src*="landing%2Fcards"]').first()).toBeAttached();
+  // Mobile d'abord : le CTA principal est visible sans défiler.
+  const cta = page.getByRole("link", { name: "Essayer gratuitement" }).first();
+  await expect(cta).toBeInViewport();
+  await expect(cta).toHaveAttribute("href", "/signup");
+  await expect(page.getByRole("link", { name: "Voir le code sur GitHub" })).toHaveAttribute("href", "https://github.com/tomonchain/dexlane");
+  for (const title of ["Vendre des cartes, c'est 10 % de passion et 90 % de saisie.", "Trois étapes. La troisième est un clic.", "Tout ce qui te prend du temps, Dexlane s'en charge.", "Que tu vendes 30 cartes ou 3 000.", "Tu paies selon ce que tu publies. Rien sur ce que tu vends.", "Le code est ouvert. Vérifie par toi-même.", "Fait par un vendeur, pour des vendeurs.", "Les questions qu'on nous pose", "Tes cartes ne se vendront pas depuis un classeur."]) {
+    await expect(page.getByRole("heading", { level: 2, name: title })).toBeVisible();
+  }
+  // Ancres des sections ; huit fonctionnalités, dont les deux sur le stock ; grille de tarifs courte.
+  for (const id of ["probleme", "comment-ca-marche", "fonctionnalites", "pour-qui", "tarifs", "open-source", "fondateur", "faq", "essayer"]) {
+    await expect(page.locator(`section#${id}`)).toHaveCount(1);
+  }
+  await expect(page.locator("#fonctionnalites h3")).toHaveCount(8);
+  await expect(page.getByRole("heading", { name: "Retrouve chaque carte en dix secondes" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Achats, ventes, marge" })).toBeVisible();
+  await expect(page.getByTestId("plan-pro")).toContainText("Recommandé");
+  // Chaque forfait dit ce qu'il ajoute au précédent, et le rythme que permet son quota.
+  await expect(page.getByTestId("plan-pro")).toContainText("Tout Solo, plus :");
+  await expect(page.getByTestId("plan-pro")).toContainText("Suggestions de titre et de prix");
+  await expect(page.getByTestId("plan-pro")).not.toContainText("Publication en masse");
+  await expect(page.getByTestId("plan-solo")).toContainText("≈ 35 cartes par semaine");
+  await expect(page.locator("#tarifs").getByText("Un lot compte pour une seule carte.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Voir le détail des tarifs →" })).toHaveAttribute("href", "/tarifs");
+  // Les éléments « à confirmer » sont affichés tels que rédigés ; pas de témoignages.
+  await expect(page.getByText("Licence [À CONFIRMER]")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ce qu'en disent les vendeurs" })).toHaveCount(0);
+  // FAQ : une question s'ouvre sur sa réponse.
+  await page.getByText("Est-ce que Dexlane prend une commission sur mes ventes ?").click();
+  await expect(page.getByText("Non, aucune. Tu paies ton forfait, c'est tout.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Dexlane est un outil indépendant.", { exact: false })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBe(0);
+  // Sur téléphone, « Se connecter » est dans le menu.
+  await page.getByRole("button", { name: "Menu" }).click();
+  await page.getByRole("navigation", { name: "Menu" }).getByRole("link", { name: "Se connecter" }).click();
   await page.waitForURL(/\/login$/);
 
   // Propriétaire : un lot en cours apparaît dans « À faire » et mène droit au lot.
@@ -1786,4 +2048,63 @@ test("mémoire de l'appareil : des données gardées par une version précédent
   await expect(page.getByTestId("supply-Sleeves").or(page.getByText("Aucune fourniture suivie"))).toBeVisible();
   expect(errors).toEqual([]);
   expect(await page.evaluate(() => localStorage.getItem("dexlane-cache-v1"))).toBeNull();
+});
+
+test("forfait, gradation, suggestions et lots : le compte d'installation sans limite, une carte gradée, deux cartes vendues en un lot", async ({ page }) => {
+  await login(page);
+  // Le compte d'installation n'a pas de forfait : tout est ouvert, sans quota.
+  await page.goto("/settings/plan");
+  await expect(page.getByTestId("plan-current")).toContainText("Forfait Community");
+  await expect(page.getByTestId("quota-meter")).toContainText("sans limite");
+  await expect(page.getByText("Installation sans limite")).toBeVisible();
+
+  const variant = async (name: string) => ((await (await page.request.get(`/api/catalog/cards?name=${name}`)).json()) as { candidates: { variants: { id: string }[] }[] }).candidates[0]!.variants[0]!.id;
+  await page.request.post("/api/locations", { data: { code: "BOX-LOT" } });
+  const receive = async (variantId: string, condition: string, unique: boolean) => (await (await page.request.post("/api/inventory/receive", {
+    data: { variantId, condition, quantity: 1, locationCode: "BOX-LOT", unitCostCents: 20, unique },
+    headers: { "Idempotency-Key": `e2e-lot-${condition}-${Date.now()}-${Math.random()}` },
+  })).json()) as { offer: { id: string; offerSku: string } };
+  const graded = await receive(await variant("dracaufeu"), "NM", true);
+  const [first, second] = [await receive(await variant("fouinar"), "GD", true), await receive(await variant("fouinar"), "EX", true)];
+  for (const o of [graded, first, second]) await page.request.post(`/api/pricing/offers/${o.offer.id}/price`, { data: { targetPriceCents: 400 } });
+
+  // Une carte gradée : la note remplace l'état dans le titre de l'annonce.
+  const panel = await openStockCard(page, graded.offer.offerSku);
+  await panel.getByRole("button", { name: "Noter une gradation" }).click();
+  await panel.getByTestId("grading-grader").selectOption("PSA");
+  await panel.getByTestId("grading-grade").selectOption("10");
+  await panel.getByLabel("Numéro de certificat").fill("87654321");
+  await panel.getByRole("button", { name: "Enregistrer", exact: true }).last().click();
+  await expect(panel.getByTestId("stock-grading")).toContainText("PSA 10");
+  await expect(panel.getByTestId("stock-listing-title")).toContainText("PSA 10");
+  // Suggestions : un titre pour la recherche, appliqué d'un clic, puis retour au modèle.
+  const suggestions = panel.getByTestId("stock-suggestions");
+  await expect(suggestions).toContainText("Dracaufeu 4/102");
+  await suggestions.getByRole("button", { name: "Utiliser ce titre" }).click();
+  await expect(page.getByText("Titre appliqué")).toBeVisible();
+  await suggestions.getByRole("button", { name: "Revenir au modèle" }).click();
+  await expect(page.getByText("Retour au modèle de titre")).toBeVisible();
+
+  // Deux cartes cochées deviennent un lot : elles quittent le stock à l'unité.
+  await page.goto("/stock");
+  await page.getByLabel("Rechercher dans le stock").fill("fouinar");
+  await page.getByTestId(`stock-${first.offer.offerSku}`).getByRole("checkbox").check();
+  await page.getByTestId(`stock-${second.offer.offerSku}`).getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Actions" }).click();
+  await page.getByRole("menuitem", { name: "Créer un lot" }).click();
+  const dialog = page.getByRole("dialog", { name: "Créer un lot" });
+  await dialog.getByTestId("lot-title").fill("Lot Fouinar x2");
+  await dialog.getByTestId("lot-price").fill("6");
+  await dialog.getByTestId("lot-create").click();
+  await expect(page.getByText("Lot créé : Lot Fouinar x2")).toBeVisible();
+  await expect(page.getByTestId(`stock-${first.offer.offerSku}`)).toHaveCount(0);
+
+  await page.goto("/lots");
+  const lot = page.getByTestId("sale-lots").locator("li").filter({ hasText: "Lot Fouinar x2" }).first();
+  await expect(lot).toContainText("2 cartes");
+  await expect(lot).toContainText("À vendre");
+  page.once("dialog", (d) => void d.accept());
+  await lot.getByRole("button", { name: "Défaire" }).click();
+  await expect(page.getByText("Lot défait : les cartes sont de retour dans le stock")).toBeVisible();
+  await expect(lot).toContainText("Défait");
 });
