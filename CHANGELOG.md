@@ -13,6 +13,9 @@ Retiré), avec le numéro de l'issue qu'il traite.
 ## [Non publié]
 
 ### Ajouté
+- Compte › Vos données : téléchargement de toutes ses données en JSON (sans mots de passe ni jetons) et suppression du
+  compte, confirmée par le mot de passe et le mot « SUPPRIMER » ; un membre d'équipe ne supprime que son accès. Les
+  journaux en ajout seul ne s'effacent qu'avec leur compte (migration 0037) (#49).
 - Fiche publique d'une carte : cartes précédente et suivante illustrées, « D'autres cartes de ce Pokémon » (par numéro
   de Pokédex), « Illustrées aussi par… », stade, types, PV et illustrateur, variation de la cote sur 30 jours, liens
   vers Cardmarket et eBay, visuel de la carte en image de partage (#80).

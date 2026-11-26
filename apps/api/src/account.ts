@@ -1,9 +1,10 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Hono } from "hono";
-import { withTx, type Db } from "@dexlane/db";
+import { OWNER_ACCOUNT_ID, withTx, type Db } from "@dexlane/db";
 import { PLAN_RULES, SELECTABLE_PLANS, planRule, type PlanId } from "@dexlane/shared";
 import { accountPlan, addQuotaPack, plansEnforced, quotaState, requireFeature } from "@dexlane/listings";
 import type { Env } from "./env";
+import { eraseAccount, eraseUser, exportAccount } from "./erasure";
 import { HttpError, parse, parseJsonBody } from "./http";
 import { invitationMail, supportMail, type Mailer } from "./mailer";
 import * as s from "./schemas";
@@ -25,7 +26,17 @@ export interface AccountRoutesDeps {
   /** Adresse qui reçoit les demandes de support (`SUPPORT_EMAIL`) ; null : elles restent en base. */
   supportEmail: string | null;
   onError: (err: unknown) => void;
+  /** Le mot de passe est-il celui de cet utilisateur ? (BetterAuth) */
+  verifyPassword: (userId: string, password: string) => Promise<boolean>;
+  /** Suppression d'une photo du stockage, après l'effacement d'un compte ; null sans stockage. */
+  removePhoto: ((url: string) => Promise<void>) | null;
 }
+
+/** Efface le cookie de session dans le navigateur (le relais du serveur web transmet Set-Cookie). */
+const CLEAR_SESSION = [
+  "dexlane.session_token=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax",
+  "__Secure-dexlane.session_token=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax; Secure",
+];
 
 const INVITATION_DAYS = 7;
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
@@ -204,6 +215,45 @@ export function registerAccountRoutes(app: Hono<Env>, deps: AccountRoutesDeps): 
         values (${c.var.accountId}, ${owner.email}, 'member_removed', 'account', ${c.var.accountId}, ${tx.json({ email: member.email })})`;
     });
     return c.json({ ok: true });
+  });
+
+  // ───────────────────────── Données personnelles (RGPD) ─────────────────────────
+
+  /** Toutes les données du compte en JSON (portabilité) : stock, ventes, réglages… sans les jetons ni les secrets. */
+  app.get("/api/account/export", async (c) => {
+    const data = await exportAccount(root, sql, c.var.accountId);
+    const day = new Date().toISOString().slice(0, 10);
+    return new Response(JSON.stringify(data, null, 2), {
+      headers: { "Content-Type": "application/json; charset=utf-8", "Content-Disposition": `attachment; filename="dexlane-donnees-${day}.json"` },
+    });
+  });
+
+  /**
+   * Supprime le compte (effacement). Le propriétaire efface tout le compte : données, photos, membres. Un membre
+   * d'équipe ne supprime que son utilisateur : le compte reste à son propriétaire. Le compte d'installation ne se
+   * supprime pas : c'est celui du serveur.
+   */
+  app.post("/api/account/delete", async (c) => {
+    const user = sessionUser(c);
+    const body = await parseJsonBody(c, s.deleteAccountBody);
+    if (c.var.accountId === OWNER_ACCOUNT_ID) {
+      throw new HttpError(409, "INSTALLATION_ACCOUNT", "le compte d'installation ne peut pas être supprimé");
+    }
+    if (!(await deps.verifyPassword(user.id, body.password))) throw new HttpError(403, "WRONG_PASSWORD", "mot de passe incorrect");
+    const [owner] = await membersOf(root, c.var.accountId);
+    let deleted: "account" | "user";
+    if (owner?.id === user.id) {
+      const { photoUrls } = await eraseAccount(root, c.var.accountId);
+      // Photos : après la transaction, sans bloquer la réponse sur une photo déjà absente du stockage.
+      if (deps.removePhoto) for (const url of photoUrls) await deps.removePhoto(url).catch(deps.onError);
+      deleted = "account";
+    } else {
+      await eraseUser(root, user.id);
+      deleted = "user";
+    }
+    const res = c.json({ ok: true, deleted });
+    for (const cookie of CLEAR_SESSION) res.headers.append("Set-Cookie", cookie);
+    return res;
   });
 
   // ───────────────────────── Support ─────────────────────────

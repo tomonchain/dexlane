@@ -408,6 +408,8 @@ export const invitationBody = z.strictObject({ email: z.email().max(254) });
 export const invitationId = z.uuid();
 export const acceptInvitationBody = z.strictObject({ token: z.string().trim().min(20).max(200) });
 export const memberId = z.string().trim().min(1).max(100);
+/** Suppression du compte : le mot de passe, et le mot « SUPPRIMER » tapé en toutes lettres. */
+export const deleteAccountBody = z.strictObject({ password: z.string().min(1).max(200), confirm: z.literal("SUPPRIMER") });
 export const supportBody = z.strictObject({
   subject: z.string().trim().min(3).max(150),
   message: z.string().trim().min(10).max(5000),

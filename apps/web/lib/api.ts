@@ -317,6 +317,8 @@ export const api = {
   /** L'utilisateur de la session : adresse, rôle (admin pour le propriétaire de l'installation), forfait choisi. */
   account: () => request<AccountSummary>("GET", "/account"),
   changePlan: (plan: Exclude<PlanId, "community">) => request<AccountSummary>("PUT", "/account/plan", { json: { plan } }),
+  deleteAccount: (password: string) =>
+    request<{ ok: true; deleted: "account" | "user" }>("POST", "/account/delete", { json: { password, confirm: "SUPPRIMER" }, idempotencyKey: crypto.randomUUID() }),
   addPacks: (packs = 1) => request<AccountSummary>("POST", "/account/packs", { json: { packs }, idempotencyKey: crypto.randomUUID() }),
   team: () => request<TeamView>("GET", "/team"),
   invite: (email: string) => request<{ id: string; email: string }>("POST", "/team/invitations", { json: { email }, idempotencyKey: crypto.randomUUID() }),
