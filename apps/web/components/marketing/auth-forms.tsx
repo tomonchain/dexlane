@@ -8,7 +8,8 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/misc";
-import { AUTH } from "@/components/landing/content";
+import { AUTH, HERO_VARIANT, HERO_VARIANTS } from "@/components/landing/content";
+import { AuthLayout } from "./auth-layout";
 import { clearCache } from "@/lib/cache";
 
 /*
@@ -45,19 +46,24 @@ function enter() {
 
 const param = (name: string) => new URLSearchParams(window.location.search).get(name) ?? "";
 
+/** Un écran de compte : la moitié droite d'AuthLayout, avec son titre et son chapeau. */
 function Card({ title, lead, children }: { title: string; lead?: ReactNode; children: ReactNode }) {
   return (
-    <div className="mx-auto grid w-full max-w-md gap-6 px-4 pt-12 pb-20 sm:pt-20 sm:pb-28">
-      <header className="grid gap-3">
-        <h1 className="text-[2rem] leading-[1.06] font-[450] tracking-[-0.035em] text-balance sm:text-[2.5rem]">{title}</h1>
-        {lead && <p className="text-base leading-relaxed text-muted-foreground">{lead}</p>}
-      </header>
-      {children}
-    </div>
+    <AuthLayout tagline={HERO_VARIANTS[HERO_VARIANT].h1}>
+      <div className="grid gap-7">
+        <header className="grid gap-2.5">
+          <h1 className="text-[2rem] leading-[1.06] font-[450] tracking-[-0.035em] text-balance sm:text-[2.25rem]">{title}</h1>
+          {lead && <p className="text-[15px] leading-relaxed text-muted-foreground">{lead}</p>}
+        </header>
+        {children}
+      </div>
+    </AuthLayout>
   );
 }
 
-const FORM = "grid gap-5 rounded-2xl bg-card p-6 shadow-[0_0_0_1px_rgb(0_0_0/0.06),0_16px_32px_-16px_rgb(0_0_0/0.18)]";
+const FORM = "grid gap-5";
+/** Encadré des confirmations (e-mail envoyé). */
+const NOTICE = "grid justify-items-start gap-4 rounded-2xl bg-muted p-5 ring-1 ring-border/60";
 const LINK = "font-medium text-foreground underline underline-offset-4 outline-none hover:no-underline focus-visible:no-underline";
 
 function Submit({ busy, children }: { busy: boolean; children: ReactNode }) {
@@ -99,7 +105,7 @@ export function SignupForm() {
   if (sent) {
     return (
       <Card title={AUTH.signup.sentTitle}>
-        <div className={FORM} data-testid="signup-sent">
+        <div className={NOTICE} data-testid="signup-sent">
           <MailCheck className="size-8" aria-hidden />
           <p className="text-[15px] leading-relaxed">{AUTH.signup.sentText.replace("{email}", email.trim())}</p>
           {resent
@@ -189,7 +195,7 @@ export function ForgotPasswordForm() {
   return (
     <Card title={AUTH.forgot.title} lead={sent ? undefined : AUTH.forgot.lead}>
       {sent ? (
-        <div className={FORM} data-testid="forgot-sent">
+        <div className={NOTICE} data-testid="forgot-sent">
           <MailCheck className="size-8" aria-hidden />
           <p className="text-[15px] leading-relaxed">{AUTH.forgot.sent}</p>
         </div>

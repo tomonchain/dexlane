@@ -279,4 +279,24 @@
     from { translate: 0 0; }
     to { translate: 0 -7px; }
   }
+
+  /*
+   * Écrans de compte (components/marketing/auth-layout.tsx) : chaque colonne du mur contient deux fois ses tuiles ;
+   * elle remonte (ou descend) d'une moitié, écart compris, et la boucle ne se voit pas. Idem pour le bandeau mobile.
+   */
+  .auth-wall-column {
+    animation: auth-wall var(--auth-duration) linear infinite;
+    animation-direction: var(--auth-direction);
+  }
+  @keyframes auth-wall {
+    from { transform: translateY(0); }
+    to { transform: translateY(calc(-50% - 0.5rem)); }
+  }
+  .auth-band {
+    animation: auth-band 40s linear infinite;
+  }
+  @keyframes auth-band {
+    from { transform: translateX(0); }
+    to { transform: translateX(calc(-50% - 0.375rem)); }
+  }
 }

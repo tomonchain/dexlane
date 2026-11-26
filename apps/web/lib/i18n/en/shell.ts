@@ -126,6 +126,12 @@ export const SHELL: Record<string, string> = {
   "Mot de passe oublié ?": "Forgot password?",
   "Retour à la connexion": "Back to sign-in",
   "Stock et négoce de cartes Pokémon": "Pokémon card stock and trading",
+  "Du classeur à l'annonce eBay, en quelques secondes.": "From binder to eBay listing, in seconds.",
+  // Écrans de compte : logo et liens du bas (components/marketing/auth-layout.tsx)
+  "Dexlane, accueil": "Dexlane, home",
+  "CGU": "Terms",
+  "Confidentialité": "Privacy",
+  "Contact": "Contact",
 
   // Messages d'authentification et de réseau
   "Mot de passe incorrect. Trop d'essais : nouvel essai possible dans {wait}.": "Incorrect password. Too many attempts: try again in {wait}.",
