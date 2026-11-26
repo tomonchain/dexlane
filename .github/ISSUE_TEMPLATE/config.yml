@@ -1,1 +1,8 @@
 blank_issues_enabled: true
+contact_links:
+  - name: Signaler une faille de sécurité
+    url: https://github.com/tomonchain/dexlane/security/advisories/new
+    about: En privé, jamais dans une issue publique (voir SECURITY.md).
+  - name: Une question sur la version hébergée
+    url: https://dexlane.app/contact
+    about: Compte, forfait, facturation, support.

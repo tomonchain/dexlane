@@ -466,6 +466,9 @@ export const DOC_PAGES: DocPage[] = [
               "Pour vendre en réel : un compte développeur eBay (gratuit).",
             ],
           },
+          {
+            note: `Le code est sous licence [AGPL-3.0](${GITHUB_URL}/blob/main/LICENSE) : tu peux l'installer, le modifier et l'utiliser librement. Si tu proposes ta version modifiée à d'autres en service en ligne, tu dois leur en donner le code source.`,
+          },
         ],
       },
       {

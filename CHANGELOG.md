@@ -13,6 +13,8 @@ Retiré), avec le numéro de l'issue qu'il traite.
 ## [Non publié]
 
 ### Ajouté
+- Code sous licence AGPL-3.0 (`LICENSE`), mentionnée sur l'accueil et dans la doc Community ; guides de contribution
+  et de sécurité, code de conduite, modèle de pull request (#73).
 - Données structurées JSON-LD sur le site public : éditeur, site, application et forfaits, FAQ, fil d'Ariane et articles de doc (#57).
 - `/llms.txt` et `/llms-full.txt` : le site et toute la doc en Markdown pour les moteurs génératifs (#58).
 - Mesure d'audience sans cookie (Vercel Web Analytics) sur le site public et les pages d'inscription (#59).

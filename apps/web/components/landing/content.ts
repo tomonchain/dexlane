@@ -210,8 +210,8 @@ export const OPEN_SOURCE = {
       text: "Gratuite, à installer sur ton serveur. Tu crées ton propre compte développeur eBay et tu gères toi-même l'hébergement.",
     },
   ],
-  /* [À CONFIRMER] */
-  licence: "Licence [À CONFIRMER]",
+  /** Licence du code (fichier LICENSE du dépôt). */
+  licence: "Licence AGPL-3.0",
 };
 
 export const FOUNDER = {

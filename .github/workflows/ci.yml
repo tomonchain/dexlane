@@ -28,7 +28,8 @@ jobs:
   checks:
     name: Types et tests
     # Une branche de travail est vérifiée par son push : inutile de la revérifier via sa pull request.
-    if: github.event_name != 'pull_request' || !startsWith(github.head_ref, 'claude/')
+    # Une pull request d'un fork est toujours vérifiée, quel que soit le nom de sa branche.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || !startsWith(github.head_ref, 'claude/')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -68,7 +69,8 @@ jobs:
 
   e2e:
     name: Parcours navigateur
-    if: github.event_name != 'pull_request' || !startsWith(github.head_ref, 'claude/')
+    # Une pull request d'un fork est toujours vérifiée, quel que soit le nom de sa branche.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || !startsWith(github.head_ref, 'claude/')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
