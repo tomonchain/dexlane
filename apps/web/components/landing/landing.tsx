@@ -2,7 +2,8 @@ import {
   ArrowRight, BadgeCheck, Check, Cloud, Coins, Download, Layers, MapPin, Package, RefreshCw, Server, Sparkles,
   type LucideIcon,
 } from "lucide-react";
-import type { ComponentType } from "react";
+import type { ComponentType, CSSProperties } from "react";
+import { InView } from "@/components/marketing/in-view";
 import { PlanGrid, PlanNotes } from "@/components/marketing/plans";
 import { PhoneDemo, StockDemoDesktop } from "@/components/marketing/product-demo";
 import { Cta, GitHubMark, Glow, LEAD, ORANGE, RealCard, SectionTitle, Streaks, TextLink, WithEbayLogo } from "@/components/marketing/ui";
@@ -68,57 +69,80 @@ function ProductShot() {
   );
 }
 
-/* ——— Vignettes de « Pour qui » : de vraies cartes en classeur et en étuis rigides. ——— */
+/*
+ * Vignettes de « Pour qui » : de vraies cartes en classeur et en étuis rigides. Elles s'animent à leur entrée à l'écran
+ * (InView, styles dans globals.css) : les cartes quittent le classeur, les ventes montent, les étuis se posent.
+ */
 
+const VIGNETTE_CARD = "bg-card shadow-[0_0_0_1px_rgb(0_0_0/0.06),0_12px_30px_-12px_rgb(0_0_0/0.25)] dark:shadow-[0_0_0_1px_rgb(255_255_255/0.08)]";
+
+/** Le classeur se vide : une carte après l'autre sort de sa pochette, puis une autre prend sa place. */
 function BinderVignette() {
-  const filled: Partial<Record<number, string>> = { 0: "006", 1: "151", 2: "025", 4: "150", 5: "094", 7: "133" };
+  // Pochette → carte, et son rang de départ (pour que les cartes ne partent pas ligne par ligne).
+  const filled: Partial<Record<number, [string, number]>> = { 0: ["006", 0], 1: ["151", 3], 2: ["025", 1], 4: ["150", 4], 5: ["094", 2], 7: ["133", 5] };
   return (
-    <div className="grid w-[62%] grid-cols-3 gap-2 rounded-xl bg-card p-3 shadow-[0_0_0_1px_rgb(0_0_0/0.06),0_12px_30px_-12px_rgb(0_0_0/0.25)]">
+    <InView className={cn("vignette-binder grid w-[50%] grid-cols-3 gap-2 rounded-xl p-3", VIGNETTE_CARD)}>
       {Array.from({ length: 9 }, (_, i) => {
-        const n = filled[i];
-        return n
-          ? <RealCard key={i} n={n} />
-          : <span key={i} className="aspect-[63/88] rounded-[10%/7%] border border-dashed border-foreground/15 bg-muted" />;
+        const card = filled[i];
+        return (
+          <span key={i} className="relative aspect-[63/88]">
+            <span className="absolute inset-0 rounded-[10%/7%] border border-dashed border-foreground/15 bg-muted" />
+            {card && <RealCard n={card[0]} className="binder-card absolute inset-0" style={{ "--i": card[1] } as CSSProperties} />}
+          </span>
+        );
       })}
-    </div>
+    </InView>
   );
 }
 
+/** Le rythme des ventes : les barres montent à l'entrée, puis se renouvellent d'une semaine à l'autre. */
 function RhythmVignette() {
-  const bars = [38, 54, 46, 70, 62, 84, 78];
+  // Hauteur de départ, puis celle vers laquelle la barre respire.
+  const bars: [number, number][] = [[38, 50], [54, 42], [46, 64], [70, 58], [62, 80], [84, 72], [78, 94]];
   return (
-    <div className="grid w-[70%] gap-3 rounded-xl bg-card p-4 shadow-[0_0_0_1px_rgb(0_0_0/0.06),0_12px_30px_-12px_rgb(0_0_0/0.25)]">
+    <InView className={cn("vignette-rhythm grid w-[70%] gap-3 rounded-xl p-4", VIGNETTE_CARD)}>
       <div className="flex h-24 items-end gap-2">
-        {bars.map((h, i) => (
-          <span key={i} className="flex-1 rounded-t-[3px]" style={{ height: `${h}%`, background: i === bars.length - 1 ? ORANGE : "color-mix(in oklch, var(--foreground) 14%, transparent)" }} />
+        {bars.map(([a, b], i) => (
+          <span key={i} className="flex h-full flex-1 items-end">
+            <span
+              className="rhythm-bar block h-full w-full origin-bottom rounded-t-[3px]"
+              style={{
+                "--a": a / 100, "--b": b / 100, "--i": i,
+                background: i === bars.length - 1 ? ORANGE : "color-mix(in oklch, var(--foreground) 14%, transparent)",
+              } as CSSProperties}
+            />
+          </span>
         ))}
       </div>
       <div className="flex items-center gap-2">
         <span className="h-2 w-1/3 rounded-full bg-foreground/15" />
-        <span className="ml-auto flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-success"><Check className="size-3" aria-hidden /><span className="h-1.5 w-6 rounded-full bg-success/50" /></span>
+        <span className="rhythm-pill ml-auto flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-success"><Check className="size-3" aria-hidden /><span className="h-1.5 w-6 rounded-full bg-success/50" /></span>
       </div>
-    </div>
+    </InView>
   );
 }
 
+/** La boutique : les étuis glissent un à un du bas vers leur place, comme posés sur une table. */
 function ShopVignette() {
   const cards = ["143", "149", "004"];
   return (
-    <div className="relative h-36 w-[70%]">
+    <InView className="vignette-shop relative h-36 w-[70%]">
       {cards.map((n, i) => (
         <span
           key={n}
-          className="absolute bottom-0 w-[34%] rounded-md border-2 border-foreground/10 bg-card/70 p-1.5 shadow-[0_10px_24px_-12px_rgb(0_0_0/0.35)] backdrop-blur-[1px]"
-          style={{ left: `${i * 30}%`, transform: `translateY(${-i * 10}px) rotate(${(i - 1) * 4}deg)` }}
+          className="shop-slab absolute bottom-0 w-[34%] rounded-md border-2 border-foreground/10 bg-card/70 p-1.5 shadow-[0_10px_24px_-12px_rgb(0_0_0/0.35)] backdrop-blur-[1px]"
+          style={{ left: `${i * 30}%`, "--i": i, "--ty": `${-i * 10}px`, "--r": `${(i - 1) * 4}deg` } as CSSProperties}
         >
           <span className="mb-1 block h-1.5 rounded-full bg-foreground/10" />
           <RealCard n={n} />
         </span>
       ))}
       <span className="absolute -top-1 right-0 flex -space-x-2">
-        {["#f6a046", "#3f3a36", "#c4521a"].map((c) => <span key={c} className="size-7 rounded-full border-2 border-card" style={{ background: c }} />)}
+        {["#f6a046", "#3f3a36", "#c4521a"].map((c, i) => (
+          <span key={c} className="shop-avatar size-7 rounded-full border-2 border-card" style={{ background: c, "--i": i } as CSSProperties} />
+        ))}
       </span>
-    </div>
+    </InView>
   );
 }
 const AUDIENCE_VIGNETTES = [BinderVignette, RhythmVignette, ShopVignette];
@@ -383,17 +407,19 @@ export function Landing() {
       <section id="essayer" className="relative isolate overflow-hidden px-4 py-24 sm:px-8 sm:py-36" aria-labelledby="cta-final-titre">
         <Glow className="top-1/2 left-1/2 -z-10 h-72 w-[42rem] -translate-x-1/2 -translate-y-1/2 opacity-30" />
         <div className="mx-auto grid max-w-4xl justify-items-center gap-6 text-center">
-          <div aria-hidden className="relative mb-4 h-36 w-64 sm:h-44 sm:w-80">
+          {/* L'éventail s'ouvre à l'entrée, flotte doucement, et s'écarte au survol (globals.css). */}
+          <InView className="cta-fan group relative mb-4 h-36 w-64 sm:h-44 sm:w-80" threshold={0.6}>
             {([["025", -14, -34], ["006", 0, 0], ["151", 14, 34]] as const).map(([n, r, x], i) => (
-              <RealCard
+              <span
                 key={n}
-                n={n}
-                sizes="140px"
-                className="absolute top-0 left-1/2 w-24 sm:w-28"
-                style={{ transform: `translateX(calc(-50% + ${x}%)) rotate(${r}deg) translateY(${i === 1 ? -6 : 6}px)`, transformOrigin: "50% 120%", zIndex: i === 1 ? 2 : 1 }}
-              />
+                aria-hidden
+                className="cta-fan-card absolute top-0 left-1/2 w-24 sm:w-28"
+                style={{ "--x": `${x}%`, "--r": `${r}deg`, "--y": `${i === 1 ? -6 : 6}px`, "--i": i, "--side": i - 1, zIndex: i === 1 ? 2 : 1 } as CSSProperties}
+              >
+                <RealCard n={n} sizes="140px" className="cta-fan-float" />
+              </span>
             ))}
-          </div>
+          </InView>
           <h2 id="cta-final-titre" className="text-[2.3rem] leading-[1.04] font-[450] tracking-[-0.04em] text-balance sm:text-6xl">{FINAL_CTA.title}</h2>
           <p className={cn(LEAD, "text-center")}>{FINAL_CTA.subtitle}</p>
           <Cta href={SIGNUP_URL} className="mt-2 w-full sm:w-auto">{CTA.primary} <ArrowRight /></Cta>
