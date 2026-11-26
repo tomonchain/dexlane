@@ -23,6 +23,48 @@ export const EBAY_CARD_CONDITIONS: Record<CardCondition, { code: string; label: 
   PO: { code: "400013", label: "Heavily played (Poor)" },
 };
 
+/**
+ * Cartes gradées : l'état d'objet « Gradée » (condition 2750, `LIKE_NEW` dans l'API Inventory), précisé par trois
+ * descripteurs : la société de gradation (27501), la note (27502) et le numéro de certificat (27503, texte libre).
+ * Les identifiants de valeurs sont ceux de la taxonomie eBay des cartes à collectionner.
+ */
+export const EBAY_GRADED_CONDITION = "LIKE_NEW";
+export const EBAY_GRADER_DESCRIPTOR = "27501";
+export const EBAY_GRADE_DESCRIPTOR = "27502";
+export const EBAY_CERT_DESCRIPTOR = "27503";
+export const EBAY_GRADERS: Record<string, string> = {
+  PSA: "275010", BCCG: "275011", BVG: "275012", BGS: "275013", CSG: "275014", CGC: "275015", SGC: "275016", KSA: "275017",
+  GMA: "275018", HGA: "275019", ISA: "2750110", PCA: "2750111", GSG: "2750112", PGS: "2750113", MNT: "2750114", TAG: "2750115",
+  "Rare Edition": "2750116", RCG: "2750117", PCG: "2750118", ACE: "2750119", CGA: "2750120", TCG: "2750121", ARK: "2750122",
+};
+export const EBAY_GRADER_OTHER = "2750123";
+export const EBAY_GRADES: Record<string, string> = {
+  "10": "275020", "9.5": "275021", "9": "275022", "8.5": "275023", "8": "275024", "7.5": "275025", "7": "275026", "6.5": "275027",
+  "6": "275028", "5.5": "275029", "5": "2750210", "4.5": "2750211", "4": "2750212", "3.5": "2750213", "3": "2750214", "2.5": "2750215",
+  "2": "2750216", "1.5": "2750217", "1": "2750218", Authentic: "2750219",
+};
+
+/** État et descripteurs eBay d'une carte : non gradée (état de la carte) ou gradée (société, note, certificat). */
+export function ebayCondition(input: Pick<PublishInput, "condition" | "details">): { condition: string; conditionDescriptors: { name: string; values?: string[]; additionalInfo?: string }[] } {
+  const d = input.details;
+  if (d?.grader) {
+    const grade = d.grade ? EBAY_GRADES[d.grade.replace(",", ".").replace(/\.0$/, "")] : undefined;
+    if (!grade) throw new DomainError("EBAY_GRADE_UNKNOWN", `note de gradation non reconnue par eBay : ${d.grade ?? "(vide)"}`);
+    return {
+      condition: EBAY_GRADED_CONDITION,
+      conditionDescriptors: [
+        { name: EBAY_GRADER_DESCRIPTOR, values: [EBAY_GRADERS[d.grader] ?? EBAY_GRADER_OTHER] },
+        { name: EBAY_GRADE_DESCRIPTOR, values: [grade] },
+        ...(d.certNumber ? [{ name: EBAY_CERT_DESCRIPTOR, additionalInfo: d.certNumber.slice(0, 30) }] : []),
+      ],
+    };
+  }
+  return {
+    condition: EBAY_UNGRADED_CONDITION,
+    conditionDescriptors: [{ name: EBAY_CARD_CONDITION_DESCRIPTOR, values: [EBAY_CARD_CONDITIONS[input.condition].code] }],
+  };
+}
+
 /** Adresse publique d'une annonce. Le bac à sable n'a pas d'adresse par site. */
 export function ebayListingUrl(client: EbayClient, settings: EbaySettings, listingId: string): string {
   const web = client.config.environment === "sandbox" ? "https://sandbox.ebay.com" : EBAY_MARKETPLACES[settings.marketplaceId].web;
@@ -89,15 +131,14 @@ export function ebayAdapter(sql: Db, client: EbayClient): ChannelAdapter {
       if (missing.length > 0) {
         throw new DomainError("EBAY_MISSING_ASPECTS", `eBay exige des caractéristiques que Dexlane ne sait pas remplir : ${missing.join(", ")}`, { aspects: missing });
       }
-      const condition = EBAY_CARD_CONDITIONS[input.condition];
+      const condition = ebayCondition(input);
 
       // 1. L'objet (référence, état, texte, photos, quantité) ; une annonce déjà en ligne est révisée d'office.
       await client.request("PUT", `${INVENTORY}/inventory_item/${sku}`, {
         language: market.language,
         body: {
           availability: { shipToLocationAvailability: { quantity: input.quantity } },
-          condition: EBAY_UNGRADED_CONDITION,
-          conditionDescriptors: [{ name: EBAY_CARD_CONDITION_DESCRIPTOR, values: [condition.code] }],
+          ...condition,
           product: { title: input.title, description: input.description, imageUrls: input.imageUrls.slice(0, 24), aspects },
         },
       });

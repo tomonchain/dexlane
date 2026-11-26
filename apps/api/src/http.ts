@@ -28,10 +28,13 @@ const CONFLICTS = new Set([
   "LOCATION_HAS_CHILDREN", "LOCATION_IN_USE", "NOT_FULLY_PICKED", "NOT_FULLY_PACKED", "NOTHING_TO_PACK", "NOTHING_TO_SHIP",
   "WRONG_ITEM", "SCANNED_POSITION_UNAVAILABLE", "TRACKING_REQUIRED", "CHANNEL_DISABLED", "CHANNEL_NOT_CONFIGURED", "CHANNEL_NOT_READY", "NOT_SIMULATED",
   "EBAY_NOT_CONNECTED", "EBAY_NOT_SET_UP", "EBAY_CONSENT_EXPIRED",
-  "OFFER_NOT_SELLABLE", "BATCH_NOT_READY", "BATCH_ALREADY_RECEIVED", "ITEM_ALREADY_RECEIVED",
+  "OFFER_NOT_SELLABLE", "QUOTA_POSTPONED", "BATCH_NOT_READY", "BATCH_ALREADY_RECEIVED", "ITEM_ALREADY_RECEIVED",
 ]);
 export function statusOfDomainError(e: DomainError): ContentfulStatusCode {
   if (e.code.endsWith("_NOT_FOUND")) return 404;
+  // Forfait : quota du mois consommé (un pack ou un forfait supérieur le rouvre), fonctionnalité d'un autre forfait.
+  if (e.code === "QUOTA_EXCEEDED") return 402;
+  if (e.code === "FEATURE_NOT_IN_PLAN") return 403;
   // La marketplace est en panne : l'appel peut être retenté plus tard.
   if (e.code === "EBAY_UNAVAILABLE") return 502;
   return CONFLICTS.has(e.code) ? 409 : 422;

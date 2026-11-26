@@ -397,3 +397,43 @@ export const calendarQuery = z.object({ from: calendarDate, to: calendarDate })
   .refine((v) => v.from <= v.to && (Date.parse(v.to) - Date.parse(v.from)) / 86_400_000 <= 93, { message: "from must precede to, 93 days at most", path: ["to"] });
 export const publicationId = z.uuid();
 export const rescheduleBody = z.strictObject({ plannedOn: calendarDate });
+
+// ───────────────────────── Forfait, équipe, support ─────────────────────────
+
+export const planBodyAccount = z.strictObject({ plan: z.enum(["decouverte", "solo", "pro", "boutique"]) });
+export const packBody = z.strictObject({ packs: z.number().int().min(1).max(20).optional() });
+export const invitationBody = z.strictObject({ email: z.email().max(254) });
+export const invitationId = z.uuid();
+export const acceptInvitationBody = z.strictObject({ token: z.string().trim().min(20).max(200) });
+export const memberId = z.string().trim().min(1).max(100);
+export const supportBody = z.strictObject({
+  subject: z.string().trim().min(3).max(150),
+  message: z.string().trim().min(10).max(5000),
+});
+
+// ───────────────────────── Lots, gradation, titre ─────────────────────────
+
+export const createLotBody = z.strictObject({
+  title: z.string().trim().min(1).max(80),
+  description: z.string().trim().max(2000).nullable().optional(),
+  priceCents: cents,
+  items: z.array(z.strictObject({ offerId: z.uuid(), qty: z.number().int().min(1).max(10_000) })).min(1).max(500),
+  ...location,
+});
+export const updateLotBody = z.strictObject({
+  title: z.string().trim().min(1).max(80).optional(),
+  description: z.string().trim().max(2000).nullable().optional(),
+  priceCents: cents.optional(),
+});
+export const lotId = z.uuid();
+
+/** Sociétés de gradation reconnues (et « Autre »), notes de 1 à 10 par demi-point ou « Authentic ». */
+export const GRADERS = ["PSA", "BGS", "CGC", "SGC", "PCA", "CCC", "TAG", "ACE", "Autre"] as const;
+export const gradingBody = z.strictObject({
+  grading: z.strictObject({
+    grader: z.enum(GRADERS),
+    grade: z.string().trim().regex(/^(10|[1-9](\.5)?|Authentic)$/, "grade must be 1 to 10 by half points, or Authentic"),
+    certNumber: z.string().trim().max(30).nullable().optional(),
+  }).nullable(),
+});
+export const titleBody = z.strictObject({ title: z.string().trim().min(1).max(80).nullable() });

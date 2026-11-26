@@ -19,6 +19,12 @@ export interface CardDetails {
   rarity: string;
   /** Code de finition : normal, holo, reverse. */
   finish: string;
+  /** Lot de plusieurs cartes (la carte décrite est la plus chère du lot). */
+  lot?: boolean;
+  /** Carte gradée : société de gradation, note et numéro de certificat. */
+  grader?: string | null;
+  grade?: string | null;
+  certNumber?: string | null;
 }
 
 export interface CategoryAspect {
@@ -76,7 +82,14 @@ const SOURCES: Source[] = [
   { names: ["rarete", "rarity", "seltenheit", "rarita", "rareza"], values: (d) => (d.rarity ? [d.rarity] : []) },
   { names: ["finition", "finish", "oberflache", "oberflachenveredelung", "finitura", "acabado"], values: (d) => FINISHES[d.finish] ?? [] },
   { names: ["fabricant", "manufacturer", "hersteller", "produttore", "fabricante"], values: () => ["The Pokémon Company", "Nintendo"] },
+  { names: ["gradee", "graded", "gradiert", "gradata", "graduada"], values: (d, lang) => (d.grader ? YES[lang] : NO[lang]) },
+  { names: ["societe de gradation", "professional grader", "bewertet von", "valutatore professionista", "evaluador profesional"], values: (d) => (d.grader ? [d.grader] : []) },
+  { names: ["note", "grade", "note de gradation", "bewertung", "voto", "calificacion"], values: (d) => (d.grade ? [d.grade] : []) },
+  { names: ["numero de certification", "certification number", "zertifizierungsnummer", "numero di certificazione", "numero de certificacion"], values: (d) => (d.certNumber ? [d.certNumber] : []) },
 ];
+
+const YES: Record<Lang, string[]> = { fr: ["Oui", "Yes"], de: ["Ja", "Yes"], it: ["Sì", "Yes"], es: ["Sí", "Yes"] };
+const NO: Record<Lang, string[]> = { fr: ["Non", "No"], de: ["Nein", "No"], it: ["No"], es: ["No"] };
 
 const sourceOf = (aspectName: string) => SOURCES.find((s) => s.names.includes(normalize(aspectName)));
 

@@ -59,6 +59,10 @@ export interface ListingOffer {
   photos: PhotoRow[];
   /** Ce qui manque pour publier ; vide : l'offre est prête. */
   missing: ListingBlocker[];
+  /** CARD : une carte ; LOT : un lot de cartes (une annonce). */
+  kind: "CARD" | "LOT";
+  /** Carte gradée : société, note et certificat. */
+  grading: { grader: string; grade: string | null; certNumber: string | null } | null;
   /** Annonces en cours sur les canaux. */
   listings: ListingState[];
 }
@@ -98,7 +102,34 @@ export function listingsOf(sql: Db, offerIds: string[]): Promise<ListingState[]>
     select ${listingColumns(sql)} from listings where offer_id in ${sql(offerIds)} and status <> 'ENDED' order by channel`;
 }
 
-type OfferRow = ListingSubject & Pick<ListingOffer, "offerId" | "imageUrl" | "category" | "isUnique" | "available" | "variantIncomplete">;
+type OfferRow = ListingSubject & Pick<ListingOffer, "offerId" | "imageUrl" | "category" | "isUnique" | "available" | "variantIncomplete" | "kind"> & {
+  lotTitle: string | null;
+  lotDescription: string | null;
+  titleOverride: string | null;
+};
+
+/** Description d'un lot : son texte, puis la liste de ses cartes. */
+async function lotTexts(sql: Db, lotIds: string[]): Promise<Map<string, { lines: string[]; offerIds: string[] }>> {
+  const out = new Map<string, { lines: string[]; offerIds: string[] }>();
+  if (lotIds.length === 0) return out;
+  const rows = await sql<{ lotOfferId: string; offerId: string; name: string; localNumber: string; setName: string | null; condition: string; qty: number }[]>`
+    select li.lot_offer_id, f.id as offer_id, c.name, c.local_number, s.name as set_name, f.condition, li.qty
+      from lot_items li
+      join stock_items si on si.id = li.stock_item_id
+      join offers f on f.id = si.offer_id
+      join card_variants v on v.id = f.variant_id
+      join catalog_cards c on c.id = v.catalog_card_id
+      left join catalog_sets s on s.id = c.set_id and s.language = c.language
+     where li.lot_offer_id in ${sql(lotIds)}
+     order by f.target_price_cents desc nulls last, c.name`;
+  for (const r of rows) {
+    const entry = out.get(r.lotOfferId) ?? { lines: [], offerIds: [] };
+    entry.lines.push(`- ${r.name} (${[r.setName, r.localNumber].filter(Boolean).join(" ")}) — ${r.condition}${r.qty > 1 ? ` ×${r.qty}` : ""}`);
+    entry.offerIds.push(r.offerId);
+    out.set(r.lotOfferId, entry);
+  }
+  return out;
+}
 
 /** Offres ayant du stock vendable — ou une annonce encore en cours, même épuisée —, les plus chères d'abord. */
 export async function listListingOffers(
@@ -108,6 +139,7 @@ export async function listListingOffers(
   const q = opts.q?.trim();
   const rows = await sql<(OfferRow & { total: number })[]>`
     select o.id as offer_id, o.offer_sku, o.condition, o.category, o.is_unique, o.target_price_cents,
+           o.kind, o.lot_title, o.lot_description, o.title_override, o.grader, o.grade, o.cert_number,
            c.name, c.local_number, c.set_id, c.language, c.rarity, c.image_url,
            v.finish, v.edition, v.subtype, v.stamp, v.incomplete as variant_incomplete,
            s.name as set_name, s.serie_name, s.card_count_official as official_count,
@@ -127,17 +159,38 @@ export async function listListingOffers(
      limit ${Math.min(opts.limit ?? 50, 200)} offset ${opts.offset ?? 0}`;
   const settings = await getListingSettings(sql);
   const offerIds = rows.map((r) => r.offerId);
-  const [photos, listings] = [await listPhotos(sql, { offerIds }), await listingsOf(sql, offerIds)];
+  const lots = await lotTexts(sql, rows.filter((r) => r.kind === "LOT").map((r) => r.offerId));
+  // Un lot montre les photos de ses cartes.
+  const photoOfferIds = [...new Set([...offerIds, ...[...lots.values()].flatMap((l) => l.offerIds)])];
+  const [photos, listings] = [await listPhotos(sql, { offerIds: photoOfferIds }), await listingsOf(sql, offerIds)];
   return {
     total: rows[0]?.total ?? 0,
     items: rows.map(({ total: _total, ...r }) => {
       const v = variablesOf(r);
+      const lot = r.kind === "LOT" ? lots.get(r.offerId) : undefined;
+      const card = buildListingText(r, settings, r.titleOverride);
+      const text = r.kind === "LOT"
+        ? {
+          title: r.lotTitle!,
+          description: [r.lotDescription, `Lot de ${lot?.lines.length ?? 0} cartes Pokémon :`, ...(lot?.lines ?? []), "", `Référence : ${r.offerSku}`]
+            .filter((l) => l !== null).join("\n").trim(),
+          warnings: [],
+        }
+        : card;
       const offer = {
-        details: { name: v.nom, number: v.numero, set: v.serie, language: r.language, rarity: v.rarete, finish: r.finish },
-        offerId: r.offerId, offerSku: r.offerSku, cardName: r.name, imageUrl: r.imageUrl, condition: r.condition, category: r.category,
-        isUnique: r.isUnique, targetPriceCents: r.targetPriceCents, available: r.available, variantIncomplete: r.variantIncomplete,
-        text: buildListingText(r, settings),
-        photos: photos.filter((p) => p.offerId === r.offerId),
+        details: { name: v.nom, number: v.numero, set: v.serie, language: r.language, rarity: v.rarete, finish: r.finish, lot: r.kind === "LOT", grader: r.grader, grade: r.grade, certNumber: r.certNumber },
+        offerId: r.offerId, offerSku: r.offerSku, cardName: r.kind === "LOT" ? r.lotTitle! : r.name, imageUrl: r.imageUrl, condition: r.condition, category: r.category,
+        isUnique: r.isUnique, targetPriceCents: r.targetPriceCents, available: r.available, variantIncomplete: r.kind === "LOT" ? false : r.variantIncomplete,
+        kind: r.kind, grading: r.grader ? { grader: r.grader, grade: r.grade ?? null, certNumber: r.certNumber ?? null } : null,
+        text,
+        photos: r.kind === "LOT"
+          ? (lot?.offerIds ?? []).flatMap((id) => {
+            // Une photo par carte : son visuel d'annonce, sinon son recto.
+            const own = photos.filter((p) => p.offerId === id);
+            const best = own.find((p) => p.kind === "LISTING") ?? own.find((p) => p.kind === "SCAN_FRONT") ?? own.find((p) => p.kind !== "BACKGROUND");
+            return best ? [best] : [];
+          }).slice(0, 23)
+          : photos.filter((p) => p.offerId === r.offerId),
       };
       return { ...offer, missing: listingBlockers(offer), listings: listings.filter((l) => l.offerId === r.offerId) };
     }),

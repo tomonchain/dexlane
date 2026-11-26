@@ -188,7 +188,7 @@ const offerState = (tx: Db, where: ReturnType<Db>) => tx<OfferState[]>`
     from offers o
     join card_variants v on v.id = o.variant_id
     join catalog_cards c on c.id = v.catalog_card_id
-   where ${where}
+   where o.kind = 'CARD' and ${where}
    order by o.id
    for update of o`;
 
@@ -316,7 +316,7 @@ export async function listOfferPricing(
       select coalesce(sum(s.on_hand), 0)::int as on_hand,
              coalesce((sum(s.on_hand::bigint * s.unit_cost_cents) / nullif(sum(s.on_hand), 0))::int, 0) as average_cost_cents
         from stock_items s where s.offer_id = o.id and s.lifecycle <> 'ARCHIVED') st on true
-   where ${query.includeEmpty ? sql`true` : sql`st.on_hand > 0`}
+   where o.kind = 'CARD' and ${query.includeEmpty ? sql`true` : sql`st.on_hand > 0`}
      ${query.offerId ? sql`and o.id = ${query.offerId}` : sql``}
      ${q ? sql`and (upper(o.offer_sku) like upper(${likeEscape(q)}) || '%'
                  or f_unaccent(lower(c.name)) like '%' || f_unaccent(lower(${likeEscape(q)})) || '%')` : sql``}`;

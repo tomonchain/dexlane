@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { useTestDb } from "@dexlane/db/testing";
 import { attachPhotos, createLocation, getOrderDetail, receiveCard, recordPhoto } from "@dexlane/inventory";
 import {
+  ebayCondition,
   EbayClient, buildAspects, createEbayDefaults, descriptionHtml, ebayAdapter, ebayConfigFromEnv, getEbaySettings, listChannels, listListingOffers,
   parseShippingServices, publishListing, saveEbaySettings, setChannelMode, shippingModeOf, syncChannels, syncQuantities, toChannelOrder,
   type CategoryAspect, type EbayConfig, type EbayOrder,
@@ -287,7 +288,7 @@ describe("orders", () => {
 
     const errors: unknown[] = [];
     // Une commande sur une référence inconnue ne bloque pas les autres, mais la synchronisation sera retentée.
-    expect(await syncChannels(sql, live, ACTOR, (e) => errors.push(e))).toEqual({ orders: 1, updated: 1, errors: 1 });
+    expect(await syncChannels(sql, live, ACTOR, (e) => errors.push(e))).toEqual({ orders: 1, updated: 1, revised: 0, errors: 1 });
     expect(errors[0]).toMatchObject({ code: "UNKNOWN_OFFER_SKU" });
     expect((await listChannels(sql, live))[0]!.lastSyncedAt).toBeNull();
 
@@ -371,5 +372,21 @@ describe("listing content", () => {
 
   it("turns the plain-text description into simple HTML", () => {
     expect(descriptionHtml("Dracaufeu <holo>\nNM\n\nEnvoi soigné")).toBe("<p>Dracaufeu &lt;holo&gt;<br>NM</p><p>Envoi soigné</p>");
+  });
+});
+
+describe("graded cards", () => {
+  it("lists a graded card as graded, with its grader, grade and certificate number", () => {
+    expect(ebayCondition({ condition: "NM", details: { name: "Dracaufeu", number: "4/102", set: "Set de Base", language: "fr", rarity: "", finish: "holo", grader: "PSA", grade: "9.5", certNumber: "12345678" } }))
+      .toEqual({
+        condition: "LIKE_NEW",
+        conditionDescriptors: [{ name: "27501", values: ["275010"] }, { name: "27502", values: ["275021"] }, { name: "27503", additionalInfo: "12345678" }],
+      });
+    // Une société inconnue d'eBay passe en « Autre » ; une note impossible est refusée plutôt qu'inventée.
+    expect(ebayCondition({ condition: "NM", details: { name: "x", number: "1", set: "s", language: "fr", rarity: "", finish: "normal", grader: "Autre", grade: "10" } }).conditionDescriptors[0])
+      .toEqual({ name: "27501", values: ["2750123"] });
+    expect(() => ebayCondition({ condition: "NM", details: { name: "x", number: "1", set: "s", language: "fr", rarity: "", finish: "normal", grader: "PSA", grade: "11" } })).toThrow(/note de gradation/);
+    // Non gradée : l'état de la carte.
+    expect(ebayCondition({ condition: "EX" })).toEqual({ condition: "USED_VERY_GOOD", conditionDescriptors: [{ name: "40001", values: ["400011"] }] });
   });
 });

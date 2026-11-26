@@ -68,3 +68,11 @@ export const alreadyRegisteredMail = (to: string, loginUrl: string) =>
 export const passwordResetMail = (to: string, url: string) =>
   compose(to, "Réinitialise ton mot de passe", ["Tu as demandé à changer ton mot de passe Dexlane."], { label: "Choisir un nouveau mot de passe", url },
     "Le lien est valable 1 heure. Si tu n'as rien demandé, ignore ce message : ton mot de passe n'a pas changé.");
+
+export const invitationMail = (to: string, inviter: string, url: string) =>
+  compose(to, "Tu es invité sur Dexlane", [`${inviter} t'invite à rejoindre son compte Dexlane : son stock, ses annonces et ses ventes.`],
+    { label: "Rejoindre le compte", url }, "Le lien est valable 7 jours. Si tu ne connais pas cette personne, ignore ce message.");
+
+export const supportMail = (to: string, input: { from: string; subject: string; message: string; plan: string; priority: boolean }) =>
+  compose(to, `${input.priority ? "[PRIORITAIRE] " : ""}Support Dexlane : ${input.subject}`,
+    [`De : ${input.from} (forfait ${input.plan})`, ...input.message.split(/\n{2,}/)]);

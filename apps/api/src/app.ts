@@ -10,6 +10,7 @@ import {
   deleteLocation, extractCardFromBulk, getInventorySummary, getOrderDetail, getShippingCosts, saveShippingCosts, listPreparation, markSlipsPrinted, getStockItemDetail, listAcquisitionLots,
   listLocations, listOrders, moveStock, packOrder, pickAllocation, receiveBulk, receiveCard, recordPhoto, resolveLocation,
   searchInventory, searchSellableOffers, shipOrder, updateLocationDescription,
+  createLot, dissolveLot, listLots,
   stockSupplyCosts, stockSuppliesSummary, shipmentsToTrack, recordTracking, markDelivered, updateTracking, markReviewRequested, takeReviewReminders, type Carrier, archiveSupply, countSupply, createSupply, getSupply, listSupplies, markSupplyOrdered, receiveSupply, takeSupplyAlerts, updateSupply, listStockMovements,
 } from "@dexlane/inventory";
 import {
@@ -24,20 +25,22 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { AGENT_TOKEN_PREFIX, createAgentToken, listAgentTokens, revokeAgentToken, verifyAgentToken } from "./agents";
 import { activeAccountIds, createAuth, ownerExists, publicBaseUrl, setupOwner, type Auth } from "./better-auth";
 import { mailerFromEnv, type Mailer } from "./mailer";
+import { registerAccountRoutes } from "./account";
 import { runForAccount, scopedDb } from "./scope";
 import { createMcpServer, type InternalCall } from "./mcp";
 import { trackingFromEnv, type TrackingAdapters } from "./tracking";
 import { HttpError, errorBody, idempotent, parse, parseJsonBody, secretEquals, statusOfDomainError } from "./http";
 import {
   cancelPublications, getPublicationCalendar, getPublicationDay, reschedulePublication, endListing, getActivity, getCardDetail, getListingSettings, getSchedule, getStockDetail, listChannels, listStock, stockFacets, planPublications, queuePublications, runDuePublications, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
-  syncChannels, syncQuantities, type ChannelAdapters,
+  syncChannels, syncPrices, syncQuantities, stockSuggestions, hasFeature, requireFeature, takeQuotaAlert, type ChannelAdapters,
   EBAY_MARKETPLACES, createEbayDefaults, ebayAccountOptions, ebayAdapter, ebayClientFromEnv, ebayShippingServices, getEbaySettings, missingEbaySettings,
   saveEbaySettings, type EbayClient,
 } from "@dexlane/listings";
+import type { Env } from "./env";
 import { readPhoto, type PhotoStore } from "./photos";
 import { getAppSettings, saveAppSettings } from "./settings";
 import {
-  broadcast, countSubscriptions, removeSubscription, reviewsMessage, saveSubscription, sendDigest, suppliesMessage, testMessage, vapidKeys, webPushSender, type PushSender,
+  broadcast, countSubscriptions, quotaMessage, removeSubscription, reviewsMessage, saveSubscription, sendDigest, suppliesMessage, testMessage, vapidKeys, webPushSender, type PushSender,
 } from "./notifications";
 import * as s from "./schemas";
 
@@ -70,7 +73,6 @@ export interface AppDeps {
   onError?: (err: unknown) => void;
 }
 
-type Env = { Variables: { actor: string; accountId: string; user?: { email: string; role: string; plan: string | null } } };
 
 const RECOGNITION_STATUS = {
   IMAGE_TOO_LARGE: 413, UNSUPPORTED_MEDIA_TYPE: 415, REFUSED: 502, TRUNCATED: 502, UNPARSEABLE: 502,
@@ -139,13 +141,13 @@ export function createApp(deps: AppDeps) {
     if (c.req.header("X-Dexlane-Browser") === "1") {
       // Requête relayée pour un navigateur : c'est sa session qui dit pour quel compte il travaille.
       const session = await auth().api.getSession({ headers: c.req.raw.headers });
-      const user = session?.user as { accountId?: string | null; email: string; role?: string | null; plan?: string | null } | undefined;
+      const user = session?.user as { id: string; name: string; accountId?: string | null; email: string; role?: string | null; plan?: string | null } | undefined;
       if (!user?.accountId) {
         if (unscoped(c.req.path) && c.req.path === "/api/setup/status") return next();
         throw new HttpError(401, "SESSION_EXPIRED", "this session is no longer valid; sign in again");
       }
       accountId = user.accountId;
-      c.set("user", { email: user.email, role: user.role ?? "user", plan: user.plan ?? null });
+      c.set("user", { id: user.id, name: user.name, email: user.email, role: user.role ?? "user", plan: user.plan ?? null });
     } else {
       // Scripts, tâches planifiées et outils internes désignent le compte ; sans lui, c'est le compte d'installation.
       accountId = c.req.header("X-Dexlane-Account") ?? OWNER_ACCOUNT_ID;
@@ -165,6 +167,17 @@ export function createApp(deps: AppDeps) {
       // c'est le garde-fou contre la double vente d'une carte entre deux canaux.
       if (c.req.method !== "GET" && c.res.ok && /^\/api\/(orders|inventory)(\/|$)/.test(c.req.path)) {
         await withTx(sql, () => syncQuantities(sql, live)).catch(deps.onError ?? console.error);
+      }
+      // Un prix décidé (à l'unité, en masse, celui d'un lot) part sur les annonces en ligne : synchronisation des prix.
+      if (c.req.method !== "GET" && c.res.ok && /^\/api\/(pricing\/offers|stock|lots)(\/|$)/.test(c.req.path)) {
+        await withTx(sql, () => syncPrices(sql, live, c.var.actor)).catch(deps.onError ?? console.error);
+      }
+      // Une publication peut franchir 80 % puis 100 % du quota du mois : l'alerte part une fois par seuil.
+      if (c.req.method === "POST" && c.res.ok && /^\/api\/(listings\/offers\/[^/]+\/publish|publications\/run|scan-batches\/[^/]+\/autopilot)$/.test(c.req.path)) {
+        await withTx(sql, async () => {
+          const alert = await takeQuotaAlert(sql);
+          if (alert && alert.state.limit !== null) await broadcast(sql, push, (locale) => quotaMessage(alert.level, alert.state.used, alert.state.limit!, locale));
+        }).catch(deps.onError ?? console.error);
       }
       // Un envoi remis ou un stock corrigé peut faire passer une fourniture sous son seuil : l'alerte part aussitôt.
       if (c.req.method !== "GET" && c.res.ok && /^\/api\/(orders|supplies|channels)(\/|$)/.test(c.req.path)) {
@@ -203,8 +216,11 @@ export function createApp(deps: AppDeps) {
     return c.json({ accountIds: await activeAccountIds(root) });
   });
 
-  /** L'utilisateur de la session : adresse, rôle, forfait choisi. */
-  app.get("/api/account", (c) => c.json({ accountId: c.var.accountId, ...(c.var.user ?? { email: null, role: "user", plan: null }) }));
+  // Forfait, quota, équipe et support (account.ts).
+  registerAccountRoutes(app, {
+    root, sql, mailer, baseUrl: () => deps.baseUrl ?? publicBaseUrl(), supportEmail: process.env.SUPPORT_EMAIL ?? null,
+    onError: deps.onError ?? console.error,
+  });
 
   // ───────────────────────── Scan et catalogue ─────────────────────────
 
@@ -457,13 +473,15 @@ export function createApp(deps: AppDeps) {
     const { received } = await receiveReady(sql, id, c.var.actor, (tx, position) => refreshOfferPricing(tx, position.offer.id));
     const offerIds = [...new Set(received.map((r) => r.offer.id))];
     let queued = 0;
-    if (batch.publishMode !== "NONE" && offerIds.length > 0) {
+    // Mettre le lot en file d'un coup, c'est la publication en masse : sans elle, les cartes entrent en stock et attendent.
+    const bulk = await hasFeature(sql, "bulk");
+    if (batch.publishMode !== "NONE" && offerIds.length > 0 && (bulk || offerIds.length === 1)) {
       for (const channel of (await listChannels(sql, live)).filter((ch) => ch.mode !== "OFF")) {
         queued += (await queuePublications(sql, { offerIds, channel: channel.id, perDay: batch.publishMode === "DAILY" ? batch.publishPerDay : null, actor: c.var.actor })).queued;
       }
     }
     if (received.length > 0) await syncQuantities(sql, live).catch(deps.onError ?? console.error);
-    return c.json({ received: received.length, offerIds, queued, batch: await getBatch(sql, id) });
+    return c.json({ received: received.length, offerIds, queued, bulkRequired: !bulk && batch.publishMode !== "NONE" && offerIds.length > 1, batch: await getBatch(sql, id) });
   });
 
   // ───────────────────────── Stock à vendre ─────────────────────────
@@ -529,6 +547,77 @@ export function createApp(deps: AppDeps) {
 
   /** Tout ce qui concerne une carte : annonce, photos, positions, historique de cote. */
   app.get("/api/stock/:offerId", async (c) => c.json(await getStockDetail(sql, parse(s.offerId, c.req.param("offerId")))));
+
+  /** Suggestions de titre et de prix (forfaits Pro et Boutique). */
+  app.get("/api/stock/:offerId/suggestions", async (c) => {
+    await requireFeature(sql, "suggestions", "suggestions de titre et de prix");
+    return c.json(await stockSuggestions(sql, parse(s.offerId, c.req.param("offerId"))));
+  });
+
+  /** Titre choisi pour cette carte (une suggestion appliquée) ; null : retour au modèle de titre. */
+  app.put("/api/stock/:offerId/title", async (c) => {
+    const offerId = parse(s.offerId, c.req.param("offerId"));
+    const { title } = await parseJsonBody(c, s.titleBody);
+    const [row] = await sql`update offers set title_override = ${title}, updated_at = now() where id = ${offerId} and kind = 'CARD' returning id`;
+    if (!row) throw new HttpError(404, "OFFER_NOT_FOUND", "offer not found");
+    await sql`insert into audit_events (actor, action, entity, entity_id, after) values (${c.var.actor}, 'offer_title_set', 'offer', ${offerId}, ${sql.json({ title })})`;
+    return c.json(await getStockDetail(sql, offerId));
+  });
+
+  /**
+   * Carte gradée : société de gradation, note et numéro de certificat ; null pour revenir à une carte non gradée.
+   * Seul un exemplaire unique peut être gradé (chaque boîtier a sa note et son certificat).
+   */
+  app.put("/api/stock/:offerId/grading", async (c) => {
+    const offerId = parse(s.offerId, c.req.param("offerId"));
+    const { grading } = await parseJsonBody(c, s.gradingBody);
+    const [offer] = await sql<{ isUnique: boolean }[]>`select is_unique from offers where id = ${offerId} and kind = 'CARD'`;
+    if (!offer) throw new HttpError(404, "OFFER_NOT_FOUND", "offer not found");
+    if (grading && !offer.isUnique) throw new HttpError(409, "GRADING_NEEDS_UNIQUE", "seul un exemplaire unique peut être gradé : sépare-le d'abord du lot de cartes identiques");
+    await sql`
+      update offers set grader = ${grading?.grader ?? null}, grade = ${grading?.grade ?? null}, cert_number = ${grading?.certNumber || null}, updated_at = now()
+       where id = ${offerId}`;
+    await sql`insert into audit_events (actor, action, entity, entity_id, after) values (${c.var.actor}, 'offer_grading_set', 'offer', ${offerId}, ${sql.json(grading as never)})`;
+    return c.json(await getStockDetail(sql, offerId));
+  });
+
+  // ───────────────────────── Lots ─────────────────────────
+
+  app.get("/api/lots", async (c) => c.json({ lots: await listLots(sql) }));
+
+  /** Regroupe des cartes du stock en un lot : une annonce, un prix. Elles ne peuvent plus être vendues à part. */
+  app.post("/api/lots", async (c) => {
+    const body = await parseJsonBody(c, s.createLotBody);
+    const locationId = body.locationId ?? (body.locationCode ? (await resolveLocation(sql, { code: body.locationCode })).id : undefined);
+    const lot = await createLot(sql, { title: body.title, description: body.description, priceCents: body.priceCents, items: body.items, locationId, actor: c.var.actor });
+    // Les cartes ont quitté leur position : les annonces qui les proposaient à l'unité suivent.
+    await syncQuantities(sql, live).catch(deps.onError ?? console.error);
+    return c.json(lot, 201);
+  });
+
+  app.patch("/api/lots/:id", async (c) => {
+    const id = parse(s.lotId, c.req.param("id"));
+    const body = await parseJsonBody(c, s.updateLotBody);
+    const [row] = await sql`
+      update offers set lot_title = coalesce(${body.title ?? null}, lot_title),
+                        lot_description = ${body.description === undefined ? sql`lot_description` : body.description},
+                        target_price_cents = coalesce(${body.priceCents ?? null}, target_price_cents), updated_at = now()
+       where id = ${id} and kind = 'LOT' and status <> 'ARCHIVED' returning id`;
+    if (!row) throw new HttpError(404, "LOT_NOT_FOUND", "ce lot n'existe pas");
+    await sql`insert into audit_events (actor, action, entity, entity_id, after) values (${c.var.actor}, 'lot_updated', 'offer', ${id}, ${sql.json(body as never)})`;
+    return c.json((await listLots(sql, { offerId: id }))[0]);
+  });
+
+  /** Défait un lot pas encore vendu : ses annonces sont retirées et ses cartes reviennent dans le stock. */
+  app.delete("/api/lots/:id", async (c) => {
+    const id = parse(s.lotId, c.req.param("id"));
+    for (const l of await sql<{ id: string }[]>`select id from listings where offer_id = ${id} and status <> 'ENDED'`) {
+      await endListing(sql, live, { listingId: l.id, actor: c.var.actor });
+    }
+    await dissolveLot(sql, id, c.var.actor);
+    await syncQuantities(sql, live).catch(deps.onError ?? console.error);
+    return c.json({ ok: true });
+  });
 
   // ───────────────────────── Statistiques et alertes de prix ─────────────────────────
 
