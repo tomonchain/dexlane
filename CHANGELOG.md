@@ -16,6 +16,8 @@ Retiré), avec le numéro de l'issue qu'il traite.
 - Données structurées JSON-LD sur le site public : éditeur, site, application et forfaits, FAQ, fil d'Ariane et articles de doc (#57).
 - `/llms.txt` et `/llms-full.txt` : le site et toute la doc en Markdown pour les moteurs génératifs (#58).
 - Mesure d'audience sans cookie (Vercel Web Analytics) sur le site public et les pages d'inscription (#59).
+- Pages publiques des séries et des cartes (`/series`) : liste des cartes de chaque série, cote Cardmarket par variante
+  avec son évolution sur six mois, plan du site dédié et adresses canoniques (#62).
 
 ### Modifié
 - En production, les adresses `*.vercel.app` redirigent vers `dexlane.app`, hors API, MCP et tâches planifiées (#56).

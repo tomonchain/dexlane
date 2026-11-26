@@ -12,7 +12,11 @@ import { serverToken } from "./session";
  */
 export async function callApi(
   pathAndQuery: string,
-  init: { method?: string; headers?: Headers; body?: ArrayBuffer | string; accountId?: string } = {},
+  init: {
+    method?: string; headers?: Headers; body?: ArrayBuffer | string; accountId?: string;
+    /** Lecture publique mise en cache (secondes) : sans elle, l'appel distant n'est jamais mis en cache. */
+    revalidate?: number;
+  } = {},
 ): Promise<Response> {
   const headers = new Headers(init.headers);
   headers.set("Authorization", `Bearer ${serverToken()}`);
@@ -23,7 +27,10 @@ export async function callApi(
 
   const remote = process.env.DEXLANE_API_URL;
   // Les redirections (lien de vérification d'adresse) sont rendues telles quelles au navigateur.
-  if (remote) return fetch(new URL(pathAndQuery, remote), { ...request, cache: "no-store", redirect: "manual" });
+  if (remote) {
+    const caching = init.revalidate === undefined ? { cache: "no-store" as const } : { next: { revalidate: init.revalidate } };
+    return fetch(new URL(pathAndQuery, remote), { ...request, ...caching, redirect: "manual" });
+  }
   const app = await embeddedApp();
   return app.fetch(new Request(new URL(pathAndQuery, "http://dexlane.internal"), request));
 }

@@ -10,6 +10,7 @@ const GROUPS: { title: string; links: { label: string; href: string; external?: 
       { label: NAV.features, href: "/#fonctionnalites" },
       { label: NAV.pricing, href: "/tarifs" },
       { label: NAV.docs, href: "/docs" },
+      { label: NAV.series, href: "/series" },
     ],
   },
   {

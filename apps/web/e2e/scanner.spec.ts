@@ -1360,6 +1360,47 @@ test("site marketing : en-tête et menu mobile, tarifs, pages légales, contact,
   expect(robots).toContain("Disallow: /api/");
 });
 
+test("séries et cotes publiques : index, série, carte, adresse canonique, plan du site, sans donnée de compte", async ({ page }) => {
+  // Visiteur sans session : l'index des séries, rangées par bloc.
+  await page.goto("/series");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Séries et cotes des cartes Pokémon");
+  await expect(page.getByRole("heading", { level: 2, name: "Épée et Bouclier" })).toBeVisible();
+  await page.getByRole("link", { name: /Ténèbres Embrasées/ }).click();
+  await page.waitForURL(/\/series\/swsh3-tenebres-embrasees$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ténèbres Embrasées");
+  await expect(page.getByTestId("set-facts")).toContainText("Épée et Bouclier");
+  await expect(page.getByTestId("set-cards")).toContainText("Fouinar");
+  await expect(page.getByTestId("set-cards")).toContainText("136/189");
+
+  // La carte : sa cote par variante, datée, avec la source.
+  await page.getByTestId("set-cards").getByRole("link", { name: /Fouinar/ }).click();
+  await page.waitForURL(/\/series\/swsh3-tenebres-embrasees\/136-fouinar$/);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Fouinar");
+  await expect(page.getByTestId("card-summary")).toContainText("est cotée");
+  const prices = page.getByTestId("card-prices");
+  await expect(prices.getByRole("row", { name: /Reverse/ })).toBeVisible();
+  await expect(prices).toContainText("€");
+  await expect(page.getByText(/Cote tendance Cardmarket, via TCGdex/)).toBeVisible();
+  await expect(page.getByRole("link", { name: "Ténèbres Embrasées", exact: true }).first()).toHaveAttribute("href", "/series/swsh3-tenebres-embrasees");
+  // Aucune donnée d'un compte : ni stock, ni ventes, ni navigation de l'application.
+  await expect(page.getByText(/en stock|exemplaire/i)).toHaveCount(0);
+  await expect(page.locator('script[type="application/ld+json"]').first()).toBeAttached();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBe(0);
+
+  // Une seule adresse par page : un autre nom ou une autre casse mènent à l'adresse canonique.
+  await page.goto("/series/SWSH3-ancien-nom/136");
+  await page.waitForURL(/\/series\/swsh3-tenebres-embrasees\/136-fouinar$/);
+  expect((await page.goto("/series/swsh3-tenebres-embrasees/999-absente"))?.status()).toBe(404);
+  expect((await page.goto("/series/xy99-inconnue"))?.status()).toBe(404);
+
+  // Plan du site : séries et cartes cotées ; robots.txt le signale.
+  const sitemap = await (await page.request.get("/series/sitemap.xml")).text();
+  expect(sitemap).toContain("/series/swsh3-tenebres-embrasees</loc>");
+  expect(sitemap).toContain("/series/swsh3-tenebres-embrasees/136-fouinar</loc>");
+  expect(await (await page.request.get("/robots.txt")).text()).toContain("/series/sitemap.xml");
+  expect(await (await page.request.get("/llms.txt")).text()).toContain("/series");
+});
+
 test("page d'accueil : landing publique sans session, puis « Aujourd'hui » avec ce qui attend une fois connecté", async ({ page }) => {
   // Visiteur : la landing statique, sans navigation d'application ni donnée du stock, référencée.
   await page.goto("/");

@@ -51,6 +51,7 @@ export const NAV = {
   features: "Fonctionnalités",
   pricing: "Tarifs",
   docs: "Docs",
+  series: "Cotes des cartes",
   github: "GitHub",
   login: "Se connecter",
   contact: "Contact",
