@@ -13,6 +13,10 @@ Retiré), avec le numéro de l'issue qu'il traite.
 ## [Non publié]
 
 ### Ajouté
+- Quota de scans : chaque photo lue par Claude compte, avec un plafond mensuel par forfait (50, 300, 1 500, 6 000 ;
+  un pack ajoute 500 scans), 60 scans par minute au plus et le coût estimé noté par scan (migration 0038). Jauge dans
+  Réglages › Forfait, plafonds sur `/tarifs` et dans la doc ; dans un lot, la carte hors quota reste à identifier à la
+  main. Le compte d'installation n'a pas de plafond (#50).
 - Compte › Vos données : téléchargement de toutes ses données en JSON (sans mots de passe ni jetons) et suppression du
   compte, confirmée par le mot de passe et le mot « SUPPRIMER » ; un membre d'équipe ne supprime que son accès. Les
   journaux en ajout seul ne s'effacent qu'avec leur compte (migration 0037) (#49).

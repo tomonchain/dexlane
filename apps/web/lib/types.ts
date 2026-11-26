@@ -224,6 +224,8 @@ export interface PlanRule {
   monthlyPriceEur: number;
   /** null : sans limite. */
   cardsPerMonth: number | null;
+  /** Photos lues par mois ; null : sans limite. */
+  scansPerMonth: number | null;
   features: PlanFeature[];
   selectable: boolean;
 }
@@ -246,6 +248,8 @@ export interface AccountSummary {
     remaining: number | null;
     packs: { id: string; cards: number; priceCents: number; automatic: boolean; createdAt: string }[];
   };
+  /** Photos lues ce mois-ci ; limit null : sans limite. */
+  scans: { used: number; limit: number | null; remaining: number | null };
   members: number;
   plans: PlanRule[];
 }

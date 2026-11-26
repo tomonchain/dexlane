@@ -32,7 +32,7 @@ import { trackingFromEnv, type TrackingAdapters } from "./tracking";
 import { HttpError, errorBody, idempotent, parse, parseJsonBody, secretEquals, statusOfDomainError } from "./http";
 import {
   cancelPublications, getPublicationCalendar, getPublicationDay, reschedulePublication, endListing, getActivity, getCardDetail, getListingSettings, getSchedule, getStockDetail, listChannels, listStock, stockFacets, planPublications, queuePublications, runDuePublications, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
-  syncChannels, syncPrices, syncQuantities, stockSuggestions, hasFeature, requireFeature, takeQuotaAlert, type ChannelAdapters,
+  syncChannels, syncPrices, syncQuantities, stockSuggestions, hasFeature, requireFeature, takeQuotaAlert, reserveScan, recordScanCost, type ChannelAdapters,
   EBAY_MARKETPLACES, createEbayDefaults, ebayAccountOptions, ebayAdapter, ebayClientFromEnv, ebayShippingServices, getEbaySettings, missingEbaySettings,
   saveEbaySettings, type EbayClient,
 } from "@dexlane/listings";
@@ -247,7 +247,7 @@ export function createApp(deps: AppDeps) {
     async (c) => {
       const { language } = parse(s.scanQuery, c.req.query());
       const image = await readImage(c);
-      const recognizer = guardUpstream(deps.recognizer, deps.onError ?? console.error);
+      const recognizer = meteredRecognizer(sql, guardUpstream(deps.recognizer, deps.onError ?? console.error), "single");
       // La photo est conservée en parallèle de la lecture ; un échec de stockage ne fait pas échouer le scan.
       const [r, photo] = await Promise.all([
         identifyCard(sql, recognizer, image, { defaultLanguage: language }),
@@ -442,10 +442,12 @@ export function createApp(deps: AppDeps) {
     if (existing) return c.json(existing);
     const batch = await getBatch(sql, batchId);
     const image = await readImage(c);
-    const recognizer = guardUpstream(deps.recognizer, deps.onError ?? console.error);
+    const recognizer = meteredRecognizer(sql, guardUpstream(deps.recognizer, deps.onError ?? console.error), "batch");
     const [identification, photo] = await Promise.all([
+      // Quota de scans atteint : la carte est enregistrée avec sa photo, à identifier à la main.
       identifyCard(sql, recognizer, image, { defaultLanguage: batch.language }).catch((e: unknown) => {
-        if (!(e instanceof HttpError) && !(e instanceof RecognitionError)) throw e;
+        const scanLimit = e instanceof DomainError && (e.code === "SCAN_QUOTA_EXCEEDED" || e.code === "SCAN_RATE_LIMITED");
+        if (!(e instanceof HttpError) && !(e instanceof RecognitionError) && !scanLimit) throw e;
         return { error: e.code };
       }),
       storePhoto(image, "SCAN_FRONT"),
@@ -1264,6 +1266,26 @@ async function readImage(c: Context): Promise<CardImage> {
 }
 
 /** Une panne du fournisseur de vision (identifiants, quota, réseau) devient un 502 explicite, pas un 500 opaque. */
+/**
+ * Lecture comptée (#50) : chaque photo envoyée à Claude réserve un scan du forfait avant l'appel et note son coût
+ * après. Une panne du service ne consomme rien : la réservation est rendue.
+ */
+function meteredRecognizer(sql: Db, inner: CardRecognizer, source: "single" | "batch"): CardRecognizer {
+  return {
+    async recognize(image) {
+      const scanId = await reserveScan(sql, source);
+      try {
+        const recognition = await inner.recognize(image);
+        await recordScanCost(sql, scanId, recognition.usage.costUsd);
+        return recognition;
+      } catch (e) {
+        if (e instanceof HttpError && e.code === "SCAN_UNAVAILABLE") await sql`delete from scan_usage where id = ${scanId}`;
+        throw e;
+      }
+    },
+  };
+}
+
 function guardUpstream(factory: () => CardRecognizer, report: (err: unknown) => void): CardRecognizer {
   return {
     async recognize(image) {

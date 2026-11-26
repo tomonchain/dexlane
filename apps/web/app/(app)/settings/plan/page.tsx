@@ -1,9 +1,10 @@
 "use client";
 
+import { OVERAGE_PACK } from "@dexlane/shared";
 import { Check, Infinity as InfinityIcon, Minus, PackagePlus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { FEATURE_LABELS, FEATURE_ORDER, QuotaMeter, useAccount } from "@/components/plan";
+import { FEATURE_LABELS, FEATURE_ORDER, QuotaMeter, ScanMeter, useAccount } from "@/components/plan";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,7 @@ import { t } from "@/lib/i18n";
 import type { PlanId, PlanRule } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const PACK = { cards: 500, priceEur: 10 };
+const PACK = OVERAGE_PACK;
 
 /** Réglages › Forfait : le quota du mois, les packs, et le changement de forfait. */
 export default function PlanSettingsPage() {
@@ -62,6 +63,10 @@ export default function PlanSettingsPage() {
                   : <Badge variant="outline">{account.plan.monthlyPriceEur === 0 ? t("gratuit") : t("{price} / mois", { price: formatEuros(account.plan.monthlyPriceEur * 100) })}</Badge>}
               </div>
               <QuotaMeter quota={account.quota} />
+              <ScanMeter scans={account.scans} />
+              {account.scans.remaining === 0 && (
+                <Alert variant="destructive">{t("Scans du mois épuisés : la lecture automatique reprend avec un pack, un forfait supérieur ou le mois prochain. Les cartes se recherchent toujours à la main.")}</Alert>
+              )}
               {!unlimited && account.quota.remaining !== null && account.quota.limit !== null && account.quota.remaining <= account.quota.limit * 0.2 && (
                 <Alert variant={account.quota.remaining === 0 ? "destructive" : "warning"}>
                   {account.quota.remaining === 0
@@ -72,7 +77,7 @@ export default function PlanSettingsPage() {
               {!unlimited && (
                 <div className="flex flex-wrap items-center gap-3 border-t pt-4">
                   <div className="grid flex-1 gap-0.5">
-                    <p className="text-sm font-medium">{t("Pack de {n} cartes", { n: formatNumber(PACK.cards) })}</p>
+                    <p className="text-sm font-medium">{t("Pack de {n} cartes et {scans} scans", { n: formatNumber(PACK.cards), scans: formatNumber(PACK.scans) })}</p>
                     <p className="text-[13px] text-muted-foreground">{t("{price}, valable jusqu'à la fin du mois. Sur un forfait payant, une mise en ligne planifiée qui dépasse ajoute d'elle-même les packs nécessaires.", { price: formatEuros(PACK.priceEur * 100) })}</p>
                   </div>
                   <Button variant="outline" disabled={!account.isOwner || busy !== null} onClick={() => act("pack", () => api.addPacks(1), t("Pack ajouté : {n} cartes de plus ce mois-ci", { n: formatNumber(PACK.cards) }))} data-testid="add-pack">
@@ -110,7 +115,10 @@ export default function PlanSettingsPage() {
                         <span className="text-xl font-semibold tracking-tight">{plan.monthlyPriceEur === 0 ? t("Gratuit") : formatEuros(plan.monthlyPriceEur * 100)}</span>
                         {plan.monthlyPriceEur > 0 && <span className="text-muted-foreground"> {t("par mois")}</span>}
                       </p>
-                      <p className="tabular text-[13px] text-muted-foreground">{t("{n} cartes publiées par mois", { n: formatNumber(plan.cardsPerMonth ?? 0) })}</p>
+                      <p className="tabular text-[13px] text-muted-foreground">
+                        {t("{n} cartes publiées par mois", { n: formatNumber(plan.cardsPerMonth ?? 0) })}
+                        <br />{t("{n} scans par mois", { n: formatNumber(plan.scansPerMonth ?? 0) })}
+                      </p>
                       <ul className="grid gap-1.5 text-[13px]">
                         {FEATURE_ORDER.map((f) => {
                           const included = plan.features.includes(f);

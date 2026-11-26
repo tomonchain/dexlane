@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Hono } from "hono";
 import { OWNER_ACCOUNT_ID, withTx, type Db } from "@dexlane/db";
 import { PLAN_RULES, SELECTABLE_PLANS, planRule, type PlanId } from "@dexlane/shared";
-import { accountPlan, addQuotaPack, plansEnforced, quotaState, requireFeature } from "@dexlane/listings";
+import { accountPlan, addQuotaPack, plansEnforced, quotaState, requireFeature, scanQuotaState } from "@dexlane/listings";
 import type { Env } from "./env";
 import { eraseAccount, eraseUser, exportAccount } from "./erasure";
 import { HttpError, parse, parseJsonBody } from "./http";
@@ -67,7 +67,7 @@ export function registerAccountRoutes(app: Hono<Env>, deps: AccountRoutesDeps): 
   };
 
   async function summary(c: { var: Env["Variables"] }) {
-    const [plan, quota, members] = await Promise.all([accountPlan(sql), quotaState(sql), membersOf(root, c.var.accountId)]);
+    const [plan, quota, scans, members] = await Promise.all([accountPlan(sql), quotaState(sql), scanQuotaState(sql), membersOf(root, c.var.accountId)]);
     const user = c.var.user;
     return {
       accountId: c.var.accountId,
@@ -79,6 +79,8 @@ export function registerAccountRoutes(app: Hono<Env>, deps: AccountRoutesDeps): 
       plansEnforced: plansEnforced(),
       plan: { ...plan, features: plan.features },
       quota: { month: quota.month, used: quota.used, included: quota.included, packCards: quota.packCards, limit: quota.limit, remaining: quota.remaining, packs: quota.packs },
+      /** Photos lues par Claude ce mois-ci, et le plafond du forfait. */
+      scans: { used: scans.used, limit: scans.limit, remaining: scans.remaining },
       members: members.length,
       plans: SELECTABLE_PLANS.map((id) => PLAN_RULES[id]),
     };

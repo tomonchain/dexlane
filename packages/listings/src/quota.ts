@@ -1,6 +1,6 @@
 import type { Db } from "@dexlane/db";
 import {
-  DomainError, OVERAGE_PACK, PLAN_RULES, cheapestPlanWith, planRule, quotaMonth, type PlanFeature, type PlanRule,
+  DomainError, OVERAGE_PACK, PLAN_RULES, SCANS_PER_MINUTE, cheapestPlanWith, planRule, quotaMonth, type PlanFeature, type PlanRule,
 } from "@dexlane/shared";
 
 /**
@@ -154,4 +154,57 @@ export async function takeQuotaAlert(sql: Db): Promise<{ level: 80 | 100; state:
   const [inserted] = await sql`
     insert into quota_alerts (month, level) values (${state.month}, ${level}) on conflict do nothing returning level`;
   return inserted ? { level, state } : null;
+}
+
+// ───────────────────────── Scans ─────────────────────────
+
+export interface ScanQuotaState {
+  month: string;
+  /** Photos lues ce mois-ci. */
+  used: number;
+  /** Forfait + scans des packs du mois ; null : sans limite. */
+  limit: number | null;
+  remaining: number | null;
+}
+
+export async function scanQuotaState(sql: Db, now = new Date()): Promise<ScanQuotaState> {
+  const plan = await accountPlan(sql);
+  const month = quotaMonth(now);
+  const [[usage], [packs]] = await Promise.all([
+    sql<{ used: number }[]>`select count(*)::int as used from scan_usage where month = ${month}`,
+    sql<{ n: number }[]>`select count(*)::int as n from quota_packs where month = ${month}`,
+  ]);
+  const limit = plan.scansPerMonth === null ? null : plan.scansPerMonth + packs!.n * OVERAGE_PACK.scans;
+  return { month, used: usage!.used, limit, remaining: limit === null ? null : Math.max(0, limit - usage!.used) };
+}
+
+/**
+ * Avant d'envoyer une photo à Claude : réserve un scan, ou refuse. Le plafond du mois vient du forfait (le compte
+ * d'installation n'en a pas) ; la limite par minute vaut pour tous, contre une boucle ou un script qui s'emballe.
+ * Renvoie l'identifiant du scan, pour y noter le coût une fois la lecture faite.
+ */
+export async function reserveScan(sql: Db, source: "single" | "batch", now = new Date()): Promise<string> {
+  const [recent] = await sql<{ n: number }[]>`
+    select count(*)::int as n from scan_usage where created_at > ${new Date(now.getTime() - 60_000)}`;
+  if (recent!.n >= SCANS_PER_MINUTE) {
+    throw new DomainError("SCAN_RATE_LIMITED", `plus de ${SCANS_PER_MINUTE} scans en une minute : réessaie dans un instant`, { perMinute: SCANS_PER_MINUTE });
+  }
+  const state = await scanQuotaState(sql, now);
+  if (state.remaining !== null && state.remaining <= 0) {
+    const plan = await accountPlan(sql);
+    throw new DomainError(
+      "SCAN_QUOTA_EXCEEDED",
+      `tu as utilisé tes ${state.limit} scans du mois : ajoute un pack ou passe au forfait supérieur`,
+      { used: state.used, limit: state.limit, plan: plan.id, pack: OVERAGE_PACK },
+    );
+  }
+  const [row] = await sql<{ id: string }[]>`
+    insert into scan_usage (month, source, created_at) values (${state.month}, ${source}, ${now}) returning id`;
+  return row!.id;
+}
+
+/** Coût estimé d'une lecture terminée (null : inconnu). */
+export async function recordScanCost(sql: Db, scanId: string, costUsd: number | null): Promise<void> {
+  if (costUsd === null) return;
+  await sql`update scan_usage set cost_usd = ${costUsd} where id = ${scanId}`;
 }

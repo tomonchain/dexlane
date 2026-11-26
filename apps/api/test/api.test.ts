@@ -1581,6 +1581,52 @@ describe("accounts", () => {
     expect(errors).toEqual([]);
   });
 
+  it("counts scans against the plan, refuses the scan past the monthly cap or too fast, and keeps a batch card to identify by hand", async () => {
+    const seller = await register("scanne@example.com");
+    const as = (id: string) => ({ "Content-Type": "image/jpeg", "X-Dexlane-Account": id });
+    // Le compte d'installation n'a pas de plafond.
+    expect((await req("GET", "/api/account")).json.scans).toMatchObject({ limit: null, remaining: null });
+    expect((await req("GET", "/api/account", { cookie: seller.cookie })).json.scans).toEqual({ used: 0, limit: 50, remaining: 50 });
+
+    expect((await scan({ headers: as(seller.accountId) })).status).toBe(200);
+    const [row] = await sql`select source, cost_usd::float as cost from scan_usage where account_id = ${seller.accountId}`;
+    expect(row).toEqual({ source: "single", cost: 0.008 });
+
+    // Plafond du mois atteint (Découverte : 50 scans).
+    const month = (await req("GET", "/api/account", { cookie: seller.cookie })).json.quota.month;
+    await sql`insert into scan_usage (account_id, month, source, created_at)
+      select ${seller.accountId}, ${month}, 'single', now() - interval '1 hour' from generate_series(1, 49)`;
+    const refused = await scan({ headers: as(seller.accountId) });
+    expect([refused.status, refused.json.error.code]).toEqual([402, "SCAN_QUOTA_EXCEEDED"]);
+    expect((await req("GET", "/api/account", { cookie: seller.cookie })).json.scans).toEqual({ used: 50, limit: 50, remaining: 0 });
+
+    // Dans un lot, la carte est tout de même enregistrée avec sa photo, à identifier à la main.
+    await call("POST", "/api/locations", { body: { code: "BAC-Q" }, headers: { "X-Dexlane-Account": seller.accountId } });
+    const batch = (await call("POST", "/api/scan-batches", { body: { locationCode: "BAC-Q" }, headers: { "X-Dexlane-Account": seller.accountId } })).json;
+    const item = await call("POST", `/api/scan-batches/${batch.id}/items?position=1&fileName=a.jpg`, { body: new Uint8Array([0xff, 0xd8, 0xff, 7]), headers: as(seller.accountId), key: null });
+    expect(item.status).toBe(201);
+    expect(JSON.stringify(item.json)).toContain("SCAN_QUOTA_EXCEEDED");
+
+    // Un pack rouvre le mois, scans compris.
+    await req("PUT", "/api/account/plan", { body: { plan: "solo" }, cookie: seller.cookie });
+    expect((await req("GET", "/api/account", { cookie: seller.cookie })).json.scans).toEqual({ used: 50, limit: 300, remaining: 250 });
+    expect((await req("POST", "/api/account/packs", { body: { packs: 1 }, cookie: seller.cookie })).status).toBe(200);
+    expect((await req("GET", "/api/account", { cookie: seller.cookie })).json.scans.limit).toBe(800);
+
+    // Garde-fou de débit : 60 scans par minute, même avec du quota.
+    await sql`insert into scan_usage (account_id, month, source) select ${seller.accountId}, ${month}, 'batch' from generate_series(1, 60)`;
+    const fast = await scan({ headers: as(seller.accountId) });
+    expect([fast.status, fast.json.error.code]).toEqual([429, "SCAN_RATE_LIMITED"]);
+
+    // Une panne de lecture ne consomme pas de scan.
+    await sql`delete from scan_usage where account_id = ${seller.accountId} and created_at > now() - interval '5 minutes'`;
+    const before = (await req("GET", "/api/account", { cookie: seller.cookie })).json.scans.used;
+    recognize = async () => { throw new Error("vision down"); };
+    expect((await scan({ headers: as(seller.accountId) })).json.error.code).toBe("SCAN_UNAVAILABLE");
+    expect((await req("GET", "/api/account", { cookie: seller.cookie })).json.scans.used).toBe(before);
+    errors.length = 0;
+  });
+
   it("exports a seller's data and erases the account with its journals, without touching another account", async () => {
     const seller = await register("efface@example.com");
     const other = await register("autre@example.com");
