@@ -112,5 +112,7 @@ export async function eraseAccount(root: Db, accountId: string): Promise<{ photo
 
 /** Un membre d'une équipe quitte le compte en supprimant son utilisateur : le compte et ses données restent. */
 export async function eraseUser(root: Db, userId: string): Promise<void> {
+  // Ses réglages personnels (progression, e-mail du récap) partent avec lui.
+  await root`delete from user_preferences where user_id = ${userId}`;
   await root`delete from auth_users where id = ${userId}`;
 }

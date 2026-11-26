@@ -23,7 +23,7 @@ const config: NextConfig = {
   // (IP locale pour tester depuis le téléphone), ex. DEXLANE_DEV_ORIGINS=192.168.1.20,mon-pc.local
   allowedDevOrigins: process.env.DEXLANE_DEV_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean),
   // Mode embarqué : l'API et le cœur métier (paquets du monorepo, en TypeScript) sont compilés avec l'application.
-  transpilePackages: ["@dexlane/api", "@dexlane/catalog", "@dexlane/db", "@dexlane/inventory", "@dexlane/pricing", "@dexlane/listings", "@dexlane/scan", "@dexlane/shared"],
+  transpilePackages: ["@dexlane/api", "@dexlane/catalog", "@dexlane/db", "@dexlane/insights", "@dexlane/inventory", "@dexlane/pricing", "@dexlane/listings", "@dexlane/scan", "@dexlane/shared"],
   poweredByHeader: false,
   // Deux layouts racine (site marketing et application) : la page 404 de tout le site est app/global-not-found.tsx.
   experimental: { globalNotFound: true },

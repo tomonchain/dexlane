@@ -1,10 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { withTx, type Db } from "@dexlane/db";
+import { recordEvent, withTx, type Db } from "@dexlane/db";
 import { DomainError, assertCents } from "@dexlane/shared";
 import { applyDelta, availableOf, emit, recordMovement, type AllocationRow, type StockItemRow } from "./internal";
 import { planAllocation } from "./plan";
 
 // ───────────────────────── Import ─────────────────────────
+
+/** Commande passée par l'acheteur fictif du mode simulation (numérotée « SIM-… ») : elle ne compte nulle part. */
+export const isSimulatedOrder = (externalId: string) => externalId.startsWith("SIM-");
 
 export interface ImportOrderInput {
   channel: string;
@@ -61,6 +64,13 @@ export function importOrder(sql: Db, input: ImportOrderInput): Promise<ImportOrd
         values (${inserted.id}, ${offerId}, ${line.externalLineId}, ${line.qty}, ${line.unitPriceCents})`;
     }
     await emit(tx, "OrderImported", "order", inserted.id, { channel: input.channel, externalId: input.externalId });
+    // Les commandes d'un acheteur fictif (simulation d'un canal) ne sont pas des ventes.
+    if (!isSimulatedOrder(input.externalId)) {
+      await recordEvent(tx, {
+        type: "sale_paid", key: `sale_paid:${inserted.id}`, occurredAt: input.orderedAt,
+        payload: { orderId: inserted.id, channel: input.channel, currency: input.currency, units: input.lines.reduce((n, l) => n + l.qty, 0) },
+      });
+    }
     return { orderId: inserted.id, created: true };
   });
 }

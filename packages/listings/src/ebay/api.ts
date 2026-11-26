@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { withTx, type Db } from "@dexlane/db";
+import { recordEvent, withTx, type Db } from "@dexlane/db";
 import { DomainError } from "@dexlane/shared";
 
 /**
@@ -104,14 +104,22 @@ export class EbayClient {
     const tokens = await this.tokenRequest({ grant_type: "authorization_code", code: input.code, redirect_uri: this.config.ruName });
     if (!tokens.refresh_token) throw new DomainError("EBAY_REJECTED", "eBay n'a pas fourni de jeton de renouvellement");
     const username = await this.fetchUsername(tokens.access_token).catch(() => null);
-    await this.sql`
+    const [connected] = await this.sql<{ connectedAt: Date }[]>`
       insert into channel_accounts (channel, environment, username, refresh_token, refresh_expires_at, access_token, access_expires_at)
       values (${CHANNEL}, ${this.config.environment}, ${username}, ${tokens.refresh_token},
               ${expiry(tokens.refresh_token_expires_in)}, ${tokens.access_token}, ${expiry(tokens.expires_in)})
       on conflict (account_id, channel) do update set
         environment = excluded.environment, username = excluded.username, refresh_token = excluded.refresh_token,
         refresh_expires_at = excluded.refresh_expires_at, access_token = excluded.access_token,
-        access_expires_at = excluded.access_expires_at, connected_at = now()`;
+        access_expires_at = excluded.access_expires_at, connected_at = now()
+      returning connected_at`;
+    // Chaque connexion est un fait daté (une reconnexion en est une autre).
+    if (connected) {
+      await recordEvent(this.sql, {
+        type: "ebay_connected", key: `ebay_connected:${connected.connectedAt.toISOString()}`, occurredAt: connected.connectedAt,
+        payload: { environment: this.config.environment },
+      });
+    }
     return { username };
   }
 

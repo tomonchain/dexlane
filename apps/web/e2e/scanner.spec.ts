@@ -704,7 +704,17 @@ test("statistiques : chiffres clés, variation de cote d'une carte en stock, seu
 
   await page.goto("/stats");
   await expect(page.getByRole("heading", { name: "Statistiques", level: 1 })).toBeVisible();
-  // Par défaut : ce qui se vend. Les parcours précédents ont enregistré des ventes.
+  // Par défaut : le résumé du mois, avec la vente qui vient d'être enregistrée, et les cartes dormantes.
+  const summary = page.getByTestId("stats-summary");
+  await expect(summary.getByTestId("kpi-cards")).not.toHaveText("—");
+  await expect(summary.getByTestId("kpi-revenue")).toContainText("€");
+  await expect(summary.getByTestId("top-sales")).toContainText("Fouinar");
+  await expect(summary.getByTestId("dormant-cards")).toBeVisible();
+  await summary.getByRole("tab", { name: "90 derniers jours" }).click();
+  await expect(summary.getByTestId("kpi-cards")).not.toHaveText("—");
+
+  // Ce qui se vend. Les parcours précédents ont enregistré des ventes.
+  await page.getByRole("tab", { name: "Ce qui se vend" }).click();
   await expect(page.getByTestId("sales-insights")).toBeVisible();
   await expect(page.getByTestId("sales-cards")).not.toHaveText("0");
   await expect(page.getByTestId("sales-by-set")).toContainText("Ténèbres Embrasées");
@@ -1578,6 +1588,8 @@ test("page d'accueil : landing publique sans session, puis « Aujourd'hui » ave
   // Barre d'onglets flottante : réduite (icônes seules) quand on descend, en grand dès qu'on remonte, toujours là.
   const tabs = page.getByTestId("mobile-nav");
   const stocks = tabs.getByRole("link", { name: "Stock" });
+  // Le focus mis sur le graphique a pu faire défiler l'accueil : on repart du haut de la page.
+  await page.evaluate(() => window.scrollTo(0, 0));
   await expect(tabs).not.toHaveAttribute("data-compact");
   await expect(tabs.getByText("Stock")).toBeVisible();
   await page.mouse.wheel(0, 600);

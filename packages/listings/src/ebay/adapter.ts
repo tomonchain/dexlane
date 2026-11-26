@@ -267,5 +267,6 @@ export function toChannelOrder(o: EbayOrder): ChannelOrder | null {
     lines,
     addressLines,
     shipBy: shipBy ? new Date(shipBy) : undefined,
+    countryCode: a?.countryCode ?? null,
   };
 }

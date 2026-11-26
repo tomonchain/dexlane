@@ -1,4 +1,4 @@
-import type { Db } from "@dexlane/db";
+import { recordEvent, type Db } from "@dexlane/db";
 import { DomainError } from "@dexlane/shared";
 
 /**
@@ -67,13 +67,18 @@ export async function recordTracking(sql: Db, shipmentId: string, result: Tracki
     await sql`update shipments set tracking_checked_at = now() where id = ${shipmentId}`;
     return;
   }
-  await sql`
+  const changed = await sql<{ orderId: string }[]>`
     update shipments set status = ${result.status}, tracking_checked_at = now(),
                          tracking_event = coalesce(${result.event}, tracking_event),
                          tracking_event_at = coalesce(${result.eventAt}, tracking_event_at),
                          delivered_at = case when ${result.status} = 'DELIVERED' then coalesce(delivered_at, ${result.deliveredAt}, now()) else delivered_at end,
                          updated_at = now()
-     where id = ${shipmentId} and status in ('HANDED_OVER', 'IN_TRANSIT')`;
+     where id = ${shipmentId} and status in ('HANDED_OVER', 'IN_TRANSIT')
+    returning order_id`;
+  // Un colis revenu à l'expéditeur : la vente ne compte plus (statistiques, niveau).
+  if (result.status === "RETURNED" && changed[0]) {
+    await recordEvent(sql, { type: "sale_returned", key: `sale_returned:${changed[0].orderId}`, payload: { orderId: changed[0].orderId, shipmentId } });
+  }
 }
 
 async function shipmentOf(sql: Db, orderId: string) {

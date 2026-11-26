@@ -4,6 +4,8 @@ export interface Mail {
   subject: string;
   text: string;
   html: string;
+  /** En-têtes en plus (désinscription en un clic : List-Unsubscribe). */
+  headers?: Record<string, string>;
 }
 export interface Mailer {
   send(mail: Mail): Promise<void>;
@@ -16,7 +18,7 @@ export function resendMailer(apiKey: string, from: string): Mailer {
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from, to: [mail.to], subject: mail.subject, text: mail.text, html: mail.html }),
+        body: JSON.stringify({ from, to: [mail.to], subject: mail.subject, text: mail.text, html: mail.html, ...(mail.headers ? { headers: mail.headers } : {}) }),
       });
       if (!res.ok) throw new Error(`Resend answered ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`);
     },
@@ -76,3 +78,17 @@ export const invitationMail = (to: string, inviter: string, url: string) =>
 export const supportMail = (to: string, input: { from: string; subject: string; message: string; plan: string; priority: boolean }) =>
   compose(to, `${input.priority ? "[PRIORITAIRE] " : ""}Support Dexlane : ${input.subject}`,
     [`De : ${input.from} (forfait ${input.plan})`, ...input.message.split(/\n{2,}/)]);
+
+/** Le récap du mois (ou de l'année) est prêt : un e-mail court, un lien vers la page, un lien de désinscription. */
+export const recapMail = (to: string, input: { period: string; cardsSold: number; timeSavedMinutes: number; url: string; unsubscribe: string }) => {
+  const hours = Math.floor(input.timeSavedMinutes / 60);
+  const minutes = input.timeSavedMinutes % 60;
+  const saved = hours > 0 ? `${hours} h ${String(minutes).padStart(2, "0")}` : `${minutes} min`;
+  const sold = `${input.cardsSold} carte${input.cardsSold > 1 ? "s" : ""} vendue${input.cardsSold > 1 ? "s" : ""}`;
+  return {
+    ...compose(to, `Ton récap ${input.period} est prêt`, [`Ton récap ${input.period} : ${sold}, environ ${saved} gagnées.`],
+      { label: "Voir mon récap", url: input.url },
+      `Tu reçois cet e-mail parce que le récap mensuel est activé. Pour ne plus le recevoir : ${input.unsubscribe}`),
+    headers: { "List-Unsubscribe": `<${input.unsubscribe}>` },
+  };
+};

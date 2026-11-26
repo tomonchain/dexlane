@@ -29,6 +29,9 @@ importers:
       '@dexlane/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@dexlane/insights':
+        specifier: workspace:*
+        version: link:../../packages/insights
       '@dexlane/inventory':
         specifier: workspace:*
         version: link:../../packages/inventory
@@ -87,6 +90,9 @@ importers:
       '@dexlane/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@dexlane/insights':
+        specifier: workspace:*
+        version: link:../../packages/insights
       '@dexlane/inventory':
         specifier: workspace:*
         version: link:../../packages/inventory
@@ -202,6 +208,24 @@ importers:
       postgres:
         specifier: ^4.1.1
         version: 4.1.1
+
+  packages/insights:
+    dependencies:
+      '@dexlane/db':
+        specifier: workspace:*
+        version: link:../db
+      '@dexlane/inventory':
+        specifier: workspace:*
+        version: link:../inventory
+      '@dexlane/listings':
+        specifier: workspace:*
+        version: link:../listings
+      '@dexlane/pricing':
+        specifier: workspace:*
+        version: link:../pricing
+      '@dexlane/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/inventory:
     dependencies:

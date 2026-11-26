@@ -1,4 +1,4 @@
-import { withTx, type Db } from "@dexlane/db";
+import { recordEvent, withTx, type Db } from "@dexlane/db";
 import { DomainError } from "@dexlane/shared";
 import type { AllocationStatus, CardCondition } from "./internal";
 import { likePrefix } from "./locations";
@@ -364,7 +364,10 @@ export async function listPreparation(sql: Db): Promise<OrderDetail[]> {
 /** Note que les bons de ces commandes ont été imprimés : elles ne reviennent plus dans l'impression du jour. */
 export async function markSlipsPrinted(sql: Db, orderIds: string[]): Promise<number> {
   if (orderIds.length === 0) return 0;
-  return (await sql`update orders set slip_printed_at = now() where id in ${sql(orderIds)} returning id`).length;
+  const printed = await sql<{ id: string }[]>`update orders set slip_printed_at = now() where id in ${sql(orderIds)} returning id`;
+  // Le premier bordereau de chaque commande ; une réimpression ne compte pas.
+  for (const { id } of printed) await recordEvent(sql, { type: "slip_printed", key: `slip_printed:${id}`, payload: { orderId: id } });
+  return printed.length;
 }
 
 // ───────────────────────── Dépôt et annulation ─────────────────────────
@@ -425,5 +428,6 @@ export function cancelOrder(sql: Db, orderId: string, actor: string, reason: str
     await tx`
       insert into audit_events (actor, action, entity, entity_id, before, after)
       values (${actor}, 'order_cancelled', 'order', ${orderId}, ${tx.json({ fulfillmentStatus: order.fulfillmentStatus })}, ${tx.json({ reason })})`;
+    await recordEvent(tx, { type: "sale_cancelled", key: `sale_cancelled:${orderId}`, payload: { orderId, reason } });
   });
 }
