@@ -6,6 +6,10 @@ import { ExportStockRow } from "@/components/export-stock";
 import Link from "next/link";
 import { Page, PageHeader } from "@/components/ui/misc";
 import { t } from "@/lib/i18n";
+import { GITHUB_URL } from "@/config/site";
+
+const VERSION = process.env.NEXT_PUBLIC_APP_VERSION;
+const COMMIT = process.env.NEXT_PUBLIC_APP_COMMIT;
 
 const SECTIONS: { title: string; items: { href: string; label: string; hint: string; icon: LucideIcon }[]; extra?: ReactNode }[] = [
   {
@@ -77,6 +81,14 @@ export default function SettingsPage() {
           </div>
         </section>
       ))}
+      {VERSION && (
+        <p className="px-1 text-center text-xs text-muted-foreground">
+          <a href={`${GITHUB_URL}/releases/tag/v${VERSION}`} target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">
+            dexlane v{VERSION}
+          </a>
+          {COMMIT && <span className="font-mono"> · {COMMIT}</span>}
+        </p>
+      )}
     </Page>
   );
 }

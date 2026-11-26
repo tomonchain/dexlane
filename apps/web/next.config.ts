@@ -1,4 +1,8 @@
+import { readFileSync } from "node:fs";
 import type { NextConfig } from "next";
+
+// Version de l'application : celle du package.json racine (voir CHANGELOG.md), plus le commit déployé.
+const APP_VERSION = (JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as { version: string }).version;
 
 // En développement, le serveur web lit le même fichier .env que l'API (racine du dépôt) : il lui faut
 // DEXLANE_API_TOKEN, et DATABASE_URL en mode embarqué. Sans fichier (hébergement), les variables viennent de l'environnement.
@@ -9,6 +13,10 @@ try {
 }
 
 const config: NextConfig = {
+  env: {
+    NEXT_PUBLIC_APP_VERSION: APP_VERSION,
+    NEXT_PUBLIC_APP_COMMIT: (process.env.VERCEL_GIT_COMMIT_SHA ?? "").slice(0, 7),
+  },
   // Les tests e2e construisent dans leur propre dossier pour ne pas écraser un build ou un `next dev` en cours.
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
   // `next dev` ne sert ses ressources qu'à localhost : lister ici les autres hôtes utilisés en développement
