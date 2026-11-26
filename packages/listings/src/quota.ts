@@ -184,6 +184,9 @@ export async function scanQuotaState(sql: Db, now = new Date()): Promise<ScanQuo
  * Renvoie l'identifiant du scan, pour y noter le coût une fois la lecture faite.
  */
 export async function reserveScan(sql: Db, source: "single" | "batch", now = new Date()): Promise<string> {
+  // Une réservation à la fois par compte : des scans simultanés ne passent pas tous sur le même décompte. À appeler
+  // dans une transaction courte, que le verrou ne retienne pas pendant la lecture.
+  await sql`select pg_advisory_xact_lock(hashtextextended('scan_usage:' || current_account_id()::text, 0))`;
   const [recent] = await sql<{ n: number }[]>`
     select count(*)::int as n from scan_usage where created_at > ${new Date(now.getTime() - 60_000)}`;
   if (recent!.n >= SCANS_PER_MINUTE) {

@@ -80,7 +80,7 @@ export default function PlanSettingsPage() {
                     <p className="text-sm font-medium">{t("Pack de {n} cartes et {scans} scans", { n: formatNumber(PACK.cards), scans: formatNumber(PACK.scans) })}</p>
                     <p className="text-[13px] text-muted-foreground">{t("{price}, valable jusqu'à la fin du mois. Sur un forfait payant, une mise en ligne planifiée qui dépasse ajoute d'elle-même les packs nécessaires.", { price: formatEuros(PACK.priceEur * 100) })}</p>
                   </div>
-                  <Button variant="outline" disabled={!account.isOwner || busy !== null} onClick={() => act("pack", () => api.addPacks(1), t("Pack ajouté : {n} cartes de plus ce mois-ci", { n: formatNumber(PACK.cards) }))} data-testid="add-pack">
+                  <Button variant="outline" disabled={!account.isOwner || busy !== null} onClick={() => act("pack", () => api.addPacks(1), t("Pack ajouté : {n} cartes et {scans} scans de plus ce mois-ci", { n: formatNumber(PACK.cards), scans: formatNumber(PACK.scans) }))} data-testid="add-pack">
                     {busy === "pack" ? <Spinner /> : <PackagePlus />} {t("Ajouter un pack")}
                   </Button>
                 </div>

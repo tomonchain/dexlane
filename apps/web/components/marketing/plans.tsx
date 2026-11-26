@@ -83,7 +83,7 @@ export function PlanGrid({ detailed, headingLevel = 3 }: { detailed?: boolean; h
               <p className="tabular mt-1.5 grid text-[13px] text-muted-foreground">
                 <span>{formatWeeklyPace(plan)}</span>
                 {perCard && <span>{perCard}</span>}
-                <span>{formatCards(plan.scansPerMonth)} scans par mois</span>
+                <span>{formatCards(plan.scansPerMonth)} {PRICING.scansLabel}</span>
               </p>
             </div>
             {detailed ? <FullList plan={plan} /> : <Increment plan={plan} />}

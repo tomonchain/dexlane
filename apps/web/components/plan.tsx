@@ -73,7 +73,7 @@ export function ScanMeter({ scans, className }: { scans: AccountSummary["scans"]
         <span><strong className="tabular font-semibold">{formatNumber(scans.used)}</strong> <span className="text-muted-foreground">{t("sur {limit} scans ce mois-ci", { limit: formatNumber(scans.limit) })}</span></span>
         <span className="tabular text-muted-foreground">{t("{n} restants", { n: formatNumber(scans.remaining ?? 0) })}</span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-muted" role="meter" aria-valuemin={0} aria-valuemax={scans.limit} aria-valuenow={scans.used} aria-label={t("Scans du mois")}>
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted" role="meter" aria-valuemin={0} aria-valuemax={scans.limit} aria-valuenow={Math.min(scans.used, scans.limit)} aria-label={t("Scans du mois")}>
         <div className={cn("h-full rounded-full transition-[width]", tone)} style={{ width: `${ratio * 100}%` }} />
       </div>
     </div>
