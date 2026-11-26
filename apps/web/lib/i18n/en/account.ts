@@ -31,7 +31,7 @@ export const ACCOUNT: Record<string, string> = {
   "{n} restantes": "{n} left",
   "Quota du mois": "Monthly quota",
   "dont {n} cartes de packs ajoutés ce mois-ci": "including {n} cards from packs added this month",
-  "forfait {plan} et plus": "{plan} plan and above",
+  "à partir du forfait {plan}": "from the {plan} plan",
   "Voir les forfaits": "See plans",
 
   // Page Forfait

@@ -1199,7 +1199,8 @@ test("inscription : compte créé depuis /signup, adresse vérifiée par le lien
   await page.goto(verification.path);
   await page.waitForURL(/\/welcome$/);
   await expect(page.getByLabel("Jeton d'installation")).toHaveCount(0);
-  expect((await (await page.request.get("/api/account")).json()) as { email: string; plan: string }).toMatchObject({ email, plan: "solo", role: "user" });
+  // Le forfait choisi sur le site est retenu ; le compte démarre en Découverte.
+  expect((await (await page.request.get("/api/account")).json()) as { email: string; requestedPlan: string }).toMatchObject({ email, requestedPlan: "solo", role: "user", plan: { id: "decouverte" } });
   expect(((await (await page.request.get("/api/stock")).json()) as { items: unknown[] }).items).toEqual([]);
 
   // L'onboarding du nouvel inscrit : boutique, scan, rangement, envois et prix — sans compte à créer ni séries à importer.

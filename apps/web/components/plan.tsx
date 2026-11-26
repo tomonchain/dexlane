@@ -67,7 +67,7 @@ export function LockedFeature({ feature, account, children, className }: { featu
     <div className={cn("flex items-start gap-2.5 rounded-md border border-dashed px-3 py-2.5 text-[13px]", className)} data-testid={`locked-${feature}`}>
       <Lock className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden />
       <div className="grid gap-1">
-        <p><span className="font-medium">{t(FEATURE_LABELS[feature])}</span>{plan && <span className="text-muted-foreground"> · {t("forfait {plan} et plus", { plan: plan.name })}</span>}</p>
+        <p><span className="font-medium">{t(FEATURE_LABELS[feature])}</span>{plan && <span className="text-muted-foreground"> · {t("à partir du forfait {plan}", { plan: plan.name })}</span>}</p>
         {children && <p className="text-muted-foreground">{children}</p>}
         <Link href="/settings/plan" className="justify-self-start font-medium underline underline-offset-2 outline-none hover:no-underline focus-visible:ring-2 focus-visible:ring-ring/40">{t("Voir les forfaits")}</Link>
       </div>
