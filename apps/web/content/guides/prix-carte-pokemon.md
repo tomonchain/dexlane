@@ -3,6 +3,8 @@ title: Combien vaut ma carte Pokémon ? Lire une cote et fixer le bon prix
 description: Comment trouver la valeur réelle d'une carte Pokémon, lire une cote Cardmarket, tenir compte de l'état et de la variante, et choisir un prix qui se vend.
 date: 2026-12-01
 author: Thomas
+image: /guides/prix-carte-pokemon.webp
+imageAlt: Trois cartes Pokémon en éventail : Dracaufeu ex, Mewtwo et Pikachu
 draft: true
 ---
 

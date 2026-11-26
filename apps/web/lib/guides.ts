@@ -1,5 +1,5 @@
 import "server-only";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { Marked, type Tokens } from "marked";
 import { slugify } from "@dexlane/catalog";
@@ -14,6 +14,8 @@ import { slugify } from "@dexlane/catalog";
  *   date: 2026-12-01            (date de publication)
  *   author: Thomas
  *   updated: 2026-12-15         (facultatif : dernière mise à jour)
+ *   image: /guides/mon-guide.jpg (facultatif : bannière, fichier dans apps/web/public/guides, 1600 × 840 conseillé)
+ *   imageAlt: Ce que montre l'image (obligatoire avec une image)
  *   draft: true                 (facultatif : brouillon, visible partout sauf en production)
  */
 
@@ -34,6 +36,8 @@ export interface Guide {
   toc: { id: string; title: string }[];
   /** Minutes de lecture, à 220 mots par minute. */
   readingMinutes: number;
+  /** Bannière : chemin public (« /guides/mon-guide.jpg ») et texte alternatif. */
+  image: { src: string; alt: string } | null;
 }
 
 const DIR = join(process.cwd(), "content", "guides");
@@ -85,12 +89,20 @@ function load(file: string): Guide {
   }
   if (!DATE.test(data.date!)) throw new Error(`guide ${file}: date attendue au format AAAA-MM-JJ`);
   if (data.updated && !DATE.test(data.updated)) throw new Error(`guide ${file}: updated attendue au format AAAA-MM-JJ`);
+  let image: Guide["image"] = null;
+  if (data.image) {
+    if (!data.image.startsWith("/guides/")) throw new Error(`guide ${file}: image attendue dans public/guides (ex. /guides/${slug}.jpg)`);
+    if (!existsSync(join(process.cwd(), "public", data.image))) throw new Error(`guide ${file}: l'image ${data.image} est introuvable dans apps/web/public`);
+    if (!data.imageAlt) throw new Error(`guide ${file}: « imageAlt » (ce que montre l'image) manque dans l'en-tête`);
+    image = { src: data.image, alt: data.imageAlt };
+  }
   const { html, toc } = render(body);
   const words = body.split(/\s+/).filter(Boolean).length;
   return {
     slug, title: data.title!, description: data.description!, date: data.date!, updated: data.updated || null,
     author: data.author!, draft: data.draft === "true", markdown: body.trim(), html, toc,
     readingMinutes: Math.max(1, Math.round(words / 220)),
+    image,
   };
 }
 

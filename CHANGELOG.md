@@ -15,6 +15,8 @@ Retiré), avec le numéro de l'issue qu'il traite.
 ### Ajouté
 - Section Guides (`/guides`) : articles en Markdown dans `apps/web/content/guides`, sommaire, données structurées,
   flux RSS, plan du site ; brouillons visibles en préversion seulement (#63).
+- Guides : image de bannière (en-tête `image` et `imageAlt`), affichée en haut de l'article et en vignette dans l'index,
+  et reprise comme image de partage (#77).
 - Code sous licence AGPL-3.0 (`LICENSE`), mentionnée sur l'accueil et dans la doc Community ; guides de contribution
   et de sécurité, code de conduite, modèle de pull request (#73).
 - Données structurées JSON-LD sur le site public : éditeur, site, application et forfaits, FAQ, fil d'Ariane et articles de doc (#57).
