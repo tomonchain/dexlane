@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import {
-  createTcgdexClient, findCandidates, getSetDetail, setSetCode, catalogImportStatus, importNextSets, listSets, syncSet, syncSetList, type TcgdexClient, refreshTrackedPrices, searchCatalog,
+  createTcgdexClient, findCandidates, getSetDetail, getPublicCard, getPublicSet, listPublicCardsForSitemap, listPublicSets, setSetCode, catalogImportStatus, importNextSets, listSets, syncSet, syncSetList, type TcgdexClient, refreshTrackedPrices, searchCatalog,
 } from "@dexlane/catalog";
 import { OWNER_ACCOUNT_ID, withTx, type Db } from "@dexlane/db";
 import {
@@ -105,7 +105,8 @@ export function createApp(deps: AppDeps) {
 
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
   /** Routes qui travaillent hors de tout compte : installation, liste des comptes, import du catalogue commun (long). */
-  const unscoped = (path: string) => path.startsWith("/api/setup/") || path === "/api/accounts/active" || path.startsWith("/api/catalog/import");
+  const unscoped = (path: string) =>
+    path.startsWith("/api/setup/") || path === "/api/accounts/active" || path.startsWith("/api/catalog/import") || path.startsWith("/api/public/");
 
   const mailer = (): Mailer => {
     const configured = deps.mailer === undefined ? mailerFromEnv() : deps.mailer;
@@ -803,6 +804,32 @@ export function createApp(deps: AppDeps) {
       { limit: q.limit },
     );
     return c.json({ candidates: match.candidates });
+  });
+
+  // ───────────────────────── Catalogue public (site) ─────────────────────────
+
+  // Pages publiques des séries et des cartes (dexlane.app/series) : catalogue commun et cotes seulement, jamais les
+  // données d'un compte (voir @dexlane/catalog, public.ts).
+  app.get("/api/public/catalog/sets", async (c) => {
+    const { language } = parse(s.languageQuery, c.req.query());
+    return c.json({ sets: await listPublicSets(sql, language) });
+  });
+  app.get("/api/public/catalog/sets/:set", async (c) => {
+    const { language } = parse(s.languageQuery, c.req.query());
+    const found = await getPublicSet(sql, language, parse(s.publicSegment, c.req.param("set")));
+    if (!found) throw new HttpError(404, "CATALOG_SET_NOT_FOUND", "this set is not known for this language");
+    return c.json(found);
+  });
+  app.get("/api/public/catalog/sets/:set/cards/:card", async (c) => {
+    const { language } = parse(s.languageQuery, c.req.query());
+    const card = await getPublicCard(sql, language, parse(s.publicSegment, c.req.param("set")), parse(s.publicSegment, c.req.param("card")));
+    if (!card) throw new HttpError(404, "CATALOG_CARD_NOT_FOUND", "this card is not known for this language");
+    return c.json(card);
+  });
+  app.get("/api/public/catalog/sitemap", async (c) => {
+    const { language } = parse(s.languageQuery, c.req.query());
+    const [sets, cards] = await Promise.all([listPublicSets(sql, language), listPublicCardsForSitemap(sql, language)]);
+    return c.json({ sets, cards });
   });
 
   // ───────────────────────── Synchronisation du catalogue ─────────────────────────

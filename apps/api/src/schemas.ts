@@ -116,6 +116,8 @@ export const scanQuery = z.object({ language: language.default("fr") });
 
 export const languageBody = z.strictObject({ language: language.default("fr") });
 export const languageQuery = z.object({ language: language.default("fr") });
+/** Segment d'adresse d'une page publique (« sv03.5-151 », « 4-dracaufeu »). */
+export const publicSegment = z.string().min(1).max(200);
 export const setId = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9.-]{0,39}$/);
 
 export const createLocationsBody = z.strictObject({ codes: z.array(z.string().trim().min(1).max(80)).min(1).max(200) });

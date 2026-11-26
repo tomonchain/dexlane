@@ -43,7 +43,7 @@ export function llmsIndex(): string {
     `> ${SEO.landing.description}`,
     `Dexlane est une application web (et installable sur téléphone) pour les vendeurs de cartes Pokémon : scan des cartes, entrée en stock et rangement, prix calculés d'après les cotes du marché, publication et synchronisation des annonces eBay, ventes et envois. Version hébergée sur ${url("/")}, version Community auto-hébergeable, serveur MCP pour les agents.`,
     `## Forfaits\n\n${plans()}\n\nDétail : ${url("/tarifs")}`,
-    `## Pages\n\n- [Accueil](${url("/")})\n- [Tarifs](${url("/tarifs")})\n- [${DOCS_INDEX.title}](${url("/docs")})\n- [Contact](${url("/contact")})\n- [Documentation complète en Markdown](${url("/llms-full.txt")})`,
+    `## Pages\n\n- [Accueil](${url("/")})\n- [Tarifs](${url("/tarifs")})\n- [${DOCS_INDEX.title}](${url("/docs")})\n- [Séries et cotes des cartes Pokémon](${url("/series")}) : chaque série en français, ses cartes et leur cote Cardmarket du jour\n- [Contact](${url("/contact")})\n- [Documentation complète en Markdown](${url("/llms-full.txt")})`,
     ...docs,
   ].join("\n\n") + "\n";
 }

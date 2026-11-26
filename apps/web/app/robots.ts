@@ -20,6 +20,6 @@ const AI_BOTS = [
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [{ userAgent: ["*", ...AI_BOTS], allow: "/", disallow: APP_PATHS }],
-    sitemap: new URL("/sitemap.xml", SITE_URL).toString(),
+    sitemap: [new URL("/sitemap.xml", SITE_URL).toString(), new URL("/series/sitemap.xml", SITE_URL).toString()],
   };
 }
