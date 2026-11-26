@@ -1,5 +1,6 @@
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
+import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { ThemeProvider } from "@/components/theme";
@@ -34,6 +35,7 @@ export default function AuthRootLayout({ children }: { children: ReactNode }) {
         <ThemeProvider>
           <main>{children}</main>
         </ThemeProvider>
+        <Analytics />
       </body>
     </html>
   );

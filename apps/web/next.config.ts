@@ -47,7 +47,18 @@ const config: NextConfig = {
       ["/carte/:path*", "/card/:path*"], ["/prix", "/pricing"], ["/vrac", "/bulk"], ["/fournitures", "/stock?section=supplies"],
     ];
     const query = (key: string, value?: string) => [{ type: "query" as const, key, ...(value ? { value } : {}) }];
+    // Production : une seule adresse pour les moteurs. Les domaines *.vercel.app mènent à dexlane.app, sauf les routes
+    // machine (API, MCP, tâches planifiées) que des clients ou Vercel appellent encore à ces adresses.
+    const site = process.env.NEXT_PUBLIC_SITE_URL;
+    const canonicalHost =
+      process.env.VERCEL_ENV === "production" && site
+        ? [
+            { source: "/", destination: `${site}/` },
+            { source: "/:path((?!api/|mcp|cron/).+)", destination: `${site}/:path` },
+          ].map((rule) => ({ ...rule, has: [{ type: "host" as const, value: ".*\\.vercel\\.app" }], permanent: true }))
+        : [];
     return [
+      ...canonicalHost,
       ...pages.map(([source, destination]) => ({ source, destination, permanent: true })),
       // Paramètres d'adresse passés à l'anglais.
       // L'ancien paramètre est repassé à la destination : la règle exige l'absence du nouveau, pour ne pas boucler.

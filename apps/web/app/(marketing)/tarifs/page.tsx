@@ -2,6 +2,7 @@ import { Server } from "lucide-react";
 import { FAQ, PRICING, PRICING_FAQ, SEO } from "@/components/landing/content";
 import { FaqList } from "@/components/landing/landing";
 import { pageMetadata } from "@/components/marketing/metadata";
+import { JsonLd, breadcrumb, faqPage, softwareApplication } from "@/components/marketing/structured-data";
 import { PlanGrid, PlanNotes } from "@/components/marketing/plans";
 import { LEAD, SectionTitle, TextLink } from "@/components/marketing/ui";
 import { GITHUB_URL } from "@/config/site";
@@ -14,6 +15,7 @@ export default function PricingPage() {
   const faq = FAQ.items.filter((item) => PRICING_FAQ.includes(item.id));
   return (
     <div className="mx-auto grid max-w-6xl gap-14 px-4 pt-12 pb-20 sm:px-8 sm:pt-20 sm:pb-28">
+      <JsonLd graph={[softwareApplication, faqPage(faq, "/tarifs"), breadcrumb([{ name: "Dexlane", path: "/" }, { name: PRICING.title, path: "/tarifs" }])]} />
       <header className="grid gap-5">
         <SectionTitle as="h1">{PRICING.title}</SectionTitle>
         <p className={LEAD}>{PRICING.subtitle}</p>

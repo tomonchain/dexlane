@@ -1,8 +1,10 @@
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
+import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { MarketingShell } from "@/components/marketing/shell";
+import { JsonLd, organization, website } from "@/components/marketing/structured-data";
 import { ThemeProvider } from "@/components/theme";
 import { SITE_URL } from "@/config/site";
 import "../globals.css";
@@ -31,9 +33,12 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
     // suppressHydrationWarning : la classe de thème est posée avant l'hydratation par next-themes.
     <html lang="fr" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <body>
+        <JsonLd graph={[organization, website]} />
         <ThemeProvider>
           <MarketingShell>{children}</MarketingShell>
         </ThemeProvider>
+        {/* Mesure d'audience sans cookie (Vercel Web Analytics) : pas de bandeau à afficher. */}
+        <Analytics />
       </body>
     </html>
   );

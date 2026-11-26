@@ -33,15 +33,15 @@ export const SEO = {
   },
   /** La copy des docs est dans components/docs/content.ts (DOCS_INDEX.seo pour la page d'accueil des docs). */
   contact: { title: "Contact — Dexlane", description: "Une question, un bug, une idée ? Écris-nous, c'est le fondateur qui répond." },
-  mentionsLegales: { title: "Mentions légales — Dexlane", description: "[À COMPLÉTER]" },
-  cgu: { title: "CGU — Dexlane", description: "[À COMPLÉTER]" },
-  confidentialite: { title: "Confidentialité — Dexlane", description: "[À COMPLÉTER]" },
+  mentionsLegales: { title: "Mentions légales — Dexlane", description: "Mentions légales de Dexlane : éditeur du site, directeur de la publication, hébergeur et contact." },
+  cgu: { title: "CGU — Dexlane", description: "Conditions générales d'utilisation de Dexlane : compte, forfaits et facturation, usage du service, résiliation." },
+  confidentialite: { title: "Confidentialité — Dexlane", description: "Comment Dexlane traite tes données : ce qui est collecté, pourquoi, combien de temps, par qui, et comment exercer tes droits." },
   colis: {
     title: "Tu viens de recevoir une carte vendue avec Dexlane.",
     description: `Les tiennes peuvent partir aussi vite. Ton code ${PARCEL_OFFER.code} t'offre ${PARCEL_OFFER.offer}.`,
   },
   signup: { title: "Crée ton compte — Dexlane", description: `${FREE} cartes offertes chaque mois. Sans carte bancaire.` },
-  forgotPassword: { title: "Mot de passe oublié — Dexlane", description: "[À COMPLÉTER]" },
+  forgotPassword: { title: "Mot de passe oublié — Dexlane", description: "Reçois par e-mail un lien pour choisir un nouveau mot de passe Dexlane." },
   notFound: "Cette page n'existe pas.",
 } satisfies Record<string, PageSeo | string>;
 

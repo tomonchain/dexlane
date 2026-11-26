@@ -12,6 +12,16 @@ Retiré), avec le numéro de l'issue qu'il traite.
 
 ## [Non publié]
 
+### Ajouté
+- Données structurées JSON-LD sur le site public : éditeur, site, application et forfaits, FAQ, fil d'Ariane et articles de doc (#57).
+- `/llms.txt` et `/llms-full.txt` : le site et toute la doc en Markdown pour les moteurs génératifs (#58).
+- Mesure d'audience sans cookie (Vercel Web Analytics) sur le site public et les pages d'inscription (#59).
+
+### Modifié
+- En production, les adresses `*.vercel.app` redirigent vers `dexlane.app`, hors API, MCP et tâches planifiées (#56).
+- `robots.txt` nomme les robots des moteurs génératifs et ferme `/lots` et `/join` (#58).
+- Mentions légales : hébergeur renseigné ; descriptions des pages légales écrites (#48).
+
 ## [0.9.0] — 2026-11-26
 
 Première version numérotée : passage de l'outil personnel au service multi-comptes, sur `dexlane.app`. Version bêta,

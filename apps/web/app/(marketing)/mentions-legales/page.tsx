@@ -25,9 +25,9 @@ const SECTIONS: LegalSection[] = [
     id: "hebergeur",
     title: "Hébergeur",
     fields: [
-      { label: "Raison sociale", value: TODO },
-      { label: "Adresse", value: TODO },
-      { label: "Contact", value: TODO },
+      { label: "Raison sociale", value: "Vercel Inc." },
+      { label: "Adresse", value: "440 N Barranca Ave #4133, Covina, CA 91723, États-Unis" },
+      { label: "Contact", value: "https://vercel.com/contact" },
     ],
   },
   { id: "contact", title: "Contact", fields: [{ label: "Adresse e-mail", value: TODO }] },
