@@ -128,6 +128,7 @@ Sans `DEXLANE_API_URL`, le serveur Next embarque l'API : un seul déploiement su
 4. Tâche quotidienne : `apps/web/vercel.json` déclare un cron (`/cron/daily`, chaque nuit) qui relève les cotes des cartes en stock et synchronise les canaux. Elle exige la variable `CRON_SECRET` (valeur aléatoire), que Vercel présente à chaque appel ; sans elle, la route refuse tout.
 5. Photos : onglet **Storage** → Blob (accès public), relié au projet ; l'intégration fournit `BLOB_READ_WRITE_TOKEN`. Sans cette variable, tout fonctionne mais les images scannées ne sont pas conservées.
 6. Catalogue : la base hébergée démarre vide. Onglet **Catalogue** de l'application : « Charger la liste », puis « Synchroniser » les séries possédées (rejouable, met à jour les cartes et ajoute les cotations du jour). La commande `pnpm --filter @dexlane/catalog sync` reste disponible depuis un poste.
+7. Domaine : `dexlane.app` est le domaine de production du projet (`www.dexlane.app` y redirige en 308), enregistré chez Namecheap avec des enregistrements DNS pointant vers Vercel (`A @ 216.150.1.1`, `CNAME www` vers la cible Vercel du projet). `VERCEL_PROJECT_PRODUCTION_URL` le reprend d'elle-même (expéditeur des notifications push). `dexlane.vercel.app` reste joignable.
 
 À savoir : préversions et production partagent la même base tant qu'aucune base par branche n'est configurée ; c'est pourquoi une préversion n'applique pas les migrations (voir « Intégration continue et déploiement »). L'application est protégée par le mot de passe du propriétaire, avec blocage temporaire après des essais infructueux répétés.
 
@@ -181,7 +182,7 @@ Les tests tournent contre un vrai PostgreSQL : la base de test de chaque package
 
 ## Agents — serveur MCP
 
-- **Adresse** : `https://<domaine>/mcp`, transport « Streamable HTTP » sans session (chaque `POST` porte un message JSON-RPC, réponse JSON), en-tête `Authorization: Bearer dxl_…`. Compatible avec tout client MCP qui accepte un serveur HTTP distant et un en-tête d'autorisation.
+- **Adresse** : `https://dexlane.app/mcp`, transport « Streamable HTTP » sans session (chaque `POST` porte un message JSON-RPC, réponse JSON), en-tête `Authorization: Bearer dxl_…`. Compatible avec tout client MCP qui accepte un serveur HTTP distant et un en-tête d'autorisation.
 - **Jetons** : Réglages › Agents (MCP). Un jeton par agent, montré une seule fois, révocable ; seule son empreinte (SHA-256) est gardée (`agent_tokens`). Un jeton d'agent n'ouvre que `/mcp`, jamais le reste de l'API.
 - **Outils** : lecture (vue d'ensemble, stock, fiche d'une offre, journal des mouvements, ventes, statistiques, variations de cote, fournitures, planning, catalogue, bonnes affaires, cartes suivies, offres vendables) et actions (prix d'une offre, planification des mises en ligne, vente directe idempotente, suivi d'une carte, commande, réception, inventaire et seuils des fournitures). Pas de suppression ni d'annulation.
 - Chaque outil rappelle la même route de l'API que l'application (validations, règles, synchronisation des canaux, alertes) ; le journal d'audit enregistre `agent:<nom>`. Code : `apps/api/src/mcp.ts`, `agents.ts` ; relais public `apps/web/app/mcp/route.ts`.
