@@ -106,7 +106,9 @@ export function createApp(deps: AppDeps) {
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
   /** Routes qui travaillent hors de tout compte : installation, liste des comptes, import du catalogue commun (long). */
   const unscoped = (path: string) =>
-    path.startsWith("/api/setup/") || path === "/api/accounts/active" || path.startsWith("/api/catalog/import") || path.startsWith("/api/public/");
+    path.startsWith("/api/setup/") || path === "/api/accounts/active" || path.startsWith("/api/catalog/import") || path.startsWith("/api/public/") ||
+    // L'effacement d'un compte se fait hors de sa transaction cloisonnée : il supprime le compte lui-même.
+    path === "/api/account/delete";
 
   const mailer = (): Mailer => {
     const configured = deps.mailer === undefined ? mailerFromEnv() : deps.mailer;
@@ -221,6 +223,14 @@ export function createApp(deps: AppDeps) {
   registerAccountRoutes(app, {
     root, sql, mailer, baseUrl: () => deps.baseUrl ?? publicBaseUrl(), supportEmail: process.env.SUPPORT_EMAIL ?? null,
     onError: deps.onError ?? console.error,
+    verifyPassword: async (userId, password) => {
+      const [credential] = await root<{ password: string | null }[]>`
+        select password from auth_credentials where "userId" = ${userId} and "providerId" = 'credential'`;
+      if (!credential?.password) return false;
+      const ctx = await auth().$context;
+      return ctx.password.verify({ hash: credential.password, password });
+    },
+    removePhoto: deps.photos ? (url) => deps.photos!.remove(url) : null,
   });
 
   // ───────────────────────── Scan et catalogue ─────────────────────────

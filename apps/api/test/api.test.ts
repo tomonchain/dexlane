@@ -1580,6 +1580,61 @@ describe("accounts", () => {
     expect((await req("GET", "/api/locations", { cookie: back.cookie })).json.locations).toEqual([]);
     expect(errors).toEqual([]);
   });
+
+  it("exports a seller's data and erases the account with its journals, without touching another account", async () => {
+    const seller = await register("efface@example.com");
+    const other = await register("autre@example.com");
+    expect((await req("POST", "/api/locations", { body: { code: "BOITE-1" }, cookie: seller.cookie })).status).toBe(201);
+    expect((await req("POST", "/api/locations", { body: { code: "AUTRE" }, cookie: other.cookie })).status).toBe(201);
+    // Un changement de forfait écrit dans le journal d'audit, en ajout seul.
+    expect((await req("PUT", "/api/account/plan", { body: { plan: "solo" }, cookie: seller.cookie })).status).toBe(200);
+
+    // Portabilité : ses données à lui, sans secret.
+    const exported = await req("GET", "/api/account/export", { cookie: seller.cookie });
+    expect(exported.status).toBe(200);
+    expect(exported.json).toMatchObject({ format: "dexlane-export/1", account: { id: seller.accountId, plan: "solo" }, users: [{ email: "efface@example.com" }] });
+    expect(exported.json.data.locations.map((l: { code: string }) => l.code)).toEqual(["BOITE-1"]);
+    expect(exported.json.data.audit_events.length).toBeGreaterThan(0);
+    expect(JSON.stringify(exported.json)).not.toMatch(/password|token_hash|"AUTRE"/);
+
+    // Effacement : le mot de passe et le mot « SUPPRIMER » sont exigés.
+    expect((await req("POST", "/api/account/delete", { body: { password: "faux", confirm: "SUPPRIMER" }, cookie: seller.cookie })).json.error.code).toBe("WRONG_PASSWORD");
+    expect((await req("POST", "/api/account/delete", { body: { password: "un-bon-mot-de-passe", confirm: "oui" }, cookie: seller.cookie })).status).toBe(400);
+    const erased = await req("POST", "/api/account/delete", { body: { password: "un-bon-mot-de-passe", confirm: "SUPPRIMER" }, cookie: seller.cookie });
+    expect(erased.json).toEqual({ ok: true, deleted: "account" });
+    expect((await req("GET", "/api/account", { cookie: seller.cookie })).status).toBe(401);
+    expect((await req("POST", "/api/auth/sign-in/email", { body: { email: "efface@example.com", password: "un-bon-mot-de-passe" } })).status).toBe(401);
+    for (const table of ["locations", "audit_events", "app_settings"]) {
+      expect(await sql`select count(*)::int as n from ${sql(table)} where account_id = ${seller.accountId}`).toEqual([{ n: 0 }]);
+    }
+    expect(await sql`select count(*)::int as n from accounts where id = ${seller.accountId}`).toEqual([{ n: 0 }]);
+    // Les journaux restent en ajout seul en dehors d'un effacement.
+    await expect(sql`delete from audit_events where account_id = ${other.accountId}`).rejects.toThrow(/append-only/);
+    // L'autre compte n'a rien perdu.
+    expect((await req("GET", "/api/locations", { cookie: other.cookie })).json.locations.map((l: { code: string }) => l.code)).toEqual(["AUTRE"]);
+    expect(errors).toEqual([]);
+  });
+
+  it("lets a teammate delete only their own user, and keeps the installation account from being deleted", async () => {
+    const owner = await register("patron@example.com");
+    const clerk = await register("equipier@example.com");
+    await req("PUT", "/api/account/plan", { body: { plan: "boutique" }, cookie: owner.cookie });
+    await req("POST", "/api/team/invitations", { body: { email: "equipier@example.com" }, cookie: owner.cookie });
+    const token = new URL(mails.at(-1)!.text.match(/https:\/\/\S+/)![0]).searchParams.get("token")!;
+    expect((await req("POST", "/api/team/invitations/accept", { body: { token }, cookie: clerk.cookie })).status).toBe(200);
+    expect((await req("POST", "/api/locations", { body: { code: "COMPTOIR" }, cookie: owner.cookie })).status).toBe(201);
+
+    const left = await req("POST", "/api/account/delete", { body: { password: "un-bon-mot-de-passe", confirm: "SUPPRIMER" }, cookie: clerk.cookie });
+    expect(left.json).toEqual({ ok: true, deleted: "user" });
+    expect((await req("GET", "/api/team", { cookie: owner.cookie })).json.members.map((m: { email: string }) => m.email)).toEqual(["patron@example.com"]);
+    expect((await req("GET", "/api/locations", { cookie: owner.cookie })).json.locations.map((l: { code: string }) => l.code)).toEqual(["COMPTOIR"]);
+
+    // Le compte d'installation (celui du serveur) ne se supprime pas.
+    await req("POST", "/api/setup/owner", { body: { email: "serveur@example.com", password: "secret-du-serveur" } });
+    const admin = await req("POST", "/api/auth/sign-in/email", { body: { email: "serveur@example.com", password: "secret-du-serveur" } });
+    expect((await req("POST", "/api/account/delete", { body: { password: "secret-du-serveur", confirm: "SUPPRIMER" }, cookie: admin.cookie })).json.error.code).toBe("INSTALLATION_ACCOUNT");
+    expect(errors).toEqual([]);
+  });
 });
 
 describe("plans", () => {

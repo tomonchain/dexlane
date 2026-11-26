@@ -1260,6 +1260,28 @@ test("inscription : compte créé depuis /signup, adresse vérifiée par le lien
   await page.getByRole("button", { name: "Se connecter" }).click();
   await expect(page.getByRole("heading", { name: "Aujourd'hui" })).toBeVisible();
   expect(((await (await page.request.get("/api/stock")).json()) as { items: unknown[] }).items).toEqual([]);
+
+  // Ses données : un fichier JSON à télécharger, puis la suppression du compte, mot de passe et « SUPPRIMER » exigés.
+  await page.goto("/account");
+  const data = page.getByTestId("your-data");
+  await expect(data.getByTestId("export-data")).toHaveAttribute("href", "/api/account/export");
+  const exported = await page.request.get("/api/account/export");
+  expect(exported.headers()["content-disposition"]).toMatch(/^attachment; filename="dexlane-donnees-/);
+  expect(((await exported.json()) as { data: { locations: { code: string }[] } }).data.locations.map((l) => l.code)).toEqual(["BOITE-01"]);
+  await data.getByTestId("delete-account").click();
+  const form = page.getByTestId("delete-account-form");
+  await form.getByLabel("Mot de passe", { exact: true }).fill("nouveau-mot-de-passe-vendeur");
+  await form.getByTestId("delete-confirm").fill("supprimer");
+  await expect(form.getByRole("button", { name: "Supprimer définitivement" })).toBeDisabled();
+  await form.getByTestId("delete-confirm").fill("SUPPRIMER");
+  await form.getByRole("button", { name: "Supprimer définitivement" }).click();
+  await page.waitForURL((url) => url.pathname === "/");
+  // Le compte n'existe plus : la connexion est refusée.
+  await page.goto("/login");
+  await page.getByLabel("Adresse e-mail").fill(email);
+  await page.getByLabel("Mot de passe", { exact: true }).fill("nouveau-mot-de-passe-vendeur");
+  await page.getByRole("button", { name: "Se connecter" }).click();
+  await expect(errorBanner(page)).toBeVisible();
 });
 
 test("site marketing : en-tête et menu mobile, tarifs, pages légales, contact, colis, docs, 404, sitemap et robots", async ({ page }) => {

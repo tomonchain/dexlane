@@ -186,4 +186,22 @@ export const ACCOUNT: Record<string, string> = {
   "Prix appliqué": "Price applied",
   "Il protège l'accès à votre compte. En cas d'oubli, « Mot de passe oublié ? » sur l'écran de connexion vous envoie un lien par e-mail.":
     "It protects access to your account. If you forget it, “Forgot password?” on the sign-in screen emails you a link.",
+
+  // Vos données (RGPD)
+  "Vos données": "Your data",
+  "Téléchargez tout ce que Dexlane garde pour votre compte (stock, annonces, ventes, réglages, journaux), dans un fichier JSON. Les mots de passe et les jetons n'y figurent pas.":
+    "Download everything Dexlane keeps for your account (stock, listings, sales, settings, logs) as a JSON file. Passwords and tokens are not included.",
+  "Télécharger mes données": "Download my data",
+  "Supprimer le compte": "Delete the account",
+  "Quitter et supprimer mon accès": "Leave and delete my access",
+  "Le compte d'installation, celui du serveur, ne se supprime pas depuis l'application.": "The installation account, the server's own, cannot be deleted from the app.",
+  "Tout est effacé pour de bon : stock, annonces, ventes, photos, réglages, journaux, ainsi que les accès des {n} membres de l'équipe. Vos annonces déjà en ligne sur les places de marché n'en sont pas retirées.":
+    "Everything is erased for good: stock, listings, sales, photos, settings, logs, and the access of the {n} team members. Listings already live on marketplaces are not ended.",
+  "Tout est effacé pour de bon : stock, annonces, ventes, photos, réglages et journaux. Vos annonces déjà en ligne sur les places de marché n'en sont pas retirées.":
+    "Everything is erased for good: stock, listings, sales, photos, settings and logs. Listings already live on marketplaces are not ended.",
+  "Votre accès est supprimé et vos sessions fermées. Le compte de l'équipe et ses données restent.": "Your access is deleted and your sessions closed. The team's account and its data stay.",
+  "Pensez à télécharger vos données d'abord : la suppression est définitive.": "Download your data first: deletion is permanent.",
+  "Tapez SUPPRIMER pour confirmer": "Type SUPPRIMER to confirm",
+  "Supprimer définitivement": "Delete permanently",
+  "Supprimer mon accès": "Delete my access",
 };

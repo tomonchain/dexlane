@@ -8,7 +8,7 @@ export const maxDuration = 300;
 
 // Jamais « x-dexlane-account » : un navigateur ne choisit pas son compte, c'est sa session qui le dit.
 const FORWARDED_REQUEST_HEADERS = ["content-type", "idempotency-key", "accept", "cookie", "origin", "user-agent"];
-const FORWARDED_RESPONSE_HEADERS = ["content-type", "idempotent-replay", "location"];
+const FORWARDED_RESPONSE_HEADERS = ["content-type", "content-disposition", "idempotent-replay", "location"];
 /** Réservé au serveur : installation (jeton d'installation, voir /auth) et liste des comptes (tâches planifiées). */
 const SERVER_ONLY = ["setup", "accounts"];
 
