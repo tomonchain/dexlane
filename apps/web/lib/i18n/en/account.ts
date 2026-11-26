@@ -48,7 +48,6 @@ export const ACCOUNT: Record<string, string> = {
   "{price}, valable jusqu'à la fin du mois. Sur un forfait payant, une mise en ligne planifiée qui dépasse ajoute d'elle-même les packs nécessaires.":
     "{price}, valid until the end of the month. On a paid plan, a scheduled run that goes over adds the packs it needs by itself.",
   "Ajouter un pack": "Add a pack",
-  "Pack ajouté : {n} cartes de plus ce mois-ci": "Pack added: {n} more cards this month",
   "Pack ajouté automatiquement": "Pack added automatically",
   "Pack ajouté": "Pack added",
   "Seul le propriétaire du compte change le forfait et ajoute des packs.": "Only the account owner changes the plan and adds packs.",
@@ -208,6 +207,7 @@ export const ACCOUNT: Record<string, string> = {
   // Scans (#50)
   "Scans du mois épuisés": "Scans used up for the month",
   "Scan trop rapide": "Scanning too fast",
+  "Pack ajouté : {n} cartes et {scans} scans de plus ce mois-ci": "Pack added: {n} more cards and {scans} more scans this month",
   "Scans du mois épuisés : la lecture automatique reprend avec un pack, un forfait supérieur ou le mois prochain. Les cartes se recherchent toujours à la main.":
     "Scans used up for the month: automatic reading resumes with a pack, a higher plan or next month. Cards can still be searched by hand.",
   "Pack de {n} cartes et {scans} scans": "Pack of {n} cards and {scans} scans",

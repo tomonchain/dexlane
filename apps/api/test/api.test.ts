@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { syncSet, type TcgdexClient } from "@dexlane/catalog";
 import { OWNER_ACCOUNT_ID } from "@dexlane/db";
 import { testDatabaseUrl, useTestDb } from "@dexlane/db/testing";
-import type { CardReadingRaw, CardRecognizer } from "@dexlane/scan";
+import { RecognitionError, type CardReadingRaw, type CardRecognizer } from "@dexlane/scan";
 import { card, fakeClient } from "../../../packages/catalog/test/fixtures";
 import { createApp } from "../src/app";
 import type { Mail } from "../src/mailer";
@@ -1618,13 +1618,26 @@ describe("accounts", () => {
     const fast = await scan({ headers: as(seller.accountId) });
     expect([fast.status, fast.json.error.code]).toEqual([429, "SCAN_RATE_LIMITED"]);
 
-    // Une panne de lecture ne consomme pas de scan.
+    // Une panne de lecture ne consomme pas de scan ; une lecture refusée par le modèle, payée, compte même si la requête échoue.
     await sql`delete from scan_usage where account_id = ${seller.accountId} and created_at > now() - interval '5 minutes'`;
     const before = (await req("GET", "/api/account", { cookie: seller.cookie })).json.scans.used;
+    const ok = recognize;
     recognize = async () => { throw new Error("vision down"); };
     expect((await scan({ headers: as(seller.accountId) })).json.error.code).toBe("SCAN_UNAVAILABLE");
     expect((await req("GET", "/api/account", { cookie: seller.cookie })).json.scans.used).toBe(before);
+    recognize = async () => { throw new RecognitionError("REFUSED", "refused"); };
+    expect((await scan({ headers: as(seller.accountId) })).status).toBeGreaterThanOrEqual(400);
+    expect((await req("GET", "/api/account", { cookie: seller.cookie })).json.scans.used).toBe(before + 1);
     errors.length = 0;
+
+    // Des scans simultanés ne dépassent pas le plafond : il en reste 2, sur 5 envoyés en même temps, 2 passent.
+    recognize = ok;
+    const used = (await req("GET", "/api/account", { cookie: seller.cookie })).json.scans.used;
+    await sql`insert into scan_usage (account_id, month, source, created_at)
+      select ${seller.accountId}, ${month}, 'single', now() - interval '1 hour' from generate_series(1, ${800 - used - 2})`;
+    const burst = await Promise.all(Array.from({ length: 5 }, () => scan({ headers: as(seller.accountId) })));
+    expect(burst.map((r) => r.status).sort()).toEqual([200, 200, 402, 402, 402]);
+    expect((await req("GET", "/api/account", { cookie: seller.cookie })).json.scans).toMatchObject({ used: 800, remaining: 0 });
   });
 
   it("exports a seller's data and erases the account with its journals, without touching another account", async () => {

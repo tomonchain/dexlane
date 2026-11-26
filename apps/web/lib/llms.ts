@@ -31,7 +31,7 @@ export function docMarkdown(page: DocPage): string {
 }
 
 const plans = () =>
-  PLANS.map((p) => `- **${p.name}** : ${formatPlanPrice(p)}, ${formatCards(p.cardsPerMonth)} cartes publiées par mois. ${p.pitch}.`).join("\n");
+  PLANS.map((p) => `- **${p.name}** : ${formatPlanPrice(p)}, ${formatCards(p.cardsPerMonth)} cartes publiées et ${formatCards(p.scansPerMonth)} scans par mois. ${p.pitch}.`).join("\n");
 
 /** Les guides publiés, s'il y en a. */
 function guidesSection(): string[] {

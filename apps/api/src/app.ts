@@ -4,7 +4,7 @@ import { HTTPException } from "hono/http-exception";
 import {
   createTcgdexClient, findCandidates, getSetDetail, getPublicCard, getPublicSet, listPublicCardsForSitemap, listPublicSets, setSetCode, catalogImportStatus, importNextSets, listSets, syncSet, syncSetList, type TcgdexClient, refreshTrackedPrices, searchCatalog,
 } from "@dexlane/catalog";
-import { OWNER_ACCOUNT_ID, withTx, type Db } from "@dexlane/db";
+import { OWNER_ACCOUNT_ID, withAccount, withTx, type Db } from "@dexlane/db";
 import {
   activateStock, addOfferPhoto, adjustStock, attachPhotos, cancelOrder, deletePhoto, getPhoto, saveListingPhoto, createAcquisitionLot, createDirectSale, createLocation, createLocations,
   deleteLocation, extractCardFromBulk, getInventorySummary, getOrderDetail, getShippingCosts, saveShippingCosts, listPreparation, markSlipsPrinted, getStockItemDetail, listAcquisitionLots,
@@ -247,7 +247,8 @@ export function createApp(deps: AppDeps) {
     async (c) => {
       const { language } = parse(s.scanQuery, c.req.query());
       const image = await readImage(c);
-      const recognizer = meteredRecognizer(sql, guardUpstream(deps.recognizer, deps.onError ?? console.error), "single");
+      // Le scan est réservé d'abord : refusé (quota, débit), rien n'est lu ni stocké.
+      const recognizer = await meteredRecognizer(root, c.var.accountId, guardUpstream(deps.recognizer, deps.onError ?? console.error), "single");
       // La photo est conservée en parallèle de la lecture ; un échec de stockage ne fait pas échouer le scan.
       const [r, photo] = await Promise.all([
         identifyCard(sql, recognizer, image, { defaultLanguage: language }),
@@ -442,14 +443,19 @@ export function createApp(deps: AppDeps) {
     if (existing) return c.json(existing);
     const batch = await getBatch(sql, batchId);
     const image = await readImage(c);
-    const recognizer = meteredRecognizer(sql, guardUpstream(deps.recognizer, deps.onError ?? console.error), "batch");
+    // Quota de scans atteint : la carte est tout de même enregistrée avec sa photo, à identifier à la main.
+    const recognizer = await meteredRecognizer(root, c.var.accountId, guardUpstream(deps.recognizer, deps.onError ?? console.error), "batch")
+      .catch((e: unknown) => {
+        if (e instanceof DomainError && (e.code === "SCAN_QUOTA_EXCEEDED" || e.code === "SCAN_RATE_LIMITED")) return { error: e.code };
+        throw e;
+      });
     const [identification, photo] = await Promise.all([
-      // Quota de scans atteint : la carte est enregistrée avec sa photo, à identifier à la main.
-      identifyCard(sql, recognizer, image, { defaultLanguage: batch.language }).catch((e: unknown) => {
-        const scanLimit = e instanceof DomainError && (e.code === "SCAN_QUOTA_EXCEEDED" || e.code === "SCAN_RATE_LIMITED");
-        if (!(e instanceof HttpError) && !(e instanceof RecognitionError) && !scanLimit) throw e;
-        return { error: e.code };
-      }),
+      "error" in recognizer
+        ? recognizer
+        : identifyCard(sql, recognizer, image, { defaultLanguage: batch.language }).catch((e: unknown) => {
+            if (!(e instanceof HttpError) && !(e instanceof RecognitionError)) throw e;
+            return { error: e.code };
+          }),
       storePhoto(image, "SCAN_FRONT"),
     ]);
     return c.json(await addItem(sql, { batchId, position, fileName, frontPhotoId: photo?.id ?? null, identification }), 201);
@@ -1265,27 +1271,29 @@ async function readImage(c: Context): Promise<CardImage> {
   return image;
 }
 
-/** Une panne du fournisseur de vision (identifiants, quota, réseau) devient un 502 explicite, pas un 500 opaque. */
 /**
- * Lecture comptée (#50) : chaque photo envoyée à Claude réserve un scan du forfait avant l'appel et note son coût
- * après. Une panne du service ne consomme rien : la réservation est rendue.
+ * Lecture comptée (#50) : réserve un scan du forfait (refusé au-delà du quota ou du débit), puis renvoie le lecteur
+ * qui note son coût. La réservation et le coût s'écrivent chacun dans leur propre transaction, courte et cloisonnée au
+ * compte : ils restent acquis même si la requête échoue ensuite (la lecture a été payée), et la réservation, sérialisée
+ * par compte, ne laisse pas des scans simultanés dépasser le plafond. Une panne du service ne consomme rien.
  */
-function meteredRecognizer(sql: Db, inner: CardRecognizer, source: "single" | "batch"): CardRecognizer {
+async function meteredRecognizer(root: Db, accountId: string, inner: CardRecognizer, source: "single" | "batch"): Promise<CardRecognizer> {
+  const scanId = await withAccount(root, accountId, (tx) => reserveScan(tx, source));
   return {
     async recognize(image) {
-      const scanId = await reserveScan(sql, source);
       try {
         const recognition = await inner.recognize(image);
-        await recordScanCost(sql, scanId, recognition.usage.costUsd);
+        await withAccount(root, accountId, (tx) => recordScanCost(tx, scanId, recognition.usage.costUsd));
         return recognition;
       } catch (e) {
-        if (e instanceof HttpError && e.code === "SCAN_UNAVAILABLE") await sql`delete from scan_usage where id = ${scanId}`;
+        if (e instanceof HttpError && e.code === "SCAN_UNAVAILABLE") await withAccount(root, accountId, (tx) => tx`delete from scan_usage where id = ${scanId}`);
         throw e;
       }
     },
   };
 }
 
+/** Une panne du fournisseur de vision (identifiants, quota, réseau) devient un 502 explicite, pas un 500 opaque. */
 function guardUpstream(factory: () => CardRecognizer, report: (err: unknown) => void): CardRecognizer {
   return {
     async recognize(image) {

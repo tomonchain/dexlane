@@ -4,7 +4,7 @@
  * Mise en forme dans les textes : `**gras**`, `` `code` `` et `[lien](/adresse)` (voir components/docs/prose.tsx).
  * Les forfaits, prix et quotas viennent de config/plans.ts : rien n'est recopié à la main.
  */
-import { FREE_PLAN, OVERAGE_PACK, PLANS, PLAN_FEATURES, formatCards, formatEuros, formatPlanPrice } from "@/config/plans";
+import { FREE_PLAN, OVERAGE_PACK, PLANS, PLAN_FEATURES, SCANS_PER_MINUTE, formatCards, formatEuros, formatPlanPrice } from "@/config/plans";
 import { GITHUB_ISSUES_URL, GITHUB_URL } from "@/config/site";
 
 export type DocBlock =
@@ -421,7 +421,7 @@ export const DOC_PAGES: DocPage[] = [
         title: "Les scans",
         blocks: [
           { p: `Chaque photo lue automatiquement compte pour un scan, que la lecture réussisse ou non ; une panne de la lecture ne compte pas. Chaque forfait comprend environ deux scans par carte publiable, pour les cartes que tu gardes en stock et les photos reprises, et un pack de cartes ajoute ${formatCards(PACK_SCANS)} scans. Le compteur repart de zéro le premier du mois, comme celui des cartes.` },
-          { p: "Une fois les scans du mois utilisés, une carte se recherche toujours à la main ; dans un lot scanné, elle est enregistrée avec sa photo, à identifier dans la revue. Pour éviter qu'un script ou une boucle s'emballe, un compte ne lit pas plus de 60 photos par minute." },
+          { p: `Une fois les scans du mois utilisés, une carte se recherche toujours à la main ; dans un lot scanné, elle est enregistrée avec sa photo, à identifier dans la revue. Pour éviter qu'un script ou une boucle s'emballe, un compte ne lit pas plus de ${SCANS_PER_MINUTE} photos par minute.` },
         ],
       },
       {
