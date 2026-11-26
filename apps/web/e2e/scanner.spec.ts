@@ -1401,6 +1401,30 @@ test("séries et cotes publiques : index, série, carte, adresse canonique, plan
   expect(await (await page.request.get("/llms.txt")).text()).toContain("/series");
 });
 
+test("guides : index, article rendu depuis le Markdown, sommaire, brouillon signalé hors production, flux RSS", async ({ page }) => {
+  await page.goto("/guides");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Guides");
+  const list = page.getByTestId("guides-list");
+  const first = list.getByRole("link").first();
+  const title = (await first.locator("span.text-xl").textContent())!;
+  await first.click();
+  await page.waitForURL(/\/guides\/[a-z0-9-]+$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(title);
+  // Le Markdown est rendu en titres de section ; le modèle (_modele.md) n'est jamais publié.
+  await expect(page.getByTestId("guide-body").locator("h2").first()).toBeVisible();
+  await expect(page.locator('script[type="application/ld+json"]').nth(1)).toBeAttached();
+  // Hors production, un brouillon se relit avec son bandeau ; il reste hors des moteurs.
+  if (await page.getByTestId("guide-draft").count()) {
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBe(0);
+  expect((await page.goto("/guides/_modele"))?.status()).toBe(404);
+  expect((await page.goto("/guides/inconnu"))?.status()).toBe(404);
+  const rss = await page.request.get("/guides/rss.xml");
+  expect(rss.headers()["content-type"]).toContain("application/rss+xml");
+  expect(await rss.text()).toContain("<title>Guides Dexlane</title>");
+});
+
 test("page d'accueil : landing publique sans session, puis « Aujourd'hui » avec ce qui attend une fois connecté", async ({ page }) => {
   // Visiteur : la landing statique, sans navigation d'application ni donnée du stock, référencée.
   await page.goto("/");

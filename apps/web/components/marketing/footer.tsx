@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { FOOTER, NAV } from "@/components/landing/content";
 import { GITHUB_URL } from "@/config/site";
+import { publishedGuides } from "@/lib/guides";
 import { Logo, Streaks } from "./ui";
 
 const GROUPS: { title: string; links: { label: string; href: string; external?: boolean }[] }[] = [
@@ -32,12 +33,16 @@ const GROUPS: { title: string; links: { label: string; href: string; external?: 
 
 /** Pied de page du site marketing : trois groupes de liens, la mention d'indépendance, le nom en relief. */
 export function MarketingFooter() {
+  // Le lien vers les guides n'apparaît qu'une fois le premier guide publié.
+  const groups = publishedGuides().length === 0
+    ? GROUPS
+    : GROUPS.map((g) => (g.title === NAV.groups.product ? { ...g, links: [...g.links, { label: NAV.guides, href: "/guides" }] } : g));
   return (
     <footer className="relative overflow-hidden border-t">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 pt-12 sm:px-8 sm:pt-16">
         <div className="grid gap-10 sm:grid-cols-[minmax(0,1.2fr)_repeat(3,minmax(0,1fr))]">
           <Link href="/" aria-label="Dexlane, accueil" className="self-start justify-self-start rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30"><Logo /></Link>
-          {GROUPS.map((group) => (
+          {groups.map((group) => (
             <nav key={group.title} aria-labelledby={`pied-${group.title}`} className="grid content-start gap-4">
               <h2 id={`pied-${group.title}`} className="grid justify-items-start gap-2 text-sm font-medium">
                 {group.title}

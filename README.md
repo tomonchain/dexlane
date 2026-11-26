@@ -193,7 +193,7 @@ Les tests tournent contre un vrai PostgreSQL : la base de test de chaque package
 
 - **Un seul écran `/stock`, trois rubriques** (onglets) : **Cartes** (une ligne par carte à vendre, comme avant), **Fournitures** (`?section=supplies`) et **Mouvements** (`?section=movements`). L'ancienne adresse `/fournitures` y mène.
 - **Photos d'un exemplaire** : un emplacement recto et un emplacement verso, dans la fiche du stock et sur la page d'une carte (par offre) ; chacun s'ajoute, se remplace ou se retire, et une photo est recadrée au format carte comme au scanner.
-- **Catalogue français complet** : chaque nuit (`/cron/catalog`, deuxième tâche planifiée de `vercel.json`), les séries françaises encore absentes s'importent pendant quatre minutes, les plus récentes d'abord (`POST /api/catalog/import/next`, rang de la série dans la liste TCGdex) ; la liste des séries est relue si elle est incomplète ou vieille d'une semaine. Une série sans carte en français n'est retentée qu'une semaine plus tard. Le catalogue affiche la progression (`GET /api/catalog/import`) et « Tout importer maintenant » enchaîne les lots tant que la page reste ouverte. Les cotes ne sont relevées ensuite que pour les cartes détenues ou suivies.
+- **Catalogue français complet** : toutes les heures (`/cron/catalog`, deuxième tâche planifiée de `vercel.json`), les séries françaises encore absentes s'importent pendant quatre minutes (5 à 10 séries par passage : le catalogue complet en un à deux jours ; ensuite, un passage sans rien à faire s'arrête aussitôt), les plus récentes d'abord (`POST /api/catalog/import/next`, rang de la série dans la liste TCGdex) ; la liste des séries est relue si elle est incomplète ou vieille d'une semaine. Une série sans carte en français n'est retentée qu'une semaine plus tard. Le catalogue affiche la progression (`GET /api/catalog/import`) et « Tout importer maintenant » enchaîne les lots tant que la page reste ouverte. Les cotes ne sont relevées ensuite que pour les cartes détenues ou suivies.
 - **Catalogue** : logo et symbole de chaque série (TCGdex, avec repli sur le logo anglais), code d'extension en regard du nom.
 - **Code d'extension** (colonne « Extension » des cartes, recherche, filtres) : le code usuel de la série, déduit de son identifiant et de la langue de la carte — en français SL01, SL03.5, EB03, EV03.5, ME02.5, NB01 ; en anglais SM01, SWSH03, SV03.5 (fonction SQL `set_code`) ; une série hors de ce schéma prend son abréviation officielle, ou son identifiant. Corrigeable par série dans le catalogue (`PUT /api/catalog/sets/:id/code`). La recherche tolère les écritures « me 2.5 », « ME02.5 », « me2,5 ».
 - **Fournitures** : liste filtrable (tout, à commander, commandées) et recherche (nom, référence, emplacement) ; fiche à droite (tiroir sur téléphone) avec quantité, jauge, jours de stock au rythme des 30 derniers jours, seuil, prix d'achat unitaire, valeur, emplacement (les mêmes emplacements que les cartes), commande habituelle, lien fournisseur et derniers mouvements. Gestes : entrée (avec note), inventaire (le compté remplace le calculé), commandé, modifier, retirer. En-tête : articles, unités et valeur du stock de fournitures.
@@ -213,6 +213,15 @@ Pages publiques du site, faites pour les moteurs de recherche et les assistants 
 - **Rendu** : chaque page est générée à sa première visite puis gardée en cache un jour (ISR), comme le relevé nocturne des cotes.
 - **Moteurs** : plan dédié `/series/sitemap.xml` (toutes les séries, et les cartes qui ont une cote), déclaré dans `robots.txt` ; une carte sans cote est `noindex`. Fil d'Ariane en JSON-LD.
 - **Source des cotes** : la cote tendance Cardmarket telle que TCGdex la publie dans son API (`pricing.cardmarket`), citée sous chaque tableau.
+
+## Guides (`/guides`)
+
+Articles du site, écrits en Markdown : un fichier par guide dans `apps/web/content/guides`, dont le nom donne l'adresse (`prix-carte-pokemon.md` → `/guides/prix-carte-pokemon`). Modèle commenté : `_modele.md` (jamais publié).
+
+- **En-tête** : `title`, `description`, `date` (AAAA-MM-JJ), `author`, et au besoin `updated` et `draft: true`.
+- **Brouillons** : visibles en local et en préversion (bandeau « Brouillon », `noindex`), jamais en production. Publier = retirer `draft: true` et livrer.
+- **Rendu** : statique (`marked`), sommaire des sections `##`, temps de lecture, JSON-LD `BlogPosting` (auteur, dates) et fil d'Ariane.
+- **Diffusion** : plan du site, flux RSS `/guides/rss.xml`, `llms.txt` et `llms-full.txt` (texte intégral). Le lien « Guides » du pied de page et l'indexation de `/guides` n'apparaissent qu'avec le premier guide publié.
 
 ## Agents — serveur MCP
 

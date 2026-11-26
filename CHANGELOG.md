@@ -13,6 +13,8 @@ Retiré), avec le numéro de l'issue qu'il traite.
 ## [Non publié]
 
 ### Ajouté
+- Section Guides (`/guides`) : articles en Markdown dans `apps/web/content/guides`, sommaire, données structurées,
+  flux RSS, plan du site ; brouillons visibles en préversion seulement (#63).
 - Code sous licence AGPL-3.0 (`LICENSE`), mentionnée sur l'accueil et dans la doc Community ; guides de contribution
   et de sécurité, code de conduite, modèle de pull request (#73).
 - Données structurées JSON-LD sur le site public : éditeur, site, application et forfaits, FAQ, fil d'Ariane et articles de doc (#57).
@@ -28,6 +30,8 @@ Retiré), avec le numéro de l'issue qu'il traite.
 - Compte : le texte du mot de passe renvoie à « Mot de passe oublié ? » au lieu du jeton d'installation.
 
 ### Corrigé
+- Le catalogue français complet s'importe en un à deux jours au lieu de plusieurs semaines : la tâche d'import passe
+  toutes les heures (#75).
 - Une carte gradée s'annonce avec sa note même quand le modèle de titre utilise `{etat_nom}` (« Near Mint ») (#68).
 
 ### Retiré

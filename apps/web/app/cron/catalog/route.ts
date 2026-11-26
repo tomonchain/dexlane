@@ -6,8 +6,9 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /**
- * Tâche de nuit (Vercel Cron, voir vercel.json) : importe les séries françaises qui manquent encore au catalogue, les plus
- * récentes d'abord, pendant quatre minutes. En quelques nuits, tout le catalogue est là. Protégée par `CRON_SECRET`.
+ * Tâche horaire (Vercel Cron, voir vercel.json) : importe les séries françaises qui manquent encore au catalogue, les plus
+ * récentes d'abord, pendant quatre minutes. Une série prend jusqu'à une minute : en un à deux jours, tout le catalogue est
+ * là ; ensuite, chaque passage constate qu'il ne reste rien et s'arrête aussitôt. Protégée par `CRON_SECRET`.
  */
 export async function GET(req: NextRequest): Promise<Response> {
   const secret = process.env.CRON_SECRET ?? "";
