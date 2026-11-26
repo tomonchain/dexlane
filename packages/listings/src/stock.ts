@@ -9,7 +9,6 @@ import { buildListingText, suggestTitle, type ListingText } from "./template";
  * brouillon à valider → prix à décider → prête à vendre → en ligne.
  */
 export type StockStatus = "DRAFT" | "TO_PRICE" | "READY" | "LISTED";
-export const STOCK_STATUSES: StockStatus[] = ["TO_PRICE", "READY", "LISTED", "DRAFT"];
 
 /** Une ligne du stock : une carte dans un état donné (une offre), toutes positions confondues. */
 export interface StockRow {

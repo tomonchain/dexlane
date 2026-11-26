@@ -97,8 +97,6 @@ export const SHELL: Record<string, string> = {
   "Créer un compte": "Create an account",
   "Le jeton d'installation (DEXLANE_API_TOKEN) permet de choisir l'adresse e-mail et le mot de passe du propriétaire de l'installation. Ses autres appareils seront déconnectés.":
     "The setup token (DEXLANE_API_TOKEN) lets you choose the email address and password of the installation owner. Their other devices will be signed out.",
-  "Choisissez votre adresse e-mail et votre mot de passe. Le jeton d'installation (DEXLANE_API_TOKEN) prouve que vous administrez le serveur ; il ne sera plus demandé ensuite.":
-    "Choose your email address and password. The setup token (DEXLANE_API_TOKEN) proves you run the server; it won't be asked for again.",
   "Choisis l'adresse e-mail et le mot de passe qui protégeront ton stock. Le jeton d'installation prouve que ce serveur est le tien ; il n'est demandé que cette fois.": "Choose the email address and password that will protect your stock. The setup token proves this server is yours; it is only asked for this once.",
   "Adresse e-mail ou mot de passe incorrect.": "Incorrect email address or password.",
   "Cette adresse e-mail appartient déjà à un autre compte.": "This email address already belongs to another account.",
@@ -107,14 +105,8 @@ export const SHELL: Record<string, string> = {
   "Réinitialiser avec le jeton d'installation": "Reset with the setup token",
   "Compte d'installation": "Setup account",
   "Cette adresse e-mail n'a pas encore été vérifiée : suivez le lien reçu par e-mail.": "This email address has not been verified yet: follow the link you received by email.",
-  "Saisissez votre mot de passe.": "Enter your password.",
   "Première connexion": "First sign-in",
-  "Choisissez votre mot de passe. Le jeton d'installation (DEXLANE_API_TOKEN) prouve que vous administrez le serveur ; il ne sera plus demandé ensuite.":
-    "Choose your password. The setup token (DEXLANE_API_TOKEN) proves you run the server; it won't be asked for again.",
-  "Créer le mot de passe": "Create password",
   "Mot de passe oublié": "Forgot password",
-  "Le jeton d'installation (DEXLANE_API_TOKEN) permet d'en définir un nouveau. Les autres appareils seront déconnectés.":
-    "The setup token (DEXLANE_API_TOKEN) lets you set a new one. Other devices will be signed out.",
   "Définir le nouveau mot de passe": "Set new password",
   "Les deux mots de passe ne correspondent pas.": "The two passwords don't match.",
   "Jeton d'installation": "Setup token",
@@ -157,8 +149,6 @@ export const SHELL: Record<string, string> = {
   "Aller au stock": "Go to stock",
   "Les deux mots de passe ne sont pas identiques.": "The two passwords aren't the same.",
   "Crée ton compte": "Create your account",
-  "Choisissez le mot de passe qui protégera votre stock. Le jeton d'installation prouve que ce serveur est le vôtre ; il n'est demandé que cette fois.":
-    "Choose the password that will protect your stock. The setup token proves this server is yours; it's only asked for this once.",
   "Créer mon compte": "Create my account",
   "La valeur de DEXLANE_API_TOKEN, définie à l'installation.": "The value of DEXLANE_API_TOKEN, set during installation.",
   "10 caractères au moins.": "At least 10 characters.",
@@ -244,8 +234,6 @@ export const SHELL: Record<string, string> = {
   "Une session dure 30 jours sur cet appareil. Changer le mot de passe ferme toutes les autres.": "A session lasts 30 days on this device. Changing the password ends all others.",
   "Se déconnecter": "Sign out",
   "Mot de passe modifié. Les autres appareils sont déconnectés.": "Password changed. Other devices are signed out.",
-  "Il protège l'accès à l'application. En cas d'oubli, le jeton d'installation (DEXLANE_API_TOKEN) permet d'en définir un nouveau depuis l'écran de connexion.":
-    "It protects access to the app. If you forget it, the setup token (DEXLANE_API_TOKEN) lets you set a new one from the sign-in screen.",
   "Mot de passe actuel": "Current password",
   "Confirmer le nouveau": "Confirm new password",
   "Changer le mot de passe": "Change password",

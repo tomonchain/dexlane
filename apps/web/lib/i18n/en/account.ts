@@ -184,4 +184,6 @@ export const ACCOUNT: Record<string, string> = {
   "d'après les ventes réussies": "based on completed sales",
   "Appliquer ce prix": "Apply this price",
   "Prix appliqué": "Price applied",
+  "Il protège l'accès à votre compte. En cas d'oubli, « Mot de passe oublié ? » sur l'écran de connexion vous envoie un lien par e-mail.":
+    "It protects access to your account. If you forget it, “Forgot password?” on the sign-in screen emails you a link.",
 };

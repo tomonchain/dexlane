@@ -16,17 +16,12 @@ import { clearCache } from "@/lib/cache";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-type Mode = "loading" | "login" | "setup" | "reset";
+type Mode = "loading" | "login" | "reset";
 
 const LINK = "text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:underline";
 
 const COPY: Record<Exclude<Mode, "loading">, { title: string; description: string; submit: string }> = {
   login: { title: "Connexion", description: "Saisissez votre adresse e-mail et votre mot de passe.", submit: "Se connecter" },
-  setup: {
-    title: "Première connexion",
-    description: "Choisissez votre adresse e-mail et votre mot de passe. Le jeton d'installation (DEXLANE_API_TOKEN) prouve que vous administrez le serveur ; il ne sera plus demandé ensuite.",
-    submit: "Créer le mot de passe",
-  },
   reset: {
     title: "Compte d'installation",
     description: "Le jeton d'installation (DEXLANE_API_TOKEN) permet de choisir l'adresse e-mail et le mot de passe du propriétaire de l'installation. Ses autres appareils seront déconnectés.",
@@ -88,7 +83,7 @@ export default function LoginPage() {
     }
   }
 
-  const choosing = mode === "setup" || mode === "reset";
+  const choosing = mode === "reset";
   const ready = email.trim() !== "" && (mode === "login" ? password !== "" : token.trim() !== "" && password !== "" && confirm !== "");
 
   return (

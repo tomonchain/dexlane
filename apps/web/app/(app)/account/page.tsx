@@ -108,7 +108,7 @@ function ChangePassword() {
             <div className="grid gap-1">
               <CardTitle>{t("Mot de passe")}</CardTitle>
               <CardDescription>
-                {t("Il protège l'accès à l'application. En cas d'oubli, le jeton d'installation (DEXLANE_API_TOKEN) permet d'en définir un nouveau depuis l'écran de connexion.")}
+                {t("Il protège l'accès à votre compte. En cas d'oubli, « Mot de passe oublié ? » sur l'écran de connexion vous envoie un lien par e-mail.")}
               </CardDescription>
             </div>
           </div>

@@ -198,9 +198,10 @@ export function buildListingText(
 ): ListingText {
   const values = variablesOf(subject);
   const titleValues = { ...values };
-  // Une carte gradée s'annonce par sa note (« PSA 10 ») : là où le modèle ne la place pas, elle prend la place de l'état.
+  // Une carte gradée s'annonce par sa note (« PSA 10 ») : là où le modèle ne la place pas, elle prend la place de l'état,
+  // sous sa forme courte ({etat}) comme sous sa forme longue ({etat_nom}).
   if (values.gradation) {
-    if (!settings.titleTemplate.includes("{gradation}")) titleValues.etat = values.gradation;
+    if (!settings.titleTemplate.includes("{gradation}")) titleValues.etat = titleValues.etat_nom = values.gradation;
     if (!settings.descriptionTemplate.includes("{gradation}")) {
       values.etat_nom = `Gradée ${values.gradation}${subject.certNumber ? `, certificat n° ${subject.certNumber}` : ""}`;
     }

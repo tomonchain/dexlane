@@ -4,7 +4,6 @@ import { SHIPPING_MODES, type ShippingMode } from "./shipping";
 
 /** Modes d'envoi qui passent par la poste (la remise en main propre n'a ni affranchissement ni enveloppe). */
 export type PostalMode = Exclude<ShippingMode, "HAND_DELIVERY">;
-export const POSTAL_MODES: PostalMode[] = ["LETTER_UNTRACKED", "LETTER_TRACKED", "PARCEL_TRACKED"];
 
 export interface ShippingCosts {
   /** Affranchissement habituel par mode, en centimes ; null : non renseigné (compté 0 et signalé). */

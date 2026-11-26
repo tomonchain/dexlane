@@ -1997,9 +1997,8 @@ test("ventes : suivi du colis, livraison notée et demande d'avis ; extension da
   await page.request.post(`/api/orders/${order.id}/pack`);
   await page.request.post(`/api/orders/${order.id}/handover`, { data: { tracking: "6A 1234 5678 901" } });
 
-  // L'ancienne adresse des ventes mène à la nouvelle ; la vente remise montre son suivi dans la liste.
-  await page.goto("/ventes");
-  await expect(page).toHaveURL(/\/sales$/);
+  // La vente remise montre son suivi dans la liste.
+  await page.goto("/sales");
   await page.getByRole("tab", { name: /^Remises/ }).click();
   await expect(page.getByTestId(`order-${order.externalId}`).getByTestId("order-delivery")).toContainText("6A12345678901");
 
@@ -2017,14 +2016,11 @@ test("ventes : suivi du colis, livraison notée et demande d'avis ; extension da
   await review.getByTestId("review-requested").click();
   await expect(review).toContainText("Demandé le");
 
-  // Le code d'extension en colonne du stock ; l'ancien filtre « statut » mène au nouveau paramètre.
-  await page.goto("/stock?statut=READY");
-  await expect(page).toHaveURL(/\/stock\?.*\bstatus=READY/);
+  // Le code d'extension en colonne du stock.
   await page.goto("/stock");
   await page.getByLabel("Rechercher dans le stock").fill(received.offer.offerSku);
   await expect(page.getByTestId(`stock-${received.offer.offerSku}`)).toContainText("EB03");
-  await page.goto("/reglages/envois");
-  await expect(page).toHaveURL(/\/settings\/shipping$/);
+  await page.goto("/settings/shipping");
   await expect(page.getByTestId("tracking-carriers")).toContainText("Non relié");
 });
 

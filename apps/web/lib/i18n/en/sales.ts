@@ -64,7 +64,6 @@ export const SALES: Record<string, string> = {
   "Affranchissement et fournitures d'après vos": "Postage and supplies based on your",
   "frais d'envoi": "shipping costs",
   " ; figés à la remise.": "; locked in at handover.",
-  "Suivi :": "Tracking:",
   "Remise le {date}": "Handed over on {date}",
   "Toutes les cartes sont prélevées : la vente peut être emballée.": "All cards are picked: the sale can be packed.",
   "Prélevez {n} carte pour pouvoir emballer.": "Pick {n} card to be able to pack.",

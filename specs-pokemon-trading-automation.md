@@ -1,3 +1,7 @@
+> **Document historique.** Spécification de l'outil personnel d'origine (v1.1). Dexlane est depuis devenu un service
+> multi-comptes avec forfaits (voir le README et le CHANGELOG) : les exclusions « SaaS » et « monétisation » ci-dessous
+> ne s'appliquent plus. Le document reste la référence des parcours (« Parcours F », « spec §x ») cités dans le code.
+
 # Spécifications produit et techniques — Pokémon Trading OS
 
 **Version :** 1.1 — 16 novembre 2026  

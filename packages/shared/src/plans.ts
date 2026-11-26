@@ -41,15 +41,10 @@ export const FREE_PLAN_ID: PlanId = "decouverte";
 /** Dépassement : un pack de cartes supplémentaires, valable pour le mois en cours. */
 export const OVERAGE_PACK = { cards: 500, priceEur: 10 };
 
-/** Seuils d'alerte du quota (pourcentage du mois consommé). */
-export const QUOTA_ALERT_LEVELS = [80, 100] as const;
-
 export const isPlanId = (v: unknown): v is PlanId => typeof v === "string" && v in PLAN_RULES;
 
 /** Le forfait connu, ou Découverte pour une valeur inattendue. */
 export const planRule = (id: string | null | undefined): PlanRule => (isPlanId(id) ? PLAN_RULES[id] : PLAN_RULES[FREE_PLAN_ID]);
-
-export const planHas = (id: string | null | undefined, feature: PlanFeature): boolean => planRule(id).features.includes(feature);
 
 /** Le forfait le moins cher qui comprend une fonctionnalité (pour dire à quel forfait passer). */
 export const cheapestPlanWith = (feature: PlanFeature): PlanRule =>

@@ -14,7 +14,7 @@ export const hasSessionCookie = (cookies: { get(name: string): { value: string }
 
 export class ServerConfigError extends Error {}
 
-/** Jeton d'API détenu par le serveur web : il authentifie ses appels à l'API et sert de clé de signature. */
+/** Jeton d'API détenu par le serveur web : il authentifie ses appels à l'API. */
 export function serverToken(): string {
   const token = process.env.DEXLANE_API_TOKEN ?? "";
   if (token.length < 24) throw new ServerConfigError("DEXLANE_API_TOKEN must be set (at least 24 characters) on the web server");
@@ -30,7 +30,7 @@ export const jsonError = (status: number, code: string, message: string, details
   Response.json({ error: { code, message, ...(details === undefined ? {} : { details }) } }, { status });
 
 /**
- * Refuse les requêtes modifiantes venant d'un autre site (en plus du cookie SameSite=Strict).
+ * Refuse les requêtes modifiantes venant d'un autre site (en plus de l'attribut SameSite du cookie de session).
  * Compare l'en-tête Origin à l'hôte demandé, tel que vu par le navigateur (derrière un reverse proxy).
  */
 export function isSameOrigin(req: NextRequest): boolean {

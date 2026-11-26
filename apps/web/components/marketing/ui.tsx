@@ -111,8 +111,3 @@ export function WithEbayLogo({ text }: { text: string }) {
   const parts = text.split("eBay");
   return <>{parts.map((part, i) => <span key={i}>{i > 0 && <EbayLogo />}{part}</span>)}</>;
 }
-
-/** Mise en page de texte long : largeur de lecture limitée. */
-export function Prose({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("mx-auto w-full max-w-[68ch] px-4 sm:px-0", className)}>{children}</div>;
-}

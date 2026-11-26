@@ -239,7 +239,6 @@ export const api = {
   supplies: () => request<SupplyList>("GET", "/supplies"),
   stockMovements: (q: { category?: MovementCategory; kind?: MovementKind; offerId?: string; supplyId?: string; before?: string; limit?: number; days?: number } = {}) =>
     request<MovementPage>("GET", "/stock-movements", { query: q }),
-  supply: (id: string) => request<SupplyDetail>("GET", `/supplies/${id}`),
   createSupply: (input: SupplyInput & { onHand: number }) => request<SupplyDetail>("POST", "/supplies", { json: input }),
   updateSupply: (id: string, input: Partial<SupplyInput>) => request<SupplyDetail>("PATCH", `/supplies/${id}`, { json: input }),
   archiveSupply: (id: string) => request<null>("DELETE", `/supplies/${id}`),

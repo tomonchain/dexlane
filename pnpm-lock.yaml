@@ -208,9 +208,6 @@ importers:
       '@dexlane/shared':
         specifier: workspace:*
         version: link:../shared
-      postgres:
-        specifier: ^4.1.1
-        version: 4.1.1
 
   packages/listings:
     dependencies:

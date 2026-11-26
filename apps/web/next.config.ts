@@ -35,18 +35,7 @@ const config: NextConfig = {
       crypto: { browser: "./lib/empty-module.ts" },
     },
   },
-  // Les anciennes adresses françaises (favoris, écran d'accueil, notifications déjà reçues) mènent aux nouvelles.
   async redirects() {
-    const pages: [string, string][] = [
-      ["/reglages/annonces", "/settings/listing"], ["/reglages/alertes", "/settings/alerts"], ["/reglages/boutique", "/settings/shop"],
-      ["/reglages/canaux", "/settings/channels"], ["/reglages/envois", "/settings/shipping"], ["/reglages/saisie", "/settings/intake"],
-      ["/reglages/:path*", "/settings/:path*"], ["/ventes/nouvelle", "/sales/new"], ["/ventes/:path*", "/sales/:path*"],
-      ["/scanner/lot/:path*", "/scanner/batch/:path*"], ["/mises-en-ligne", "/listings"], ["/annonces", "/listings"],
-      ["/statistiques", "/stats"], ["/catalogue/:path*", "/catalog/:path*"], ["/inventaire/:path*", "/inventory/:path*"],
-      ["/rangement", "/locations"], ["/achats", "/buying"], ["/ajouter", "/add"], ["/bienvenue", "/welcome"], ["/compte", "/account"],
-      ["/carte/:path*", "/card/:path*"], ["/prix", "/pricing"], ["/vrac", "/bulk"], ["/fournitures", "/stock?section=supplies"],
-    ];
-    const query = (key: string, value?: string) => [{ type: "query" as const, key, ...(value ? { value } : {}) }];
     // Production : une seule adresse pour les moteurs. Les domaines *.vercel.app mènent à dexlane.app, sauf les routes
     // machine (API, MCP, tâches planifiées) que des clients ou Vercel appellent encore à ces adresses.
     const site = process.env.NEXT_PUBLIC_SITE_URL;
@@ -57,16 +46,7 @@ const config: NextConfig = {
             { source: "/:path((?!api/|mcp|cron/).+)", destination: `${site}/:path` },
           ].map((rule) => ({ ...rule, has: [{ type: "host" as const, value: ".*\\.vercel\\.app" }], permanent: true }))
         : [];
-    return [
-      ...canonicalHost,
-      ...pages.map(([source, destination]) => ({ source, destination, permanent: true })),
-      // Paramètres d'adresse passés à l'anglais.
-      // L'ancien paramètre est repassé à la destination : la règle exige l'absence du nouveau, pour ne pas boucler.
-      { source: "/stock", has: query("categorie", "fournitures"), missing: query("section"), destination: "/stock?section=supplies", permanent: true },
-      { source: "/stock", has: query("categorie", "mouvements"), missing: query("section"), destination: "/stock?section=movements", permanent: true },
-      { source: "/stock", has: query("statut", "(?<status>[A-Z_]+)"), missing: query("status"), destination: "/stock?status=:status", permanent: true },
-      { source: "/stats", has: query("vue", "cotes"), missing: query("view"), destination: "/stats?view=prices", permanent: true },
-    ];
+    return canonicalHost;
   },
   async headers() {
     return [

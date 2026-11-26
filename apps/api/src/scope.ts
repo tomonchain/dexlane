@@ -7,9 +7,6 @@ import { withAccount, type Db } from "@dexlane/db";
  */
 const storage = new AsyncLocalStorage<{ sql: Db; accountId: string }>();
 
-/** Le compte de la requête en cours, s'il y en a un. */
-export const currentAccountId = (): string | null => storage.getStore()?.accountId ?? null;
-
 /** Exécute `fn` pour un compte : toutes les requêtes SQL faites via `scopedDb` pendant `fn` sont cloisonnées. */
 export function runForAccount<T>(root: Db, accountId: string, fn: () => Promise<T>): Promise<T> {
   return withAccount(root, accountId, (tx) => storage.run({ sql: tx, accountId }, fn));

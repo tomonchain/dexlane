@@ -52,6 +52,15 @@ describe("rendering a template", () => {
     expect(truncateTitle("a".repeat(100))).toHaveLength(80);
   });
 
+  it("announces a graded card by its grade, whichever form of the condition the title uses", () => {
+    const graded = { ...charizard, grader: "PSA", grade: "10" };
+    expect(buildListingText(graded, DEFAULT_LISTING_SETTINGS).title).toContain("PSA 10");
+    const long = buildListingText(graded, { titleTemplate: "Pokémon {nom} {numero} - {etat_nom}", descriptionTemplate: "État : {etat_nom}" });
+    expect(long.title).toBe("Pokémon Dracaufeu 4/102 - PSA 10");
+    expect(long.description).toBe("État : Gradée PSA 10");
+    expect(buildListingText(graded, { titleTemplate: "{nom} {gradation} {etat}", descriptionTemplate: "x" }).title).toBe("Dracaufeu PSA 10 NM");
+  });
+
   it("reports unknown variables instead of silently publishing them", () => {
     expect(unknownVariables("{nom} {nmo} {prix} {nmo}")).toEqual(["nmo"]);
     expect(buildListingText(charizard, { titleTemplate: "{nom} {nmo}", descriptionTemplate: "x" })).toMatchObject({

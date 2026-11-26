@@ -21,6 +21,16 @@ Retiré), avec le numéro de l'issue qu'il traite.
 - En production, les adresses `*.vercel.app` redirigent vers `dexlane.app`, hors API, MCP et tâches planifiées (#56).
 - `robots.txt` nomme les robots des moteurs génératifs et ferme `/lots` et `/join` (#58).
 - Mentions légales : hébergeur renseigné ; descriptions des pages légales écrites (#48).
+- Compte : le texte du mot de passe renvoie à « Mot de passe oublié ? » au lieu du jeton d'installation.
+
+### Corrigé
+- Une carte gradée s'annonce avec sa note même quand le modèle de titre utilise `{etat_nom}` (« Near Mint ») (#68).
+
+### Retiré
+- Redirections des anciennes adresses françaises (`/reglages`, `/ventes`, `/annonces`…), utiles seulement à l'outil
+  personnel d'avant les comptes (#67).
+- Code mort : mode « première connexion » de l'écran de connexion, traductions orphelines, exports inutilisés,
+  dépendance `postgres` de `@dexlane/inventory` (#67).
 
 ## [0.9.0] — 2026-11-26
 
