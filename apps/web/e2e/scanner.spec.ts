@@ -1385,7 +1385,8 @@ test("séries et cotes publiques : index, série, carte, adresse canonique, plan
   await expect(page.getByTestId("card-facts")).toContainText("tetsuya koizumi");
   await expect(page.getByTestId("card-facts")).toContainText("110");
   await expect(prices.getByRole("columnheader", { name: "30 jours" })).toBeVisible();
-  await expect(prices.getByRole("row", { name: /Reverse/ })).toContainText("%");
+  // La variation dépend des relevés faits par les parcours précédents : un pourcentage, ou « stable ».
+  await expect(prices.getByRole("row", { name: /Reverse/ })).toContainText(/[+−]\d+ %|stable/);
   await expect(page.getByTestId("card-external").getByRole("link", { name: /Cardmarket/ })).toHaveAttribute("href", /cardmarket\.com\/fr\/Pokemon\/Products\/Search\?searchString=Fouinar/);
   await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /assets\.tcgdex\.net\/.*\/136\/high\.webp$/);
   // L'en-tête : « Cotes » est la section active, au téléphone comme sur grand écran, sans rien qui déborde.
