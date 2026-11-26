@@ -1328,9 +1328,22 @@ test("site marketing : en-tête et menu mobile, tarifs, pages légales, contact,
   const og = await page.request.get("/og.png");
   expect(og.headers()["content-type"]).toBe("image/png");
 
+  // Docs : un sommaire repliable sur téléphone, des pages statiques, page suivante ; une page inconnue est une 404.
   await page.goto("/docs");
-  await expect(page.getByRole("link", { name: "Démarrer avec la version hébergée" })).toHaveAttribute("href", "https://github.com/tomonchain/dexlane#readme");
-  await expect(page.getByRole("link", { name: "Installer la version Community" })).toHaveAttribute("href", "https://github.com/tomonchain/dexlane#readme");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Documentation");
+  await page.getByRole("main").getByRole("link", { name: /Installer la version Community/ }).first().click();
+  await page.waitForURL(/\/docs\/community$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Installer la version Community");
+  await expect(page.getByText("EBAY_RU_NAME").first()).toBeVisible();
+  await page.getByText("Sommaire de la documentation").click();
+  await page.getByRole("navigation", { name: "Sommaire de la documentation" }).getByRole("link", { name: "Forfaits et quotas" }).click();
+  await page.waitForURL(/\/docs\/forfaits$/);
+  await expect(page.getByRole("heading", { level: 2, name: "Ce qui compte comme une carte publiée" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Sommaire de la documentation" })).toBeHidden();
+  await page.getByRole("link", { name: /Suivant/ }).click();
+  await page.waitForURL(/\/docs\/community$/);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBe(0);
+  expect((await page.goto("/docs/inconnue"))?.status()).toBe(404);
 
   const missing = await page.goto("/cette-page-n-existe-pas");
   expect(missing?.status()).toBe(404);

@@ -7,8 +7,6 @@ export const SITE_URL =
 
 export const GITHUB_URL = "https://github.com/tomonchain/dexlane";
 export const GITHUB_ISSUES_URL = `${GITHUB_URL}/issues`;
-/** Les docs pointent pour l'instant vers le README du dépôt. */
-export const README_URL = `${GITHUB_URL}#readme`;
 
 /** Adresse de contact (« Écrire à Thomas », page Contact). */
 export const CONTACT_EMAIL = "[À COMPLÉTER]";
