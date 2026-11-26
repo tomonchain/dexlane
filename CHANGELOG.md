@@ -13,6 +13,11 @@ Retiré), avec le numéro de l'issue qu'il traite.
 ## [Non publié]
 
 ### Ajouté
+- Fiche publique d'une carte : cartes précédente et suivante illustrées, « D'autres cartes de ce Pokémon » (par numéro
+  de Pokédex), « Illustrées aussi par… », stade, types, PV et illustrateur, variation de la cote sur 30 jours, liens
+  vers Cardmarket et eBay, visuel de la carte en image de partage (#80).
+- Catalogue : numéros de Pokédex, illustrateur, PV, types et stade des cartes (migration 0036) ; les séries déjà
+  importées sont reprises par la tâche horaire (#80).
 - Section Guides (`/guides`) : articles en Markdown dans `apps/web/content/guides`, sommaire, données structurées,
   flux RSS, plan du site ; brouillons visibles en préversion seulement (#63).
 - Guides : image de bannière (en-tête `image` et `imageAlt`), affichée en haut de l'article et en vignette dans l'index,
@@ -26,6 +31,8 @@ Retiré), avec le numéro de l'issue qu'il traite.
   avec son évolution sur six mois, plan du site dédié et adresses canoniques (#62).
 
 ### Modifié
+- En-tête du site : « Cotes » et « Guides » (dès le premier guide publié), section active mise en évidence ; menu
+  repliable jusqu'à 1024 px de large (#81).
 - En production, les adresses `*.vercel.app` redirigent vers `dexlane.app`, hors API, MCP et tâches planifiées (#56).
 - `robots.txt` nomme les robots des moteurs génératifs et ferme `/lots` et `/join` (#58).
 - Mentions légales : hébergeur renseigné ; descriptions des pages légales écrites (#48).

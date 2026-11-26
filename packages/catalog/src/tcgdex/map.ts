@@ -10,6 +10,11 @@ export interface MappedCard {
   imageUrl: string | null;
   externalIds: Record<string, string>;
   sourceUpdatedAt: Date | null;
+  dexIds: number[] | null;
+  illustrator: string | null;
+  hp: number | null;
+  types: string[] | null;
+  stage: string | null;
 }
 
 export interface MappedVariant {
@@ -74,6 +79,11 @@ export function mapTcgdexCard(src: TcgdexCard, language: string): MappedCardWith
     imageUrl: src.image ?? null,
     externalIds: { tcgdex: src.id },
     sourceUpdatedAt: src.updated ? new Date(src.updated) : null,
+    dexIds: src.dexId?.filter((n) => Number.isInteger(n) && n > 0).length ? src.dexId.filter((n) => Number.isInteger(n) && n > 0) : null,
+    illustrator: src.illustrator?.trim() || null,
+    hp: typeof src.hp === "number" && Number.isFinite(src.hp) ? Math.round(src.hp) : null,
+    types: src.types?.length ? src.types : null,
+    stage: src.stage?.trim() || null,
   };
   const promo = src.rarity === "Promo";
 

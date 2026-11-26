@@ -1,10 +1,12 @@
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import type { PublicCardLink } from "@dexlane/catalog";
 import { CTA } from "@/components/landing/content";
 import { Cta } from "@/components/marketing/ui";
 import { SIGNUP_URL } from "@/config/site";
 import { cn } from "@/lib/utils";
+import { cardImage, cardPath, formatPrice, printedNumber } from "./format";
 
 /** Fil d'Ariane visible (le même que celui des données structurées). */
 export function Crumbs({ items }: { items: { name: string; href?: string }[] }) {
@@ -67,5 +69,48 @@ export function Sparkline({ points, label }: { points: { day: string; cents: num
     <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={label} className="text-[#f18a1f]">
       <polyline points={path} fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
+  );
+}
+
+/** Vignette d'une carte vers sa page : image, nom, série et numéro, cote « à partir de ». */
+export function CardTile({ card, showSet = true, className }: { card: PublicCardLink; showSet?: boolean; className?: string }) {
+  const number = printedNumber(card.localNumber, card.setCardCountOfficial);
+  return (
+    <Link
+      href={cardPath({ id: card.setId, name: card.setName }, card)}
+      className={cn("group grid content-start gap-2 rounded-lg outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30", className)}
+    >
+      <CardPicture src={cardImage(card.imageUrl)} alt={`${card.name} ${number}, ${card.setName}`} className="transition-transform group-hover:-translate-y-0.5" />
+      <span className="grid gap-0.5 text-sm">
+        <span className="font-medium leading-snug group-hover:underline">{card.name}</span>
+        {showSet && <span className="truncate text-[13px] text-muted-foreground">{card.setName}</span>}
+        <span className="flex justify-between gap-2 text-[13px] text-muted-foreground">
+          <span className="font-mono">{number}</span>
+          {card.fromCents !== null && <span className="tabular text-foreground">{formatPrice(card.fromCents)}</span>}
+        </span>
+      </span>
+    </Link>
+  );
+}
+
+/** Variation d'une cote sur environ 30 jours, d'après son historique (le relevé le plus ancien de la fenêtre). */
+export function change30(history: { day: string; cents: number }[]): number | null {
+  if (history.length < 2) return null;
+  const since = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+  const base = [...history].reverse().find((p) => p.day <= since) ?? history[0]!;
+  const last = history[history.length - 1]!;
+  if (base === last || base.cents === 0) return null;
+  return (last.cents - base.cents) / base.cents;
+}
+
+/** « +12 % » en vert, « −8 % » en rouge, « stable » sous 1 %. */
+export function ChangeBadge({ ratio }: { ratio: number | null }) {
+  if (ratio === null) return <span className="text-muted-foreground">—</span>;
+  const pct = Math.round(ratio * 100);
+  if (Math.abs(pct) < 1) return <span className="text-muted-foreground">stable</span>;
+  return (
+    <span className={cn("tabular font-medium", pct > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400")}>
+      {pct > 0 ? "+" : "−"}{Math.abs(pct)} %
+    </span>
   );
 }

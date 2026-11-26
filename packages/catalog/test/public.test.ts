@@ -50,6 +50,23 @@ describe("public catalog", () => {
     expect(await getPublicCard(sql, "fr", "swsh3", "999-absente")).toBeNull();
   });
 
+  it("finds the same Pokémon in other sets by its Pokédex number, whatever its printed name", async () => {
+    // Un autre Dracaufeu (numéro de Pokédex 6), sous un autre nom, dans une autre série.
+    const charizardEx = { ...card("base1-4"), id: "sv03.5-6", localId: "6", name: "Dracaufeu ex", set: { id: "sv03.5", name: "151" } };
+    await syncSet(sql, fakeClient([charizardEx as never]), "fr", "sv03.5");
+
+    const charizard = await getPublicCard(sql, "fr", "base1", "4");
+    expect(charizard).toMatchObject({ dexIds: [6], relatedBy: "pokedex" });
+    expect(charizard!.related.map((c) => [c.setId, c.name])).toEqual([["sv03.5", "Dracaufeu ex"]]);
+    expect(charizard!.related[0]).toMatchObject({ setName: "151", localNumber: "6" });
+
+    const fouinar = await getPublicCard(sql, "fr", "swsh3", "136");
+    expect(fouinar).toMatchObject({ illustrator: "tetsuya koizumi", hp: 110, types: ["Incolore"], stage: "Niveau 1" });
+    expect(fouinar!.related).toEqual([]);
+    // Même illustrateur que le Dracaufeu du Set de Base ? Seulement si c'est le cas dans les données.
+    expect(Array.isArray(fouinar!.sameIllustrator)).toBe(true);
+  });
+
   it("offers to search engines only the cards that have a price", async () => {
     await sql`delete from price_snapshots where variant_id in (
       select v.id from card_variants v join catalog_cards c on c.id = v.catalog_card_id where c.set_id = 'base1')`;
