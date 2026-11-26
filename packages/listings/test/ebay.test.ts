@@ -261,7 +261,7 @@ describe("orders", () => {
     expect(toChannelOrder(order())).toEqual({
       externalId: "12-34567-89012", orderedAt: new Date("2026-11-20T10:00:00.000Z"), buyerName: "Camille Martin", shippingChargedCents: 250,
       shippingMode: "LETTER_TRACKED", lines: [{ externalLineId: "L1", offerSku: "OF-X", qty: 2, unitPriceCents: 1250 }],
-      addressLines: ["3 rue des Lilas", "69003 Lyon"], shipBy: new Date("2026-11-23T23:00:00.000Z"),
+      addressLines: ["3 rue des Lilas", "69003 Lyon"], shipBy: new Date("2026-11-23T23:00:00.000Z"), countryCode: "FR",
     });
     expect(toChannelOrder(order({ orderPaymentStatus: "PENDING" }))).toBeNull();
     expect(toChannelOrder(order({ cancelStatus: { cancelState: "CANCELED" } }))).toBeNull();
@@ -297,7 +297,7 @@ describe("orders", () => {
     const [imported] = await sql<{ id: string }[]>`select id from orders where channel = 'ebay' and external_id = '12-34567-89012'`;
     expect(await getOrderDetail(sql, imported!.id)).toMatchObject({ grossCents: 1500 });
     const [stored] = await sql<{ shippingAddress: unknown; shipBy: Date }[]>`select shipping_address, ship_by from orders where id = ${imported!.id}`;
-    expect(stored).toEqual({ shippingAddress: { name: "Camille Martin", lines: ["3 rue des Lilas", "69003 Lyon"] }, shipBy: new Date("2026-11-23T23:00:00.000Z") });
+    expect(stored).toEqual({ shippingAddress: { name: "Camille Martin", lines: ["3 rue des Lilas", "69003 Lyon"], country: "FR" }, shipBy: new Date("2026-11-23T23:00:00.000Z") });
     expect(find("POST", "/sell/inventory/v1/bulk_update_price_quantity").at(-1)!.body).toMatchObject({ requests: [{ shipToLocationAvailability: { quantity: 2 } }] });
 
     // Réimporter la même commande ne la double pas.

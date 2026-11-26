@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { withTx, type Db } from "@dexlane/db";
+import { recordEvent, withTx, type Db } from "@dexlane/db";
 import { DomainError, assertCents } from "@dexlane/shared";
 import { applyDelta, availableOf, emit, recordMovement, type StockItemRow, type StockKind } from "./internal";
 
@@ -46,6 +46,10 @@ async function insertPosition(tx: Db, input: ReceiveStockInput): Promise<StockIt
     correlationId: input.correlationId ?? null,
     actor: input.actor,
   });
+  // Une carte identifiée qui entre en stock (le vrac, non identifié, ne compte pas).
+  if (input.kind !== "BULK") {
+    await recordEvent(tx, { type: "card_added", key: `card_added:${item!.id}`, payload: { stockItemId: item!.id, quantity: input.quantity, locationId: input.locationId } });
+  }
   await emit(tx, "InventoryReceived", "stock_item", item!.id, {
     unitSku: input.unitSku,
     kind: input.kind,
@@ -78,13 +82,14 @@ export async function moveStock(sql: Db, stockItemId: string, toLocationId: stri
     if (item.locationId === toLocationId) return;
     await tx`update stock_items set location_id = ${toLocationId}, version = version + 1, updated_at = now()
               where id = ${stockItemId}`;
-    await recordMovement(tx, {
+    const movementId = await recordMovement(tx, {
       stockItemId,
       type: "MOVE",
       fromLocationId: item.locationId,
       toLocationId,
       actor,
     });
+    await recordEvent(tx, { type: "location_set", key: `location_set:${movementId}`, payload: { stockItemId, locationId: toLocationId } });
     await emit(tx, "InventoryMoved", "stock_item", stockItemId, { from: item.locationId, to: toLocationId });
   });
 }

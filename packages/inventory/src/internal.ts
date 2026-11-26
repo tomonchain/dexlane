@@ -52,17 +52,22 @@ export interface MovementInput {
   reason?: string | null;
 }
 
-/** Ajoute une ligne au journal. N'applique PAS le delta aux compteurs : l'appelant le fait dans la même transaction. */
-export async function recordMovement(tx: Db, m: MovementInput): Promise<void> {
+/**
+ * Ajoute une ligne au journal et renvoie son identifiant. N'applique PAS le delta aux compteurs : l'appelant le fait
+ * dans la même transaction.
+ */
+export async function recordMovement(tx: Db, m: MovementInput): Promise<string> {
   const qty = m.qtyDelta ?? 0;
-  await tx`
+  const [row] = await tx<{ id: string }[]>`
     insert into inventory_movements
       (stock_item_id, movement_type, bucket, qty_delta, from_location_id, to_location_id,
        order_allocation_id, correlation_id, actor, reason)
     values
       (${m.stockItemId}, ${m.type}, ${qty === 0 ? null : (m.bucket ?? null)}, ${qty},
        ${m.fromLocationId ?? null}, ${m.toLocationId ?? null}, ${m.orderAllocationId ?? null},
-       ${m.correlationId ?? null}, ${m.actor}, ${m.reason ?? null})`;
+       ${m.correlationId ?? null}, ${m.actor}, ${m.reason ?? null})
+    returning id::text as id`;
+  return row!.id;
 }
 
 /** Applique un delta à un compteur et journalise le mouvement correspondant. */

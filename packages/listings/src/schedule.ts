@@ -1,4 +1,4 @@
-import { withTx, type Db } from "@dexlane/db";
+import { recordEvent, withTx, type Db } from "@dexlane/db";
 import { coverOverage, requireFeature, startPublicationBatch } from "./quota";
 import { DomainError, nextQuotaMonth, quotaMonth } from "@dexlane/shared";
 import { isChannel, type ChannelId } from "./channel-ids";
@@ -209,9 +209,11 @@ export async function runDuePublications(
         postponed++;
         continue;
       }
+      const errorCode = e instanceof DomainError ? e.code : "PUBLISH_FAILED";
       await sql`
-        update scheduled_publications set status = 'FAILED', error_code = ${e instanceof DomainError ? e.code : "PUBLISH_FAILED"}, done_at = now()
+        update scheduled_publications set status = 'FAILED', error_code = ${errorCode}, done_at = now()
          where id = ${item.id}`;
+      await recordEvent(sql, { type: "listing_failed", key: `listing_failed:${item.id}`, payload: { offerId: item.offerId, channel: item.channel, errorCode } });
       failed++;
     }
   }

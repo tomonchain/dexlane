@@ -26,6 +26,7 @@ import { AGENT_TOKEN_PREFIX, createAgentToken, listAgentTokens, revokeAgentToken
 import { activeAccountIds, createAuth, ownerExists, publicBaseUrl, setupOwner, type Auth } from "./better-auth";
 import { mailerFromEnv, type Mailer } from "./mailer";
 import { registerAccountRoutes } from "./account";
+import { evaluateAfterChange, hostedPerkHooks, registerInsightsRoutes } from "./insights";
 import { runForAccount, scopedDb } from "./scope";
 import { createMcpServer, type InternalCall } from "./mcp";
 import { trackingFromEnv, type TrackingAdapters } from "./tracking";
@@ -43,6 +44,7 @@ import {
   broadcast, countSubscriptions, quotaMessage, removeSubscription, reviewsMessage, saveSubscription, sendDigest, suppliesMessage, testMessage, vapidKeys, webPushSender, type PushSender,
 } from "./notifications";
 import * as s from "./schemas";
+import type { PerkHooks } from "@dexlane/insights";
 
 export interface AppDeps {
   sql: Db;
@@ -70,6 +72,8 @@ export interface AppDeps {
   baseUrl?: string;
   /** Envoi des e-mails (Resend d'après l'environnement par défaut) ; `null` : aucun envoi possible. Remplaçable dans les tests. */
   mailer?: Mailer | null;
+  /** Avantages de niveau propres à la version hébergée (bonus de cartes par le quota) ; par défaut, ceux du quota. */
+  perkHooks?: PerkHooks;
   onError?: (err: unknown) => void;
 }
 
@@ -86,6 +90,7 @@ export function createApp(deps: AppDeps) {
   const app = new Hono<Env>();
   const ebay = deps.ebay !== undefined ? deps.ebay : ebayClientFromEnv(sql, process.env);
   const live: ChannelAdapters = deps.channels ?? (ebay ? { ebay: ebayAdapter(sql, ebay) } : {});
+  const perkHooks = deps.perkHooks ?? hostedPerkHooks;
 
   app.onError((err, c) => {
     if (err instanceof HttpError) return c.json(errorBody(err.code, err.message, err.details), err.status);
@@ -180,6 +185,11 @@ export function createApp(deps: AppDeps) {
           if (alert && alert.state.limit !== null) await broadcast(sql, push, (locale) => quotaMessage(alert.level, alert.state.used, alert.state.limit!, locale));
         }).catch(deps.onError ?? console.error);
       }
+      // Une publication, une vente ou un rangement peut débloquer un succès : la progression est réévaluée aussitôt
+      // (la nuit, la tâche quotidienne rattrape le reste, dont les ventes qui arrivent au bout du délai de confirmation).
+      if (c.req.method !== "GET" && c.res.ok && /^\/api\/(orders|inventory|listings|publications|channels|scan-batches|lots)(\/|$)/.test(c.req.path)) {
+        await evaluateAfterChange(sql, perkHooks).catch(deps.onError ?? console.error);
+      }
       // Un envoi remis ou un stock corrigé peut faire passer une fourniture sous son seuil : l'alerte part aussitôt.
       if (c.req.method !== "GET" && c.res.ok && /^\/api\/(orders|supplies|channels)(\/|$)/.test(c.req.path)) {
         await withTx(sql, () => alertLowSupplies()).catch(deps.onError ?? console.error);
@@ -220,6 +230,13 @@ export function createApp(deps: AppDeps) {
   // Forfait, quota, équipe et support (account.ts).
   registerAccountRoutes(app, {
     root, sql, mailer, baseUrl: () => deps.baseUrl ?? publicBaseUrl(), supportEmail: process.env.SUPPORT_EMAIL ?? null,
+    onError: deps.onError ?? console.error,
+  });
+
+  // Statistiques, démarrage, récaps, niveau et succès (insights.ts).
+  registerInsightsRoutes(app, {
+    root, sql, live, token: deps.token, perkHooks, baseUrl: () => deps.baseUrl ?? publicBaseUrl(),
+    mailer: () => (deps.mailer === undefined ? mailerFromEnv() : deps.mailer),
     onError: deps.onError ?? console.error,
   });
 

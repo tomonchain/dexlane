@@ -12,12 +12,13 @@
     "e2e": "playwright test",
     "build:vercel": "pnpm --filter @dexlane/db migrate --skip-if-unconfigured --not-on-preview && NEXT_TELEMETRY_DISABLED=1 next build",
     "i18n": "tsx scripts/i18n-check.ts",
-    "test": "tsx scripts/i18n-check.ts"
+    "test": "tsx scripts/i18n-check.ts && tsx scripts/share-image-check.ts"
   },
   "dependencies": {
     "@dexlane/api": "workspace:*",
     "@dexlane/catalog": "workspace:*",
     "@dexlane/db": "workspace:*",
+    "@dexlane/insights": "workspace:*",
     "@dexlane/inventory": "workspace:*",
     "@dexlane/listings": "workspace:*",
     "@dexlane/pricing": "workspace:*",

@@ -17,6 +17,7 @@
   "dependencies": {
     "@dexlane/catalog": "workspace:*",
     "@dexlane/db": "workspace:*",
+    "@dexlane/insights": "workspace:*",
     "@dexlane/inventory": "workspace:*",
     "@dexlane/listings": "workspace:*",
     "@dexlane/pricing": "workspace:*",

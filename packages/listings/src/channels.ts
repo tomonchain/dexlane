@@ -1,4 +1,4 @@
-import { withTx, type Db } from "@dexlane/db";
+import { recordEvent, withTx, type Db } from "@dexlane/db";
 import { allocateOrder, createShipment, importOrder, type CardCondition, type ShippingMode } from "@dexlane/inventory";
 import { DomainError } from "@dexlane/shared";
 import { listListingOffers, listingBlockers, listingColumns, promoPhotoUrl, type ListingState } from "./store";
@@ -34,6 +34,8 @@ export interface ChannelOrder {
   addressLines?: string[];
   /** Date limite d'expédition fixée par le canal. */
   shipBy?: Date;
+  /** Pays de livraison (code ISO à deux lettres), quand le canal le donne. */
+  countryCode?: string | null;
 }
 
 /**
@@ -169,6 +171,10 @@ export async function publishListing(
                   'ACTIVE', ${offer.available}, ${simulated}, now())
           returning ${listingColumns(tx)}`;
     if (quota.count) await recordPublication(tx, { offerId: offer.offerId, channel: input.channel, overQuota: quota.overQuota });
+    // Une nouvelle annonce publiée pour de vrai (une révision ou une annonce simulée n'en est pas une).
+    if (!existing && !simulated) {
+      await recordEvent(tx, { type: "listing_published", key: `listing_published:${row!.id}`, payload: { listingId: row!.id, offerId: offer.offerId, channel: input.channel } });
+    }
     await tx`
       insert into audit_events (actor, action, entity, entity_id, after)
       values (${input.actor}, ${existing ? "listing_revised" : "listing_published"}, 'listing', ${row!.id}, ${tx.json({ channel: input.channel, offerSku: offer.offerSku, priceCents: offer.targetPriceCents, quantity: offer.available, simulated })})`;
@@ -277,8 +283,11 @@ export function ingestChannelOrder(sql: Db, channel: ChannelId, order: ChannelOr
       currency: "EUR",
       orderedAt: order.orderedAt,
       shipBy: order.shipBy,
-      shippingAddress: order.buyerName || order.addressLines?.length
-        ? { ...(order.buyerName ? { name: order.buyerName } : {}), ...(order.addressLines?.length ? { lines: order.addressLines } : {}) }
+      shippingAddress: order.buyerName || order.addressLines?.length || order.countryCode
+        ? {
+            ...(order.buyerName ? { name: order.buyerName } : {}), ...(order.addressLines?.length ? { lines: order.addressLines } : {}),
+            ...(order.countryCode ? { country: order.countryCode.toUpperCase() } : {}),
+          }
         : undefined,
       lines: order.lines,
     });

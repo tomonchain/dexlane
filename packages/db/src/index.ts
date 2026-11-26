@@ -43,3 +43,4 @@ export function withAccount<T>(sql: Db, accountId: string, fn: (tx: Db) => Promi
 
 // `migrate` vit dans "@dexlane/db/migrate" : il lit des fichiers .sql sur disque et ne doit pas
 // être embarqué dans un bundle applicatif (Next).
+export * from "./events";

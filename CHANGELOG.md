@@ -13,6 +13,18 @@ Retiré), avec le numéro de l'issue qu'il traite.
 ## [Non publié]
 
 ### Ajouté
+- Statistiques : onglet « Résumé » par défaut, avec sélecteur de période (ce mois-ci, mois dernier, 90 jours,
+  12 mois), chiffre d'affaires par devise, marge et sa couverture, cartes vendues, taux d'écoulement, délai médian de
+  vente, temps gagné estimé, ventes par semaine et 10 meilleures ventes, dans le fuseau de l'utilisateur ; journal
+  d'événements par compte (`account_events`) (#83).
+- Cartes dormantes (en ligne depuis plus de 90 jours sans vente) : baisse de prix avec aperçu puis confirmation,
+  regroupement en lot, retrait de la vente ; rappel sur l'accueil à partir de 10 cartes (#83).
+- Parcours de démarrage : sept étapes détectées d'après les données, « Compte configuré à x % » sur l'accueil (masquable),
+  page Démarrage dans le compte (#84).
+- Récaps mensuels et annuels (`/recap`), générés par la tâche quotidienne et annoncés par un e-mail désactivable ;
+  image à partager (publication ou story) générée sur le serveur, sans montant par défaut (#85).
+- Niveau de la boutique d'après les ventes confirmées, succès, avantages de niveau, page Progression, notification
+  groupée des succès, réglage « Afficher le niveau et les succès » ; attribution rétroactive au lancement (#86).
 - Section Guides (`/guides`) : articles en Markdown dans `apps/web/content/guides`, sommaire, données structurées,
   flux RSS, plan du site ; brouillons visibles en préversion seulement (#63).
 - Guides : image de bannière (en-tête `image` et `imageAlt`), affichée en haut de l'article et en vignette dans l'index,
@@ -26,12 +38,14 @@ Retiré), avec le numéro de l'issue qu'il traite.
   avec son évolution sur six mois, plan du site dédié et adresses canoniques (#62).
 
 ### Modifié
+- Les commandes eBay gardent le pays de livraison (#86).
 - En production, les adresses `*.vercel.app` redirigent vers `dexlane.app`, hors API, MCP et tâches planifiées (#56).
 - `robots.txt` nomme les robots des moteurs génératifs et ferme `/lots` et `/join` (#58).
 - Mentions légales : hébergeur renseigné ; descriptions des pages légales écrites (#48).
 - Compte : le texte du mot de passe renvoie à « Mot de passe oublié ? » au lieu du jeton d'installation.
 
 ### Corrigé
+- Les liens « Voir les variations » (accueil, alertes de prix) ouvrent bien l'onglet Stock et cotes des statistiques (#83).
 - Le catalogue français complet s'importe en un à deux jours au lieu de plusieurs semaines : la tâche d'import passe
   toutes les heures (#75).
 - Une carte gradée s'annonce avec sa note même quand le modèle de titre utilise `{etat_nom}` (« Near Mint ») (#68).

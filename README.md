@@ -44,6 +44,7 @@ Service en ligne de négoce de cartes Pokémon, sur https://dexlane.app : scan, 
 | `packages/shared` | Erreurs métier, montants en centimes, règles des forfaits (quotas, fonctionnalités, packs) |
 | `packages/catalog` | Synchronisation TCGdex (séries, cartes, variantes détaillées, cotations Cardmarket datées), recherche des 3 meilleurs candidats à partir d'une lecture OCR |
 | `packages/scan` | Lecture de carte par Claude (vision + sortie structurée, repli serveur), identification photo → candidats catalogue, banc d'essai précision/coût |
+| `packages/insights` | Journal d'événements des comptes, statistiques de vente et cartes dormantes, parcours de démarrage, récaps et image de partage, niveau et succès |
 | `packages/pricing` | Moteur de règles de prix (estimation, catégorie, plancher, motifs de revue), tarification des offres, file de revue, règles réglables. Statistiques : ce qui se vend (`salesInsights` : séries et taux d'écoulement, tranches de prix, états, raretés, canaux, jours de la semaine, délai de vente, cartes les plus vendues), valeur du stock, variations de cote des cartes détenues, seuils d'alerte |
 | `packages/listings` | Annonces : modèle de titre et de description à variables, style des photos, offres vendables avec leur texte et leurs photos. Canaux de vente : interface de connecteur, mode simulation, connecteur eBay (OAuth, API Inventory, Account et Fulfillment), publication, alignement des quantités, import des commandes |
 | `packages/inventory` | Entrée d'une carte identifiée (offre et SKU attribués automatiquement), lots de vrac et extraction, emplacements hiérarchiques, lots d'acquisition, déplacement, correction d'inventaire auditée, recherche, import idempotent de commandes, allocation commande → positions, survente (Parcours F), picking par scan, emballage, confirmation de dépôt |
@@ -362,6 +363,47 @@ catalogue, la fiche d'une position et l'accueil ; « Ouvrir dans le stock » mè
 - **Identification** : revue humaine obligatoire si score < 0,95, si deux candidats sont proches ou si le nom n'a pas été lu. Le choix de la variante est toujours confirmé par l'opérateur.
 - **Scan** : Claude transcrit seulement (nom, numéro, code d'extension, langue, indices de finition) ; le rapprochement avec le catalogue reste déterministe. Champ illisible → ignoré ; lisibilité partielle, note du modèle ou langue indéterminée → revue. Repli serveur activé (`fallbacks: "default"`) si le modèle décline une requête.
 - **Droits** : les conditions de réutilisation des données TCGdex et du guide des prix Cardmarket restent à vérifier (spec §11, Sprint 0) avant usage commercial.
+
+## Statistiques, démarrage, récaps et progression
+
+Le paquet `packages/insights` (#83 à #86) ; toutes les valeurs réglables sont dans `packages/insights/src/config/progression.ts`
+(temps gagné par annonce, délai des cartes dormantes et de confirmation des ventes, seuils et noms des niveaux, avantages,
+étapes du démarrage, succès). Tout est privé au compte : pas de profil public, pas de classement.
+
+- **Journal d'événements** (`account_events`, migration 0036) : eBay connecté, carte ajoutée, rangement, annonce publiée
+  ou en échec, vente payée, annulée, remboursée ou retournée, bordereau imprimé (et, quand le parrainage existera, filleul
+  qualifié et remise à 100 %). Chaque événement a une clé de déduplication unique dans le compte : rejoué ou reconstruit,
+  il ne compte qu'une fois. `rebuildJournal` le reconstruit d'après l'historique des tables métier (au lancement, puis
+  chaque nuit pour rattraper un oubli). Les commandes de l'acheteur fictif de la simulation (« SIM-… ») ne comptent nulle part.
+- **Statistiques › Résumé** (`GET /api/insights/stats?period=this_month|last_month|90d|12m`) : chiffre d'affaires par
+  devise (sans conversion, hors port, ventes annulées, remboursées ou retournées exclues), marge sur les lignes au prix
+  d'achat connu (coût saisi, ou lot d'acquisition) avec sa couverture — les frais eBay ne sont pas encore synchronisés,
+  la marge le dit —, cartes vendues (un lot compte pour 1), écoulement, délai médian entre mise en ligne et vente, temps
+  gagné estimé, ventes par semaine ISO et 10 meilleures ventes, découpés dans le fuseau de l'utilisateur
+  (`user_preferences.timezone`, Europe/Paris par défaut). Sans donnée : « — ».
+- **Cartes dormantes** (`/api/insights/dormant`, `/preview`, `/reprice`, `/lot`, `/withdraw`) : en ligne depuis plus
+  de 90 jours, encore en stock, sans vente depuis la mise en ligne. Baisse de prix en deux temps (aperçu, puis
+  `confirm: true`), regroupement en lot, retrait de la vente. Rappel sur l'accueil à partir de 10 cartes.
+- **Démarrage** (`/api/insights/onboarding`, page `/getting-started`) : sept étapes détectées d'après les données. Le bloc
+  de l'accueil se masque (préférence de l'utilisateur) et reste accessible depuis Compte.
+- **Récaps** (`/recap`, `/recap/AAAA-MM`, `/recap/AAAA`) : générés par la tâche quotidienne le 1er du mois (et le
+  1er janvier pour l'année), seulement si le compte a publié ou vendu. Un e-mail court les annonce, désactivable dans
+  Compte ou par le lien signé de chaque e-mail (`/email/unsubscribe`) ; sans service d'e-mail, rien ne part. L'image à
+  partager (`/recap/…/image?format=post|story&revenue=0|1&shop=0|1`, 1080 × 1350 ou 1080 × 1920) est rendue par
+  `next/og` avec la police Geist embarquée, sans service externe, et n'est conservée nulle part. Par défaut : aucun
+  montant, aucun nom de boutique, aucune image de carte.
+- **Niveau et succès** (`/api/insights/progress`, page `/progress`) : le niveau ne dépend que des ventes confirmées
+  (`sale_confirmations` : une ligne de commande d'annonce restée 14 jours sans annulation, retour ni remboursement,
+  écrite une fois). Il ne descend jamais ; une annonce publiée ne donne aucun point ; aucune série quotidienne. Succès
+  uniques par compte (`account_achievements`), jamais retirés sauf fraude (`revokeAchievement`, action d'administration).
+  Avantages appliqués une fois (`account_perks`) : accès anticipé (`account_progress.beta`) au niveau 3, cartes de bonus
+  aux niveaux 5 et 7 par le quota (point d'extension `PerkHooks` de l'API ; rien en Community). La progression est
+  réévaluée après chaque publication, vente ou mouvement de stock, et chaque nuit. Notification groupée dans
+  l'application, jamais d'e-mail. Réglage par utilisateur « Afficher le niveau et les succès ».
+- **Attribution rétroactive** : la migration 0036 marque les comptes existants ; leur première évaluation (tâche
+  quotidienne, ou `pnpm --filter @dexlane/insights retro`) attribue leur historique sans notification, puis un message
+  unique résume les succès déjà débloqués.
+- Données fictives pour essayer ces écrans : `DATABASE_URL=… tsx packages/insights/test/demo-seed.ts` sur une base vide.
 
 ## Statistiques, mises en ligne et réglages
 

@@ -1,0 +1,23 @@
+{
+  "name": "@dexlane/insights",
+  "version": "0.0.0",
+  "license": "AGPL-3.0-only",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./config": "./src/config/progression.ts",
+    "./share": "./src/share.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "retro": "tsx --env-file-if-exists=../../.env src/cli.ts retro"
+  },
+  "dependencies": {
+    "@dexlane/db": "workspace:*",
+    "@dexlane/inventory": "workspace:*",
+    "@dexlane/listings": "workspace:*",
+    "@dexlane/pricing": "workspace:*",
+    "@dexlane/shared": "workspace:*"
+  }
+}

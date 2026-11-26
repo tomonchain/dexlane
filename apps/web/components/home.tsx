@@ -15,6 +15,8 @@ import { Button } from "./ui/button";
 import { Code, Page, PageHeader } from "./ui/misc";
 import { HomeSkeleton } from "./skeletons";
 import { useCachedState } from "@/lib/cache";
+import { insights, type HomeInsights } from "@/lib/insights";
+import { OnboardingBanner } from "./insights/onboarding";
 
 interface Data {
   stock: StockPage;
@@ -99,6 +101,15 @@ function Figure({ label, value, hint }: { label: string; value: ReactNode; hint?
 export function Home() {
   const [data, setData] = useCachedState<Data>("home");
   const [error, setError] = useState<string | null>(null);
+  // Démarrage, cartes dormantes : un plus de l'accueil, chargé à part ; son absence ne bloque rien.
+  const [extra, setExtra] = useCachedState<HomeInsights>("home:insights");
+  useEffect(() => {
+    insights.home().then(setExtra).catch(() => undefined);
+  }, []);
+  const hideOnboarding = () => {
+    if (extra) setExtra({ ...extra, onboarding: { ...extra.onboarding, hidden: true } });
+    insights.savePreferences({ onboardingHidden: true }).catch(() => undefined);
+  };
 
   useEffect(() => {
     Promise.all([
@@ -132,6 +143,10 @@ export function Home() {
   const dueToday = schedule.days.filter((d) => d.plannedOn <= day).reduce((sum, d) => sum + d.count, 0);
   const unplanned = Math.max(stock.counts.READY - schedule.pending, 0);
   const empty = stock.counts.ALL === 0 && data.batches.length === 0;
+  // Le message de fin du démarrage reste une semaine au plus, puis le bloc disparaît de lui-même.
+  const onboarding = extra?.onboarding;
+  const showOnboarding = !!onboarding && !onboarding.hidden
+    && !(onboarding.complete && onboarding.completedAt && Date.now() - new Date(onboarding.completedAt).getTime() > 7 * 86_400_000);
 
   const tasks = [
     ...openBatches.map((b) => (
@@ -163,6 +178,8 @@ export function Home() {
     <Page className="gap-6">
       <PageHeader title={t("Aujourd'hui")} description={capitalize(today().format(new Date()))} actions={<AddMenu />} />
 
+      {showOnboarding && <OnboardingBanner state={onboarding!} onHide={hideOnboarding} />}
+
       <section className="grid gap-2" aria-label={t("À faire")}>
         <h2 className="px-1 text-xs font-medium text-muted-foreground">{t("À faire")}</h2>
         {tasks.length > 0 ? (
@@ -175,6 +192,12 @@ export function Home() {
             </p>
             <Button asChild className="mt-4"><Link href="/scanner/batch"><Plus /> {t("Ajouter des cartes")}</Link></Button>
           </div>
+        )}
+        {extra?.dormant.remind && (
+          <p className="px-1 text-[13px] text-muted-foreground" data-testid="home-dormant">
+            {t("{n} cartes en ligne depuis plus de 3 mois sans vente.", { n: formatNumber(extra.dormant.count) })}{" "}
+            <Link href="/stats#dormantes" className="font-medium text-foreground underline-offset-2 hover:underline">{t("Voir")}</Link>
+          </p>
         )}
       </section>
 

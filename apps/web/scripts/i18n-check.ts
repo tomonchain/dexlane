@@ -5,6 +5,7 @@
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { progressionTexts } from "@dexlane/insights/config";
 import { EN } from "../lib/i18n/en";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -63,6 +64,14 @@ for (const path of files(ROOT).filter((p) => DIRS.some((d) => relative(ROOT, p).
       }
     });
   }
+}
+
+// Textes de la configuration de la progression (étapes, succès, catégories, noms de niveaux), affichés avec t().
+for (const text of progressionTexts()) {
+  keys++;
+  const en = EN[text];
+  if (en === undefined) missing.push(`@dexlane/insights/config  ${JSON.stringify(text)}`);
+  else if (vars(en) !== vars(text)) mismatched.push(`@dexlane/insights/config  ${JSON.stringify(text)} → ${JSON.stringify(en)}`);
 }
 
 console.log(`${keys} textes traduisibles, ${Object.keys(EN).length} traductions.`);

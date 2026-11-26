@@ -180,7 +180,14 @@ export interface DayDatum {
  * Colonnes quotidiennes d'une seule série (30 jours) : barres fines arrondies en tête, grille discrète, dates aux extrémités.
  * Le détail d'un jour s'affiche au survol ; au clavier, le graphique est un seul arrêt et les flèches parcourent les jours.
  */
-export function DailyColumns({ data, format, label, wholeNumbers = false }: { data: DayDatum[]; format: (value: number) => string; label: string; wholeNumbers?: boolean }) {
+export function DailyColumns({ data, format, label, wholeNumbers = false, title }: {
+  data: DayDatum[];
+  format: (value: number) => string;
+  label: string;
+  wholeNumbers?: boolean;
+  /** Titre de l'infobulle d'une colonne ; par défaut, la date (« lundi 23 mars »). Une colonne par semaine : « Semaine du… ». */
+  title?: (day: string) => string;
+}) {
   const [active, setActive] = useState<number | null>(null);
   const top = Math.max(...data.map((d) => d.value), 0);
   // Un compte (des ventes) garde des graduations entières : le haut de l'échelle est pair.
@@ -231,7 +238,7 @@ export function DailyColumns({ data, format, label, wholeNumbers = false }: { da
               className="pointer-events-none absolute bottom-full z-10 mb-1 w-max min-w-36 rounded-lg border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-lg"
               style={active / last > 0.5 ? { right: `${(1 - (active + 1) / data.length) * 100}%` } : { left: `${(active / data.length) * 100}%` }}
             >
-              <p className="mb-1 font-semibold first-letter:uppercase">{dayFull().format(dayDate(data[active]!.day))}</p>
+              <p className="mb-1 font-semibold first-letter:uppercase">{title ? title(data[active]!.day) : dayFull().format(dayDate(data[active]!.day))}</p>
               <dl className="grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5">
                 {data[active]!.details.map(([name, value]) => (
                   <div key={name} className="contents"><dd className="tabular font-semibold">{value}</dd><dt className="text-muted-foreground">{name}</dt></div>

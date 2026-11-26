@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { CommandMenu } from "./command-menu";
+import { AchievementNotifier } from "./insights/notifier";
 import { MORE_PATHS, MoreSheet } from "./more-menu";
 import { ThemeSwitch } from "./theme";
 
@@ -222,6 +223,7 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
       <MoreSheet open={more} onClose={() => setMore(false)} />
 
       <CommandMenu open={searching} onOpenChange={setSearching} />
+      <AchievementNotifier />
     </>
   );
 }

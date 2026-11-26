@@ -116,6 +116,8 @@ export interface BulkInput {
 }
 
 export const api = {
+  /** Appel direct d'une route de l'API (modules qui déclarent leurs propres appels, comme lib/insights.ts). */
+  raw: <T,>(method: "GET" | "POST" | "PUT" | "DELETE", path: string, opts: RequestOptions = {}) => request<T>(method, path, opts),
   scan: (image: Blob, language: string) => request<ScanResult>("POST", "/scans", { blob: image, query: { language } }),
   uploadPhoto: (image: Blob, kind: "SCAN_FRONT" | "SCAN_BACK" | "BACKGROUND" | "PROMO" | "LOGO") => request<StoredPhoto>("POST", "/photos", { blob: image, query: { kind } }),
   /** Visuel d'annonce composé à partir d'un scan ; remplace le précédent visuel de ce scan. */

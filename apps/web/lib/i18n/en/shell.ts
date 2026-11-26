@@ -227,7 +227,6 @@ export const SHELL: Record<string, string> = {
   "Dans tous les cas, le prix ne descend jamais sous votre prix d'achat.": "In every case, the price never goes below your purchase price.",
 
   // Compte
-  "Accès à l'application et préférences de cet appareil.": "App access and preferences for this device.",
   "Apparence": "Appearance",
   "Thème clair, sombre, ou celui du système. Propre à cet appareil.": "Light, dark, or system theme. Specific to this device.",
   "Session": "Session",

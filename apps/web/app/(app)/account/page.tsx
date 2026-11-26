@@ -3,6 +3,7 @@
 import { LogOut, ShieldCheck } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
+import { AccountInsights } from "@/components/insights/account-section";
 import { PasswordInput } from "@/components/password-input";
 import { ThemeSwitch } from "@/components/theme";
 import { Alert } from "@/components/ui/alert";
@@ -19,7 +20,8 @@ import { cn } from "@/lib/utils";
 export default function AccountPage() {
   return (
     <Page width="narrow" className="mx-auto w-full">
-      <PageHeader back={<BackLink href="/settings">{t("Réglages")}</BackLink>} title={t("Compte")} description={t("Accès à l'application et préférences de cet appareil.")} />
+      <PageHeader back={<BackLink href="/settings">{t("Réglages")}</BackLink>} title={t("Compte")} description={t("Progression, démarrage et récaps ; accès à l'application et préférences de cet appareil.")} />
+      <AccountInsights />
       <ChangePassword />
 
       <Card>

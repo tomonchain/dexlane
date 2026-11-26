@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { AlertRules } from "@/components/alert-rules";
+import { StatsSummary } from "@/components/insights/stats-summary";
 import { CardThumb } from "@/components/card-chooser";
 import { HorizontalBars, MonthlyColumns, PairedMonthlyColumns, Sparkline } from "@/components/charts";
 import { Alert } from "@/components/ui/alert";
@@ -48,7 +49,7 @@ function Tile({ label, value, children, href }: { label: string; value: ReactNod
   ) : <Card>{body}</Card>;
 }
 
-type View = "VENTES" | "COTES";
+type View = "RESUME" | "VENTES" | "COTES";
 const PERIODS: { value: string; label: string }[] = [
   { value: "30", label: "30 jours" },
   { value: "90", label: "90 jours" },
@@ -63,17 +64,18 @@ export default function StatisticsPage() {
   );
 }
 
-/** Statistiques : ce qui se vend (par défaut), puis la valeur du stock et les variations de cote. */
+/** Statistiques : le résumé de la période et les cartes dormantes (par défaut), ce qui se vend, puis la valeur du stock et les variations de cote. */
 function Statistics() {
   const params = useSearchParams();
-  const [view, setView] = useState<View>(params.get("view") === "cotes" ? "COTES" : "VENTES");
+  const asked = params.get("view");
+  const [view, setView] = useState<View>(asked === "cotes" || asked === "prices" ? "COTES" : asked === "ventes" ? "VENTES" : "RESUME");
   return (
     <Page>
       <PageHeader title={t("Statistiques")} description={t("Ce qui se vend, à quel prix et à quelle vitesse ; puis la valeur de votre stock et les cotes qui bougent.")} />
       <div>
-        <SegmentedTabs label={t("Vue")} value={view} onChange={setView} tabs={[{ value: "VENTES", label: t("Ventes") }, { value: "COTES", label: t("Stock et cotes") }]} />
+        <SegmentedTabs label={t("Vue")} value={view} onChange={setView} tabs={[{ value: "RESUME", label: t("Résumé") }, { value: "VENTES", label: t("Ce qui se vend") }, { value: "COTES", label: t("Stock et cotes") }]} />
       </div>
-      {view === "VENTES" ? <SalesView /> : <StockView />}
+      {view === "RESUME" ? <StatsSummary /> : view === "VENTES" ? <SalesView /> : <StockView />}
     </Page>
   );
 }
