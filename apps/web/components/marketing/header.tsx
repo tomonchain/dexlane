@@ -57,7 +57,8 @@ export function MarketingHeader() {
   return (
     <header className={cn("sticky top-0 z-40 border-b bg-background transition-colors", scrolled || open ? "border-border" : "border-transparent")}>
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4 sm:h-16 sm:px-8">
-        <Link href="/" aria-label="Dexlane, accueil" className="rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30"><Logo /></Link>
+        {/* Un lien bloc : en ligne, sa ligne de base remontait le logo de quelques pixels au-dessus des liens. */}
+        <Link href="/" aria-label="Dexlane, accueil" className="flex h-8 items-center rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30"><Logo /></Link>
         <nav aria-label="Navigation du site" className="hidden md:block">
           <ul className="flex items-center gap-1 text-sm">
             {LINKS.map((link) => (
