@@ -49,6 +49,8 @@ export async function syncSet(
       }
     }),
   );
+  // Série reprise en entier : ses cartes ont leurs détails (Pokédex, illustrateur…), elle n'est plus à reprendre.
+  if (stats.cards > 0) await sql`update catalog_sets set details_synced_at = now() where id = ${setId} and language = ${language}`;
   return stats;
 }
 
@@ -115,18 +117,22 @@ export function upsertCard(sql: Db, mapped: MappedCardWithVariants, withPrices =
     const c = mapped.card;
     const [card] = await tx<{ id: string }[]>`
       insert into catalog_cards (set_id, local_number, name, language, rarity, category, image_url,
-                                 external_ids, source_updated_at, synced_at)
+                                 external_ids, source_updated_at, synced_at, dex_ids, illustrator, hp, types, stage)
       -- Sans image dans cette langue, l'image anglaise de la même carte (même série, même numéro) ; l'écran se rabat
       -- sur un emplacement vide si elle manque aussi.
       values (${c.setId}, ${c.localNumber}, ${c.name}, ${c.language}, ${c.rarity}, ${c.category},
               coalesce(${c.imageUrl}, (select ${ENGLISH_ASSETS} || st.serie_id || '/' || st.id || '/' || ${c.localNumber}
                                          from catalog_sets st where st.id = ${c.setId} and st.language = ${c.language} and st.serie_id is not null)),
-              ${tx.json(c.externalIds)}, ${c.sourceUpdatedAt}, now())
+              ${tx.json(c.externalIds)}, ${c.sourceUpdatedAt}, now(),
+              ${c.dexIds}::int[], ${c.illustrator}, ${c.hp}, ${c.types}::text[], ${c.stage})
       on conflict (set_id, local_number, language) do update set
         name = excluded.name, rarity = excluded.rarity, category = excluded.category,
         image_url = coalesce(excluded.image_url, catalog_cards.image_url),
         external_ids = catalog_cards.external_ids || excluded.external_ids,
-        source_updated_at = excluded.source_updated_at, synced_at = now()
+        source_updated_at = excluded.source_updated_at, synced_at = now(),
+        dex_ids = coalesce(excluded.dex_ids, catalog_cards.dex_ids), illustrator = coalesce(excluded.illustrator, catalog_cards.illustrator),
+        hp = coalesce(excluded.hp, catalog_cards.hp), types = coalesce(excluded.types, catalog_cards.types),
+        stage = coalesce(excluded.stage, catalog_cards.stage)
       returning id`;
 
     let pricesInserted = 0;
@@ -413,14 +419,18 @@ export async function importNextSets(
   // Une série prend jusqu'à une minute : on n'en commence pas une nouvelle dans la dernière part du budget.
   const reserve = Math.min(60_000, opts.budgetMs / 3);
   while (imported.length === 0 || now() - start < opts.budgetMs - reserve) {
+    // D'abord les séries absentes ; puis les séries importées avant la reprise des détails des cartes (migration 0036),
+    // une tentative par heure au plus pour chacune.
     const [next] = await sql<{ id: string; name: string }[]>`
       update catalog_sets set import_attempted_at = now()
        where (id, language) = (
          select s.id, s.language from catalog_sets s
+          cross join lateral (select exists (select 1 from catalog_cards c where c.set_id = s.id and c.language = s.language) as imported) i
           where s.language = ${language}
-            and not exists (select 1 from catalog_cards c where c.set_id = s.id and c.language = s.language)
-            and (s.import_attempted_at is null or s.import_attempted_at < now() - interval '7 days')
-          order by s.list_position desc nulls last, s.id desc
+            and ((not i.imported and (s.import_attempted_at is null or s.import_attempted_at < now() - interval '7 days'))
+              or (i.imported and s.details_synced_at is null
+                  and (s.import_attempted_at is null or s.import_attempted_at < now() - interval '1 hour')))
+          order by i.imported, s.list_position desc nulls last, s.id desc
           limit 1)
        returning id, name`;
     if (!next) break;

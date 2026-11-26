@@ -1101,8 +1101,9 @@ test("annonce bloquée faute de photo : la photo s'ajoute après coup depuis la 
   await expect(page.getByText("Recto remplacé")).toBeVisible();
   await expect(panel.getByTestId("offer-photos").getByRole("img")).toHaveCount(2);
   await panel.getByRole("button", { name: "Retirer la photo du recto" }).click();
-  await expect(page.getByText("Photo retirée")).toBeVisible();
-  await expect(panel.getByRole("button", { name: "Ajouter le recto" })).toBeVisible();
+  // L'effet durable, pas le message éphémère « Photo retirée », qui peut disparaître avant d'être vu (#78).
+  await expect(panel.getByRole("button", { name: "Ajouter le recto" })).toBeVisible({ timeout: 15_000 });
+  await expect(panel.getByTestId("offer-photos").getByRole("img")).toHaveCount(1);
   await expect(panel.getByTestId("offer-photos").getByRole("img", { name: "Verso" })).toBeVisible();
 });
 
@@ -1236,9 +1237,12 @@ test("inscription : compte créé depuis /signup, adresse vérifiée par le lien
   expect(mine).toMatchObject({ onboardingDone: true, seller: { name: "Chez le vendeur" } });
   expect(((await (await page.request.get("/api/locations")).json()) as { locations: { code: string }[] }).locations.map((l) => l.code)).toEqual(["BOITE-01"]);
   expect(((await (await page.request.get("/api/shipping-costs")).json()) as { postage: Record<string, number | null> }).postage.LETTER_UNTRACKED).toBe(139);
-  // Une fois l'adresse vérifiée, le lien n'ouvre plus de session.
+  // Une fois l'adresse vérifiée, le lien n'ouvre plus de session : il mène à l'accueil public, sans connexion.
+  // (Attendre l'arrivée sur « / » : la page du lien y redirige elle-même, et sinon cette redirection tardive l'emporte sur la suite.)
   await page.request.post("/api/auth/sign-out", { data: {} });
   await page.goto(verification.path);
+  await page.waitForURL((url) => url.pathname === "/");
+  expect((await page.request.get("/api/account")).status()).toBe(401);
   await page.goto("/stock");
   await page.waitForURL(/\/login/);
 
@@ -1270,6 +1274,28 @@ test("inscription : compte créé depuis /signup, adresse vérifiée par le lien
   await page.getByRole("button", { name: "Se connecter" }).click();
   await expect(page.getByRole("heading", { name: "Aujourd'hui" })).toBeVisible();
   expect(((await (await page.request.get("/api/stock")).json()) as { items: unknown[] }).items).toEqual([]);
+
+  // Ses données : un fichier JSON à télécharger, puis la suppression du compte, mot de passe et « SUPPRIMER » exigés.
+  await page.goto("/account");
+  const data = page.getByTestId("your-data");
+  await expect(data.getByTestId("export-data")).toHaveAttribute("href", "/api/account/export");
+  const exported = await page.request.get("/api/account/export");
+  expect(exported.headers()["content-disposition"]).toMatch(/^attachment; filename="dexlane-donnees-/);
+  expect(((await exported.json()) as { data: { locations: { code: string }[] } }).data.locations.map((l) => l.code)).toEqual(["BOITE-01"]);
+  await data.getByTestId("delete-account").click();
+  const form = page.getByTestId("delete-account-form");
+  await form.getByLabel("Mot de passe", { exact: true }).fill("nouveau-mot-de-passe-vendeur");
+  await form.getByTestId("delete-confirm").fill("supprimer");
+  await expect(form.getByRole("button", { name: "Supprimer définitivement" })).toBeDisabled();
+  await form.getByTestId("delete-confirm").fill("SUPPRIMER");
+  await form.getByRole("button", { name: "Supprimer définitivement" }).click();
+  await page.waitForURL((url) => url.pathname === "/");
+  // Le compte n'existe plus : la connexion est refusée.
+  await page.goto("/login");
+  await page.getByLabel("Adresse e-mail").fill(email);
+  await page.getByLabel("Mot de passe", { exact: true }).fill("nouveau-mot-de-passe-vendeur");
+  await page.getByRole("button", { name: "Se connecter" }).click();
+  await expect(errorBanner(page)).toBeVisible();
 });
 
 test("site marketing : en-tête et menu mobile, tarifs, pages légales, contact, colis, docs, 404, sitemap et robots", async ({ page }) => {
@@ -1391,6 +1417,25 @@ test("séries et cotes publiques : index, série, carte, adresse canonique, plan
   await expect(prices.getByRole("row", { name: /Reverse/ })).toBeVisible();
   await expect(prices).toContainText("€");
   await expect(page.getByText(/Cote tendance Cardmarket, via TCGdex/)).toBeVisible();
+  // Détails repris de TCGdex, variation sur 30 jours, liens vers les places de marché.
+  await expect(page.getByTestId("card-facts")).toContainText("tetsuya koizumi");
+  await expect(page.getByTestId("card-facts")).toContainText("110");
+  await expect(prices.getByRole("columnheader", { name: "30 jours" })).toBeVisible();
+  // La variation dépend des relevés faits par les parcours précédents : un pourcentage, ou « stable ».
+  await expect(prices.getByRole("row", { name: /Reverse/ })).toContainText(/[+−]\d+ %|stable/);
+  await expect(page.getByTestId("card-external").getByRole("link", { name: /Cardmarket/ })).toHaveAttribute("href", /cardmarket\.com\/fr\/Pokemon\/Products\/Search\?searchString=Fouinar/);
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /assets\.tcgdex\.net\/.*\/136\/high\.webp$/);
+  // L'en-tête : « Cotes » est la section active, au téléphone comme sur grand écran, sans rien qui déborde.
+  await page.getByRole("button", { name: "Menu" }).click();
+  await expect(page.getByRole("navigation", { name: "Menu" }).getByRole("link", { name: "Cotes" })).toHaveAttribute("aria-current", "page");
+  await page.keyboard.press("Escape");
+  const phone = page.viewportSize()!;
+  for (const width of [1024, 1280]) {
+    await page.setViewportSize({ width, height: 800 });
+    await expect(page.getByRole("navigation", { name: "Navigation du site" }).getByRole("link", { name: "Cotes" })).toHaveAttribute("aria-current", "page");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBe(0);
+  }
+  await page.setViewportSize(phone);
   await expect(page.getByRole("link", { name: "Ténèbres Embrasées", exact: true }).first()).toHaveAttribute("href", "/series/swsh3-tenebres-embrasees");
   // Aucune donnée d'un compte : ni stock, ni ventes, ni navigation de l'application.
   await expect(page.getByText(/en stock|exemplaire/i)).toHaveCount(0);

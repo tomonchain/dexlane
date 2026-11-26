@@ -5,7 +5,7 @@ import { evaluateProgress } from "./progression";
 
 /**
  * Attribution rétroactive au lancement (#86) : pour chaque compte, reconstruit le journal d'après l'historique, puis
- * calcule niveau et succès, sans notification individuelle (les comptes qui existaient avant la migration 0036 sont
+ * calcule niveau et succès, sans notification individuelle (les comptes qui existaient avant la migration 0039 sont
  * marqués « rétroactif en attente »). Idempotent : relancé, il n'attribue rien de plus.
  *
  * La tâche quotidienne fait la même chose de son côté ; ce script permet de le faire tout de suite, au déploiement.

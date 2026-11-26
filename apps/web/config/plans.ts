@@ -5,7 +5,7 @@
  *
  * [À CONFIRMER] : toute la grille (noms des forfaits, prix, quotas, fonctionnalités incluses) et le pack de dépassement.
  */
-import { OVERAGE_PACK as PACK_RULE, PLAN_RULES, type PlanFeature, type PlanId } from "@dexlane/shared";
+import { OVERAGE_PACK as PACK_RULE, PLAN_RULES, SCANS_PER_MINUTE, type PlanFeature, type PlanId } from "@dexlane/shared";
 
 export type { PlanFeature };
 
@@ -26,6 +26,8 @@ export interface Plan {
   monthlyPriceEur: number;
   /** Cartes publiées par mois. */
   cardsPerMonth: number;
+  /** Photos lues par Claude par mois. */
+  scansPerMonth: number;
   pitch: string;
   button: string;
   features: PlanFeature[];
@@ -43,7 +45,7 @@ const COPY: { id: Exclude<PlanId, "community">; pitch: string; button: string; f
 
 export const PLANS: Plan[] = COPY.map((copy) => {
   const rule = PLAN_RULES[copy.id];
-  return { ...copy, name: rule.name, monthlyPriceEur: rule.monthlyPriceEur, cardsPerMonth: rule.cardsPerMonth!, features: rule.features };
+  return { ...copy, name: rule.name, monthlyPriceEur: rule.monthlyPriceEur, cardsPerMonth: rule.cardsPerMonth!, scansPerMonth: rule.scansPerMonth!, features: rule.features };
 });
 
 /** « Le plus choisi » seulement quand ce sera vrai ; d'ici là, « Recommandé ». */
@@ -51,6 +53,7 @@ export const FEATURED_BADGE = "Recommandé";
 
 /** Dépassement de forfait : un pack de cartes supplémentaires. */
 export const OVERAGE_PACK = PACK_RULE;
+export { SCANS_PER_MINUTE };
 
 /** Le forfait gratuit : ses cartes offertes alimentent le hero et le CTA final. */
 export const FREE_PLAN = PLANS.find((p) => p.monthlyPriceEur === 0)!;

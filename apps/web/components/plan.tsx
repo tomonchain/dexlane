@@ -60,6 +60,26 @@ export function QuotaMeter({ quota, className }: { quota: AccountSummary["quota"
   );
 }
 
+/** Scans du mois : photos lues par Claude sur le plafond du forfait (packs compris). */
+export function ScanMeter({ scans, className }: { scans: AccountSummary["scans"]; className?: string }) {
+  if (scans.limit === null) {
+    return <p className={cn("text-[13px] text-muted-foreground", className)} data-testid="scan-meter">{t("{n} scans ce mois-ci, sans limite.", { n: formatNumber(scans.used) })}</p>;
+  }
+  const ratio = scans.limit === 0 ? 1 : Math.min(1, scans.used / scans.limit);
+  const tone = ratio >= 1 ? "bg-destructive" : ratio >= 0.8 ? "bg-warning" : "bg-muted-foreground/60";
+  return (
+    <div className={cn("grid gap-1.5", className)} data-testid="scan-meter">
+      <div className="flex items-baseline justify-between gap-3 text-[13px]">
+        <span><strong className="tabular font-semibold">{formatNumber(scans.used)}</strong> <span className="text-muted-foreground">{t("sur {limit} scans ce mois-ci", { limit: formatNumber(scans.limit) })}</span></span>
+        <span className="tabular text-muted-foreground">{t("{n} restants", { n: formatNumber(scans.remaining ?? 0) })}</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted" role="meter" aria-valuemin={0} aria-valuemax={scans.limit} aria-valuenow={Math.min(scans.used, scans.limit)} aria-label={t("Scans du mois")}>
+        <div className={cn("h-full rounded-full transition-[width]", tone)} style={{ width: `${ratio * 100}%` }} />
+      </div>
+    </div>
+  );
+}
+
 /** Une fonctionnalité que le forfait ne comprend pas : ce qu'elle fait, et le forfait qui l'ouvre. */
 export function LockedFeature({ feature, account, children, className }: { feature: PlanFeature; account: AccountSummary | null; children?: React.ReactNode; className?: string }) {
   const plan = account ? planFor(account, feature) : null;

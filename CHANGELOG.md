@@ -16,7 +16,7 @@ Retiré), avec le numéro de l'issue qu'il traite.
 - Statistiques : onglet « Résumé » par défaut, avec sélecteur de période (ce mois-ci, mois dernier, 90 jours,
   12 mois), chiffre d'affaires par devise, marge et sa couverture, cartes vendues, taux d'écoulement, délai médian de
   vente, temps gagné estimé, ventes par semaine et 10 meilleures ventes, dans le fuseau de l'utilisateur ; journal
-  d'événements par compte (`account_events`) (#83).
+  d'événements par compte (`account_events`, migration 0039) (#83).
 - Cartes dormantes (en ligne depuis plus de 90 jours sans vente) : baisse de prix avec aperçu puis confirmation,
   regroupement en lot, retrait de la vente ; rappel sur l'accueil à partir de 10 cartes (#83).
 - Parcours de démarrage : sept étapes détectées d'après les données, « Compte configuré à x % » sur l'accueil (masquable),
@@ -25,6 +25,18 @@ Retiré), avec le numéro de l'issue qu'il traite.
   image à partager (publication ou story) générée sur le serveur, sans montant par défaut (#85).
 - Niveau de la boutique d'après les ventes confirmées, succès, avantages de niveau, page Progression, notification
   groupée des succès, réglage « Afficher le niveau et les succès » ; attribution rétroactive au lancement (#86).
+- Quota de scans : chaque photo lue par Claude compte, avec un plafond mensuel par forfait (50, 300, 1 500, 6 000 ;
+  un pack ajoute 500 scans), 60 scans par minute au plus et le coût estimé noté par scan (migration 0038). Jauge dans
+  Réglages › Forfait, plafonds sur `/tarifs` et dans la doc ; dans un lot, la carte hors quota reste à identifier à la
+  main. Le compte d'installation n'a pas de plafond mensuel, mais reste soumis à la limite par minute (#50).
+- Compte › Vos données : téléchargement de toutes ses données en JSON (sans mots de passe ni jetons) et suppression du
+  compte, confirmée par le mot de passe et le mot « SUPPRIMER » ; un membre d'équipe ne supprime que son accès. Les
+  journaux en ajout seul ne s'effacent qu'avec leur compte (migration 0037) (#49).
+- Fiche publique d'une carte : cartes précédente et suivante illustrées, « D'autres cartes de ce Pokémon » (par numéro
+  de Pokédex), « Illustrées aussi par… », stade, types, PV et illustrateur, variation de la cote sur 30 jours, liens
+  vers Cardmarket et eBay, visuel de la carte en image de partage (#80).
+- Catalogue : numéros de Pokédex, illustrateur, PV, types et stade des cartes (migration 0036) ; les séries déjà
+  importées sont reprises par la tâche horaire (#80).
 - Section Guides (`/guides`) : articles en Markdown dans `apps/web/content/guides`, sommaire, données structurées,
   flux RSS, plan du site ; brouillons visibles en préversion seulement (#63).
 - Guides : image de bannière (en-tête `image` et `imageAlt`), affichée en haut de l'article et en vignette dans l'index,
@@ -39,6 +51,8 @@ Retiré), avec le numéro de l'issue qu'il traite.
 
 ### Modifié
 - Les commandes eBay gardent le pays de livraison (#86).
+- En-tête du site : « Cotes » et « Guides » (dès le premier guide publié), section active mise en évidence ; menu
+  repliable jusqu'à 1024 px de large (#81).
 - En production, les adresses `*.vercel.app` redirigent vers `dexlane.app`, hors API, MCP et tâches planifiées (#56).
 - `robots.txt` nomme les robots des moteurs génératifs et ferme `/lots` et `/join` (#58).
 - Mentions légales : hébergeur renseigné ; descriptions des pages légales écrites (#48).
@@ -46,6 +60,8 @@ Retiré), avec le numéro de l'issue qu'il traite.
 
 ### Corrigé
 - Les liens « Voir les variations » (accueil, alertes de prix) ouvrent bien l'onglet Stock et cotes des statistiques (#83).
+- Quota de scans : une lecture refusée par le modèle compte bien (elle est payée), des scans envoyés en même temps ne
+  dépassent plus le plafond, et un scan refusé ne stocke plus sa photo (#89).
 - Le catalogue français complet s'importe en un à deux jours au lieu de plusieurs semaines : la tâche d'import passe
   toutes les heures (#75).
 - Une carte gradée s'annonce avec sa note même quand le modèle de titre utilise `{etat_nom}` (« Near Mint ») (#68).

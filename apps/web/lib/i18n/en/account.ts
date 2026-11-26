@@ -48,7 +48,6 @@ export const ACCOUNT: Record<string, string> = {
   "{price}, valable jusqu'à la fin du mois. Sur un forfait payant, une mise en ligne planifiée qui dépasse ajoute d'elle-même les packs nécessaires.":
     "{price}, valid until the end of the month. On a paid plan, a scheduled run that goes over adds the packs it needs by itself.",
   "Ajouter un pack": "Add a pack",
-  "Pack ajouté : {n} cartes de plus ce mois-ci": "Pack added: {n} more cards this month",
   "Pack ajouté automatiquement": "Pack added automatically",
   "Pack ajouté": "Pack added",
   "Seul le propriétaire du compte change le forfait et ajoute des packs.": "Only the account owner changes the plan and adds packs.",
@@ -186,4 +185,38 @@ export const ACCOUNT: Record<string, string> = {
   "Prix appliqué": "Price applied",
   "Il protège l'accès à votre compte. En cas d'oubli, « Mot de passe oublié ? » sur l'écran de connexion vous envoie un lien par e-mail.":
     "It protects access to your account. If you forget it, “Forgot password?” on the sign-in screen emails you a link.",
+
+  // Vos données (RGPD)
+  "Vos données": "Your data",
+  "Téléchargez tout ce que Dexlane garde pour votre compte (stock, annonces, ventes, réglages, journaux), dans un fichier JSON. Les mots de passe et les jetons n'y figurent pas.":
+    "Download everything Dexlane keeps for your account (stock, listings, sales, settings, logs) as a JSON file. Passwords and tokens are not included.",
+  "Télécharger mes données": "Download my data",
+  "Supprimer le compte": "Delete the account",
+  "Quitter et supprimer mon accès": "Leave and delete my access",
+  "Le compte d'installation, celui du serveur, ne se supprime pas depuis l'application.": "The installation account, the server's own, cannot be deleted from the app.",
+  "Tout est effacé pour de bon : stock, annonces, ventes, photos, réglages, journaux, ainsi que les accès des {n} membres de l'équipe. Vos annonces déjà en ligne sur les places de marché n'en sont pas retirées.":
+    "Everything is erased for good: stock, listings, sales, photos, settings, logs, and the access of the {n} team members. Listings already live on marketplaces are not ended.",
+  "Tout est effacé pour de bon : stock, annonces, ventes, photos, réglages et journaux. Vos annonces déjà en ligne sur les places de marché n'en sont pas retirées.":
+    "Everything is erased for good: stock, listings, sales, photos, settings and logs. Listings already live on marketplaces are not ended.",
+  "Votre accès est supprimé et vos sessions fermées. Le compte de l'équipe et ses données restent.": "Your access is deleted and your sessions closed. The team's account and its data stay.",
+  "Pensez à télécharger vos données d'abord : la suppression est définitive.": "Download your data first: deletion is permanent.",
+  "Tapez SUPPRIMER pour confirmer": "Type SUPPRIMER to confirm",
+  "Supprimer définitivement": "Delete permanently",
+  "Supprimer mon accès": "Delete my access",
+
+  // Scans (#50)
+  "Scans du mois épuisés": "Scans used up for the month",
+  "Scan trop rapide": "Scanning too fast",
+  "Pack ajouté : {n} cartes et {scans} scans de plus ce mois-ci": "Pack added: {n} more cards and {scans} more scans this month",
+  "Scans du mois épuisés : la lecture automatique reprend avec un pack, un forfait supérieur ou le mois prochain. Les cartes se recherchent toujours à la main.":
+    "Scans used up for the month: automatic reading resumes with a pack, a higher plan or next month. Cards can still be searched by hand.",
+  "Pack de {n} cartes et {scans} scans": "Pack of {n} cards and {scans} scans",
+  "{n} scans par mois": "{n} scans per month",
+  "{n} scans ce mois-ci, sans limite.": "{n} scans this month, no limit.",
+  "sur {limit} scans ce mois-ci": "of {limit} scans this month",
+  "{n} restants": "{n} left",
+  "Scans du mois": "Monthly scans",
+  "Scans du mois épuisés : ajoutez un pack ou changez de forfait (Réglages › Forfait). La carte peut se rechercher à la main.":
+    "Scans used up for the month: add a pack or change plan (Settings › Plan). The card can be searched by hand.",
+  "Trop de scans en une minute. Patientez un instant, puis reprenez.": "Too many scans in one minute. Wait a moment, then carry on.",
 };

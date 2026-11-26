@@ -1,7 +1,7 @@
 import type { Db } from "./index";
 
 /**
- * Journal d'événements d'un compte (table `account_events`, migration 0036) : les faits qui comptent pour le vendeur,
+ * Journal d'événements d'un compte (table `account_events`, migration 0039) : les faits qui comptent pour le vendeur,
  * d'où se calculent le parcours de démarrage, le niveau et les succès.
  */
 export const ACCOUNT_EVENT_TYPES = [

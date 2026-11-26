@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { syncSet, type TcgdexClient } from "@dexlane/catalog";
 import { OWNER_ACCOUNT_ID } from "@dexlane/db";
 import { testDatabaseUrl, useTestDb } from "@dexlane/db/testing";
-import type { CardReadingRaw, CardRecognizer } from "@dexlane/scan";
+import { RecognitionError, type CardReadingRaw, type CardRecognizer } from "@dexlane/scan";
 import { card, fakeClient } from "../../../packages/catalog/test/fixtures";
 import { createApp } from "../src/app";
 import type { Mail } from "../src/mailer";
@@ -1578,6 +1578,120 @@ describe("accounts", () => {
     const fresh = (await req("GET", "/api/account", { cookie: back.cookie })).json.accountId;
     expect([fresh === owner.accountId, fresh === clerk.accountId]).toEqual([false, false]);
     expect((await req("GET", "/api/locations", { cookie: back.cookie })).json.locations).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+
+  it("counts scans against the plan, refuses the scan past the monthly cap or too fast, and keeps a batch card to identify by hand", async () => {
+    const seller = await register("scanne@example.com");
+    const as = (id: string) => ({ "Content-Type": "image/jpeg", "X-Dexlane-Account": id });
+    // Le compte d'installation n'a pas de plafond.
+    expect((await req("GET", "/api/account")).json.scans).toMatchObject({ limit: null, remaining: null });
+    expect((await req("GET", "/api/account", { cookie: seller.cookie })).json.scans).toEqual({ used: 0, limit: 50, remaining: 50 });
+
+    expect((await scan({ headers: as(seller.accountId) })).status).toBe(200);
+    const [row] = await sql`select source, cost_usd::float as cost from scan_usage where account_id = ${seller.accountId}`;
+    expect(row).toEqual({ source: "single", cost: 0.008 });
+
+    // Plafond du mois atteint (Découverte : 50 scans).
+    const month = (await req("GET", "/api/account", { cookie: seller.cookie })).json.quota.month;
+    await sql`insert into scan_usage (account_id, month, source, created_at)
+      select ${seller.accountId}, ${month}, 'single', now() - interval '1 hour' from generate_series(1, 49)`;
+    const refused = await scan({ headers: as(seller.accountId) });
+    expect([refused.status, refused.json.error.code]).toEqual([402, "SCAN_QUOTA_EXCEEDED"]);
+    expect((await req("GET", "/api/account", { cookie: seller.cookie })).json.scans).toEqual({ used: 50, limit: 50, remaining: 0 });
+
+    // Dans un lot, la carte est tout de même enregistrée avec sa photo, à identifier à la main.
+    await call("POST", "/api/locations", { body: { code: "BAC-Q" }, headers: { "X-Dexlane-Account": seller.accountId } });
+    const batch = (await call("POST", "/api/scan-batches", { body: { locationCode: "BAC-Q" }, headers: { "X-Dexlane-Account": seller.accountId } })).json;
+    const item = await call("POST", `/api/scan-batches/${batch.id}/items?position=1&fileName=a.jpg`, { body: new Uint8Array([0xff, 0xd8, 0xff, 7]), headers: as(seller.accountId), key: null });
+    expect(item.status).toBe(201);
+    expect(JSON.stringify(item.json)).toContain("SCAN_QUOTA_EXCEEDED");
+
+    // Un pack rouvre le mois, scans compris.
+    await req("PUT", "/api/account/plan", { body: { plan: "solo" }, cookie: seller.cookie });
+    expect((await req("GET", "/api/account", { cookie: seller.cookie })).json.scans).toEqual({ used: 50, limit: 300, remaining: 250 });
+    expect((await req("POST", "/api/account/packs", { body: { packs: 1 }, cookie: seller.cookie })).status).toBe(200);
+    expect((await req("GET", "/api/account", { cookie: seller.cookie })).json.scans.limit).toBe(800);
+
+    // Garde-fou de débit : 60 scans par minute, même avec du quota.
+    await sql`insert into scan_usage (account_id, month, source) select ${seller.accountId}, ${month}, 'batch' from generate_series(1, 60)`;
+    const fast = await scan({ headers: as(seller.accountId) });
+    expect([fast.status, fast.json.error.code]).toEqual([429, "SCAN_RATE_LIMITED"]);
+
+    // Une panne de lecture ne consomme pas de scan ; une lecture refusée par le modèle, payée, compte même si la requête échoue.
+    await sql`delete from scan_usage where account_id = ${seller.accountId} and created_at > now() - interval '5 minutes'`;
+    const before = (await req("GET", "/api/account", { cookie: seller.cookie })).json.scans.used;
+    const ok = recognize;
+    recognize = async () => { throw new Error("vision down"); };
+    expect((await scan({ headers: as(seller.accountId) })).json.error.code).toBe("SCAN_UNAVAILABLE");
+    expect((await req("GET", "/api/account", { cookie: seller.cookie })).json.scans.used).toBe(before);
+    recognize = async () => { throw new RecognitionError("REFUSED", "refused"); };
+    expect((await scan({ headers: as(seller.accountId) })).status).toBeGreaterThanOrEqual(400);
+    expect((await req("GET", "/api/account", { cookie: seller.cookie })).json.scans.used).toBe(before + 1);
+    errors.length = 0;
+
+    // Des scans simultanés ne dépassent pas le plafond : il en reste 2, sur 5 envoyés en même temps, 2 passent.
+    recognize = ok;
+    const used = (await req("GET", "/api/account", { cookie: seller.cookie })).json.scans.used;
+    await sql`insert into scan_usage (account_id, month, source, created_at)
+      select ${seller.accountId}, ${month}, 'single', now() - interval '1 hour' from generate_series(1, ${800 - used - 2})`;
+    const burst = await Promise.all(Array.from({ length: 5 }, () => scan({ headers: as(seller.accountId) })));
+    expect(burst.map((r) => r.status).sort()).toEqual([200, 200, 402, 402, 402]);
+    expect((await req("GET", "/api/account", { cookie: seller.cookie })).json.scans).toMatchObject({ used: 800, remaining: 0 });
+  });
+
+  it("exports a seller's data and erases the account with its journals, without touching another account", async () => {
+    const seller = await register("efface@example.com");
+    const other = await register("autre@example.com");
+    expect((await req("POST", "/api/locations", { body: { code: "BOITE-1" }, cookie: seller.cookie })).status).toBe(201);
+    expect((await req("POST", "/api/locations", { body: { code: "AUTRE" }, cookie: other.cookie })).status).toBe(201);
+    // Un changement de forfait écrit dans le journal d'audit, en ajout seul.
+    expect((await req("PUT", "/api/account/plan", { body: { plan: "solo" }, cookie: seller.cookie })).status).toBe(200);
+
+    // Portabilité : ses données à lui, sans secret.
+    const exported = await req("GET", "/api/account/export", { cookie: seller.cookie });
+    expect(exported.status).toBe(200);
+    expect(exported.json).toMatchObject({ format: "dexlane-export/1", account: { id: seller.accountId, plan: "solo" }, users: [{ email: "efface@example.com" }] });
+    expect(exported.json.data.locations.map((l: { code: string }) => l.code)).toEqual(["BOITE-1"]);
+    expect(exported.json.data.audit_events.length).toBeGreaterThan(0);
+    expect(JSON.stringify(exported.json)).not.toMatch(/password|token_hash|"AUTRE"/);
+
+    // Effacement : le mot de passe et le mot « SUPPRIMER » sont exigés.
+    expect((await req("POST", "/api/account/delete", { body: { password: "faux", confirm: "SUPPRIMER" }, cookie: seller.cookie })).json.error.code).toBe("WRONG_PASSWORD");
+    expect((await req("POST", "/api/account/delete", { body: { password: "un-bon-mot-de-passe", confirm: "oui" }, cookie: seller.cookie })).status).toBe(400);
+    const erased = await req("POST", "/api/account/delete", { body: { password: "un-bon-mot-de-passe", confirm: "SUPPRIMER" }, cookie: seller.cookie });
+    expect(erased.json).toEqual({ ok: true, deleted: "account" });
+    expect((await req("GET", "/api/account", { cookie: seller.cookie })).status).toBe(401);
+    expect((await req("POST", "/api/auth/sign-in/email", { body: { email: "efface@example.com", password: "un-bon-mot-de-passe" } })).status).toBe(401);
+    for (const table of ["locations", "audit_events", "app_settings"]) {
+      expect(await sql`select count(*)::int as n from ${sql(table)} where account_id = ${seller.accountId}`).toEqual([{ n: 0 }]);
+    }
+    expect(await sql`select count(*)::int as n from accounts where id = ${seller.accountId}`).toEqual([{ n: 0 }]);
+    // Les journaux restent en ajout seul en dehors d'un effacement.
+    await expect(sql`delete from audit_events where account_id = ${other.accountId}`).rejects.toThrow(/append-only/);
+    // L'autre compte n'a rien perdu.
+    expect((await req("GET", "/api/locations", { cookie: other.cookie })).json.locations.map((l: { code: string }) => l.code)).toEqual(["AUTRE"]);
+    expect(errors).toEqual([]);
+  });
+
+  it("lets a teammate delete only their own user, and keeps the installation account from being deleted", async () => {
+    const owner = await register("patron@example.com");
+    const clerk = await register("equipier@example.com");
+    await req("PUT", "/api/account/plan", { body: { plan: "boutique" }, cookie: owner.cookie });
+    await req("POST", "/api/team/invitations", { body: { email: "equipier@example.com" }, cookie: owner.cookie });
+    const token = new URL(mails.at(-1)!.text.match(/https:\/\/\S+/)![0]).searchParams.get("token")!;
+    expect((await req("POST", "/api/team/invitations/accept", { body: { token }, cookie: clerk.cookie })).status).toBe(200);
+    expect((await req("POST", "/api/locations", { body: { code: "COMPTOIR" }, cookie: owner.cookie })).status).toBe(201);
+
+    const left = await req("POST", "/api/account/delete", { body: { password: "un-bon-mot-de-passe", confirm: "SUPPRIMER" }, cookie: clerk.cookie });
+    expect(left.json).toEqual({ ok: true, deleted: "user" });
+    expect((await req("GET", "/api/team", { cookie: owner.cookie })).json.members.map((m: { email: string }) => m.email)).toEqual(["patron@example.com"]);
+    expect((await req("GET", "/api/locations", { cookie: owner.cookie })).json.locations.map((l: { code: string }) => l.code)).toEqual(["COMPTOIR"]);
+
+    // Le compte d'installation (celui du serveur) ne se supprime pas.
+    await req("POST", "/api/setup/owner", { body: { email: "serveur@example.com", password: "secret-du-serveur" } });
+    const admin = await req("POST", "/api/auth/sign-in/email", { body: { email: "serveur@example.com", password: "secret-du-serveur" } });
+    expect((await req("POST", "/api/account/delete", { body: { password: "secret-du-serveur", confirm: "SUPPRIMER" }, cookie: admin.cookie })).json.error.code).toBe("INSTALLATION_ACCOUNT");
     expect(errors).toEqual([]);
   });
 });

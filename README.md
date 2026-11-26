@@ -22,7 +22,9 @@ Service en ligne de négoce de cartes Pokémon, sur https://dexlane.app : scan, 
 - E-mails : Resend, avec `RESEND_API_KEY` et `EMAIL_FROM` (adresse d'un domaine vérifié chez Resend). Sans eux, les e-mails sont écrits dans la console en développement ; en production, l'inscription échoue (`EMAIL_NOT_CONFIGURED`). Adresse publique des liens : `DEXLANE_PUBLIC_URL` ou `NEXT_PUBLIC_SITE_URL`, sinon celle du déploiement Vercel. Secret des cookies : `BETTER_AUTH_SECRET`, sinon dérivé de `DEXLANE_API_TOKEN`.
 - API (jeton du serveur) : sans session navigateur, l'en-tête `X-Dexlane-Account` désigne le compte (scripts, tâches) ; sans lui, c'est le compte d'installation. `GET /api/accounts/active` liste les comptes pour la tâche quotidienne, qui tourne pour chacun. Un jeton d'agent (MCP) n'ouvre que le compte qui l'a créé.
 - Onboarding (`/welcome`, ouvert tant qu'il n'est pas terminé ou passé) : boutique (nom et coordonnées des bons et reçus), mode de scan, emplacements, envois et stratégie de prix. Le propriétaire d'une installation neuve commence par créer son compte et a en plus l'étape d'import des séries dans le catalogue commun. Chaque étape se passe et se retrouve dans Réglages.
-- Pas encore : dashboard d'administration, facturation Stripe (#45), suppression et export d'un compte (#49).
+- Scans (#50) : chaque photo envoyée à Claude réserve une ligne de `scan_usage` avant l'appel (rendue si le service est en panne) et y note son coût estimé. Plafond mensuel `scansPerMonth` du forfait (`packages/shared/src/plans.ts`, plus `OVERAGE_PACK.scans` par pack) et `SCANS_PER_MINUTE` pour tous les comptes : `SCAN_QUOTA_EXCEEDED` (402) et `SCAN_RATE_LIMITED` (429). Dans un lot, la carte refusée est enregistrée avec sa photo, à identifier à la main. Suivi de la dépense : `select account_id, month, count(*), sum(cost_usd) from scan_usage group by 1, 2`.
+- Données du compte (Compte › Vos données) : `GET /api/account/export` renvoie toutes les lignes du compte en JSON, table par table, sans secrets (mots de passe, jetons, clés). `POST /api/account/delete` (mot de passe et `confirm: "SUPPRIMER"`) efface le compte du propriétaire en une transaction — données, journaux en ajout seul, utilisateurs, puis photos du stockage — ou, pour un membre d'équipe, son seul utilisateur. Le compte d'installation ne se supprime pas. Les tables sont lues dans le schéma : une nouvelle table portant `account_id` est exportée et effacée sans code en plus.
+- Pas encore : dashboard d'administration, facturation Stripe (#45).
 
 **Forfaits** (`packages/shared/src/plans.ts`, la règle ; `apps/web/config/plans.ts` y ajoute les textes du site ; migration 0035) : chaque compte a son forfait (`accounts.plan`) — Découverte (gratuit, 20 cartes par mois), Solo, Pro, Boutique. Le compte d'installation n'a jamais de limite (forfait « community ») ; `DEXLANE_PLANS=off` coupe les forfaits pour toute l'installation (version Community auto-hébergée).
 - Quota : une **carte publiée** est une offre mise en ligne pour la première fois sur un canal (`publication_usage`, une ligne par offre et par canal). Une révision (prix, texte, quantité), une remise en ligne ou une annonce simulée ne compte pas ; un lot compte pour une carte. Le mois est celui de Paris. Au-delà de la limite (forfait + packs du mois, `quota_packs`), une publication isolée est refusée (402 `QUOTA_EXCEEDED`). Une mise en ligne planifiée commencée sous la limite va au bout : sur un forfait payant, des packs ajoutés automatiquement couvrent le dépassement ; sur le forfait gratuit, les cartes qui dépassent sont reportées au premier jour du mois suivant. Alertes sur le téléphone à 80 % puis 100 % (`quota_alerts`, une fois par mois).
@@ -208,7 +210,8 @@ Les tests tournent contre un vrai PostgreSQL : la base de test de chaque package
 
 Pages publiques du site, faites pour les moteurs de recherche et les assistants :
 
-- `/series` : toutes les séries en français, par bloc ; `/series/<série>` (ex. `/series/swsh3-tenebres-embrasees`) : ses cartes avec leur cote « à partir de » ; `/series/<série>/<carte>` (ex. `…/136-fouinar`) : la cote tendance Cardmarket de chaque variante, sa date, son évolution sur six mois, les cartes voisines.
+- `/series` : toutes les séries en français, par bloc ; `/series/<série>` (ex. `/series/swsh3-tenebres-embrasees`) : ses cartes avec leur cote « à partir de » ; `/series/<série>/<carte>` (ex. `…/136-fouinar`) : la cote tendance Cardmarket de chaque variante, sa date, sa variation sur 30 jours et son évolution sur six mois ; les détails de la carte (stade, types, PV, illustrateur) ; les cartes précédente et suivante avec leur image ; « D'autres cartes de ce Pokémon » (même numéro de Pokédex, quel que soit le nom imprimé ; pour un Dresseur ou une Énergie, la même carte dans d'autres séries) ; « Illustrées aussi par… » ; des liens vers Cardmarket et eBay. Le visuel de la carte sert d'image de partage.
+- **Détails des cartes** (migration 0036) : numéros de Pokédex (`dex_ids`), illustrateur, PV, types et stade, repris de TCGdex. Les séries importées avant n'en ont pas : la tâche horaire du catalogue les reprend une à une après les séries manquantes (`catalog_sets.details_synced_at`).
 - **Données** : le catalogue commun et les cotes seulement (`packages/catalog/src/public.ts`, routes `GET /api/public/catalog/*`). Ces requêtes ne joignent jamais une table de compte : la connexion du serveur n'étant pas cloisonnée, elles additionneraient le stock de tous les vendeurs.
 - **Adresses** : identifiant puis nom (« sv03.5-151 », « 4-dracaufeu »). Seul l'identifiant compte pour trouver la page ; un autre nom ou une autre casse redirigent (308) vers l'adresse canonique.
 - **Rendu** : chaque page est générée à sa première visite puis gardée en cache un jour (ISR), comme le relevé nocturne des cotes.
@@ -370,7 +373,7 @@ Le paquet `packages/insights` (#83 à #86) ; toutes les valeurs réglables sont 
 (temps gagné par annonce, délai des cartes dormantes et de confirmation des ventes, seuils et noms des niveaux, avantages,
 étapes du démarrage, succès). Tout est privé au compte : pas de profil public, pas de classement.
 
-- **Journal d'événements** (`account_events`, migration 0036) : eBay connecté, carte ajoutée, rangement, annonce publiée
+- **Journal d'événements** (`account_events`, migration 0039) : eBay connecté, carte ajoutée, rangement, annonce publiée
   ou en échec, vente payée, annulée, remboursée ou retournée, bordereau imprimé (et, quand le parrainage existera, filleul
   qualifié et remise à 100 %). Chaque événement a une clé de déduplication unique dans le compte : rejoué ou reconstruit,
   il ne compte qu'une fois. `rebuildJournal` le reconstruit d'après l'historique des tables métier (au lancement, puis
@@ -400,7 +403,7 @@ Le paquet `packages/insights` (#83 à #86) ; toutes les valeurs réglables sont 
   aux niveaux 5 et 7 par le quota (point d'extension `PerkHooks` de l'API ; rien en Community). La progression est
   réévaluée après chaque publication, vente ou mouvement de stock, et chaque nuit. Notification groupée dans
   l'application, jamais d'e-mail. Réglage par utilisateur « Afficher le niveau et les succès ».
-- **Attribution rétroactive** : la migration 0036 marque les comptes existants ; leur première évaluation (tâche
+- **Attribution rétroactive** : la migration 0039 marque les comptes existants ; leur première évaluation (tâche
   quotidienne, ou `pnpm --filter @dexlane/insights retro`) attribue leur historique sans notification, puis un message
   unique résume les succès déjà débloqués.
 - Données fictives pour essayer ces écrans : `DATABASE_URL=… tsx packages/insights/test/demo-seed.ts` sur une base vide.

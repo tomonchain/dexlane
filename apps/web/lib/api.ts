@@ -59,6 +59,10 @@ async function request<T>(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", p
     const e = data?.error;
     if (e?.code === "DATABASE_UNAVAILABLE") throw new ApiError(res.status, e.code, t("La base de données ne répond pas pour l'instant. Réessayez dans quelques secondes."));
     // Forfait : le message du serveur est remplacé par un texte de l'interface, qui dit où agir.
+    if (e?.code === "SCAN_QUOTA_EXCEEDED") {
+      throw new ApiError(res.status, e.code, t("Scans du mois épuisés : ajoutez un pack ou changez de forfait (Réglages › Forfait). La carte peut se rechercher à la main."), e.details);
+    }
+    if (e?.code === "SCAN_RATE_LIMITED") throw new ApiError(res.status, e.code, t("Trop de scans en une minute. Patientez un instant, puis reprenez."), e.details);
     if (e?.code === "QUOTA_EXCEEDED") {
       throw new ApiError(res.status, e.code, t("Quota du mois atteint : ajoutez un pack de cartes ou changez de forfait (Réglages › Forfait). Vos annonces en ligne ne bougent pas."), e.details);
     }
@@ -319,6 +323,8 @@ export const api = {
   /** L'utilisateur de la session : adresse, rôle (admin pour le propriétaire de l'installation), forfait choisi. */
   account: () => request<AccountSummary>("GET", "/account"),
   changePlan: (plan: Exclude<PlanId, "community">) => request<AccountSummary>("PUT", "/account/plan", { json: { plan } }),
+  deleteAccount: (password: string) =>
+    request<{ ok: true; deleted: "account" | "user" }>("POST", "/account/delete", { json: { password, confirm: "SUPPRIMER" }, idempotencyKey: crypto.randomUUID() }),
   addPacks: (packs = 1) => request<AccountSummary>("POST", "/account/packs", { json: { packs }, idempotencyKey: crypto.randomUUID() }),
   team: () => request<TeamView>("GET", "/team"),
   invite: (email: string) => request<{ id: string; email: string }>("POST", "/team/invitations", { json: { email }, idempotencyKey: crypto.randomUUID() }),

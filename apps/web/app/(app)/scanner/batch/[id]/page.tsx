@@ -578,7 +578,7 @@ export default function ScanBatchPage() {
                           </span>
                         ) : (
                           <span className="grid">
-                            <span className="font-medium">{item.scanError ? t("Lecture impossible") : t("Carte à choisir")}</span>
+                            <span className="font-medium">{item.scanError === "SCAN_QUOTA_EXCEEDED" ? t("Scans du mois épuisés") : item.scanError === "SCAN_RATE_LIMITED" ? t("Scan trop rapide") : item.scanError ? t("Lecture impossible") : t("Carte à choisir")}</span>
                             <span className="truncate text-xs text-muted-foreground">{item.candidates.length > 0 ? tn(item.candidates.length, "{n} proposition", "{n} propositions") : t("À rechercher dans le catalogue")} · {item.fileName}</span>
                           </span>
                         )}
