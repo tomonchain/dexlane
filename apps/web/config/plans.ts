@@ -26,6 +26,8 @@ export interface Plan {
   monthlyPriceEur: number;
   /** Cartes publiées par mois. */
   cardsPerMonth: number;
+  /** Photos lues par Claude par mois. */
+  scansPerMonth: number;
   pitch: string;
   button: string;
   features: PlanFeature[];
@@ -43,7 +45,7 @@ const COPY: { id: Exclude<PlanId, "community">; pitch: string; button: string; f
 
 export const PLANS: Plan[] = COPY.map((copy) => {
   const rule = PLAN_RULES[copy.id];
-  return { ...copy, name: rule.name, monthlyPriceEur: rule.monthlyPriceEur, cardsPerMonth: rule.cardsPerMonth!, features: rule.features };
+  return { ...copy, name: rule.name, monthlyPriceEur: rule.monthlyPriceEur, cardsPerMonth: rule.cardsPerMonth!, scansPerMonth: rule.scansPerMonth!, features: rule.features };
 });
 
 /** « Le plus choisi » seulement quand ce sera vrai ; d'ici là, « Recommandé ». */

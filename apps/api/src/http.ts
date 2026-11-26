@@ -33,7 +33,9 @@ const CONFLICTS = new Set([
 export function statusOfDomainError(e: DomainError): ContentfulStatusCode {
   if (e.code.endsWith("_NOT_FOUND")) return 404;
   // Forfait : quota du mois consommé (un pack ou un forfait supérieur le rouvre), fonctionnalité d'un autre forfait.
-  if (e.code === "QUOTA_EXCEEDED") return 402;
+  if (e.code === "QUOTA_EXCEEDED" || e.code === "SCAN_QUOTA_EXCEEDED") return 402;
+  // Trop de scans en une minute : réessayer dans un instant.
+  if (e.code === "SCAN_RATE_LIMITED") return 429;
   if (e.code === "FEATURE_NOT_IN_PLAN") return 403;
   // La marketplace est en panne : l'appel peut être retenté plus tard.
   if (e.code === "EBAY_UNAVAILABLE") return 502;

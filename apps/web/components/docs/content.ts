@@ -42,6 +42,7 @@ export const DOC_GROUPS: { id: DocGroup; title: string }[] = [
 const FREE = formatCards(FREE_PLAN.cardsPerMonth);
 const PACK = `${formatCards(OVERAGE_PACK.cards)} cartes`;
 const PACK_PRICE = formatEuros(OVERAGE_PACK.priceEur);
+const PACK_SCANS = OVERAGE_PACK.scans;
 const featureLabel = (id: string) => PLAN_FEATURES.find((f) => f.id === id)?.label ?? id;
 
 export const DOCS_INDEX = {
@@ -394,8 +395,8 @@ export const DOC_PAGES: DocPage[] = [
         blocks: [
           {
             table: {
-              head: ["Forfait", "Prix", "Cartes publiées par mois", "Inclus"],
-              rows: PLANS.map((plan) => [plan.name, formatPlanPrice(plan), formatCards(plan.cardsPerMonth), plan.features.map(featureLabel).join(" · ")]),
+              head: ["Forfait", "Prix", "Cartes publiées par mois", "Scans par mois", "Inclus"],
+              rows: PLANS.map((plan) => [plan.name, formatPlanPrice(plan), formatCards(plan.cardsPerMonth), formatCards(plan.scansPerMonth), plan.features.map(featureLabel).join(" · ")]),
             },
           },
           { p: "Aucune commission sur tes ventes : les frais de vente d'eBay restent ceux d'eBay. Le détail est sur [la page Tarifs](/tarifs)." },
@@ -416,6 +417,14 @@ export const DOC_PAGES: DocPage[] = [
         ],
       },
       {
+        id: "scans",
+        title: "Les scans",
+        blocks: [
+          { p: `Chaque photo lue automatiquement compte pour un scan, que la lecture réussisse ou non ; une panne de la lecture ne compte pas. Chaque forfait comprend environ deux scans par carte publiable, pour les cartes que tu gardes en stock et les photos reprises, et un pack de cartes ajoute ${formatCards(PACK_SCANS)} scans. Le compteur repart de zéro le premier du mois, comme celui des cartes.` },
+          { p: "Une fois les scans du mois utilisés, une carte se recherche toujours à la main ; dans un lot scanné, elle est enregistrée avec sa photo, à identifier dans la revue. Pour éviter qu'un script ou une boucle s'emballe, un compte ne lit pas plus de 60 photos par minute." },
+        ],
+      },
+      {
         id: "depassement",
         title: "Si tu dépasses",
         blocks: [
@@ -427,7 +436,7 @@ export const DOC_PAGES: DocPage[] = [
         id: "changer",
         title: "Changer de forfait ou arrêter",
         blocks: [
-          { p: "Sans engagement : tu changes de forfait ou tu reviens au forfait gratuit quand tu veux, dans **Réglages › Forfait**. Le changement prend effet tout de suite. Seul le propriétaire du compte peut le faire, et une boutique avec une équipe retire d'abord ses autres membres avant de passer à un forfait à un seul utilisateur. Si tu arrêtes, tes annonces restent en ligne sur eBay et tu peux exporter ton inventaire." },
+          { p: "Sans engagement : tu changes de forfait ou tu reviens au forfait gratuit quand tu veux, dans **Réglages › Forfait**. Le changement prend effet tout de suite. Seul le propriétaire du compte peut le faire, et une boutique avec une équipe retire d'abord ses autres membres avant de passer à un forfait à un seul utilisateur. Si tu arrêtes, tes annonces restent en ligne sur eBay ; tu peux télécharger toutes tes données puis supprimer ton compte depuis **Compte › Vos données**." },
         ],
       },
       {

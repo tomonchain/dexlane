@@ -204,4 +204,19 @@ export const ACCOUNT: Record<string, string> = {
   "Tapez SUPPRIMER pour confirmer": "Type SUPPRIMER to confirm",
   "Supprimer définitivement": "Delete permanently",
   "Supprimer mon accès": "Delete my access",
+
+  // Scans (#50)
+  "Scans du mois épuisés": "Scans used up for the month",
+  "Scan trop rapide": "Scanning too fast",
+  "Scans du mois épuisés : la lecture automatique reprend avec un pack, un forfait supérieur ou le mois prochain. Les cartes se recherchent toujours à la main.":
+    "Scans used up for the month: automatic reading resumes with a pack, a higher plan or next month. Cards can still be searched by hand.",
+  "Pack de {n} cartes et {scans} scans": "Pack of {n} cards and {scans} scans",
+  "{n} scans par mois": "{n} scans per month",
+  "{n} scans ce mois-ci, sans limite.": "{n} scans this month, no limit.",
+  "sur {limit} scans ce mois-ci": "of {limit} scans this month",
+  "{n} restants": "{n} left",
+  "Scans du mois": "Monthly scans",
+  "Scans du mois épuisés : ajoutez un pack ou changez de forfait (Réglages › Forfait). La carte peut se rechercher à la main.":
+    "Scans used up for the month: add a pack or change plan (Settings › Plan). The card can be searched by hand.",
+  "Trop de scans en une minute. Patientez un instant, puis reprenez.": "Too many scans in one minute. Wait a moment, then carry on.",
 };
