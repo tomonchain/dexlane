@@ -1,0 +1,22 @@
+name: Tâche
+description: Une fonctionnalité, une amélioration ou un réglage à faire.
+body:
+  - type: textarea
+    id: pourquoi
+    attributes:
+      label: Pourquoi
+      description: Le problème à résoudre, pour qui.
+    validations:
+      required: true
+  - type: textarea
+    id: afaire
+    attributes:
+      label: À faire
+      description: Ce qui doit changer, fichiers concernés si on les connaît.
+    validations:
+      required: true
+  - type: textarea
+    id: fini
+    attributes:
+      label: Fini quand
+      description: Ce qu'on vérifie pour fermer l'issue.

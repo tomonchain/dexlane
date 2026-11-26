@@ -1,5 +1,6 @@
 import { withTx, type Db } from "@dexlane/db";
-import { DomainError } from "@dexlane/shared";
+import { coverOverage, requireFeature, startPublicationBatch } from "./quota";
+import { DomainError, nextQuotaMonth, quotaMonth } from "@dexlane/shared";
 import { isChannel, type ChannelId } from "./channel-ids";
 import { publishListing, type ChannelAdapters } from "./channels";
 
@@ -44,6 +45,8 @@ export async function planPublications(sql: Db, input: PlanInput): Promise<PlanR
   if (!Number.isInteger(input.perDay) || input.perDay < 1 || input.perDay > 500) {
     throw new DomainError("INVALID_SCHEDULE", "between 1 and 500 listings a day");
   }
+  // Planifier plusieurs cartes d'un coup, c'est la publication en masse.
+  if (!input.offerIds || input.offerIds.length > 1) await requireFeature(sql, "bulk", "publication en masse");
   return withTx(sql, async (tx) => {
     const [channel] = await tx<{ mode: string }[]>`select mode from channel_settings where channel = ${input.channel}`;
     if (!channel || channel.mode === "OFF") throw new DomainError("CHANNEL_DISABLED", `channel ${input.channel} is switched off`);
@@ -91,6 +94,7 @@ export async function queuePublications(
   if (input.perDay !== null && (!Number.isInteger(input.perDay) || input.perDay < 1 || input.perDay > 500)) {
     throw new DomainError("INVALID_SCHEDULE", "between 1 and 500 listings a day");
   }
+  if (input.offerIds.length > 1) await requireFeature(sql, "bulk", "publication en masse");
   const today = input.today ?? todayInParis();
   return withTx(sql, async (tx) => {
     // Une seule file par canal à la fois : deux lots en parallèle ne dépassent pas le rythme du jour.
@@ -179,27 +183,40 @@ export async function cancelPublications(sql: Db, filter: { plannedOn?: string; 
 /**
  * Publie tout ce qui est dû (jour planifié atteint). Une publication impossible est marquée en échec avec son motif,
  * sans bloquer les autres : elle réapparaît dans le planning pour être corrigée.
+ *
+ * C'est une publication en masse : commencée sous le quota du forfait, elle va au bout. Sur un forfait payant, des packs
+ * couvrent ensuite ce qui a dépassé ; sur le forfait gratuit, ce qui dépasse est reporté au premier jour du mois suivant.
  */
-export async function runDuePublications(sql: Db, live: ChannelAdapters, actor: string, today = todayInParis()): Promise<{ published: number; failed: number }> {
+export async function runDuePublications(
+  sql: Db, live: ChannelAdapters, actor: string, today = todayInParis(),
+): Promise<{ published: number; failed: number; postponed: number; packsAdded: number }> {
   const due = await sql<{ id: string; offerId: string; channel: string }[]>`
     select id, offer_id, channel from scheduled_publications
      where status = 'PENDING' and planned_on <= ${today} order by planned_on, rank, id`;
   let published = 0;
   let failed = 0;
+  let postponed = 0;
+  const batch = due.length > 0 ? await startPublicationBatch(sql) : undefined;
   for (const item of due) {
     try {
       if (!isChannel(item.channel)) throw new DomainError("CHANNEL_DISABLED", "unknown channel");
-      const listing = await publishListing(sql, live, { offerId: item.offerId, channel: item.channel, actor });
+      const listing = await publishListing(sql, live, { offerId: item.offerId, channel: item.channel, actor, batch });
       await sql`update scheduled_publications set status = 'DONE', listing_id = ${listing.id}, done_at = now() where id = ${item.id}`;
       published++;
     } catch (e) {
+      if (e instanceof DomainError && (e.code === "QUOTA_POSTPONED" || e.code === "QUOTA_EXCEEDED")) {
+        await sql`update scheduled_publications set planned_on = ${nextQuotaMonth(quotaMonth())} where id = ${item.id}`;
+        postponed++;
+        continue;
+      }
       await sql`
         update scheduled_publications set status = 'FAILED', error_code = ${e instanceof DomainError ? e.code : "PUBLISH_FAILED"}, done_at = now()
          where id = ${item.id}`;
       failed++;
     }
   }
-  return { published, failed };
+  const packsAdded = batch?.coverOverage ? await coverOverage(sql, actor) : 0;
+  return { published, failed, postponed, packsAdded };
 }
 
 // ───────────────────────── Calendrier ─────────────────────────

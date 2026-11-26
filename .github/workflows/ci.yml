@@ -2,7 +2,8 @@ name: CI
 
 # Chaîne de livraison :
 #   push sur une branche de travail (claude/**) → vérifications sur le résultat fusionné avec main
-#   → pull request ouverte au besoin, puis fusionnée → Vercel déploie la production depuis main.
+#   → pull request ouverte au besoin, puis fusionnée → Vercel déploie la production depuis main
+#   → si la version du package.json est nouvelle, étiquette vX.Y.Z et release GitHub (CHANGELOG.md).
 # Les autres pull requests (dont Dependabot) sont vérifiées ; les mises à jour mineures se fusionnent seules.
 on:
   push:
@@ -150,6 +151,27 @@ jobs:
           fi
           # Seul le commit qui vient d'être vérifié peut être fusionné.
           gh pr merge "$pr" --merge --match-head-commit "$GITHUB_SHA"
+          # Une fusion faite avec le jeton de la CI ne relance pas de workflow sur main : la version se publie ici.
+          git fetch origin main
+          .github/scripts/release.sh origin/main
+
+  release:
+    name: Publication de la version
+    # Fusion faite à la main (ou push direct) : la version du package.json est publiée si elle est nouvelle.
+    needs: [checks, e2e]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Étiquette et release GitHub si la version est nouvelle
+        run: .github/scripts/release.sh "$GITHUB_SHA"
 
   dependances:
     name: Fusion des mises à jour mineures

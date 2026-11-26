@@ -4,7 +4,6 @@ import { SHIPPING_MODES, type ShippingMode } from "./shipping";
 
 /** Modes d'envoi qui passent par la poste (la remise en main propre n'a ni affranchissement ni enveloppe). */
 export type PostalMode = Exclude<ShippingMode, "HAND_DELIVERY">;
-export const POSTAL_MODES: PostalMode[] = ["LETTER_UNTRACKED", "LETTER_TRACKED", "PARCEL_TRACKED"];
 
 export interface ShippingCosts {
   /** Affranchissement habituel par mode, en centimes ; null : non renseigné (compté 0 et signalé). */
@@ -33,7 +32,7 @@ export async function saveShippingCosts(sql: Db, costs: ShippingCosts, actor: st
   }
   await sql`
     insert into shipping_costs (settings) values (${sql.json(costs as never)})
-    on conflict (id) do update set settings = excluded.settings, updated_at = now()`;
+    on conflict (account_id) do update set settings = excluded.settings, updated_at = now()`;
   await sql`
     insert into audit_events (actor, action, entity, entity_id, after)
     values (${actor}, 'shipping_costs_changed', 'shipping_costs', 'default', ${sql.json(costs as never)})`;

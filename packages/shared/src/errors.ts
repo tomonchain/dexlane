@@ -9,6 +9,3 @@ export class DomainError extends Error {
     this.name = "DomainError";
   }
 }
-
-export const isDomainError = (e: unknown, code?: string): e is DomainError =>
-  e instanceof DomainError && (code === undefined || e.code === code);

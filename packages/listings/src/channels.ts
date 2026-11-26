@@ -3,6 +3,8 @@ import { allocateOrder, createShipment, importOrder, type CardCondition, type Sh
 import { DomainError } from "@dexlane/shared";
 import { listListingOffers, listingBlockers, listingColumns, promoPhotoUrl, type ListingState } from "./store";
 import { CHANNELS, type ChannelId } from "./channel-ids";
+import type { CardDetails } from "./ebay/aspects";
+import { checkQuota, hasFeature, recordPublication, type PublicationBatch } from "./quota";
 
 export { CHANNELS, isChannel, type ChannelId } from "./channel-ids";
 export type ChannelMode = "OFF" | "SIMULATION" | "LIVE";
@@ -16,6 +18,8 @@ export interface PublishInput {
   quantity: number;
   condition: CardCondition;
   imageUrls: string[];
+  /** Ce qu'on sait de la carte, pour les caractéristiques structurées du canal (jeu, extension, langue…). */
+  details?: CardDetails;
 }
 
 /** Commande reçue d'un canal, ramenée à ce dont le stock a besoin. */
@@ -26,6 +30,10 @@ export interface ChannelOrder {
   shippingChargedCents: number;
   shippingMode: ShippingMode;
   lines: { externalLineId: string; offerSku: string; qty: number; unitPriceCents: number }[];
+  /** Adresse de livraison, une ligne par élément (sans le nom). */
+  addressLines?: string[];
+  /** Date limite d'expédition fixée par le canal. */
+  shipBy?: Date;
 }
 
 /**
@@ -34,10 +42,13 @@ export interface ChannelOrder {
  */
 export interface ChannelAdapter {
   publish(input: PublishInput): Promise<{ externalId: string; url: string | null }>;
-  setQuantity(externalId: string, offerSku: string, quantity: number): Promise<void>;
+  /** Peut remettre en ligne une annonce close faute de stock : elle renvoie alors sa nouvelle référence. */
+  setQuantity(externalId: string, offerSku: string, quantity: number): Promise<void | { externalId: string; url: string | null }>;
   end(externalId: string, offerSku: string): Promise<void>;
   /** Commandes payées depuis la date donnée ; peut renvoyer des commandes déjà vues (l'import est idempotent). */
   fetchOrders(since: Date | null): Promise<ChannelOrder[]>;
+  /** Le connecteur peut-il servir (compte connecté, réglages faits) ? Sans cette méthode : toujours. */
+  status?(): Promise<{ ready: boolean; reason?: string }>;
 }
 /** Connecteurs réels disponibles (identifiants configurés). */
 export type ChannelAdapters = Partial<Record<ChannelId, ChannelAdapter>>;
@@ -54,8 +65,10 @@ export interface ChannelState {
   id: ChannelId;
   label: string;
   mode: ChannelMode;
-  /** Un connecteur réel est configuré : le mode réel peut être activé. */
+  /** Un connecteur réel est configuré et prêt : le mode réel peut être activé. */
   liveAvailable: boolean;
+  /** Un connecteur réel existe mais n'est pas prêt : la raison (compte à connecter, réglages à faire). */
+  liveBlocker: string | null;
   liveListings: number;
   lastSyncedAt: Date | null;
 }
@@ -64,13 +77,21 @@ export async function listChannels(sql: Db, live: ChannelAdapters): Promise<Chan
   const rows = await sql<{ channel: string; mode: ChannelMode; lastSyncedAt: Date | null }[]>`select channel, mode, last_synced_at from channel_settings`;
   const counts = await sql<{ channel: string; n: number }[]>`
     select channel, count(*)::int as n from listings where status in ('ACTIVE', 'PAUSED') group by channel`;
-  return CHANNELS.map((c) => {
+  const states = await Promise.all(CHANNELS.map((c) => liveStatus(live, c.id)));
+  return CHANNELS.map((c, i) => {
     const row = rows.find((r) => r.channel === c.id);
     return {
-      ...c, mode: row?.mode ?? "OFF", liveAvailable: !!live[c.id],
+      ...c, mode: row?.mode ?? "OFF", liveAvailable: states[i]!.ready, liveBlocker: states[i]!.blocker,
       liveListings: counts.find((n) => n.channel === c.id)?.n ?? 0, lastSyncedAt: row?.lastSyncedAt ?? null,
     };
   });
+}
+
+async function liveStatus(live: ChannelAdapters, channel: ChannelId): Promise<{ ready: boolean; blocker: string | null }> {
+  const adapter = live[channel];
+  if (!adapter) return { ready: false, blocker: null };
+  const status = adapter.status ? await adapter.status().catch(() => ({ ready: false, reason: "CHANNEL_UNAVAILABLE" })) : { ready: true };
+  return { ready: status.ready, blocker: status.ready ? null : (status.reason ?? "CHANNEL_NOT_READY") };
 }
 
 async function modeOf(sql: Db, channel: ChannelId): Promise<ChannelMode> {
@@ -88,11 +109,15 @@ async function adapterFor(sql: Db, live: ChannelAdapters, channel: ChannelId): P
 
 export async function setChannelMode(sql: Db, live: ChannelAdapters, channel: ChannelId, mode: ChannelMode, actor: string): Promise<void> {
   if (mode === "LIVE" && !live[channel]) throw new DomainError("CHANNEL_NOT_CONFIGURED", `no connector is configured for ${channel}`);
+  if (mode === "LIVE") {
+    const { ready, blocker } = await liveStatus(live, channel);
+    if (!ready) throw new DomainError("CHANNEL_NOT_READY", `the ${channel} connector is not ready yet`, { reason: blocker });
+  }
   return withTx(sql, async (tx) => {
     const before = await modeOf(tx, channel);
     await tx`
       insert into channel_settings (channel, mode) values (${channel}, ${mode})
-      on conflict (channel) do update set mode = excluded.mode, updated_at = now()`;
+      on conflict (account_id, channel) do update set mode = excluded.mode, updated_at = now()`;
     // Les annonces de simulation n'existent nulle part : elles s'arrêtent avec la simulation.
     if (before === "SIMULATION" && mode !== "SIMULATION") {
       await tx`update listings set status = 'ENDED', updated_at = now() where channel = ${channel} and simulated and status <> 'ENDED'`;
@@ -105,21 +130,29 @@ export async function setChannelMode(sql: Db, live: ChannelAdapters, channel: Ch
 
 // ───────────────────────── Annonces ─────────────────────────
 
-/** Publie l'offre sur le canal, ou met à jour son annonce (texte, prix, quantité, photos) si elle y est déjà. */
-export async function publishListing(sql: Db, live: ChannelAdapters, input: { offerId: string; channel: ChannelId; actor: string }): Promise<ListingState> {
+/**
+ * Publie l'offre sur le canal, ou met à jour son annonce (texte, prix, quantité, photos) si elle y est déjà. Une première
+ * mise en ligne compte dans le quota du forfait (voir quota.ts) ; `batch` : elle fait partie d'une publication en masse.
+ */
+export async function publishListing(
+  sql: Db, live: ChannelAdapters, input: { offerId: string; channel: ChannelId; actor: string; batch?: PublicationBatch },
+): Promise<ListingState> {
   const { adapter, simulated } = await adapterFor(sql, live, input.channel);
   const offer = (await listListingOffers(sql, { offerId: input.offerId })).items[0];
   if (!offer || offer.available <= 0) throw new DomainError("OFFER_NOT_SELLABLE", "this offer has no sellable stock");
   const missing = listingBlockers(offer);
   if (missing.length > 0) throw new DomainError("LISTING_NOT_READY", "the offer is not ready to be listed", { missing });
+  const [current] = await sql<{ id: string }[]>`
+    select id from listings where channel = ${input.channel} and offer_id = ${offer.offerId} and status <> 'ENDED'`;
+  const quota = await checkQuota(sql, { offerId: offer.offerId, channel: input.channel, simulated, revision: !!current, batch: input.batch });
 
   const composed = offer.photos.filter((p) => p.kind === "LISTING");
   const promo = await promoPhotoUrl(sql);
   const published = await adapter.publish({
     offerSku: offer.offerSku, title: offer.text.title, description: offer.text.description, priceCents: offer.targetPriceCents!,
-    quantity: offer.available, condition: offer.condition,
-    // Les photos de la carte d'abord ; l'image commerciale toujours en dernier.
-    imageUrls: [...(composed.length ? composed : offer.photos).map((p) => p.url), ...(promo ? [promo] : [])],
+    quantity: offer.available, condition: offer.condition, details: offer.details,
+    // Les photos de la carte d'abord (pour un lot : une par carte) ; l'image commerciale toujours en dernier.
+    imageUrls: [...(offer.kind === "LOT" || composed.length === 0 ? offer.photos : composed).map((p) => p.url), ...(promo ? [promo] : [])],
   });
   return withTx(sql, async (tx) => {
     const [existing] = await tx<{ id: string }[]>`
@@ -135,9 +168,10 @@ export async function publishListing(sql: Db, live: ChannelAdapters, input: { of
           values (${offer.offerId}, ${input.channel}, ${published.externalId}, ${published.url}, ${offer.text.title}, ${offer.targetPriceCents},
                   'ACTIVE', ${offer.available}, ${simulated}, now())
           returning ${listingColumns(tx)}`;
+    if (quota.count) await recordPublication(tx, { offerId: offer.offerId, channel: input.channel, overQuota: quota.overQuota });
     await tx`
       insert into audit_events (actor, action, entity, entity_id, after)
-      values (${input.actor}, 'listing_published', 'listing', ${row!.id}, ${tx.json({ channel: input.channel, offerSku: offer.offerSku, priceCents: offer.targetPriceCents, quantity: offer.available, simulated })})`;
+      values (${input.actor}, ${existing ? "listing_revised" : "listing_published"}, 'listing', ${row!.id}, ${tx.json({ channel: input.channel, offerSku: offer.offerSku, priceCents: offer.targetPriceCents, quantity: offer.available, simulated })})`;
     return row!;
   });
 }
@@ -166,8 +200,12 @@ export async function endListing(sql: Db, live: ChannelAdapters, input: { listin
 /**
  * Aligne la quantité annoncée sur le stock vendable (moins la marge de sécurité). C'est le garde-fou contre la
  * double vente entre canaux : une carte vendue ici doit disparaître là-bas. Une annonce sans stock est mise en pause.
+ *
+ * Avec la synchronisation du forfait (« sync »), toute différence est envoyée ; sans elle, seules les annonces dont le
+ * stock est épuisé sont mises à zéro : une carte vendue n'est jamais revendue, même sur le forfait gratuit.
  */
 export async function syncQuantities(sql: Db, live: ChannelAdapters): Promise<{ updated: number; errors: number }> {
+  const full = await hasFeature(sql, "sync");
   const stale = await sql<{ id: string; channel: ChannelId; externalId: string | null; offerSku: string; simulated: boolean; quantity: number }[]>`
     select l.id, l.channel, l.external_id, o.offer_sku, l.simulated, greatest(stock.available - l.buffer, 0)::int as quantity
       from listings l
@@ -177,15 +215,17 @@ export async function syncQuantities(sql: Db, live: ChannelAdapters): Promise<{ 
           from stock_items where offer_id = l.offer_id and lifecycle = 'ACTIVE'
       ) stock on true
      where l.status in ('ACTIVE', 'PAUSED', 'ERROR') and l.external_id is not null
-       and (l.quantity_sent <> greatest(stock.available - l.buffer, 0) or l.status = 'ERROR')`;
+       and (l.quantity_sent <> greatest(stock.available - l.buffer, 0) or l.status = 'ERROR')
+       ${full ? sql`` : sql`and greatest(stock.available - l.buffer, 0) = 0`}`;
   let updated = 0;
   let errors = 0;
   for (const l of stale) {
     try {
       const adapter = l.simulated ? simulationAdapter(l.channel) : (await adapterFor(sql, live, l.channel)).adapter;
-      await adapter.setQuantity(l.externalId!, l.offerSku, l.quantity);
+      const relisted = await adapter.setQuantity(l.externalId!, l.offerSku, l.quantity);
       await sql`
         update listings set quantity_sent = ${l.quantity}, status = ${l.quantity > 0 ? "ACTIVE" : "PAUSED"}, error_code = null,
+               external_id = ${relisted ? relisted.externalId : l.externalId}, url = ${relisted ? relisted.url : sql`url`},
                last_synced_at = now(), updated_at = now()
          where id = ${l.id}`;
       updated++;
@@ -198,6 +238,34 @@ export async function syncQuantities(sql: Db, live: ChannelAdapters): Promise<{ 
   return { updated, errors };
 }
 
+/**
+ * Prix et texte synchronisés : une annonce dont le prix (ou le titre) a changé dans Dexlane est révisée sur le canal.
+ * Une révision ne compte jamais dans le quota. Réservé aux forfaits avec la synchronisation ; sans elle, rien ne part.
+ */
+export async function syncPrices(sql: Db, live: ChannelAdapters, actor: string): Promise<{ revised: number; errors: number; skipped: boolean }> {
+  if (!(await hasFeature(sql, "sync"))) return { revised: 0, errors: 0, skipped: true };
+  const stale = await sql<{ id: string; offerId: string; channel: ChannelId }[]>`
+    select l.id, l.offer_id, l.channel
+      from listings l join offers o on o.id = l.offer_id
+     where l.status in ('ACTIVE', 'PAUSED') and l.external_id is not null and o.target_price_cents is not null
+       and (l.price_cents <> o.target_price_cents
+            or (o.title_override is not null and l.title is distinct from o.title_override)
+            or (o.kind = 'LOT' and l.title is distinct from o.lot_title))
+     order by l.updated_at`;
+  let revised = 0;
+  let errors = 0;
+  for (const l of stale) {
+    try {
+      await publishListing(sql, live, { offerId: l.offerId, channel: l.channel, actor });
+      revised++;
+    } catch (e) {
+      await sql`update listings set status = 'ERROR', error_code = ${e instanceof DomainError ? e.code : "SYNC_FAILED"}, updated_at = now() where id = ${l.id}`;
+      errors++;
+    }
+  }
+  return { revised, errors, skipped: false };
+}
+
 /** Fait entrer une commande de canal dans le circuit habituel : import idempotent, réservation, envoi à préparer. */
 export function ingestChannelOrder(sql: Db, channel: ChannelId, order: ChannelOrder, actor: string): Promise<{ orderId: string; created: boolean; oversold: boolean }> {
   return withTx(sql, async (tx) => {
@@ -208,7 +276,10 @@ export function ingestChannelOrder(sql: Db, channel: ChannelId, order: ChannelOr
       grossCents: order.lines.reduce((sum, l) => sum + l.qty * l.unitPriceCents, 0) + order.shippingChargedCents,
       currency: "EUR",
       orderedAt: order.orderedAt,
-      shippingAddress: order.buyerName ? { name: order.buyerName } : undefined,
+      shipBy: order.shipBy,
+      shippingAddress: order.buyerName || order.addressLines?.length
+        ? { ...(order.buyerName ? { name: order.buyerName } : {}), ...(order.addressLines?.length ? { lines: order.addressLines } : {}) }
+        : undefined,
       lines: order.lines,
     });
     if (!created) return { orderId, created, oversold: false };
@@ -219,23 +290,39 @@ export function ingestChannelOrder(sql: Db, channel: ChannelId, order: ChannelOr
   });
 }
 
-/** Synchronisation complète : commandes des canaux réels, puis quantités annoncées. */
-export async function syncChannels(sql: Db, live: ChannelAdapters, actor: string): Promise<{ orders: number; updated: number; errors: number }> {
+/**
+ * Synchronisation complète : commandes des canaux réels, puis quantités annoncées. Une commande qui ne passe pas
+ * (référence d'offre inconnue, par exemple) n'empêche pas les autres d'entrer ; la date de synchronisation n'avance
+ * alors pas, pour qu'elle soit retentée.
+ */
+export async function syncChannels(
+  sql: Db, live: ChannelAdapters, actor: string, onError?: (err: unknown) => void,
+): Promise<{ orders: number; updated: number; revised: number; errors: number }> {
   let orders = 0;
   let errors = 0;
   for (const channel of await listChannels(sql, live)) {
     if (channel.mode !== "LIVE" || !live[channel.id]) continue;
+    const startedAt = new Date();
     try {
+      let failed = 0;
       for (const order of await live[channel.id]!.fetchOrders(channel.lastSyncedAt)) {
-        if ((await ingestChannelOrder(sql, channel.id, order, actor)).created) orders++;
+        try {
+          if ((await ingestChannelOrder(sql, channel.id, order, actor)).created) orders++;
+        } catch (e) {
+          onError?.(e);
+          failed++;
+        }
       }
-      await sql`update channel_settings set last_synced_at = now() where channel = ${channel.id}`;
-    } catch {
+      errors += failed;
+      if (failed === 0) await sql`update channel_settings set last_synced_at = ${startedAt} where channel = ${channel.id}`;
+    } catch (e) {
+      onError?.(e);
       errors++;
     }
   }
   const quantities = await syncQuantities(sql, live);
-  return { orders, updated: quantities.updated, errors: errors + quantities.errors };
+  const prices = await syncPrices(sql, live, actor);
+  return { orders, updated: quantities.updated, revised: prices.revised, errors: errors + quantities.errors + prices.errors };
 }
 
 /** Simulation : un acheteur fictif commande sur l'annonce, comme le ferait le canal. */

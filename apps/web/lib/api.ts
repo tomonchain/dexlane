@@ -1,11 +1,14 @@
 import type {
-  AcquisitionLot, Activity, CardPage, CatalogHit, Deal, DealList, TopCard, WatchedCard, AlertSettings, AppSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, SalesInsights, PriceMoves, ChannelMode, ChannelState, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
+  AcquisitionLot, Activity, CardPage, CatalogHit, Deal, DealList, TopCard, WatchedCard, AlertSettings, AppSettings, Candidate, CardCondition, CatalogSet, ChannelId, Dashboard, SalesInsights, PriceMoves, ChannelMode, ChannelState, EbayAccountOptions, EbayConnection, EbayDefaultsInput, EbaySettings, EbayShippingService, ListingState, CatalogSetDetail, InventoryPage, InventorySummary, ListingOffer, ListingSettings,
   Location, Photo, PositionDetail, Received,
   OfferPricing, OrderDetail, PriceHistory, OrderList, OrderStage, PricingSettings, ShippingCosts, ShippingRun, ReceivedBulkLot, ScanResult, SellableOffer, SetSyncReport,
+  AccountSummary, Grading, PlanId, SaleLot, StockSuggestions, SupportRequest, TeamView,
   PlanResult, ScanBatch, ScanItem, Schedule, ShippingMode, StockDetail, StockFacets, StockPage, StockStatus, StoredPhoto, VariantQuote, SupplyDetail, SupplyInput, SupplyList, ShippingCostsView, CatalogImportStatus, PublicationCalendar, PublicationDay, AgentToken, Carrier, MovementPage, MovementKind, MovementCategory,
 } from "./types";
 import { clearCache } from "./cache";
 import { t } from "./i18n";
+
+const PLAN_NAMES: Record<string, string> = { decouverte: "Découverte", solo: "Solo", pro: "Pro", boutique: "Boutique" };
 
 export class ApiError extends Error {
   constructor(
@@ -55,23 +58,39 @@ async function request<T>(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", p
   if (!res.ok) {
     const e = data?.error;
     if (e?.code === "DATABASE_UNAVAILABLE") throw new ApiError(res.status, e.code, t("La base de données ne répond pas pour l'instant. Réessayez dans quelques secondes."));
+    // Forfait : le message du serveur est remplacé par un texte de l'interface, qui dit où agir.
+    if (e?.code === "QUOTA_EXCEEDED") {
+      throw new ApiError(res.status, e.code, t("Quota du mois atteint : ajoutez un pack de cartes ou changez de forfait (Réglages › Forfait). Vos annonces en ligne ne bougent pas."), e.details);
+    }
+    if (e?.code === "FEATURE_NOT_IN_PLAN") {
+      const required = (e.details as { requiredPlan?: string } | undefined)?.requiredPlan ?? "";
+      throw new ApiError(res.status, e.code, t("Disponible à partir du forfait {plan} (Réglages › Forfait).", { plan: PLAN_NAMES[required] ?? required }), e.details);
+    }
     throw new ApiError(res.status, e?.code ?? "HTTP_ERROR", e?.message ?? t("Erreur {status}", { status: res.status }), e?.details);
   }
   return data as T;
 }
 
 /** Routes de session du serveur web (/auth), hors relais d'API. */
-async function auth<T = { ok: true }>(method: "GET" | "POST" | "PUT", body?: unknown): Promise<T> {
-  const res = await fetch("/auth", {
+async function send<T>(url: string, method: "GET" | "POST", body?: unknown): Promise<T> {
+  const res = await fetch(url, {
     method,
     headers: body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   }).catch(() => null);
   if (!res) throw new ApiError(0, "NETWORK", t("Connexion impossible. Vérifiez le réseau puis réessayez."));
-  const data = (await res.json().catch(() => null)) as { error?: { code: string; message: string; details?: unknown } } | null;
-  if (!res.ok) throw new ApiError(res.status, data?.error?.code ?? "HTTP_ERROR", data?.error?.message ?? t("Erreur {status}", { status: res.status }), data?.error?.details);
+  // Nos routes répondent `{ error: { code, message } }` ; celles de BetterAuth, `{ code, message }`.
+  const data = (await res.json().catch(() => null)) as { error?: { code: string; message: string; details?: unknown }; code?: string; message?: string } | null;
+  if (!res.ok) {
+    const code = data?.error?.code ?? data?.code ?? (res.status === 429 ? "TOO_MANY_ATTEMPTS" : "HTTP_ERROR");
+    throw new ApiError(res.status, code, data?.error?.message ?? data?.message ?? t("Erreur {status}", { status: res.status }), data?.error?.details);
+  }
   return data as T;
 }
+/** Installation (propriétaire, jeton d'installation) : route /auth du serveur web. */
+const auth = <T = { ok: true }>(method: "GET" | "POST", body?: unknown) => send<T>("/auth", method, body);
+/** Connexion, mot de passe, déconnexion : routes de BetterAuth, relayées sous /api/auth. */
+const betterAuth = <T = unknown>(path: string, body: unknown = {}) => send<T>(`/api/auth/${path}`, "POST", body);
 
 /** Nouvelle clé d'idempotence : une par intention de l'utilisateur, réutilisée telle quelle en cas de nouvel essai. */
 export const newKey = () => crypto.randomUUID();
@@ -182,6 +201,14 @@ export const api = {
   channels: () => request<{ channels: ChannelState[] }>("GET", "/channels"),
   setChannelMode: (channel: ChannelId, mode: ChannelMode) => request<{ channels: ChannelState[] }>("PUT", `/channels/${channel}`, { json: { mode } }),
   syncChannels: () => request<{ orders: number; updated: number; errors: number }>("POST", "/channels/sync"),
+  ebayConnection: () => request<EbayConnection>("GET", "/channels/ebay/connection"),
+  ebayConnect: () => request<{ url: string }>("POST", "/channels/ebay/connect"),
+  ebayCompleteConsent: (input: { state: string; code: string }) => request<EbayConnection>("POST", "/channels/ebay/connect/complete", { json: input }),
+  ebayDisconnect: () => request<EbayConnection>("DELETE", "/channels/ebay/connection"),
+  ebayOptions: () => request<EbayAccountOptions>("GET", "/channels/ebay/options"),
+  ebayShippingServices: () => request<{ services: EbayShippingService[] }>("GET", "/channels/ebay/shipping-services"),
+  saveEbaySettings: (change: Partial<EbaySettings>) => request<EbayConnection>("PUT", "/channels/ebay/settings", { json: change }),
+  createEbayDefaults: (input: EbayDefaultsInput) => request<EbayConnection>("POST", "/channels/ebay/defaults", { json: input }),
   publishListing: (offerId: string, channel: ChannelId) => request<ListingState>("POST", `/listings/offers/${offerId}/publish`, { json: { channel } }),
   endListing: (listingId: string) => request<{ ok: true }>("POST", `/listings/${listingId}/end`),
   simulateOrder: (listingId: string, qty = 1) => request<OrderDetail>("POST", `/listings/${listingId}/simulate-order`, { json: { qty } }),
@@ -212,7 +239,6 @@ export const api = {
   supplies: () => request<SupplyList>("GET", "/supplies"),
   stockMovements: (q: { category?: MovementCategory; kind?: MovementKind; offerId?: string; supplyId?: string; before?: string; limit?: number; days?: number } = {}) =>
     request<MovementPage>("GET", "/stock-movements", { query: q }),
-  supply: (id: string) => request<SupplyDetail>("GET", `/supplies/${id}`),
   createSupply: (input: SupplyInput & { onHand: number }) => request<SupplyDetail>("POST", "/supplies", { json: input }),
   updateSupply: (id: string, input: Partial<SupplyInput>) => request<SupplyDetail>("PATCH", `/supplies/${id}`, { json: input }),
   archiveSupply: (id: string) => request<null>("DELETE", `/supplies/${id}`),
@@ -281,13 +307,38 @@ export const api = {
   activate: (id: string) => request<PositionDetail>("POST", `/inventory/${id}/activate`),
 
   authStatus: () => auth<{ passwordSet: boolean }>("GET"),
-  login: (password: string) => auth("POST", { password }),
-  /** Première connexion ou mot de passe oublié : le jeton d'installation autorise à définir le mot de passe. */
-  setPassword: (setupToken: string, newPassword: string) => auth("POST", { setupToken, newPassword }),
-  changePassword: (currentPassword: string, newPassword: string) => auth("PUT", { currentPassword, newPassword }),
+  login: (email: string, password: string) => betterAuth("sign-in/email", { email, password }),
+  /** Première connexion ou clé de secours : le jeton d'installation autorise à choisir l'adresse et le mot de passe du propriétaire. */
+  setupOwner: async (setupToken: string, email: string, newPassword: string) => {
+    await auth("POST", { setupToken, email, newPassword });
+    await betterAuth("sign-in/email", { email, password: newPassword });
+  },
+  changePassword: (currentPassword: string, newPassword: string) => betterAuth("change-password", { currentPassword, newPassword, revokeOtherSessions: true }),
+  /** L'utilisateur de la session : adresse, rôle (admin pour le propriétaire de l'installation), forfait choisi. */
+  account: () => request<AccountSummary>("GET", "/account"),
+  changePlan: (plan: Exclude<PlanId, "community">) => request<AccountSummary>("PUT", "/account/plan", { json: { plan } }),
+  addPacks: (packs = 1) => request<AccountSummary>("POST", "/account/packs", { json: { packs }, idempotencyKey: crypto.randomUUID() }),
+  team: () => request<TeamView>("GET", "/team"),
+  invite: (email: string) => request<{ id: string; email: string }>("POST", "/team/invitations", { json: { email }, idempotencyKey: crypto.randomUUID() }),
+  revokeInvitation: (id: string) => request<{ ok: true }>("DELETE", `/team/invitations/${id}`),
+  removeMember: (id: string) => request<{ ok: true }>("DELETE", `/team/members/${encodeURIComponent(id)}`),
+  previewInvitation: (token: string) =>
+    request<{ email: string; invitedBy: string; matches: boolean }>("POST", "/team/invitations/preview", { json: { token }, idempotencyKey: crypto.randomUUID() }),
+  acceptInvitation: (token: string) => request<{ ok: true; accountId: string }>("POST", "/team/invitations/accept", { json: { token }, idempotencyKey: crypto.randomUUID() }),
+  supportRequests: () => request<{ requests: SupportRequest[]; priority: boolean }>("GET", "/support"),
+  contactSupport: (subject: string, message: string) =>
+    request<{ id: string; priority: boolean }>("POST", "/support", { json: { subject, message }, idempotencyKey: crypto.randomUUID() }),
+  saleLots: () => request<{ lots: SaleLot[] }>("GET", "/lots"),
+  createSaleLot: (input: { title: string; description?: string | null; priceCents: number; items: { offerId: string; qty: number }[]; locationCode?: string }) =>
+    request<SaleLot>("POST", "/lots", { json: input, idempotencyKey: crypto.randomUUID() }),
+  updateSaleLot: (id: string, input: { title?: string; description?: string | null; priceCents?: number }) => request<SaleLot>("PATCH", `/lots/${id}`, { json: input }),
+  dissolveSaleLot: (id: string) => request<{ ok: true }>("DELETE", `/lots/${id}`),
+  setGrading: (offerId: string, grading: Grading | null) => request<StockDetail>("PUT", `/stock/${offerId}/grading`, { json: { grading } }),
+  setTitle: (offerId: string, title: string | null) => request<StockDetail>("PUT", `/stock/${offerId}/title`, { json: { title } }),
+  suggestions: (offerId: string) => request<StockSuggestions>("GET", `/stock/${offerId}/suggestions`),
   logout: () => {
     clearCache(); // les données de ce compte ne restent pas sur l'appareil
-    return fetch("/auth", { method: "DELETE" });
+    return betterAuth("sign-out").catch(() => undefined);
   },
 };
 

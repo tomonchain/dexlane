@@ -27,7 +27,7 @@ export async function saveAlertSettings(sql: Db, settings: AlertSettings): Promi
   if (!ok) throw new DomainError("INVALID_ALERT_SETTINGS", "window must be 1 to 90 days, threshold 1 to 500 %, minimum change a positive amount");
   await sql`
     insert into price_alert_settings (settings) values (${sql.json(settings as never)})
-    on conflict (id) do update set settings = excluded.settings, updated_at = now()`;
+    on conflict (account_id) do update set settings = excluded.settings, updated_at = now()`;
   return settings;
 }
 

@@ -1,3 +1,4 @@
+import { ACCOUNT } from "./account";
 import { CATALOG } from "./catalog";
 import { COMMON } from "./common";
 import { INTAKE } from "./intake";
@@ -9,4 +10,4 @@ import { STOCK } from "./stock";
 import { SUPPLIES } from "./supplies";
 
 /** Dictionnaire anglais complet. Un même texte peut figurer dans plusieurs fichiers : la traduction doit être la même. */
-export const EN: Record<string, string> = { ...COMMON, ...SHELL, ...STOCK, ...INTAKE, ...SALES, ...PRICING, ...SETTINGS, ...CATALOG, ...SUPPLIES };
+export const EN: Record<string, string> = { ...COMMON, ...SHELL, ...STOCK, ...INTAKE, ...SALES, ...PRICING, ...SETTINGS, ...CATALOG, ...SUPPLIES, ...ACCOUNT };

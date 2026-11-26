@@ -43,11 +43,11 @@ export async function revokeAgentToken(sql: Db, id: string, actor: string): Prom
 }
 
 /** L'agent qui présente ce jeton, ou null ; la date de dernière utilisation est tenue à la minute près. */
-export async function verifyAgentToken(sql: Db, token: string): Promise<{ id: string; name: string } | null> {
+export async function verifyAgentToken(sql: Db, token: string): Promise<{ id: string; name: string; accountId: string } | null> {
   if (!token.startsWith(AGENT_TOKEN_PREFIX) || token.length > 200) return null;
-  const [row] = await sql<{ id: string; name: string }[]>`
+  const [row] = await sql<{ id: string; name: string; accountId: string }[]>`
     update agent_tokens set last_used_at = case when last_used_at is null or last_used_at < now() - interval '1 minute' then now() else last_used_at end
      where token_hash = ${hash(token)} and revoked_at is null
-     returning id, name`;
+     returning id, name, account_id`;
   return row ?? null;
 }

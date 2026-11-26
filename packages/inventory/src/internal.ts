@@ -5,7 +5,7 @@ export type StockBucket = "on_hand" | "reserved" | "inspection" | "quarantine";
 export type MovementType =
   | "RECEIVE" | "MOVE" | "ALLOCATE" | "RELEASE" | "PICK" | "SHIP_OUT"
   | "RETURN_IN" | "INSPECT_OK" | "INSPECT_KO" | "QUARANTINE" | "UNQUARANTINE"
-  | "BULK_EXTRACT" | "ADJUST" | "LOST" | "DISPOSED";
+  | "BULK_EXTRACT" | "ADJUST" | "LOST" | "DISPOSED" | "LOT_PACK" | "LOT_UNPACK";
 export const CARD_CONDITIONS = ["MT", "NM", "EX", "GD", "LP", "PL", "PO"] as const;
 /** Échelle interne unique (spec 4.1), traduite vers chaque canal par `condition_mappings`. */
 export type CardCondition = (typeof CARD_CONDITIONS)[number];

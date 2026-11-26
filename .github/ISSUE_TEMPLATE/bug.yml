@@ -1,0 +1,22 @@
+name: Bug
+description: Quelque chose ne marche pas comme prévu.
+labels: [bug]
+body:
+  - type: textarea
+    id: constat
+    attributes:
+      label: Ce qui se passe
+      description: Écran ou route, ce qui a été fait, ce qui s'est affiché (message d'erreur, capture).
+    validations:
+      required: true
+  - type: textarea
+    id: attendu
+    attributes:
+      label: Ce qui était attendu
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: En bas de Réglages (par exemple « v0.9.0 · abc1234 »).

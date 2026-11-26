@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /**
- * Tâche quotidienne (Vercel Cron, voir vercel.json) : relève les cotations des cartes en stock,
+ * Tâche quotidienne (Vercel Cron, voir vercel.json), pour chaque compte actif : relève les cotations des cartes en stock,
  * publie les annonces planifiées pour aujourd'hui, synchronise les canaux de vente, suit les colis en route et rappelle
  * les avis à demander, puis envoie le résumé du matin
  * sur les téléphones abonnés. Vercel présente `CRON_SECRET` en jeton porteur ; sans lui, rien ne s'exécute.
@@ -18,23 +18,36 @@ export async function GET(req: NextRequest): Promise<Response> {
   if (!secret || presented.length !== expected.length || !timingSafeEqual(presented, expected)) {
     return Response.json({ error: { code: "UNAUTHORIZED", message: "cron secret required" } }, { status: 401 });
   }
-  const run = async (path: string) => {
+  const run = async (path: string, accountId: string) => {
     try {
-      const res = await callApi(path, { method: "POST" });
+      const res = await callApi(path, { method: "POST", accountId });
       return { status: res.status, body: (await res.json().catch(() => null)) as unknown };
     } catch (e) {
       console.error(e);
       return { status: 502, body: null };
     }
   };
-  const prices = await run("/api/prices/refresh");
-  const publications = await run("/api/publications/run");
-  const channels = await run("/api/channels/sync");
-  // Où en sont les colis, puis les avis à demander pour les ventes livrées depuis 24 h.
-  const tracking = await run("/api/shipments/tracking/refresh");
-  const reviews = await run("/api/sales/reviews/remind");
-  // En dernier : le résumé envoyé sur le téléphone compte ce que les étapes précédentes viennent de faire.
-  const notifications = await run("/api/notifications/digest");
-  const ok = [prices, publications, channels, tracking, reviews, notifications].every((r) => r.status === 200);
-  return Response.json({ prices, publications, channels, tracking, reviews, notifications }, { status: ok ? 200 : 502 });
+  // Chaque compte actif a ses cartes, son planning, ses canaux et ses abonnements : la tâche tourne pour chacun.
+  let accountIds: string[];
+  try {
+    const res = await callApi("/api/accounts/active");
+    accountIds = ((await res.json()) as { accountIds: string[] }).accountIds;
+  } catch (e) {
+    console.error(e);
+    return Response.json({ error: { code: "API_UNREACHABLE", message: "could not list accounts" } }, { status: 502 });
+  }
+  const accounts = [];
+  for (const accountId of accountIds) {
+    const prices = await run("/api/prices/refresh", accountId);
+    const publications = await run("/api/publications/run", accountId);
+    const channels = await run("/api/channels/sync", accountId);
+    // Où en sont les colis, puis les avis à demander pour les ventes livrées depuis 24 h.
+    const tracking = await run("/api/shipments/tracking/refresh", accountId);
+    const reviews = await run("/api/sales/reviews/remind", accountId);
+    // En dernier : le résumé envoyé sur le téléphone compte ce que les étapes précédentes viennent de faire.
+    const notifications = await run("/api/notifications/digest", accountId);
+    accounts.push({ accountId, prices, publications, channels, tracking, reviews, notifications });
+  }
+  const ok = accounts.every((a) => [a.prices, a.publications, a.channels, a.tracking, a.reviews, a.notifications].every((r) => r.status === 200));
+  return Response.json({ accounts }, { status: ok ? 200 : 502 });
 }

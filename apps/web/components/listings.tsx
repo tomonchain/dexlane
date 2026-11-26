@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { TITLE_MAX, VARIABLES, buildListingText, type ListingSubject } from "@dexlane/listings/template";
 import { CardThumb } from "@/components/card-chooser";
+import { EbaySetup } from "@/components/ebay-setup";
 import { OfferPhotos } from "@/components/offer-photos";
 import { SaveBar } from "@/components/ui/action-bar";
 import { Alert } from "@/components/ui/alert";
@@ -31,6 +32,10 @@ const ERRORS: Record<string, string> = {
   PHOTO_STORAGE_UNAVAILABLE: "Le stockage des photos n'est pas configuré.",
   CHANNEL_DISABLED: "Ce canal est désactivé : activez-le dans Réglages → Canaux de vente.",
   CHANNEL_NOT_CONFIGURED: "Le connecteur réel de ce canal n'est pas encore configuré. Utilisez la simulation en attendant.",
+  CHANNEL_NOT_READY: "Le connecteur réel n'est pas prêt : connectez le compte et terminez ses réglages dans Réglages → Canaux de vente.",
+  EBAY_NOT_CONNECTED: "Aucun compte eBay n'est connecté, ou son autorisation a expiré : connectez-le dans Réglages → Canaux de vente.",
+  EBAY_NOT_SET_UP: "Choisissez d'abord les règles de vente et le lieu d'expédition eBay dans Réglages → Canaux de vente.",
+  EBAY_UNAVAILABLE: "eBay ne répond pas pour l'instant. Réessayez dans quelques minutes.",
   LISTING_NOT_READY: "Cette offre n'est pas prête : il lui manque un prix, une photo ou une variante confirmée.",
   OFFER_NOT_SELLABLE: "Cette offre n'a plus de stock vendable.",
   LISTING_NOT_FOUND: "Cette annonce n'existe plus.",
@@ -498,9 +503,9 @@ const ACCESS: Record<ChannelId, { summary: string; steps: string[] }> = {
       "Créez un compte sur le portail développeur d'eBay (developer.ebay.com) avec votre identifiant eBay.",
       "Dans « Application keys », créez un jeu de clés Sandbox, puis Production : vous obtenez un App ID (Client ID) et un Cert ID (Client Secret).",
       "Pour les clés Production, eBay demande de traiter les « notifications de suppression de compte » : abonnez-vous ou déclarez l'exemption.",
-      "Dans « User tokens », créez une URL de redirection (RuName) et autorisez les droits de vente : inventaire, commandes, compte.",
-      "Sur votre compte vendeur, activez les règles de vente (expédition, paiement, retours).",
-      "Une fois les clés en main, dites-le dans la conversation : elles seront saisies dans un formulaire sécurisé, jamais dans le chat.",
+      "Dans « User tokens », section « Get a Token from eBay via Your Application », ajoutez une URL de redirection : son nom est le RuName. Mettez {url} comme adresse d'acceptation et de refus, et cochez l'OAuth.",
+      "Dans les variables d'environnement du serveur (Vercel → Settings → Environment Variables), ajoutez EBAY_CLIENT_ID, EBAY_CLIENT_SECRET (en « Sensitive »), EBAY_RU_NAME et EBAY_ENV (sandbox ou production), puis redéployez.",
+      "Revenez ici : connectez le compte eBay, puis choisissez ou créez les règles de vente.",
     ],
   },
   cardtrader: {
@@ -565,12 +570,13 @@ export function Channels({ channels, onChange, compact }: { channels: ChannelSta
                 <div className="grid gap-0.5"><dt className="text-xs text-muted-foreground">{t("Annonces en cours")}</dt><dd className="tabular font-semibold">{channel.liveListings}</dd></div>
                 <div className="grid gap-0.5"><dt className="text-xs text-muted-foreground">{t("Dernière synchronisation")}</dt><dd className="font-medium">{channel.lastSyncedAt ? formatDateTime(channel.lastSyncedAt) : "—"}</dd></div>
               </dl>
-              {!channel.liveAvailable && (
+              {channel.id === "ebay" && !compact && <EbaySetup onChanged={() => void api.channels().then((r) => onChange(r.channels)).catch(() => undefined)} />}
+              {!channel.liveAvailable && !channel.liveBlocker && (
                 <details className="group rounded-lg bg-muted/40 px-3 py-2 text-sm">
                   <summary className="cursor-pointer font-medium outline-none select-none group-open:mb-2 focus-visible:underline">{t("Passer en réel : obtenir l'accès")}</summary>
                   <p className="mb-2 text-muted-foreground">{t(ACCESS[channel.id].summary)}</p>
                   <ol className="grid list-decimal gap-1.5 pl-5 text-muted-foreground">
-                    {ACCESS[channel.id].steps.map((step) => <li key={step}>{t(step)}</li>)}
+                    {ACCESS[channel.id].steps.map((step) => <li key={step}>{t(step, { url: `${typeof window === "undefined" ? "" : window.location.origin}/settings/channels/ebay` })}</li>)}
                   </ol>
                 </details>
               )}

@@ -192,8 +192,6 @@ export const CATALOG: Record<string, string> = {
   "peu de ventes": "few sales",
 
   // Catalogue : liste des séries
-  "Le scan et la recherche ne trouvent que les cartes des séries importées. Réimporter une série met à jour ses cartes et ajoute les cotations du jour.":
-    "Scanning and search only find cards from imported sets. Re-importing a set updates its cards and adds today's prices.",
   "Actualiser la liste": "Refresh list",
   "Charger la liste": "Load list",
   "Langue des cartes": "Card language",

@@ -25,10 +25,6 @@ export function Select({ className, children, ...props }: ComponentProps<"select
   );
 }
 
-export function Label({ className, ...props }: ComponentProps<"label">) {
-  return <label data-slot="label" className={cn("text-[13px] leading-none font-medium text-foreground/80", className)} {...props} />;
-}
-
 /** Champ étiqueté : le libellé enveloppe le contrôle, donc pas d'identifiant à relier. */
 export function Field({ label, hint, className, children }: { label: string; hint?: string; className?: string; children: React.ReactNode }) {
   return (

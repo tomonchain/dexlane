@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, BookOpen, Boxes, ChartColumn, CircleUserRound, Monitor, Moon, Settings, ShoppingBasket, Sun, Tags, X, type LucideIcon } from "lucide-react";
+import { Archive, BookOpen, Boxes, ChartColumn, CircleUserRound, CreditCard, Monitor, Moon, Package, Settings, ShoppingBasket, Sun, Tags, X, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
 import { Dialog } from "radix-ui";
@@ -26,6 +26,7 @@ const SECTIONS: { title: string; items: { href: string; label: string; icon: Luc
     items: [
       { href: "/catalog", label: "Catalogue", icon: BookOpen },
       { href: "/locations", label: "Emplacements", icon: Archive },
+      { href: "/lots", label: "Lots de vente", icon: Package },
       { href: "/inventory", label: "Positions", icon: Boxes },
       { href: "/pricing", label: "Règles de prix", icon: Tags },
     ],
@@ -34,6 +35,7 @@ const SECTIONS: { title: string; items: { href: string; label: string; icon: Luc
     title: "Application",
     items: [
       { href: "/settings", label: "Réglages", icon: Settings },
+      { href: "/settings/plan", label: "Forfait", icon: CreditCard },
       { href: "/account", label: "Compte", icon: CircleUserRound },
     ],
   },

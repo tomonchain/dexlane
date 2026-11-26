@@ -2,14 +2,13 @@ import type { Db } from "@dexlane/db";
 import { listPhotos, type CardCondition, type PhotoRow } from "@dexlane/inventory";
 import { DomainError } from "@dexlane/shared";
 import { getListingSettings, listingBlockers, listingsOf, type ListingBlocker, type ListingState } from "./store";
-import { buildListingText, type ListingText } from "./template";
+import { buildListingText, suggestTitle, type ListingText } from "./template";
 
 /**
  * Où en est une carte sur le chemin de la vente :
  * brouillon à valider → prix à décider → prête à vendre → en ligne.
  */
 export type StockStatus = "DRAFT" | "TO_PRICE" | "READY" | "LISTED";
-export const STOCK_STATUSES: StockStatus[] = ["TO_PRICE", "READY", "LISTED", "DRAFT"];
 
 /** Une ligne du stock : une carte dans un état donné (une offre), toutes positions confondues. */
 export interface StockRow {
@@ -58,6 +57,12 @@ export interface StockRow {
   /** Prochaine mise en ligne planifiée, s'il y en a une. */
   planned: { id: string; channel: string; plannedOn: string } | null;
   receivedAt: Date;
+  /** Carte gradée : société de gradation, note, numéro de certificat. */
+  grader: string | null;
+  grade: string | null;
+  certNumber: string | null;
+  /** Titre choisi pour cette carte (il remplace le modèle) ; null : le modèle. */
+  titleOverride: string | null;
 }
 
 export interface StockQuery {
@@ -112,7 +117,7 @@ export async function listStock(sql: Db, query: StockQuery = {}): Promise<StockP
              o.target_price_cents, o.floor_price_cents, o.suggested_price_cents, o.price_reasons,
              case when o.reference_price_cents is null then null else jsonb_build_object(
                'quoteType', o.reference_quote_type, 'amountCents', o.reference_price_cents, 'observedAt', o.reference_observed_at) end as reference,
-             o.sales_estimate as sales,
+             o.sales_estimate as sales, o.grader, o.grade, o.cert_number, o.title_override,
              (select p.url from photos p where p.offer_id = o.id and p.kind in ('LISTING', 'SCAN_FRONT')
                order by (p.kind = 'LISTING') desc, p.created_at limit 1) as photo_url,
              (select jsonb_build_object('id', sp.id, 'channel', sp.channel, 'plannedOn', to_char(sp.planned_on, 'YYYY-MM-DD'))
@@ -138,7 +143,7 @@ export async function listStock(sql: Db, query: StockQuery = {}): Promise<StockP
             from stock_items i join locations l on l.id = i.location_id
            where i.offer_id = o.id and i.lifecycle <> 'ARCHIVED' and i.on_hand > 0
         ) s on s.on_hand > 0
-       where true
+       where o.kind = 'CARD'
          ${query.offerId ? sql`and o.id = ${query.offerId}` : sql``}
          ${query.cardId ? sql`and c.id = ${query.cardId}` : sql``}
          ${query.setId ? sql`and c.set_id = ${query.setId}` : sql``}
@@ -198,8 +203,37 @@ export async function getStockDetail(sql: Db, offerId: string): Promise<StockDet
       select serie_name, card_count_official as official_count from catalog_sets where id = ${row.setId} and language = ${row.language}`,
     getListingSettings(sql),
   ]);
-  const text = buildListingText({ ...row, serieName: set?.serieName ?? null, officialCount: set?.officialCount ?? null }, settings);
+  const text = buildListingText({ ...row, serieName: set?.serieName ?? null, officialCount: set?.officialCount ?? null }, settings, row.titleOverride);
   return { ...row, text, photos, positions, missing: listingBlockers({ targetPriceCents: row.targetPriceCents, photos, variantIncomplete: row.variantIncomplete }) };
+}
+
+/** Suggestions pour une carte : un titre que les acheteurs trouvent et le prix que le marché soutient. */
+export interface StockSuggestions {
+  title: { current: string; suggested: string; custom: boolean };
+  price: {
+    currentCents: number | null;
+    suggestedCents: number | null;
+    reference: StockRow["reference"];
+    sales: StockRow["sales"];
+    reasons: string[];
+  };
+}
+
+export async function stockSuggestions(sql: Db, offerId: string): Promise<StockSuggestions> {
+  const detail = await getStockDetail(sql, offerId);
+  const [set] = await sql<{ serieName: string | null; officialCount: number | null }[]>`
+    select serie_name, card_count_official as official_count from catalog_sets where id = ${detail.setId} and language = ${detail.language}`;
+  return {
+    title: {
+      current: detail.text.title,
+      suggested: suggestTitle({ ...detail, serieName: set?.serieName ?? null, officialCount: set?.officialCount ?? null }),
+      custom: detail.titleOverride !== null,
+    },
+    price: {
+      currentCents: detail.targetPriceCents, suggestedCents: detail.suggestedPriceCents, reference: detail.reference, sales: detail.sales,
+      reasons: detail.priceReasons,
+    },
+  };
 }
 
 /** Ce que proposent les filtres du stock : séries, boîtes et états présents, avec le nombre d'exemplaires. */
@@ -214,7 +248,7 @@ export async function stockFacets(sql: Db): Promise<StockFacets> {
         join catalog_cards c on c.id = v.catalog_card_id
         left join catalog_sets st on st.id = c.set_id and st.language = c.language
         join locations l on l.id = i.location_id
-       where i.lifecycle <> 'ARCHIVED' and i.on_hand > 0)
+       where i.lifecycle <> 'ARCHIVED' and i.on_hand > 0 and o.kind = 'CARD')
     select 'set' as kind, set_id as key, min(set_name) as label, sum(on_hand)::int as cards from present group by set_id
     union all select 'location', code, code, sum(on_hand)::int from present group by code
     union all select 'condition', condition, condition, sum(on_hand)::int from present group by condition`;

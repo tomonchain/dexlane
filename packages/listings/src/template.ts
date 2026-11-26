@@ -77,6 +77,7 @@ export const VARIABLES = [
   { key: "etat_nom", label: "État", example: "Near Mint" },
   { key: "prix", label: "Prix cible", example: "250 €" },
   { key: "sku", label: "Référence de l'offre", example: "OF-BASE1-004-FR-H1-NM" },
+  { key: "gradation", label: "Gradation", example: "PSA 10" },
 ] as const;
 export type VariableKey = (typeof VARIABLES)[number]["key"];
 
@@ -105,7 +106,14 @@ export interface ListingSubject {
   condition: CardCondition;
   offerSku: string;
   targetPriceCents: number | null;
+  /** Carte gradée : société de gradation et note (« PSA », « 10 »). */
+  grader?: string | null;
+  grade?: string | null;
+  certNumber?: string | null;
 }
+
+/** « PSA 10 » pour une carte gradée, vide sinon. */
+export const gradingLabel = (s: Pick<ListingSubject, "grader" | "grade">) => (s.grader ? [s.grader, s.grade].filter(Boolean).join(" ") : "");
 
 export function variantName(v: Pick<ListingSubject, "finish" | "edition" | "subtype" | "stamp">): string {
   return [
@@ -135,6 +143,7 @@ export function variablesOf(s: ListingSubject): Record<VariableKey, string> {
     etat_nom: CONDITION_NAMES[s.condition],
     prix: s.targetPriceCents === null ? "" : euros.format(s.targetPriceCents / 100).replace(/,00(?=\s)/, ""),
     sku: s.offerSku,
+    gradation: gradingLabel(s),
   };
 }
 
@@ -181,13 +190,60 @@ export interface ListingText {
   warnings: ListingWarning[];
 }
 
-export function buildListingText(subject: ListingSubject, settings: Pick<ListingSettings, "titleTemplate" | "descriptionTemplate">): ListingText {
+export function buildListingText(
+  subject: ListingSubject,
+  settings: Pick<ListingSettings, "titleTemplate" | "descriptionTemplate">,
+  /** Titre choisi pour cette offre (suggestion appliquée, titre d'un lot) : il remplace le modèle. */
+  titleOverride?: string | null,
+): ListingText {
   const values = variablesOf(subject);
-  const full = renderTemplate(settings.titleTemplate, values).replace(/\s*\n\s*/g, " ");
+  const titleValues = { ...values };
+  // Une carte gradée s'annonce par sa note (« PSA 10 ») : là où le modèle ne la place pas, elle prend la place de l'état,
+  // sous sa forme courte ({etat}) comme sous sa forme longue ({etat_nom}).
+  if (values.gradation) {
+    if (!settings.titleTemplate.includes("{gradation}")) titleValues.etat = titleValues.etat_nom = values.gradation;
+    if (!settings.descriptionTemplate.includes("{gradation}")) {
+      values.etat_nom = `Gradée ${values.gradation}${subject.certNumber ? `, certificat n° ${subject.certNumber}` : ""}`;
+    }
+  }
+  const full = titleOverride?.trim() || renderTemplate(settings.titleTemplate, titleValues).replace(/\s*\n\s*/g, " ");
   const warnings: ListingWarning[] = [];
   if (full.length > TITLE_MAX) warnings.push("TITLE_TOO_LONG");
   if (unknownVariables(settings.titleTemplate + settings.descriptionTemplate).length > 0) warnings.push("UNKNOWN_VARIABLE");
   return { title: truncateTitle(full), description: renderTemplate(settings.descriptionTemplate, values), warnings };
+}
+
+/**
+ * Titre suggéré : ce que les acheteurs tapent dans la recherche, du plus discriminant au moins utile, sans dépasser
+ * la limite. Le nom, le numéro et l'extension d'abord ; puis la note de gradation ou l'état, la variante, la langue,
+ * la rareté, et « Pokémon » s'il reste de la place. Un mot qui ferait déborder est laissé de côté, pas coupé.
+ */
+export function suggestTitle(subject: ListingSubject): string {
+  const v = variablesOf(subject);
+  const parts = [
+    v.nom,
+    v.numero,
+    v.serie,
+    v.gradation || v.etat,
+    v.variante,
+    v.langue,
+    subject.rarity && !/^(commune|common|peu commune|uncommon)$/i.test(subject.rarity) ? v.rarete : "",
+    v.gradation ? "" : v.serie_code !== v.serie.toUpperCase() ? v.serie_code : "",
+    "Pokémon",
+  ].map((p) => p.trim()).filter(Boolean);
+  const words: string[] = [];
+  for (const part of parts) {
+    const next = [...words, part].join(" ");
+    if (next.length <= TITLE_MAX) words.push(part);
+  }
+  // Mots en double (« Holo » dans le nom et la variante) : un seul suffit.
+  const seen = new Set<string>();
+  return words.join(" ").split(" ").filter((w) => {
+    const k = w.toLowerCase();
+    if (k.length > 2 && seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  }).join(" ");
 }
 
 const HEX = /^#[0-9a-f]{6}$/i;

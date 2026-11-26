@@ -4,12 +4,13 @@ import { HTTPException } from "hono/http-exception";
 import {
   createTcgdexClient, findCandidates, getSetDetail, setSetCode, catalogImportStatus, importNextSets, listSets, syncSet, syncSetList, type TcgdexClient, refreshTrackedPrices, searchCatalog,
 } from "@dexlane/catalog";
-import type { Db } from "@dexlane/db";
+import { OWNER_ACCOUNT_ID, withTx, type Db } from "@dexlane/db";
 import {
   activateStock, addOfferPhoto, adjustStock, attachPhotos, cancelOrder, deletePhoto, getPhoto, saveListingPhoto, createAcquisitionLot, createDirectSale, createLocation, createLocations,
   deleteLocation, extractCardFromBulk, getInventorySummary, getOrderDetail, getShippingCosts, saveShippingCosts, listPreparation, markSlipsPrinted, getStockItemDetail, listAcquisitionLots,
   listLocations, listOrders, moveStock, packOrder, pickAllocation, receiveBulk, receiveCard, recordPhoto, resolveLocation,
   searchInventory, searchSellableOffers, shipOrder, updateLocationDescription,
+  createLot, dissolveLot, listLots,
   stockSupplyCosts, stockSuppliesSummary, shipmentsToTrack, recordTracking, markDelivered, updateTracking, markReviewRequested, takeReviewReminders, type Carrier, archiveSupply, countSupply, createSupply, getSupply, listSupplies, markSupplyOrdered, receiveSupply, takeSupplyAlerts, updateSupply, listStockMovements,
 } from "@dexlane/inventory";
 import {
@@ -22,18 +23,24 @@ import { DomainError } from "@dexlane/shared";
 import { randomUUID } from "node:crypto";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { AGENT_TOKEN_PREFIX, createAgentToken, listAgentTokens, revokeAgentToken, verifyAgentToken } from "./agents";
-import { changePassword, passwordStatus, setPassword, verifyPassword } from "./auth";
+import { activeAccountIds, createAuth, ownerExists, publicBaseUrl, setupOwner, type Auth } from "./better-auth";
+import { mailerFromEnv, type Mailer } from "./mailer";
+import { registerAccountRoutes } from "./account";
+import { runForAccount, scopedDb } from "./scope";
 import { createMcpServer, type InternalCall } from "./mcp";
 import { trackingFromEnv, type TrackingAdapters } from "./tracking";
 import { HttpError, errorBody, idempotent, parse, parseJsonBody, secretEquals, statusOfDomainError } from "./http";
 import {
   cancelPublications, getPublicationCalendar, getPublicationDay, reschedulePublication, endListing, getActivity, getCardDetail, getListingSettings, getSchedule, getStockDetail, listChannels, listStock, stockFacets, planPublications, queuePublications, runDuePublications, listListingOffers, publishListing, saveListingSettings, setChannelMode, simulateOrder,
-  syncChannels, syncQuantities, type ChannelAdapters,
+  syncChannels, syncPrices, syncQuantities, stockSuggestions, hasFeature, requireFeature, takeQuotaAlert, type ChannelAdapters,
+  EBAY_MARKETPLACES, createEbayDefaults, ebayAccountOptions, ebayAdapter, ebayClientFromEnv, ebayShippingServices, getEbaySettings, missingEbaySettings,
+  saveEbaySettings, type EbayClient,
 } from "@dexlane/listings";
+import type { Env } from "./env";
 import { readPhoto, type PhotoStore } from "./photos";
 import { getAppSettings, saveAppSettings } from "./settings";
 import {
-  broadcast, countSubscriptions, removeSubscription, reviewsMessage, saveSubscription, sendDigest, suppliesMessage, testMessage, vapidKeys, webPushSender, type PushSender,
+  broadcast, countSubscriptions, quotaMessage, removeSubscription, reviewsMessage, saveSubscription, sendDigest, suppliesMessage, testMessage, vapidKeys, webPushSender, type PushSender,
 } from "./notifications";
 import * as s from "./schemas";
 
@@ -45,26 +52,40 @@ export interface AppDeps {
   recognizer: () => CardRecognizer;
   /** Stockage des photos ; sans lui, les scans fonctionnent mais aucune image n'est conservée. */
   photos?: PhotoStore | null;
-  /** Connecteurs réels des marketplaces (identifiants configurés) ; sans eux, seule la simulation est possible. */
+  /**
+   * Connecteurs réels des marketplaces ; par défaut, ceux dont les identifiants sont dans l'environnement (eBay).
+   * Sans eux, seule la simulation est possible.
+   */
   channels?: ChannelAdapters;
+  /** Client eBay (connexion du compte, règles de vente) ; par défaut d'après l'environnement, null pour s'en passer. */
+  ebay?: EbayClient | null;
   /** Source du catalogue (TCGdex par défaut) ; remplaçable dans les tests. */
   tcgdex?: () => TcgdexClient;
   /** Envoi des notifications sur le téléphone (Web Push par défaut) ; remplaçable dans les tests. */
   push?: PushSender;
   /** Suivi des colis chez les transporteurs (d'après l'environnement par défaut) ; remplaçable dans les tests. */
   tracking?: TrackingAdapters;
+  /** Connexion à la base pour BetterAuth (`DATABASE_URL` par défaut) et adresse publique du site (liens des e-mails). */
+  databaseUrl?: string;
+  baseUrl?: string;
+  /** Envoi des e-mails (Resend d'après l'environnement par défaut) ; `null` : aucun envoi possible. Remplaçable dans les tests. */
+  mailer?: Mailer | null;
   onError?: (err: unknown) => void;
 }
 
-type Env = { Variables: { actor: string } };
 
 const RECOGNITION_STATUS = {
   IMAGE_TOO_LARGE: 413, UNSUPPORTED_MEDIA_TYPE: 415, REFUSED: 502, TRUNCATED: 502, UNPARSEABLE: 502,
 } as const;
 
 export function createApp(deps: AppDeps) {
-  const { sql } = deps;
+  // `root` s'adresse à la base sans cloisonnement (authentification, catalogue commun) ; `sql` suit le compte de la
+  // requête en cours : c'est lui que les routes et le cœur métier utilisent.
+  const root = deps.sql;
+  const sql = scopedDb(root);
   const app = new Hono<Env>();
+  const ebay = deps.ebay !== undefined ? deps.ebay : ebayClientFromEnv(sql, process.env);
+  const live: ChannelAdapters = deps.channels ?? (ebay ? { ebay: ebayAdapter(sql, ebay) } : {});
 
   app.onError((err, c) => {
     if (err instanceof HttpError) return c.json(errorBody(err.code, err.message, err.details), err.status);
@@ -82,69 +103,123 @@ export function createApp(deps: AppDeps) {
     return c.json({ status: "ok" });
   });
 
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  /** Routes qui travaillent hors de tout compte : installation, liste des comptes, import du catalogue commun (long). */
+  const unscoped = (path: string) => path.startsWith("/api/setup/") || path === "/api/accounts/active" || path.startsWith("/api/catalog/import");
+
+  const mailer = (): Mailer => {
+    const configured = deps.mailer === undefined ? mailerFromEnv() : deps.mailer;
+    if (!configured) throw new HttpError(503, "EMAIL_NOT_CONFIGURED", "email sending is not configured (RESEND_API_KEY, EMAIL_FROM)");
+    return configured;
+  };
+  // Comptes et sessions : BetterAuth, créé à la première requête qui en a besoin.
+  let authInstance: Auth | undefined;
+  const auth = (): Auth => {
+    const databaseUrl = deps.databaseUrl ?? process.env.DATABASE_URL;
+    if (!databaseUrl) throw new HttpError(500, "SERVER_MISCONFIGURED", "DATABASE_URL is not set");
+    return (authInstance ??= createAuth({ sql: root, databaseUrl, baseUrl: deps.baseUrl ?? publicBaseUrl(), token: deps.token, mailer }));
+  };
+
   app.use("/api/*", async (c, next) => {
     const header = c.req.header("Authorization") ?? "";
     const presented = header.startsWith("Bearer ") ? header.slice("Bearer ".length) : "";
-    // Un jeton d'agent n'ouvre que le serveur MCP ; tout le reste de l'API demande le jeton du propriétaire.
-    const agent = c.req.path === "/api/mcp" && presented.startsWith(AGENT_TOKEN_PREFIX) ? await verifyAgentToken(sql, presented) : null;
+    // Un jeton d'agent n'ouvre que le serveur MCP, pour le compte qui l'a créé ; tout le reste de l'API demande le
+    // jeton du serveur.
+    const agent = c.req.path === "/api/mcp" && presented.startsWith(AGENT_TOKEN_PREFIX) ? await verifyAgentToken(root, presented) : null;
     if (agent) {
       c.set("actor", `agent:${agent.name}`);
+      c.set("accountId", agent.accountId);
       return next();
     }
     if (!presented || !secretEquals(presented, deps.token)) {
       throw new HttpError(401, "UNAUTHORIZED", "missing or invalid bearer token");
     }
-    // Appel relayé par l'application web pour une session navigateur : la session doit dater du mot de passe courant.
-    const session = c.req.header("X-Dexlane-Session-Version");
-    if (session !== undefined && session !== String(await currentSessionVersion())) {
-      throw new HttpError(401, "SESSION_EXPIRED", "this session is no longer valid; sign in again");
+    // Connexion, inscription, vérification de l'adresse, mot de passe, administration : les routes de BetterAuth.
+    if (c.req.path.startsWith("/api/auth/")) return auth().handler(c.req.raw);
+
+    let accountId: string;
+    if (c.req.header("X-Dexlane-Browser") === "1") {
+      // Requête relayée pour un navigateur : c'est sa session qui dit pour quel compte il travaille.
+      const session = await auth().api.getSession({ headers: c.req.raw.headers });
+      const user = session?.user as { id: string; name: string; accountId?: string | null; email: string; role?: string | null; plan?: string | null } | undefined;
+      if (!user?.accountId) {
+        if (unscoped(c.req.path) && c.req.path === "/api/setup/status") return next();
+        throw new HttpError(401, "SESSION_EXPIRED", "this session is no longer valid; sign in again");
+      }
+      accountId = user.accountId;
+      c.set("user", { id: user.id, name: user.name, email: user.email, role: user.role ?? "user", plan: user.plan ?? null });
+    } else {
+      // Scripts, tâches planifiées et outils internes désignent le compte ; sans lui, c'est le compte d'installation.
+      accountId = c.req.header("X-Dexlane-Account") ?? OWNER_ACCOUNT_ID;
     }
-    // Les outils MCP rappellent l'API avec le jeton du propriétaire, au nom de l'agent (journal des actions).
+    if (!UUID.test(accountId)) throw new HttpError(400, "INVALID_ACCOUNT", "invalid account id");
+    // Les outils MCP rappellent l'API avec le jeton du serveur, au nom de l'agent (journal des actions).
     const onBehalf = c.req.header("X-Dexlane-Agent");
     c.set("actor", onBehalf && /^agent:[^\n]{1,60}$/.test(onBehalf) ? onBehalf : "owner");
-    await next();
-    // Après tout changement de stock ou de vente, les quantités annoncées sur les canaux sont réalignées :
-    // c'est le garde-fou contre la double vente d'une carte entre deux canaux.
-    if (c.req.method !== "GET" && c.res.ok && /^\/api\/(orders|inventory)(\/|$)/.test(c.req.path)) {
-      await syncQuantities(sql, deps.channels ?? {}).catch(deps.onError ?? console.error);
-    }
-    // Un envoi remis ou un stock corrigé peut faire passer une fourniture sous son seuil : l'alerte part aussitôt.
-    if (c.req.method !== "GET" && c.res.ok && /^\/api\/(orders|supplies|channels)(\/|$)/.test(c.req.path)) {
-      await alertLowSupplies().catch(deps.onError ?? console.error);
-    }
+    c.set("accountId", accountId);
+    // Le serveur MCP ne touche pas aux données lui-même : ses outils rappellent l'API, chacun dans sa propre portée.
+    if (unscoped(c.req.path) || c.req.path === "/api/mcp") return next();
+
+    // Tout le reste s'exécute pour ce compte, dans une transaction où Postgres cloisonne ses données.
+    await runForAccount(root, accountId, async () => {
+      await next();
+      // Après tout changement de stock ou de vente, les quantités annoncées sur les canaux sont réalignées :
+      // c'est le garde-fou contre la double vente d'une carte entre deux canaux.
+      if (c.req.method !== "GET" && c.res.ok && /^\/api\/(orders|inventory)(\/|$)/.test(c.req.path)) {
+        await withTx(sql, () => syncQuantities(sql, live)).catch(deps.onError ?? console.error);
+      }
+      // Un prix décidé (à l'unité, en masse, celui d'un lot) part sur les annonces en ligne : synchronisation des prix.
+      if (c.req.method !== "GET" && c.res.ok && /^\/api\/(pricing\/offers|stock|lots)(\/|$)/.test(c.req.path)) {
+        await withTx(sql, () => syncPrices(sql, live, c.var.actor)).catch(deps.onError ?? console.error);
+      }
+      // Une publication peut franchir 80 % puis 100 % du quota du mois : l'alerte part une fois par seuil.
+      if (c.req.method === "POST" && c.res.ok && /^\/api\/(listings\/offers\/[^/]+\/publish|publications\/run|scan-batches\/[^/]+\/autopilot)$/.test(c.req.path)) {
+        await withTx(sql, async () => {
+          const alert = await takeQuotaAlert(sql);
+          if (alert && alert.state.limit !== null) await broadcast(sql, push, (locale) => quotaMessage(alert.level, alert.state.used, alert.state.limit!, locale));
+        }).catch(deps.onError ?? console.error);
+      }
+      // Un envoi remis ou un stock corrigé peut faire passer une fourniture sous son seuil : l'alerte part aussitôt.
+      if (c.req.method !== "GET" && c.res.ok && /^\/api\/(orders|supplies|channels)(\/|$)/.test(c.req.path)) {
+        await withTx(sql, () => alertLowSupplies()).catch(deps.onError ?? console.error);
+      }
+      // Une requête SQL en échec hors d'une sous-transaction annule toute la transaction : la réponse ne doit alors
+      // pas annoncer un succès.
+      if (c.res.ok) {
+        await sql`select 1`.catch((err: unknown) => {
+          (deps.onError ?? console.error)(err);
+          c.res = c.json(errorBody("INTERNAL_ERROR", "internal error"), 500);
+        });
+      }
+    });
   });
 
-  // ───────────────────────── Mot de passe du propriétaire ─────────────────────────
-  // Réservé au serveur de l'application web (porteur du jeton) : il vérifie le mot de passe saisi et émet la session.
+  // ───────────────────────── Installation et comptes ─────────────────────────
 
-  let sessionVersionCache: { value: number | null; at: number } | null = null;
-  async function currentSessionVersion(): Promise<number | null> {
-    if (!sessionVersionCache || Date.now() - sessionVersionCache.at > 10_000) {
-      sessionVersionCache = { value: (await passwordStatus(sql)).sessionVersion, at: Date.now() };
-    }
-    return sessionVersionCache.value;
-  }
+  /** L'installation a-t-elle son propriétaire ? Sinon, l'assistant de démarrage le crée avec le jeton d'installation. */
+  app.get("/api/setup/status", async (c) => c.json({ passwordSet: await ownerExists(root) }));
 
-  app.get("/api/auth/status", async (c) => c.json({ passwordSet: (await passwordStatus(sql)).passwordSet }));
-
-  app.post("/api/auth/password/verify", async (c) => {
-    const { password } = await parseJsonBody(c, s.verifyPasswordBody);
-    return c.json({ sessionVersion: await verifyPassword(sql, password) });
+  /**
+   * Première connexion, ou clé de secours : le porteur du jeton d'installation (vérifié par le serveur web) choisit
+   * l'adresse e-mail et le mot de passe du propriétaire.
+   */
+  app.post("/api/setup/owner", async (c) => {
+    if (c.req.header("X-Dexlane-Browser") === "1") throw new HttpError(403, "FORBIDDEN", "setup is reserved to the server");
+    const body = await parseJsonBody(c, s.setupOwnerBody);
+    await setupOwner(auth(), root, body);
+    return c.json({ ok: true });
   });
 
-  /** Définition initiale ou réinitialisation : le jeton d'API fait office de clé de secours. */
-  app.post("/api/auth/password/reset", async (c) => {
-    const { newPassword } = await parseJsonBody(c, s.resetPasswordBody);
-    const sessionVersion = await setPassword(sql, newPassword, "password_reset");
-    sessionVersionCache = null;
-    return c.json({ sessionVersion });
+  /** Les comptes pour lesquels les tâches planifiées tournent. */
+  app.get("/api/accounts/active", async (c) => {
+    if (c.req.header("X-Dexlane-Browser") === "1") throw new HttpError(403, "FORBIDDEN", "reserved to the server");
+    return c.json({ accountIds: await activeAccountIds(root) });
   });
 
-  app.post("/api/auth/password/change", async (c) => {
-    const body = await parseJsonBody(c, s.changePasswordBody);
-    const sessionVersion = await changePassword(sql, body.currentPassword, body.newPassword);
-    sessionVersionCache = null;
-    return c.json({ sessionVersion });
+  // Forfait, quota, équipe et support (account.ts).
+  registerAccountRoutes(app, {
+    root, sql, mailer, baseUrl: () => deps.baseUrl ?? publicBaseUrl(), supportEmail: process.env.SUPPORT_EMAIL ?? null,
+    onError: deps.onError ?? console.error,
   });
 
   // ───────────────────────── Scan et catalogue ─────────────────────────
@@ -316,7 +391,7 @@ export function createApp(deps: AppDeps) {
   app.post("/api/publications/cancel", async (c) => c.json({ cancelled: await cancelPublications(sql, await parseJsonBody(c, s.cancelPlanBody)) }));
 
   /** Publie ce qui est dû aujourd'hui. Lancé chaque jour par la tâche planifiée, et à la demande. */
-  app.post("/api/publications/run", async (c) => c.json(await runDuePublications(sql, deps.channels ?? {}, c.var.actor)));
+  app.post("/api/publications/run", async (c) => c.json(await runDuePublications(sql, live, c.var.actor)));
 
   // ───────────────────────── Sessions de scan ─────────────────────────
 
@@ -398,13 +473,15 @@ export function createApp(deps: AppDeps) {
     const { received } = await receiveReady(sql, id, c.var.actor, (tx, position) => refreshOfferPricing(tx, position.offer.id));
     const offerIds = [...new Set(received.map((r) => r.offer.id))];
     let queued = 0;
-    if (batch.publishMode !== "NONE" && offerIds.length > 0) {
+    // Mettre le lot en file d'un coup, c'est la publication en masse : sans elle, les cartes entrent en stock et attendent.
+    const bulk = await hasFeature(sql, "bulk");
+    if (batch.publishMode !== "NONE" && offerIds.length > 0 && (bulk || offerIds.length === 1)) {
       for (const channel of (await listChannels(sql, live)).filter((ch) => ch.mode !== "OFF")) {
         queued += (await queuePublications(sql, { offerIds, channel: channel.id, perDay: batch.publishMode === "DAILY" ? batch.publishPerDay : null, actor: c.var.actor })).queued;
       }
     }
     if (received.length > 0) await syncQuantities(sql, live).catch(deps.onError ?? console.error);
-    return c.json({ received: received.length, offerIds, queued, batch: await getBatch(sql, id) });
+    return c.json({ received: received.length, offerIds, queued, bulkRequired: !bulk && batch.publishMode !== "NONE" && offerIds.length > 1, batch: await getBatch(sql, id) });
   });
 
   // ───────────────────────── Stock à vendre ─────────────────────────
@@ -470,6 +547,77 @@ export function createApp(deps: AppDeps) {
 
   /** Tout ce qui concerne une carte : annonce, photos, positions, historique de cote. */
   app.get("/api/stock/:offerId", async (c) => c.json(await getStockDetail(sql, parse(s.offerId, c.req.param("offerId")))));
+
+  /** Suggestions de titre et de prix (forfaits Pro et Boutique). */
+  app.get("/api/stock/:offerId/suggestions", async (c) => {
+    await requireFeature(sql, "suggestions", "suggestions de titre et de prix");
+    return c.json(await stockSuggestions(sql, parse(s.offerId, c.req.param("offerId"))));
+  });
+
+  /** Titre choisi pour cette carte (une suggestion appliquée) ; null : retour au modèle de titre. */
+  app.put("/api/stock/:offerId/title", async (c) => {
+    const offerId = parse(s.offerId, c.req.param("offerId"));
+    const { title } = await parseJsonBody(c, s.titleBody);
+    const [row] = await sql`update offers set title_override = ${title}, updated_at = now() where id = ${offerId} and kind = 'CARD' returning id`;
+    if (!row) throw new HttpError(404, "OFFER_NOT_FOUND", "offer not found");
+    await sql`insert into audit_events (actor, action, entity, entity_id, after) values (${c.var.actor}, 'offer_title_set', 'offer', ${offerId}, ${sql.json({ title })})`;
+    return c.json(await getStockDetail(sql, offerId));
+  });
+
+  /**
+   * Carte gradée : société de gradation, note et numéro de certificat ; null pour revenir à une carte non gradée.
+   * Seul un exemplaire unique peut être gradé (chaque boîtier a sa note et son certificat).
+   */
+  app.put("/api/stock/:offerId/grading", async (c) => {
+    const offerId = parse(s.offerId, c.req.param("offerId"));
+    const { grading } = await parseJsonBody(c, s.gradingBody);
+    const [offer] = await sql<{ isUnique: boolean }[]>`select is_unique from offers where id = ${offerId} and kind = 'CARD'`;
+    if (!offer) throw new HttpError(404, "OFFER_NOT_FOUND", "offer not found");
+    if (grading && !offer.isUnique) throw new HttpError(409, "GRADING_NEEDS_UNIQUE", "seul un exemplaire unique peut être gradé : sépare-le d'abord du lot de cartes identiques");
+    await sql`
+      update offers set grader = ${grading?.grader ?? null}, grade = ${grading?.grade ?? null}, cert_number = ${grading?.certNumber || null}, updated_at = now()
+       where id = ${offerId}`;
+    await sql`insert into audit_events (actor, action, entity, entity_id, after) values (${c.var.actor}, 'offer_grading_set', 'offer', ${offerId}, ${sql.json(grading as never)})`;
+    return c.json(await getStockDetail(sql, offerId));
+  });
+
+  // ───────────────────────── Lots ─────────────────────────
+
+  app.get("/api/lots", async (c) => c.json({ lots: await listLots(sql) }));
+
+  /** Regroupe des cartes du stock en un lot : une annonce, un prix. Elles ne peuvent plus être vendues à part. */
+  app.post("/api/lots", async (c) => {
+    const body = await parseJsonBody(c, s.createLotBody);
+    const locationId = body.locationId ?? (body.locationCode ? (await resolveLocation(sql, { code: body.locationCode })).id : undefined);
+    const lot = await createLot(sql, { title: body.title, description: body.description, priceCents: body.priceCents, items: body.items, locationId, actor: c.var.actor });
+    // Les cartes ont quitté leur position : les annonces qui les proposaient à l'unité suivent.
+    await syncQuantities(sql, live).catch(deps.onError ?? console.error);
+    return c.json(lot, 201);
+  });
+
+  app.patch("/api/lots/:id", async (c) => {
+    const id = parse(s.lotId, c.req.param("id"));
+    const body = await parseJsonBody(c, s.updateLotBody);
+    const [row] = await sql`
+      update offers set lot_title = coalesce(${body.title ?? null}, lot_title),
+                        lot_description = ${body.description === undefined ? sql`lot_description` : body.description},
+                        target_price_cents = coalesce(${body.priceCents ?? null}, target_price_cents), updated_at = now()
+       where id = ${id} and kind = 'LOT' and status <> 'ARCHIVED' returning id`;
+    if (!row) throw new HttpError(404, "LOT_NOT_FOUND", "ce lot n'existe pas");
+    await sql`insert into audit_events (actor, action, entity, entity_id, after) values (${c.var.actor}, 'lot_updated', 'offer', ${id}, ${sql.json(body as never)})`;
+    return c.json((await listLots(sql, { offerId: id }))[0]);
+  });
+
+  /** Défait un lot pas encore vendu : ses annonces sont retirées et ses cartes reviennent dans le stock. */
+  app.delete("/api/lots/:id", async (c) => {
+    const id = parse(s.lotId, c.req.param("id"));
+    for (const l of await sql<{ id: string }[]>`select id from listings where offer_id = ${id} and status <> 'ENDED'`) {
+      await endListing(sql, live, { listingId: l.id, actor: c.var.actor });
+    }
+    await dissolveLot(sql, id, c.var.actor);
+    await syncQuantities(sql, live).catch(deps.onError ?? console.error);
+    return c.json({ ok: true });
+  });
 
   // ───────────────────────── Statistiques et alertes de prix ─────────────────────────
 
@@ -557,8 +705,6 @@ export function createApp(deps: AppDeps) {
 
   // ───────────────────────── Canaux de vente ─────────────────────────
 
-  const live = deps.channels ?? {};
-
   app.get("/api/channels", async (c) => c.json({ channels: await listChannels(sql, live) }));
 
   app.put("/api/channels/:channel", async (c) => {
@@ -569,7 +715,65 @@ export function createApp(deps: AppDeps) {
   });
 
   /** Commandes des canaux réels, puis quantités annoncées. */
-  app.post("/api/channels/sync", async (c) => c.json(await syncChannels(sql, live, c.var.actor)));
+  app.post("/api/channels/sync", async (c) => c.json(await syncChannels(sql, live, c.var.actor, deps.onError ?? console.error)));
+
+  // ───────────────────────── eBay : compte et réglages ─────────────────────────
+
+  const ebayClient = () => {
+    if (!ebay) throw new HttpError(409, "CHANNEL_NOT_CONFIGURED", "eBay application keys are not configured (EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_RU_NAME)");
+    return ebay;
+  };
+  const ebayConnection = async () => {
+    const settings = await getEbaySettings(sql);
+    return {
+      configured: !!ebay,
+      environment: ebay?.config.environment ?? null,
+      account: ebay ? await ebay.account() : null,
+      settings,
+      missing: missingEbaySettings(settings),
+      marketplaces: Object.entries(EBAY_MARKETPLACES).map(([id, m]) => ({ id, label: m.label })),
+    };
+  };
+
+  app.get("/api/channels/ebay/connection", async (c) => c.json(await ebayConnection()));
+
+  /** Adresse d'autorisation eBay où envoyer le propriétaire ; il revient sur /settings/channels/ebay. */
+  app.post("/api/channels/ebay/connect", async (c) => c.json({ url: await ebayClient().consentUrl() }));
+
+  app.post("/api/channels/ebay/connect/complete", async (c) => {
+    const body = await parseJsonBody(c, s.ebayConsentBody);
+    const { username } = await ebayClient().completeConsent(body);
+    await sql`
+      insert into audit_events (actor, action, entity, entity_id, after)
+      values (${c.var.actor}, 'channel_connected', 'channel', 'ebay', ${sql.json({ environment: ebayClient().config.environment, username })})`;
+    return c.json(await ebayConnection());
+  });
+
+  app.delete("/api/channels/ebay/connection", async (c) => {
+    const [channel] = await listChannels(sql, live).then((all) => all.filter((ch) => ch.id === "ebay"));
+    // Sans compte, le mode réel ne peut plus rien faire : le canal est éteint (les annonces restent sur eBay).
+    if (channel?.mode === "LIVE") await setChannelMode(sql, live, "ebay", "OFF", c.var.actor);
+    await ebayClient().disconnect();
+    await sql`insert into audit_events (actor, action, entity, entity_id) values (${c.var.actor}, 'channel_disconnected', 'channel', 'ebay')`;
+    return c.json(await ebayConnection());
+  });
+
+  /** Règles de vente et lieux d'expédition présents sur le compte eBay, pour le site choisi. */
+  app.get("/api/channels/ebay/options", async (c) => c.json(await ebayAccountOptions(ebayClient(), await getEbaySettings(sql))));
+
+  app.get("/api/channels/ebay/shipping-services", async (c) =>
+    c.json({ services: await ebayShippingServices(ebayClient(), (await getEbaySettings(sql)).marketplaceId) }));
+
+  app.put("/api/channels/ebay/settings", async (c) => {
+    await saveEbaySettings(sql, await parseJsonBody(c, s.ebaySettingsBody), c.var.actor);
+    return c.json(await ebayConnection());
+  });
+
+  /** Crée sur le compte eBay ce qui manque pour publier : règles d'envoi, de paiement, de retour, lieu d'expédition. */
+  app.post("/api/channels/ebay/defaults", async (c) => {
+    await createEbayDefaults(sql, ebayClient(), await parseJsonBody(c, s.ebayDefaultsBody), c.var.actor);
+    return c.json(await ebayConnection());
+  });
 
   /** Publie l'offre sur le canal, ou met à jour son annonce si elle y est déjà. */
   app.post("/api/listings/offers/:offerId/publish", async (c) => {
@@ -754,7 +958,7 @@ export function createApp(deps: AppDeps) {
     }
     const actor = c.var.actor.startsWith("agent:") ? c.var.actor : "agent:owner";
     const internal: InternalCall = async (method, path, body, idempotencyKey) => {
-      const headers: Record<string, string> = { Authorization: `Bearer ${deps.token}`, "X-Dexlane-Agent": actor };
+      const headers: Record<string, string> = { Authorization: `Bearer ${deps.token}`, "X-Dexlane-Agent": actor, "X-Dexlane-Account": c.var.accountId };
       if (body !== undefined) headers["Content-Type"] = "application/json";
       if (method !== "GET") headers["Idempotency-Key"] = idempotencyKey ?? `mcp-${randomUUID()}`;
       const res = await app.request(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
