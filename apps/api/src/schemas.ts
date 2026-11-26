@@ -223,6 +223,24 @@ export const channelId = z.enum(["ebay", "cardtrader"]);
 export const channelModeBody = z.strictObject({ mode: z.enum(["OFF", "SIMULATION", "LIVE"]) });
 export const publishBody = z.strictObject({ channel: channelId });
 export const listingId = z.uuid();
+export const ebayConsentBody = z.strictObject({ state: z.string().min(8).max(200), code: z.string().min(1).max(4000) });
+const policyId = z.string().trim().min(1).max(40).nullable();
+export const ebaySettingsBody = z.strictObject({
+  marketplaceId: z.enum(["EBAY_FR", "EBAY_DE", "EBAY_IT", "EBAY_ES"]).optional(),
+  categoryId: z.string().regex(/^\d{1,10}$/).optional(),
+  fulfillmentPolicyId: policyId.optional(),
+  paymentPolicyId: policyId.optional(),
+  returnPolicyId: policyId.optional(),
+  merchantLocationKey: z.string().trim().min(1).max(36).nullable().optional(),
+});
+export const ebayDefaultsBody = z.strictObject({
+  shippingServiceCode: z.string().trim().min(1).max(100),
+  shippingCostCents: z.number().int().min(0).max(10_000),
+  handlingDays: z.number().int().min(1).max(10),
+  returnDays: z.union([z.literal(14), z.literal(30), z.literal(60)]),
+  postalCode: z.string().trim().max(20).default(""),
+  city: z.string().trim().max(80).default(""),
+});
 export const simulateOrderBody = z.strictObject({ qty: z.number().int().min(1).max(100).default(1) });
 
 export const alertSettingsBody = z.strictObject({

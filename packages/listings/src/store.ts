@@ -1,9 +1,10 @@
 import { withTx, type Db } from "@dexlane/db";
 import { listPhotos, type CardCondition, type PhotoRow } from "@dexlane/inventory";
+import type { CardDetails } from "./ebay/aspects";
 import { DomainError } from "@dexlane/shared";
 import type { ChannelId } from "./channel-ids";
 import {
-  DEFAULT_LISTING_SETTINGS, buildListingText, validateListingSettings, type ListingSettings, type ListingSubject, type ListingText,
+  DEFAULT_LISTING_SETTINGS, buildListingText, validateListingSettings, variablesOf, type ListingSettings, type ListingSubject, type ListingText,
 } from "./template";
 
 export async function getListingSettings(sql: Db): Promise<ListingSettings> {
@@ -52,6 +53,8 @@ export interface ListingOffer {
   available: number;
   variantIncomplete: boolean;
   text: ListingText;
+  /** La carte décrite champ par champ (caractéristiques structurées des canaux). */
+  details: CardDetails;
   /** Scans (recto, verso) et visuels d'annonce déjà composés. */
   photos: PhotoRow[];
   /** Ce qui manque pour publier ; vide : l'offre est prête. */
@@ -128,7 +131,9 @@ export async function listListingOffers(
   return {
     total: rows[0]?.total ?? 0,
     items: rows.map(({ total: _total, ...r }) => {
+      const v = variablesOf(r);
       const offer = {
+        details: { name: v.nom, number: v.numero, set: v.serie, language: r.language, rarity: v.rarete, finish: r.finish },
         offerId: r.offerId, offerSku: r.offerSku, cardName: r.name, imageUrl: r.imageUrl, condition: r.condition, category: r.category,
         isUnique: r.isUnique, targetPriceCents: r.targetPriceCents, available: r.available, variantIncomplete: r.variantIncomplete,
         text: buildListingText(r, settings),
