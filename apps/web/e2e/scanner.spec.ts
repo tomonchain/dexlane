@@ -1091,8 +1091,9 @@ test("annonce bloquée faute de photo : la photo s'ajoute après coup depuis la 
   await expect(page.getByText("Recto remplacé")).toBeVisible();
   await expect(panel.getByTestId("offer-photos").getByRole("img")).toHaveCount(2);
   await panel.getByRole("button", { name: "Retirer la photo du recto" }).click();
-  await expect(page.getByText("Photo retirée")).toBeVisible();
-  await expect(panel.getByRole("button", { name: "Ajouter le recto" })).toBeVisible();
+  // L'effet durable, pas le message éphémère « Photo retirée », qui peut disparaître avant d'être vu (#78).
+  await expect(panel.getByRole("button", { name: "Ajouter le recto" })).toBeVisible({ timeout: 15_000 });
+  await expect(panel.getByTestId("offer-photos").getByRole("img")).toHaveCount(1);
   await expect(panel.getByTestId("offer-photos").getByRole("img", { name: "Verso" })).toBeVisible();
 });
 
@@ -1226,9 +1227,12 @@ test("inscription : compte créé depuis /signup, adresse vérifiée par le lien
   expect(mine).toMatchObject({ onboardingDone: true, seller: { name: "Chez le vendeur" } });
   expect(((await (await page.request.get("/api/locations")).json()) as { locations: { code: string }[] }).locations.map((l) => l.code)).toEqual(["BOITE-01"]);
   expect(((await (await page.request.get("/api/shipping-costs")).json()) as { postage: Record<string, number | null> }).postage.LETTER_UNTRACKED).toBe(139);
-  // Une fois l'adresse vérifiée, le lien n'ouvre plus de session.
+  // Une fois l'adresse vérifiée, le lien n'ouvre plus de session : il mène à l'accueil public, sans connexion.
+  // (Attendre l'arrivée sur « / » : la page du lien y redirige elle-même, et sinon cette redirection tardive l'emporte sur la suite.)
   await page.request.post("/api/auth/sign-out", { data: {} });
   await page.goto(verification.path);
+  await page.waitForURL((url) => url.pathname === "/");
+  expect((await page.request.get("/api/account")).status()).toBe(401);
   await page.goto("/stock");
   await page.waitForURL(/\/login/);
 
