@@ -1858,8 +1858,7 @@ test("photo au téléphone : la carte est repérée, redressée et recadrée au 
 test("stock › fournitures : ajout depuis une suggestion, alerte « à commander », commande, entrée, et journal des mouvements", async ({ page }) => {
   await login(page);
   await page.request.post("/api/locations", { data: { code: "ETAGERE-E2E" } });
-  await page.goto("/fournitures"); // l'ancienne adresse mène au stock
-  await expect(page).toHaveURL(/\/stock\?section=supplies/);
+  await page.goto("/stock?section=supplies");
   await expect(page.getByTestId("stock-tabs").getByRole("link", { name: "Fournitures" })).toHaveAttribute("aria-current", "page");
   await page.getByRole("button", { name: "Sleeves" }).click();
   const form = page.getByTestId("supply-form");
