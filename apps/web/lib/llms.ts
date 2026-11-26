@@ -6,6 +6,7 @@ import { DOC_GROUPS, DOC_PAGES, DOCS_INDEX, type DocBlock, type DocPage } from "
 import { FAQ, SEO } from "@/components/landing/content";
 import { PLANS, formatCards, formatPlanPrice } from "@/config/plans";
 import { SITE_URL } from "@/config/site";
+import { publishedGuides } from "@/lib/guides";
 
 const url = (path: string) => new URL(path, SITE_URL).toString();
 /** Les liens internes des textes (`[x](/docs/…)`) deviennent absolus : le fichier est lu hors du site. */
@@ -32,6 +33,12 @@ export function docMarkdown(page: DocPage): string {
 const plans = () =>
   PLANS.map((p) => `- **${p.name}** : ${formatPlanPrice(p)}, ${formatCards(p.cardsPerMonth)} cartes publiées par mois. ${p.pitch}.`).join("\n");
 
+/** Les guides publiés, s'il y en a. */
+function guidesSection(): string[] {
+  const guides = publishedGuides();
+  return guides.length === 0 ? [] : [`## Guides\n\n${guides.map((g) => `- [${g.title}](${url(`/guides/${g.slug}`)}) : ${g.description}`).join("\n")}`];
+}
+
 /** /llms.txt : présentation, forfaits, pages clés et sommaire de la doc. */
 export function llmsIndex(): string {
   const docs = DOC_GROUPS.map((group) => {
@@ -45,6 +52,7 @@ export function llmsIndex(): string {
     `## Forfaits\n\n${plans()}\n\nDétail : ${url("/tarifs")}`,
     `## Pages\n\n- [Accueil](${url("/")})\n- [Tarifs](${url("/tarifs")})\n- [${DOCS_INDEX.title}](${url("/docs")})\n- [Séries et cotes des cartes Pokémon](${url("/series")}) : chaque série en français, ses cartes et leur cote Cardmarket du jour\n- [Contact](${url("/contact")})\n- [Documentation complète en Markdown](${url("/llms-full.txt")})`,
     ...docs,
+    ...guidesSection(),
   ].join("\n\n") + "\n";
 }
 
@@ -57,6 +65,7 @@ export function llmsFull(): string {
     `## Forfaits\n\n${plans()}`,
     `## ${FAQ.title}\n\n${faq}`,
     ...DOC_PAGES.map(docMarkdown),
+    ...publishedGuides().map((g) => `## ${g.title}\n\nSource : ${url(`/guides/${g.slug}`)} — ${g.author}, ${g.updated ?? g.date}\n\n${absolute(g.markdown).replace(/^## /gm, "### ")}`),
   ].join("\n\n") + "\n";
 }
 

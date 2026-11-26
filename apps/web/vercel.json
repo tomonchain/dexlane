@@ -9,7 +9,7 @@
     },
     {
       "path": "/cron/catalog",
-      "schedule": "41 1 * * *"
+      "schedule": "41 * * * *"
     }
   ]
 }
