@@ -44,7 +44,7 @@ jobs:
           --health-timeout 5s
           --health-retries 12
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       # Ce qui sera en production est la branche fusionnée avec main : c'est cela qu'on vérifie.
@@ -54,8 +54,8 @@ jobs:
           git fetch origin main
           git -c user.name="ci" -c user.email="ci@users.noreply.github.com" merge --no-edit origin/main
       # La version de pnpm est celle du champ packageManager, la même qu'en local et sur Vercel.
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -84,7 +84,7 @@ jobs:
           --health-timeout 5s
           --health-retries 12
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Intégrer main
@@ -92,8 +92,8 @@ jobs:
         run: |
           git fetch origin main
           git -c user.name="ci" -c user.email="ci@users.noreply.github.com" merge --no-edit origin/main
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -106,7 +106,7 @@ jobs:
         run: pnpm e2e
       - name: Conserver les traces en cas d'échec
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-resultats
           path: apps/web/test-results
@@ -125,7 +125,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Ouvrir la pull request au besoin, puis fusionner
@@ -167,7 +167,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Étiquette et release GitHub si la version est nouvelle
@@ -187,7 +187,7 @@ jobs:
       PR_URL: ${{ github.event.pull_request.html_url }}
     steps:
       - id: meta
-        uses: dependabot/fetch-metadata@v2
+        uses: dependabot/fetch-metadata@v3
       # Une version majeure peut casser un comportement que les tests ne couvrent pas : elle attend une relecture.
       - name: Fusionner sauf version majeure ou étiquette « hold »
         if: steps.meta.outputs.update-type != 'version-update:semver-major'
