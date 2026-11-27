@@ -113,14 +113,15 @@ function VariantRow({ variant, selected, onChart, onWatch }: { variant: Variant;
 }
 
 /** Une offre (variante × état) et ses exemplaires, regroupés. */
-function OfferGroup({ offer, copies, variant, onChanged }: { offer: Offer; copies: CardPage["copies"]; variant: Variant | undefined; onChanged: () => void }) {
+function OfferGroup({ offer, copies, variant, onChanged }: { offer: Offer; copies: CardPage["copies"]; variant: Variant | undefined; onChanged: () => Promise<unknown> }) {
   const status = STATUS[offer.status] ?? STATUS.READY!;
   const [busy, setBusy] = useState(false);
   async function run(action: () => Promise<string>) {
     setBusy(true);
     try {
       toast.success(await action());
-      onChanged();
+      // Les boutons restent inactifs jusqu'à la relecture : les photos affichées peuvent ne plus exister.
+      await onChanged();
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -172,16 +173,18 @@ export default function CardDetailPage() {
   const [missing, setMissing] = useState(false);
   const [chartVariant, setChartVariant] = useState<string | null>(null);
 
-  const load = useCallback(() => {
+  // Rend la promesse de la relecture : une action attend la fiche à jour avant de rendre la main (#78).
+  const load = useCallback(() =>
     api.card(id)
       .then((d) => {
         setData(d);
         // Courbe : la variante la plus détenue, sinon la première qui a une cote.
         setChartVariant((current) => current ?? ([...d.variants].sort((a, b) => b.onHand - a.onHand).find((v) => v.onHand > 0 || v.prices.cardmarket.observedAt) ?? d.variants[0])?.id ?? null);
       })
-      .catch((e: unknown) => (e instanceof ApiError && e.status === 404 ? setMissing(true) : setError((e as Error).message)));
-  }, [id]);
-  useEffect(load, [load]);
+      .catch((e: unknown) => (e instanceof ApiError && e.status === 404 ? setMissing(true) : setError((e as Error).message))), [id]);
+  useEffect(() => {
+    void load();
+  }, [load]);
   const picture = useCardImage(data?.card.imageUrl ?? null, "high");
 
   const back = <BackLink onClick={() => router.back()}>{t("Retour")}</BackLink>;

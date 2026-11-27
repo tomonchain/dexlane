@@ -785,6 +785,8 @@ function Inspector({ offerId, version, channels, account, onChanged, onClose }: 
   const [supplies, setSupplies] = useState(0);
   const [price, setPrice] = useState("");
   const [busy, setBusy] = useState(false);
+  // Après une action, la fiche attend d'être relue : ses photos affichées peuvent ne plus exister (#78).
+  const [reloading, setReloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const loadedFor = useRef<string | null>(null);
   // Sleeve et top-loader : ce que coûte chaque carte vendue, en plus de son prix d'achat.
@@ -799,11 +801,17 @@ function Inspector({ offerId, version, channels, account, onChanged, onClose }: 
       .then((d) => {
         if (cancelled) return;
         setDetail(d);
+        setReloading(false);
         // Le champ suit le prix enregistré, sans écraser une saisie en cours sur la même carte.
         if (loadedFor.current !== `${offerId}:${d.targetPriceCents}`) setPrice(d.targetPriceCents === null ? "" : eurosInput(d.targetPriceCents));
         loadedFor.current = `${offerId}:${d.targetPriceCents}`;
       })
-      .catch((e: ApiError) => !cancelled && (e.status === 404 ? onClose() : setError(e.message)));
+      .catch((e: ApiError) => {
+        if (cancelled) return;
+        setReloading(false);
+        if (e.status === 404) onClose();
+        else setError(e.message);
+      });
     return () => {
       cancelled = true;
     };
@@ -818,6 +826,7 @@ function Inspector({ offerId, version, channels, account, onChanged, onClose }: 
     } catch (e) {
       setError(message(e));
     } finally {
+      setReloading(true);
       setBusy(false);
       onChanged();
     }
@@ -936,7 +945,7 @@ function Inspector({ offerId, version, channels, account, onChanged, onClose }: 
             <Button variant="ghost" size="icon-sm" onClick={() => copy(d.text.description, t("Description copiée"))} aria-label={t("Copier la description")}><Copy /></Button>
           </div>
         </details>
-        <OfferPhotos offerId={d.offerId} photos={d.photos} disabled={busy} run={(action) => void run(action)} onOpen={(photo) => setViewing(Math.max(0, views.findIndex((v) => v.src === photo.url)))} />
+        <OfferPhotos offerId={d.offerId} photos={d.photos} disabled={busy || reloading} run={(action) => void run(action)} onOpen={(photo) => setViewing(Math.max(0, views.findIndex((v) => v.src === photo.url)))} />
         {d.photos.some((p) => p.kind === "SCAN_FRONT" || p.kind === "SCAN_BACK") && (
           <Button
             variant="outline" size="sm" className="justify-self-start" disabled={busy}
