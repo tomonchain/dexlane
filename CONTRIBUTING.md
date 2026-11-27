@@ -37,7 +37,8 @@ Le [README](README.md) décrit l'application en détail, écran par écran.
    pnpm e2e                     # parcours navigateur, si tu touches à l'interface
    ```
 4. Ajoute une ligne sous « Non publié » dans [CHANGELOG.md](CHANGELOG.md) pour tout changement visible.
-5. La CI vérifie la pull request (types, tests, parcours navigateur). Une personne du projet la relit, puis la fusionne.
+5. La CI vérifie la pull request (types, tests, parcours navigateur). À ta première pull request, un robot te demande
+   d'accepter l'[accord de contribution](CLA.md) (voir plus bas). Une personne du projet la relit, puis la fusionne.
 
 ## Conventions
 
@@ -50,10 +51,18 @@ Le [README](README.md) décrit l'application en détail, écran par écran.
 - **Argent** : en centimes entiers, jamais en nombres à virgule.
 - **Tests** : un bug corrigé arrive avec le test qui l'aurait attrapé.
 
-## Licence des contributions
+## Licence des contributions et accord de contribution
 
-En proposant une contribution, tu acceptes qu'elle soit publiée sous la licence du projet,
-[AGPL-3.0](LICENSE).
+Dexlane est publié sous [AGPL-3.0](LICENSE). Son éditeur propose aussi un service hébergé, dexlane.app, construit sur
+ce dépôt avec du code qui n'y est pas. Pour pouvoir y intégrer ta contribution, il te demande d'accepter une fois
+l'[accord de contribution](CLA.md) :
+
+- tu restes propriétaire de ta contribution ;
+- tu autorises l'éditeur à l'utiliser et à la distribuer sous la licence de son choix, y compris dans dexlane.app ;
+- en retour, tant qu'elle fait partie de ce dépôt, elle y reste publiée sous AGPL-3.0 ou une autre licence libre.
+
+Sur ta première pull request, le robot « Accord de contribution » te le propose : il suffit de commenter la phrase
+qu'il indique. Une pull request dont un auteur n'a pas accepté l'accord n'est pas fusionnée.
 
 ## Code de conduite
 

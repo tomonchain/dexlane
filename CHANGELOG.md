@@ -13,6 +13,8 @@ Retiré), avec le numéro de l'issue qu'il traite.
 ## [Non publié]
 
 ### Ajouté
+- Accord de contribution (`CLA.md`) : chaque auteur extérieur l'accepte une fois, sur sa première pull request, auprès
+  du robot « Accord de contribution » ; les signatures sont gardées dans la branche `cla-signatures` (#106).
 - Frais eBay : relus à chaque synchronisation et déduits de la marge (statistiques, vente, 30 derniers jours) ; la
   mention « Frais eBay non inclus » ne reste que pour les ventes dont les frais ne sont pas encore connus (migration 0041) (#95).
 - Remboursements : une vente remise se rembourse (bouton « Rembourser ») ; un remboursement complet ou une annulation

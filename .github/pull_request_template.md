@@ -10,3 +10,4 @@ Closes #
 - [ ] `pnpm e2e` passe (si l'interface change)
 - [ ] Ligne ajoutée sous « Non publié » dans `CHANGELOG.md` (si le changement est visible)
 - [ ] Textes de l'interface dans `t()`, avec leur traduction anglaise
+- [ ] Contribution extérieure : [accord de contribution](../CLA.md) accepté (le robot le demande sur la première pull request)
