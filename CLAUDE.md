@@ -6,10 +6,10 @@ Le README décrit l'application ; ce fichier dit comment y travailler. Le dépô
 ## Tout passe par une issue GitHub
 
 - Chaque changement part d'une issue de `tomonchain/dexlane`. Pas d'issue : en créer une avant de coder (modèles
-  « Bug » et « Tâche »), avec l'étiquette du domaine (`go-live`, `billing`, `infra`, `legal`, `security`, `seo-geo`, `bug`).
-- Les suivis d'ensemble sont les issues chapeau : #44 (go-live, v1.0) et #55 (SEO / GEO, pour le site de l'édition
-  hébergée). Une nouvelle issue de ces
-  domaines y est rattachée comme sous-issue.
+  « Bug » et « Tâche »), avec l'étiquette du domaine (`go-live`, `billing`, `infra`, `legal`, `security`, `bug`).
+- Le suivi d'ensemble est l'issue chapeau #44 (go-live, v1.0) : une nouvelle issue de ce domaine y est rattachée comme
+  sous-issue. Le site public, son référencement (`seo-geo`) et ses pages légales se suivent dans le dépôt de l'édition
+  hébergée.
 - Le commit qui termine une issue la ferme : `Closes #n` dans son message. Un commit partiel la cite (`#n`) sans la fermer.
 - Ce qui reste à faire, une idée ou un bug vu en passant : une issue, pas un TODO dans le code ni une liste dans le README.
 - Dépôt public : jamais de secret, de donnée d'un vendeur ni d'information personnelle dans le code, les issues ou les
