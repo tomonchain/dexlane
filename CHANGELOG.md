@@ -74,6 +74,8 @@ Retiré), avec le numéro de l'issue qu'il traite.
 - Compte : le texte du mot de passe renvoie à « Mot de passe oublié ? » au lieu du jeton d'installation.
 
 ### Corrigé
+- Photos d'une fiche : après une action, les boutons attendent que la fiche soit relue ; un clic ne vise plus une photo
+  déjà remplacée (#110).
 - Les liens « Voir les variations » (accueil, alertes de prix) ouvrent bien l'onglet Stock et cotes des statistiques (#83).
 - Quota de scans : une lecture refusée par le modèle compte bien (elle est payée), des scans envoyés en même temps ne
   dépassent plus le plafond, et un scan refusé ne stocke plus sa photo (#89).
