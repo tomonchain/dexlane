@@ -1,0 +1,58 @@
+name: Accord de contribution
+
+# Une pull request venue d'un fork attend que chacun de ses auteurs accepte l'accord de contribution (CLA.md), en
+# commentant la phrase indiquée par le robot. Les branches de ce dépôt (mainteneur, claude/**, Dependabot) n'en ont pas
+# besoin. Les signatures sont gardées dans signatures/cla.json, sur la branche cla-signatures (créée au premier besoin,
+# à ne pas protéger). « recheck » en commentaire relance la vérification.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, closed]
+  issue_comment:
+    types: [created]
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+  statuses: write
+
+concurrency:
+  group: cla-${{ github.event.pull_request.number || github.event.issue.number }}
+
+jobs:
+  cla:
+    name: Accord de contribution
+    # Le code de la pull request n'est jamais extrait ni exécuté ici : le robot ne lit que ses commits et ses commentaires.
+    if: >-
+      (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository)
+      || (github.event_name == 'issue_comment' && github.event.issue.pull_request
+      && (github.event.comment.body == 'recheck' || github.event.comment.body == 'Accord de contribution de Dexlane : lu et accepté.'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Branche des signatures
+        run: |
+          if ! gh api "repos/$GITHUB_REPOSITORY/branches/cla-signatures" >/dev/null 2>&1; then
+            sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)
+            gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref=refs/heads/cla-signatures -f sha="$sha" >/dev/null
+          fi
+      # CLA Assistant Lite, épinglé sur le commit de sa version 2.6.1.
+      - uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          path-to-document: https://github.com/tomonchain/dexlane/blob/main/CLA.md
+          path-to-signatures: signatures/cla.json
+          branch: cla-signatures
+          allowlist: tomonchain,dependabot[bot],github-actions[bot]
+          custom-pr-sign-comment: "Accord de contribution de Dexlane : lu et accepté."
+          custom-notsigned-prcomment: |
+            Merci pour ta contribution ! Avant de la fusionner, nous demandons à chaque auteur d'accepter une fois l'[accord de contribution](https://github.com/tomonchain/dexlane/blob/main/CLA.md) : tu restes propriétaire de ton code, et tu nous autorises à le distribuer, y compris dans notre service hébergé dexlane.app. Pour l'accepter, commente exactement la phrase ci-dessous.
+
+            *Thanks for your contribution! Before merging, we ask every author to accept our [contributor agreement](https://github.com/tomonchain/dexlane/blob/main/CLA.md) once (English translation at the end). To accept it, post exactly the sentence below.*
+          custom-allsigned-prcomment: "Tous les auteurs de cette pull request ont accepté l'accord de contribution. Merci !"
+          signed-commit-message: "$contributorName a accepté l'accord de contribution ($owner/$repo)"
+          create-file-commit-message: "Registre des signatures de l'accord de contribution"
+          lock-pullrequest-aftermerge: true

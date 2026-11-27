@@ -124,6 +124,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      issues: write
     env:
       GH_TOKEN: ${{ github.token }}
       DOWNSTREAM_REPO: ${{ vars.DEXLANE_DOWNSTREAM_REPO }}
@@ -139,10 +140,16 @@ jobs:
             echo "Rien de nouveau par rapport à main."
             exit 0
           fi
+          # Les issues que ferment les commits livrés (« Closes #n ») : listées dans la pull request, fermées après la
+          # fusion. Une fusion faite avec le jeton de la CI ne les ferme pas d'elle-même (#113).
+          closes=$(git log --format=%B origin/main..HEAD | grep -oiE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?) #[0-9]+' | grep -oE '[0-9]+' | sort -un | tr '\n' ' ')
+          body=$(printf 'Livraison automatique de la branche `%s` après une CI verte.\n\n%s\n' "$GITHUB_REF_NAME" "$(git log --reverse --format='- %s' origin/main..HEAD)")
+          [ -n "$closes" ] && body=$(printf '%s\n\n%s\n' "$body" "$(for n in $closes; do echo "Closes #$n"; done)")
           pr=$(gh pr list --head "$GITHUB_REF_NAME" --base main --state open --json number --jq '.[0].number // empty')
-          if [ -z "$pr" ]; then
+          if [ -n "$pr" ]; then
+            gh pr edit "$pr" --body "$body" >/dev/null
+          else
             # Demande, dans Settings → Actions → General, « Allow GitHub Actions to create and approve pull requests ».
-            body=$(printf 'Livraison automatique de la branche `%s` après une CI verte.\n\n%s\n' "$GITHUB_REF_NAME" "$(git log --reverse --format='- %s' origin/main..HEAD)")
             if ! gh pr create --base main --head "$GITHUB_REF_NAME" --title "$(git log -1 --format=%s)" --body "$body"; then
               echo "::error::La CI n'a pas le droit d'ouvrir une pull request. Cochez Settings → Actions → General → « Allow GitHub Actions to create and approve pull requests », ou ouvrez la pull request à la main puis relancez cette tâche."
               exit 1
@@ -155,6 +162,11 @@ jobs:
           fi
           # Seul le commit qui vient d'être vérifié peut être fusionné.
           gh pr merge "$pr" --merge --match-head-commit "$GITHUB_SHA"
+          for n in $closes; do
+            if [ "$(gh issue view "$n" --json state --jq .state 2>/dev/null)" = "OPEN" ]; then
+              gh issue close "$n" --reason completed --comment "Livrée par #$pr." || echo "::warning::Issue #$n non fermée."
+            fi
+          done
           # Une fusion faite avec le jeton de la CI ne relance pas de workflow sur main : la version se publie ici.
           # Les versions ne se publient que depuis ce dépôt, pas depuis une copie ou un fork.
           git fetch origin main
