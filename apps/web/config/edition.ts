@@ -1,9 +1,7 @@
-import { HERO_VARIANT, HERO_VARIANTS } from "@/components/landing/content";
-import { FREE_PLAN, formatCards } from "@/config/plans";
-
 /*
- * Ce que l'instance ajoute autour de l'application. Le dépôt public sert une seule boutique, sans site ; l'édition
- * hébergée (dexlane.app) remplace ce fichier par le sien (#105).
+ * Ce que l'instance ajoute autour de l'application. Ce dépôt sert une seule boutique : pas de page d'accueil publique,
+ * pas de pages légales. L'édition hébergée (dexlane.app) remplace ce fichier par le sien (#105) ; un réglage nouveau
+ * s'ajoute ici, avec sa valeur pour une installation.
  */
 
 export interface Edition {
@@ -20,9 +18,9 @@ export interface Edition {
 }
 
 export const EDITION: Edition = {
-  landing: true,
-  legal: { terms: "/cgu", privacy: "/confidentialite", contact: "/contact" },
-  tagline: HERO_VARIANTS[HERO_VARIANT].h1,
-  signupLead: `${formatCards(FREE_PLAN.cardsPerMonth)} cartes offertes chaque mois. Sans carte bancaire.`,
-  ogImage: { url: "/og.png", width: 1200, height: 630, alt: HERO_VARIANTS[HERO_VARIANT].h1 },
+  landing: false,
+  legal: null,
+  tagline: "Du classeur à l'annonce eBay, en quelques secondes.",
+  signupLead: "Le compte de ta boutique, pour scanner, ranger et vendre tes cartes.",
+  ogImage: null,
 };
