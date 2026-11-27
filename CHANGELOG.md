@@ -91,6 +91,12 @@ Retiré), avec le numéro de l'issue qu'il traite.
 - Code mort : mode « première connexion » de l'écran de connexion, traductions orphelines, exports inutilisés,
   dépendance `postgres` de `@dexlane/inventory` (#67).
 
+### Retiré
+- Le site public (landing, tarifs, docs, guides, séries et cotes publiques, colis, contact, pages légales, `llms.txt`,
+  plan du site) quitte ce dépôt pour celui de l'édition hébergée. Une installation sert sa boutique : sans session,
+  `/` mène à la connexion et `robots.txt` ferme l'instance ; ce que l'édition hébergée ajoute se règle dans
+  `config/edition.ts` (#105).
+
 ## [0.9.0] — 2026-11-26
 
 Première version numérotée : passage de l'outil personnel au service multi-comptes, sur `dexlane.app`. Version bêta,
