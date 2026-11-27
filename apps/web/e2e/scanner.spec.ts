@@ -65,6 +65,8 @@ async function openStockCard(page: Page, offerSku: string) {
 
 const confirm = (page: Page) => page.getByTestId("confirm");
 const onHand = (page: Page) => page.getByTestId("on-hand");
+/** Où mène « / » sans session : la page d'accueil publique, ou la connexion pour une instance qui n'en a pas. */
+const signedOutHome = (url: URL) => url.pathname === (EDITION.landing ? "/" : "/login");
 /** Bandeau d'erreur de l'application (Next ajoute son propre role="alert" pour l'annonce des pages). */
 const errorBanner = (page: Page) => page.locator('[data-slot="alert"][data-variant="destructive"]');
 
@@ -1239,11 +1241,12 @@ test("inscription : compte créé depuis /signup, adresse vérifiée par le lien
   expect(mine).toMatchObject({ onboardingDone: true, seller: { name: "Chez le vendeur" } });
   expect(((await (await page.request.get("/api/locations")).json()) as { locations: { code: string }[] }).locations.map((l) => l.code)).toEqual(["BOITE-01"]);
   expect(((await (await page.request.get("/api/shipping-costs")).json()) as { postage: Record<string, number | null> }).postage.LETTER_UNTRACKED).toBe(139);
-  // Une fois l'adresse vérifiée, le lien n'ouvre plus de session : il mène à l'accueil public, sans connexion.
-  // (Attendre l'arrivée sur « / » : la page du lien y redirige elle-même, et sinon cette redirection tardive l'emporte sur la suite.)
+  // Une fois l'adresse vérifiée, le lien n'ouvre plus de session : il mène à l'accueil public sans connexion (à la
+  // connexion pour une instance sans page d'accueil). Attendre d'y être : la page du lien y redirige elle-même, et sinon
+  // cette redirection tardive l'emporte sur la suite.
   await page.request.post("/api/auth/sign-out", { data: {} });
   await page.goto(verification.path);
-  await page.waitForURL((url) => url.pathname === "/");
+  await page.waitForURL(signedOutHome);
   expect((await page.request.get("/api/account")).status()).toBe(401);
   await page.goto("/stock");
   await page.waitForURL(/\/login/);
@@ -1291,7 +1294,7 @@ test("inscription : compte créé depuis /signup, adresse vérifiée par le lien
   await expect(form.getByRole("button", { name: "Supprimer définitivement" })).toBeDisabled();
   await form.getByTestId("delete-confirm").fill("SUPPRIMER");
   await form.getByRole("button", { name: "Supprimer définitivement" }).click();
-  await page.waitForURL((url) => url.pathname === "/");
+  await page.waitForURL(signedOutHome);
   // Le compte n'existe plus : la connexion est refusée.
   await page.goto("/login");
   await page.getByLabel("Adresse e-mail").fill(email);
