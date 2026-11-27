@@ -47,7 +47,7 @@ async function request<T>(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", p
   try {
     res = await fetch(`/api${path}${params.size ? `?${params}` : ""}`, { method, headers, body, credentials: "same-origin" });
   } catch {
-    throw new ApiError(0, "NETWORK", t("Connexion impossible. Vérifiez le réseau puis réessayez."));
+    throw new ApiError(0, "NETWORK", t("Connexion impossible. Vérifie le réseau puis réessaie."));
   }
   if (res.status === 401) {
     clearCache();
@@ -57,14 +57,14 @@ async function request<T>(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", p
   const data = (await res.json().catch(() => null)) as { error?: { code: string; message: string; details?: unknown } } | null;
   if (!res.ok) {
     const e = data?.error;
-    if (e?.code === "DATABASE_UNAVAILABLE") throw new ApiError(res.status, e.code, t("La base de données ne répond pas pour l'instant. Réessayez dans quelques secondes."));
+    if (e?.code === "DATABASE_UNAVAILABLE") throw new ApiError(res.status, e.code, t("La base de données ne répond pas pour l'instant. Réessaie dans quelques secondes."));
     // Forfait : le message du serveur est remplacé par un texte de l'interface, qui dit où agir.
     if (e?.code === "SCAN_QUOTA_EXCEEDED") {
-      throw new ApiError(res.status, e.code, t("Scans du mois épuisés : ajoutez un pack ou changez de forfait (Réglages › Forfait). La carte peut se rechercher à la main."), e.details);
+      throw new ApiError(res.status, e.code, t("Scans du mois épuisés : ajoute un pack ou change de forfait (Réglages › Forfait). La carte peut se rechercher à la main."), e.details);
     }
-    if (e?.code === "SCAN_RATE_LIMITED") throw new ApiError(res.status, e.code, t("Trop de scans en une minute. Patientez un instant, puis reprenez."), e.details);
+    if (e?.code === "SCAN_RATE_LIMITED") throw new ApiError(res.status, e.code, t("Trop de scans en une minute. Patiente un instant, puis reprends."), e.details);
     if (e?.code === "QUOTA_EXCEEDED") {
-      throw new ApiError(res.status, e.code, t("Quota du mois atteint : ajoutez un pack de cartes ou changez de forfait (Réglages › Forfait). Vos annonces en ligne ne bougent pas."), e.details);
+      throw new ApiError(res.status, e.code, t("Quota du mois atteint : ajoute un pack de cartes ou change de forfait (Réglages › Forfait). Tes annonces en ligne ne bougent pas."), e.details);
     }
     if (e?.code === "FEATURE_NOT_IN_PLAN") {
       const required = (e.details as { requiredPlan?: string } | undefined)?.requiredPlan ?? "";
@@ -82,7 +82,7 @@ async function send<T>(url: string, method: "GET" | "POST", body?: unknown): Pro
     headers: body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   }).catch(() => null);
-  if (!res) throw new ApiError(0, "NETWORK", t("Connexion impossible. Vérifiez le réseau puis réessayez."));
+  if (!res) throw new ApiError(0, "NETWORK", t("Connexion impossible. Vérifie le réseau puis réessaie."));
   // Nos routes répondent `{ error: { code, message } }` ; celles de BetterAuth, `{ code, message }`.
   const data = (await res.json().catch(() => null)) as { error?: { code: string; message: string; details?: unknown }; code?: string; message?: string } | null;
   if (!res.ok) {

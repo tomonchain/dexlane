@@ -214,7 +214,7 @@ function Preparation() {
         <PageHeader
           back={<BackLink href="/sales">{t("Ventes")}</BackLink>}
           title={t("Préparer les envois")}
-          description={t("Une liste de prélèvement rangée par boîte, puis un bon de livraison et un reçu par commande, au format de votre imprimante.")}
+          description={t("Une liste de prélèvement rangée par boîte, puis un bon de livraison et un reçu par commande, au format de ton imprimante.")}
           actions={<Button onClick={() => window.print()} disabled={orders.length === 0 || !Object.values(parts).some(Boolean)} data-testid="print-run"><Printer /> {orders.length > 0 ? tn(orders.length, "Imprimer {n} commande", "Imprimer {n} commandes") : t("Imprimer")}</Button>}
         />
         {error && <Alert variant="destructive">{error}</Alert>}

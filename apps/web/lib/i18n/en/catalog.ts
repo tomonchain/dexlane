@@ -7,15 +7,15 @@ export const CATALOG: Record<string, string> = {
   "Masquer l'aide": "Hide help",
   "Bien organiser ses emplacements": "Organizing your locations",
   "Un code = un endroit physique.": "One code = one physical spot.",
-  "Écrivez-le sur une étiquette collée sur la boîte, la rangée ou la case. C'est ce code que l'application vous donnera pour retrouver une carte.":
+  "Écris-le sur une étiquette collée sur la boîte, la rangée ou la case. C'est ce code que l'application te donnera pour retrouver une carte.":
     "Write it on a label stuck to the box, row or slot. This is the code the app will give you to find a card.",
   "Du plus grand au plus petit, séparés par « / ».": "From largest to smallest, separated by “/”.",
-  "Boîte, puis rangée, puis case : BOX-03/ROW-12/SLOT-04. Jusqu'à 5 niveaux ; créez seulement ceux dont vous avez besoin.":
+  "Boîte, puis rangée, puis case : BOX-03/ROW-12/SLOT-04. Jusqu'à 5 niveaux ; crée seulement ceux dont tu as besoin.":
     "Box, then row, then slot: BOX-03/ROW-12/SLOT-04. Up to 5 levels; only create the ones you need.",
-  "Numérotez sur deux chiffres.": "Use two-digit numbers.",
+  "Numérote sur deux chiffres.": "Use two-digit numbers.",
   "01, 02… 10 : le tri reste naturel. « Créer une série » génère d'un coup les rangées d'une boîte.":
     "01, 02… 10: sorting stays natural. “Create a range” generates all the rows of a box at once.",
-  "Ne réutilisez pas un code.": "Don't reuse a code.",
+  "Ne réutilise pas un code.": "Don't reuse a code.",
   "Un emplacement qui a contenu des cartes reste dans l'historique : il ne se supprime pas et ne doit pas désigner un autre endroit.":
     "A location that has held cards stays in the history: it can't be deleted and must not refer to another spot.",
   "Exemple d'arborescence": "Example hierarchy",
@@ -27,7 +27,7 @@ export const CATALOG: Record<string, string> = {
   "Chargement des emplacements": "Loading locations",
   "Aucun emplacement": "No locations",
   "Créer le premier": "Create the first one",
-  "Commencez par une boîte, par exemple BOX-01, puis ajoutez-lui des rangées.": "Start with a box, for example BOX-01, then add rows to it.",
+  "Commence par une boîte, par exemple BOX-01, puis ajoute-lui des rangées.": "Start with a box, for example BOX-01, then add rows to it.",
   "Déplier {code}": "Expand {code}",
   "Replier {code}": "Collapse {code}",
   "Voir le contenu de {code}": "View contents of {code}",
@@ -40,7 +40,7 @@ export const CATALOG: Record<string, string> = {
   "Emplacement {code} supprimé": "Location {code} deleted",
   "Code invalide : lettres, chiffres et tirets, jusqu'à 5 niveaux séparés par « / » (ex. BOX-03/ROW-12/SLOT-04).":
     "Invalid code: letters, digits and hyphens, up to 5 levels separated by “/” (e.g. BOX-03/ROW-12/SLOT-04).",
-  "Cet emplacement contient des sous-emplacements : supprimez-les d'abord.": "This location has sub-locations: delete them first.",
+  "Cet emplacement contient des sous-emplacements : supprime-les d'abord.": "This location has sub-locations: delete them first.",
   "Cet emplacement a déjà contenu des cartes : il reste dans l'historique et ne peut pas être supprimé.":
     "This location has already held cards: it stays in the history and can't be deleted.",
 
@@ -54,14 +54,14 @@ export const CATALOG: Record<string, string> = {
   "Description (facultatif)": "Description (optional)",
   "Étagère du haut, cartes rares": "Top shelf, rare cards",
   "Dans (facultatif)": "Inside (optional)",
-  "L'emplacement parent, par exemple la boîte dont vous créez les rangées.": "The parent location, for example the box whose rows you are creating.",
+  "L'emplacement parent, par exemple la boîte dont tu crées les rangées.": "The parent location, for example the box whose rows you are creating.",
   "Préfixe": "Prefix",
   "De": "From",
   "À": "To",
   "{n} à créer": "{n} to create",
   "{n} déjà présent": "{n} already exists",
   "{n} déjà présents": "{n} already exist",
-  "Indiquez un préfixe et une plage valide (200 emplacements au plus).": "Enter a prefix and a valid range (200 locations at most).",
+  "Indique un préfixe et une plage valide (200 emplacements au plus).": "Enter a prefix and a valid range (200 locations at most).",
   "Créer l'emplacement": "Create location",
   "Créer {n} emplacement": "Create {n} location",
   "Créer {n} emplacements": "Create {n} locations",
@@ -119,7 +119,7 @@ export const CATALOG: Record<string, string> = {
   "Aucune position ne correspond": "No matching positions",
   "Le stock est vide": "Stock is empty",
   "Ajouter une première carte": "Add a first card",
-  "Élargissez la recherche ou retirez un filtre.": "Broaden your search or remove a filter.",
+  "Élargis la recherche ou retire un filtre.": "Broaden your search or remove a filter.",
   "Les cartes entrées depuis le Scanner apparaîtront ici.": "Cards added from the Scanner will appear here.",
   "Prix cible": "Target price",
   "Chargement de l'inventaire": "Loading inventory",
@@ -131,7 +131,7 @@ export const CATALOG: Record<string, string> = {
   "Recto": "Front",
   "Verso": "Back",
   "Annonce": "Listing",
-  "Des cartes de cette position sont réservées pour une commande : traitez d'abord la commande concernée.":
+  "Des cartes de cette position sont réservées pour une commande : traite d'abord la commande concernée.":
     "Cards in this position are reserved for an order: process that order first.",
   "Cet emplacement n'existe pas.": "This location doesn't exist.",
   "Cette position ne peut pas être validée.": "This position can't be confirmed.",
@@ -161,7 +161,7 @@ export const CATALOG: Record<string, string> = {
   "Historique": "History",
   "Déplacée en {code}": "Moved to {code}",
   "Stock corrigé": "Stock adjusted",
-  "Saisissez la quantité réellement comptée en {location}. Le système enregistre l'écart ({count} actuellement).":
+  "Saisis la quantité réellement comptée en {location}. Le système enregistre l'écart ({count} actuellement).":
     "Enter the quantity actually counted at {location}. The system records the difference ({count} currently).",
   "Quantité comptée": "Counted quantity",
   "{n} carte est engagée (commande, inspection ou quarantaine) : la correction sera refusée.":
@@ -182,11 +182,11 @@ export const CATALOG: Record<string, string> = {
   "Cotation trop ancienne": "Price data too old",
   "Cotation partagée avec une autre variante": "Price data shared with another variant",
   "Variante à confirmer dans le catalogue": "Variant to confirm in the catalog",
-  "Entre lot et vente à l'unité : à vous de décider": "Between lot and single sale: your call",
+  "Entre lot et vente à l'unité : à toi de décider": "Between lot and single sale: your call",
   "Le prix ne couvre pas le coût d'achat": "The price doesn't cover the purchase cost",
   "Marché sous le prix d'achat : prix tenu au coût, vente plus lente": "Market below purchase price: price held at cost, slower sale",
   "Valeur premium : à vendre en exemplaire unique": "Premium value: sell as a unique copy",
-  "Le marché a bougé depuis votre prix": "The market has moved since you set your price",
+  "Le marché a bougé depuis ton prix": "The market has moved since you set your price",
   "fiable": "reliable",
   "prix en mouvement": "price moving",
   "peu de ventes": "few sales",
@@ -202,14 +202,14 @@ export const CATALOG: Record<string, string> = {
   "Espagnol": "Spanish",
   "Portugais": "Portuguese",
   "Japonais": "Japanese",
-  "Actualisez la liste": "Refresh the list",
+  "Actualise la liste": "Refresh the list",
   "Tous les blocs": "All series",
   "Sans bloc": "No series",
   "Filtrer les séries": "Filter sets",
   "Nom ou identifiant (151, swsh3…)": "Name or ID (151, swsh3…)",
   "Chargement des séries": "Loading sets",
   "Aucune série connue pour cette langue": "No known sets for this language",
-  "Chargez la liste des séries, puis importez celles que vous possédez.": "Load the list of sets, then import the ones you own.",
+  "Charge la liste des séries, puis importe celles que tu possèdes.": "Load the list of sets, then import the ones you own.",
   "Importées": "Imported",
   "Non importées": "Not imported",
   "importée le {date}": "imported on {date}",
@@ -217,13 +217,13 @@ export const CATALOG: Record<string, string> = {
   "Import…": "Importing…",
   "Mettre à jour": "Update",
   "Importer": "Import",
-  "Téléchargement des cartes, jusqu'à quelques minutes pour une grande série. Gardez cette page ouverte.":
+  "Téléchargement des cartes, jusqu'à quelques minutes pour une grande série. Garde cette page ouverte.":
     "Downloading cards, up to a few minutes for a large set. Keep this page open.",
   "Aucune série ne correspond à ce filtre": "No sets match this filter",
   "Aucune série importée": "No imported sets",
   "Toutes les séries sont importées": "All sets are imported",
-  "Ouvrez l'onglet « Non importées » et importez les séries que vous possédez.": "Open the “Not imported” tab and import the sets you own.",
-  "{imported}, {n} en échec : relancez pour les compléter.": "{imported}, {n} failed: run again to complete them.",
+  "Ouvre l'onglet « Non importées » et importe les séries que tu possèdes.": "Open the “Not imported” tab and import the sets you own.",
+  "{imported}, {n} en échec : relance pour les compléter.": "{imported}, {n} failed: run again to complete them.",
   "{imported} (variantes : {variants}, cotations : {prices}).": "{imported} (variants: {variants}, prices: {prices}).",
 
   // Catalogue : détail d'une série
@@ -239,7 +239,7 @@ export const CATALOG: Record<string, string> = {
   "{imported}, cotations à jour": "{imported}, prices up to date",
   "Série inconnue": "Unknown set",
   "Aucune série": "No set",
-  "pour cette langue. Actualisez la liste depuis le catalogue.": "for this language. Refresh the list from the catalog.",
+  "pour cette langue. Actualise la liste depuis le catalogue.": "for this language. Refresh the list from the catalog.",
   "Chargement de la série": "Loading set",
   "Code imprimé {code}": "Printed code {code}",
   "Sortie le {date}": "Released {date}",
@@ -264,7 +264,7 @@ export const CATALOG: Record<string, string> = {
   "Catalogue français : {imported} séries sur {total}": "French catalog: {imported} of {total} sets",
   "le reste s'importe chaque nuit, les séries récentes d'abord": "the rest imports every night, newest sets first",
   "Tout importer maintenant": "Import everything now",
-  "Import en cours, série par série ; gardez cette page ouverte.": "Importing set by set; keep this page open.",
+  "Import en cours, série par série ; garde cette page ouverte.": "Importing set by set; keep this page open.",
   "Dernières : {names}.": "Latest: {names}.",
   "{n} série sans carte, retentée la semaine prochaine": "{n} set without cards, retried next week",
   "{n} séries sans carte, retentées la semaine prochaine": "{n} sets without cards, retried next week",

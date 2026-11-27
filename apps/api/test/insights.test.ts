@@ -10,7 +10,7 @@ const TOKEN = "test-token-0123456789abcdef";
 const mails: Mail[] = [];
 const errors: unknown[] = [];
 const app = createApp({
-  sql, token: TOKEN, recognizer: () => { throw new Error("no scan here"); }, mailer: { send: async (m) => { mails.push(m); } },
+  sql, token: TOKEN, recognizer: () => { throw new Error("no scan here"); }, mailer: { send: async (m) => { mails.push(m); } }, recapEmails: true,
   baseUrl: "https://dexlane.test", onError: (e) => errors.push(e),
 });
 

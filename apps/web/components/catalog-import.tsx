@@ -78,7 +78,7 @@ export function CatalogImport({ language, onProgress }: { language: string; onPr
         )}
         {running && (
           <p className="flex items-center gap-2 text-xs text-muted-foreground" role="status">
-            <Spinner className="size-3" /> {t("Import en cours, série par série ; gardez cette page ouverte.")}{last && ` ${t("Dernières : {names}.", { names: last })}`}
+            <Spinner className="size-3" /> {t("Import en cours, série par série ; garde cette page ouverte.")}{last && ` ${t("Dernières : {names}.", { names: last })}`}
           </p>
         )}
         {error && <p className="text-xs text-destructive" role="alert">{error}</p>}

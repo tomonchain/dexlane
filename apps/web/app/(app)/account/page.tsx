@@ -92,9 +92,9 @@ function YourData() {
     <Card data-testid="your-data">
       <CardContent className="grid gap-4">
         <div className="grid gap-1">
-          <CardTitle>{t("Vos données")}</CardTitle>
+          <CardTitle>{t("Tes données")}</CardTitle>
           <CardDescription>
-            {t("Téléchargez tout ce que Dexlane garde pour votre compte (stock, annonces, ventes, réglages, journaux), dans un fichier JSON. Les mots de passe et les jetons n'y figurent pas.")}
+            {t("Télécharge tout ce que Dexlane garde pour ton compte (stock, annonces, ventes, réglages, journaux), dans un fichier JSON. Les mots de passe et les jetons n'y figurent pas.")}
           </CardDescription>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -138,18 +138,18 @@ function DeleteAccount({ owner, members, onClose }: { owner: boolean; members: n
       description={
         owner
           ? members > 1
-            ? t("Tout est effacé pour de bon : stock, annonces, ventes, photos, réglages, journaux, ainsi que les accès des {n} membres de l'équipe. Vos annonces déjà en ligne sur les places de marché n'en sont pas retirées.", { n: members })
-            : t("Tout est effacé pour de bon : stock, annonces, ventes, photos, réglages et journaux. Vos annonces déjà en ligne sur les places de marché n'en sont pas retirées.")
-          : t("Votre accès est supprimé et vos sessions fermées. Le compte de l'équipe et ses données restent.")
+            ? t("Tout est effacé pour de bon : stock, annonces, ventes, photos, réglages, journaux, ainsi que les accès des {n} membres de l'équipe. Tes annonces déjà en ligne sur les places de marché n'en sont pas retirées.", { n: members })
+            : t("Tout est effacé pour de bon : stock, annonces, ventes, photos, réglages et journaux. Tes annonces déjà en ligne sur les places de marché n'en sont pas retirées.")
+          : t("Ton accès est supprimé et tes sessions fermées. Le compte de l'équipe et ses données restent.")
       }
       onClose={onClose}
     >
       <form className="grid gap-4" onSubmit={submit} data-testid="delete-account-form">
-        {owner && <Alert variant="destructive">{t("Pensez à télécharger vos données d'abord : la suppression est définitive.")}</Alert>}
+        {owner && <Alert variant="destructive">{t("Pense à télécharger tes données d'abord : la suppression est définitive.")}</Alert>}
         <Field label={t("Mot de passe")}>
           <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
         </Field>
-        <Field label={t("Tapez SUPPRIMER pour confirmer")}>
+        <Field label={t("Tape SUPPRIMER pour confirmer")}>
           <Input value={word} onChange={(e) => setWord(e.target.value)} autoComplete="off" spellCheck={false} data-testid="delete-confirm" />
         </Field>
         {error && <Alert variant="destructive">{error}</Alert>}
@@ -198,7 +198,7 @@ function ChangePassword() {
             <div className="grid gap-1">
               <CardTitle>{t("Mot de passe")}</CardTitle>
               <CardDescription>
-                {t("Il protège l'accès à votre compte. En cas d'oubli, « Mot de passe oublié ? » sur l'écran de connexion vous envoie un lien par e-mail.")}
+                {t("Il protège l'accès à ton compte. En cas d'oubli, « Mot de passe oublié ? » sur l'écran de connexion t'envoie un lien par e-mail.")}
               </CardDescription>
             </div>
           </div>

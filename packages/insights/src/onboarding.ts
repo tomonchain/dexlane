@@ -30,7 +30,10 @@ export async function onboardingState(sql: Db): Promise<OnboardingState> {
              where s.kind <> 'BULK' and m.bucket = 'on_hand' and m.qty_delta > 0 and m.movement_type in ('RECEIVE', 'BULK_EXTRACT')) as cards_added,
            exists (select 1 from listings where not simulated) as listed,
            (select coalesce(sum(on_hand), 0)::int from stock_items where kind <> 'BULK' and lifecycle <> 'ARCHIVED' and on_hand > 0) as in_stock,
-           (select count(*)::int from stock_items where kind <> 'BULK' and lifecycle <> 'ARCHIVED' and on_hand > 0 and location_id is null) as unlocated,
+           -- Rangée à un emplacement précis : un emplacement sans sous-emplacement. Une carte posée dans une boîte qui a
+           -- des rangées (ou dans une pièce qui a des meubles) reste à ranger.
+           (select coalesce(sum(s.on_hand), 0)::int from stock_items s where s.kind <> 'BULK' and s.lifecycle <> 'ARCHIVED' and s.on_hand > 0
+               and (s.location_id is null or exists (select 1 from locations child where child.parent_id = s.location_id))) as unlocated,
            exists (select 1 from orders o where ${countedOrder(sql)}) as sold,
            exists (select 1 from orders where slip_printed_at is not null)
              or exists (select 1 from account_events where type = 'slip_printed') as slip`;
@@ -41,8 +44,7 @@ export async function onboardingState(sql: Db): Promise<OnboardingState> {
     policies: f.ebay && !!(ebay.fulfillmentPolicyId && ebay.paymentPolicyId && ebay.returnPolicyId),
     stock: f.cardsAdded >= onboardingStockTarget,
     listing: f.listed,
-    // Chaque position de stock a un emplacement (la base l'exige) : l'étape est faite dès qu'il y a des cartes en stock
-    // et qu'aucune n'est sans emplacement.
+    // Chaque carte en stock est rangée à un emplacement précis (sans sous-emplacement), et il y a des cartes en stock.
     locations: f.inStock > 0 && f.unlocated === 0,
     sale: f.sold,
     slip: f.slip,

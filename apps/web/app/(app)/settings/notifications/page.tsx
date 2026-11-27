@@ -15,7 +15,7 @@ import { currentSubscription, disablePush, enablePush, pushSupport, type PushSup
 type Preferences = { sales: boolean; watched: boolean; publications: boolean; supplies: boolean; reviews: boolean };
 const KINDS: { key: keyof Preferences; label: string; hint: string }[] = [
   { key: "sales", label: "Ventes", hint: "Les ventes arrivées d'eBay ou de CardTrader, à préparer." },
-  { key: "watched", label: "Cartes suivies", hint: "Une carte suivie passe sous votre prix cible." },
+  { key: "watched", label: "Cartes suivies", hint: "Une carte suivie passe sous ton prix cible." },
   { key: "publications", label: "Mises en ligne", hint: "Les publications du jour qui n'ont pas pu partir." },
   { key: "supplies", label: "Fournitures", hint: "Une fourniture atteint son seuil de commande (alerte immédiate)." },
   { key: "reviews", label: "Avis à demander", hint: "Une vente est livrée depuis 24 h : c'est le moment de demander un avis." },
@@ -77,7 +77,7 @@ export default function NotificationSettingsPage() {
       <PageHeader
         back={<BackLink href="/settings">Réglages</BackLink>}
         title={t("Notifications")}
-        description={t("Un résumé chaque matin sur votre téléphone, seulement quand il y a du nouveau : ventes à préparer, cartes suivies sous votre prix cible, mises en ligne en échec.")}
+        description={t("Un résumé chaque matin sur ton téléphone, seulement quand il y a du nouveau : ventes à préparer, cartes suivies sous ton prix cible, mises en ligne en échec.")}
       />
       {error && <Alert variant="destructive">{error}</Alert>}
       {!info || support === null || subscribed === null ? !error && <Loading /> : (
@@ -91,11 +91,11 @@ export default function NotificationSettingsPage() {
                 <div className="grid gap-1">
                   <CardTitle>{subscribed ? t("Activées sur cet appareil") : t("Cet appareil")}</CardTitle>
                   <CardDescription>
-                    {support === "install-first" ? t("Sur iPhone et iPad, ajoutez d'abord Dexlane à l'écran d'accueil (Partager › Sur l'écran d'accueil), puis ouvrez-le depuis cette icône pour activer les notifications.")
-                      : support === "denied" ? t("Les notifications sont bloquées pour Dexlane dans les réglages du navigateur ou du téléphone. Autorisez-les, puis revenez ici.")
+                    {support === "install-first" ? t("Sur iPhone et iPad, ajoute d'abord Dexlane à l'écran d'accueil (Partager › Sur l'écran d'accueil), puis ouvre-le depuis cette icône pour activer les notifications.")
+                      : support === "denied" ? t("Les notifications sont bloquées pour Dexlane dans les réglages du navigateur ou du téléphone. Autorise-les, puis reviens ici.")
                       : support === "unsupported" ? t("Ce navigateur ne gère pas les notifications.")
-                      : subscribed ? t("Vous recevrez le résumé du matin ici.")
-                      : t("Activez-les pour recevoir le résumé du matin sur cet appareil.")}
+                      : subscribed ? t("Tu recevras le résumé du matin ici.")
+                      : t("Active-les pour recevoir le résumé du matin sur cet appareil.")}
                   </CardDescription>
                 </div>
               </div>

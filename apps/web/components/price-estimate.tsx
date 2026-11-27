@@ -43,7 +43,7 @@ export function PriceEstimate({ variantId, condition, unique }: { variantId: str
           {quote && <Badge variant={CATEGORY_VARIANT[quote.category]}>{t(CATEGORY_LABEL[quote.category])}</Badge>}
         </div>
         {!variantId || !condition ? (
-          <p className="text-sm text-muted-foreground">{t("Choisissez la variante et l'état pour voir le prix de référence.")}</p>
+          <p className="text-sm text-muted-foreground">{t("Choisis la variante et l'état pour voir le prix de référence.")}</p>
         ) : failed ? (
           <p className="text-sm text-muted-foreground">{t("Estimation indisponible pour le moment.")}</p>
         ) : !quote ? (

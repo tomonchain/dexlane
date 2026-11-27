@@ -145,7 +145,7 @@ function RepriceModal({ cards, onClose, onDone }: { cards: DormantCard[]; onClos
       </form>
       {preview && (
         <div className="grid gap-2" data-testid="reprice-preview">
-          <p className="text-xs text-muted-foreground">{t("Avant et après, carte par carte. Rien ne change tant que vous n'avez pas confirmé.")}</p>
+          <p className="text-xs text-muted-foreground">{t("Avant et après, carte par carte. Rien ne change tant que tu n'as pas confirmé.")}</p>
           <ul className="divide-y rounded-lg border text-sm">
             {preview.map((l) => (
               <li key={l.offerId} className="tabular flex items-center justify-between gap-3 px-3 py-2">
@@ -203,7 +203,7 @@ function WithdrawModal({ cards, onClose, onDone }: { cards: DormantCard[]; onClo
   const listings = cards.reduce((n, c) => n + c.listingIds.length, 0);
   return (
     <Modal title={t("Retirer de la vente")} onClose={onClose}>
-      <p className="text-sm">{t("Les annonces de {cards} seront terminées sur les canaux ({listings}). Les cartes restent dans votre stock.", { cards: tn(cards.length, "{n} carte", "{n} cartes"), listings: tn(listings, "{n} annonce", "{n} annonces") })}</p>
+      <p className="text-sm">{t("Les annonces de {cards} seront terminées sur les canaux ({listings}). Les cartes restent dans ton stock.", { cards: tn(cards.length, "{n} carte", "{n} cartes"), listings: tn(listings, "{n} annonce", "{n} annonces") })}</p>
       {error && <Alert variant="destructive">{error}</Alert>}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onClose}>{t("Annuler")}</Button>

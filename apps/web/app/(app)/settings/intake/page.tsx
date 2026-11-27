@@ -34,7 +34,7 @@ export default function IntakeSettingsPage() {
       <PageHeader
         back={<BackLink href="/settings">{t("Réglages")}</BackLink>}
         title={t("Saisie des cartes")}
-        description={t("Votre façon habituelle de faire entrer les cartes. Le menu « Ajouter des cartes » la propose en premier ; les autres restent disponibles.")}
+        description={t("Ta façon habituelle de faire entrer les cartes. Le menu « Ajouter des cartes » la propose en premier ; les autres restent disponibles.")}
       />
       {error && <Alert variant="destructive">{error}</Alert>}
       {mode === undefined ? !error && <Loading /> : (

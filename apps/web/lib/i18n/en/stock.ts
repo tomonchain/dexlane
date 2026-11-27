@@ -1,8 +1,8 @@
 /** Traductions anglaises : texte français de l'interface → anglais. */
 export const STOCK: Record<string, string> = {
   // Stock : en-tête, onglets, recherche
-  "Votre stock est vide": "Your stock is empty",
-  "Faites entrer vos cartes : elles sont identifiées, estimées, puis prêtes à vendre.": "Bring your cards in: they get identified, priced, then made ready to sell.",
+  "Ton stock est vide": "Your stock is empty",
+  "Fais entrer tes cartes : elles sont identifiées, estimées, puis prêtes à vendre.": "Bring your cards in: they get identified, priced, then made ready to sell.",
   "Importer un lot d'images": "Import a batch of images",
   "Ajouter une carte": "Add a card",
   "Nom, série, numéro ou référence": "Name, set, number or reference",
@@ -51,7 +51,7 @@ export const STOCK: Record<string, string> = {
   "{n} position déplacée dans {code}": "{n} position moved to {code}",
   "{n} positions déplacées dans {code}": "{n} positions moved to {code}",
   "Aucun canal de vente actif": "No active sales channel",
-  "Activez eBay ou CardTrader, en simulation ou en réel, dans Réglages › Canaux de vente.": "Enable eBay or CardTrader, in simulation or live mode, in Settings › Sales channels.",
+  "Active eBay ou CardTrader, en simulation ou en réel, dans Réglages › Canaux de vente.": "Enable eBay or CardTrader, in simulation or live mode, in Settings › Sales channels.",
 
   // Prix suggérés
   "{n} carte a un prix suggéré à valider sur cette page.": "{n} card has a suggested price to confirm on this page.",
@@ -161,23 +161,23 @@ export const STOCK: Record<string, string> = {
   "Changer": "Change",
   "Emplacement {code} créé": "Location {code} created",
   "Code invalide : lettres, chiffres et tirets, niveaux séparés par « / » (ex. BOX-03/ROW-12).": "Invalid code: letters, digits and hyphens, levels separated by “/” (e.g. BOX-03/ROW-12).",
-  "Choisissez où ranger, ou saisissez un nouveau code pour le créer.": "Choose where to store, or type a new code to create it.",
+  "Choisis où ranger, ou saisis un nouveau code pour le créer.": "Choose where to store, or type a new code to create it.",
   "Filtrer les emplacements": "Filter locations",
   "Créer l'emplacement": "Create location",
-  "Aucun emplacement pour l'instant. Saisissez un code pour créer le premier.": "No locations yet. Type a code to create the first one.",
+  "Aucun emplacement pour l'instant. Saisis un code pour créer le premier.": "No locations yet. Type a code to create the first one.",
 
   // Mises en ligne
-  "Quand vos cartes partent sur eBay et CardTrader : le planning jour par jour, et ce qui n'a pas pu être publié.": "When your cards go out to eBay and CardTrader: the day-by-day schedule, and what couldn't be published.",
+  "Quand tes cartes partent sur eBay et CardTrader : le planning jour par jour, et ce qui n'a pas pu être publié.": "When your cards go out to eBay and CardTrader: the day-by-day schedule, and what couldn't be published.",
   "Planifier {n} carte": "Schedule {n} card",
   "Planifier {n} cartes": "Schedule {n} cards",
   "Chargement du planning": "Loading schedule",
-  "Aucun canal de vente n'est actif : activez eBay ou CardTrader, en simulation pour tout essayer sans rien publier, dans": "No sales channel is active: enable eBay or CardTrader, in simulation mode to try everything without publishing anything, in",
+  "Aucun canal de vente n'est actif : active eBay ou CardTrader, en simulation pour tout essayer sans rien publier, dans": "No sales channel is active: enable eBay or CardTrader, in simulation mode to try everything without publishing anything, in",
   "Réglages › Canaux de vente": "Settings › Sales channels",
   "Prêtes, non planifiées": "Ready, not scheduled",
   "Planifiées": "Scheduled",
   "Rien n'est planifié": "Nothing is scheduled",
   "Planifier les {n} cartes prêtes": "Schedule ready cards ({n})",
-  "Planifiez les cartes prêtes pour les publier quelques-unes par jour, ou cochez-en dans le stock pour choisir lesquelles.": "Schedule your ready cards to publish a few each day, or check some in Stock to choose which ones.",
+  "Planifie les cartes prêtes pour les publier quelques-unes par jour, ou coche-en dans le stock pour choisir lesquelles.": "Schedule your ready cards to publish a few each day, or check some in Stock to choose which ones.",
 
   // Planning
   "Planning des mises en ligne": "Listing schedule",
@@ -213,7 +213,7 @@ export const STOCK: Record<string, string> = {
   "du {from} au {to}": "from {from} to {to}",
   "le {day}": "on {day}",
   "Publication chaque matin.": "Published every morning.",
-  "Indiquez une date et un nombre de cartes par jour.": "Enter a date and a number of cards per day.",
+  "Indique une date et un nombre de cartes par jour.": "Enter a date and a number of cards per day.",
   "Les cartes déjà en ligne sur ce canal, sans prix ou sans stock vendable sont laissées de côté.": "Cards already listed on this channel, or without a price or sellable stock, are skipped.",
   "Préparation des photos {done} / {total}…": "Preparing photos {done} / {total}…",
   "Planifier": "Schedule",
@@ -263,7 +263,7 @@ export const STOCK: Record<string, string> = {
   "Publiée": "Published",
   "Publiée à la main": "Published manually",
   "Aucune mise en ligne ce jour-là.": "No listings that day.",
-  "Rien de prévu ce jour-là. Planifiez des cartes depuis le stock ou avec « Planifier ».": "Nothing planned that day. Schedule cards from Stock or with “Schedule”.",
+  "Rien de prévu ce jour-là. Planifie des cartes depuis le stock ou avec « Planifier ».": "Nothing planned that day. Schedule cards from Stock or with “Schedule”.",
   "Mises en ligne du jour lancées": "Today's listings started",
   "Mise en ligne replanifiée": "Listing rescheduled",
   "Mise en ligne déplacée": "Listing moved",

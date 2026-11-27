@@ -16,11 +16,11 @@ export const REASON_LABEL: Record<string, string> = {
   STALE_REFERENCE: "Cotation trop ancienne",
   AMBIGUOUS_REFERENCE: "Cotation partagée avec une autre variante",
   VARIANT_INCOMPLETE: "Variante à confirmer dans le catalogue",
-  GREY_ZONE: "Entre lot et vente à l'unité : à vous de décider",
+  GREY_ZONE: "Entre lot et vente à l'unité : à toi de décider",
   BELOW_COST: "Le prix ne couvre pas le coût d'achat",
   HELD_AT_COST: "Marché sous le prix d'achat : prix tenu au coût, vente plus lente",
   PREMIUM_NOT_UNIQUE: "Valeur premium : à vendre en exemplaire unique",
-  DRIFT: "Le marché a bougé depuis votre prix",
+  DRIFT: "Le marché a bougé depuis ton prix",
 };
 /** Motif traduit dans la langue de l'interface (à appeler au rendu). */
 export const reasonLabel = (code: string) => (REASON_LABEL[code] ? t(REASON_LABEL[code]!) : code);

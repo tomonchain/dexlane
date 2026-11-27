@@ -19,7 +19,7 @@ const SECTIONS: { title: string; items: { href: string; label: string; hint: str
       { href: "/settings/listing", label: "Modèle d'annonce et photos", hint: "Titre, description, fond des photos, image de fin d'annonce", icon: Megaphone },
       { href: "/settings/channels", label: "Canaux de vente", hint: "eBay et CardTrader : désactivé, simulation ou réel", icon: Store },
       { href: "/lots", label: "Lots de vente", hint: "Des cartes vendues ensemble, en une seule annonce", icon: Package },
-      { href: "/settings/alerts", label: "Alertes de prix", hint: "À partir de quelle variation de cote une carte vous est signalée", icon: BellRing },
+      { href: "/settings/alerts", label: "Alertes de prix", hint: "À partir de quelle variation de cote une carte t'est signalée", icon: BellRing },
     ],
   },
   {
@@ -42,7 +42,7 @@ const SECTIONS: { title: string; items: { href: string; label: string; hint: str
     title: "Compte et forfait",
     items: [
       { href: "/settings/plan", label: "Forfait", hint: "Cartes publiées ce mois-ci, packs, changement de forfait", icon: CreditCard },
-      { href: "/settings/team", label: "Équipe", hint: "Inviter les personnes qui travaillent avec vous", icon: Users },
+      { href: "/settings/team", label: "Équipe", hint: "Inviter les personnes qui travaillent avec toi", icon: Users },
       { href: "/settings/support", label: "Support", hint: "Une question, un bug, une idée : écrire au support", icon: LifeBuoy },
     ],
   },
@@ -51,7 +51,7 @@ const SECTIONS: { title: string; items: { href: string; label: string; hint: str
     items: [
       { href: "/catalog", label: "Catalogue", hint: "Séries importées et cotations", icon: BookOpen },
       { href: "/welcome", label: "Assistant de démarrage", hint: "Revoir les étapes : mode de scan, séries, emplacements, prix, canaux", icon: Sparkles },
-      { href: "/settings/notifications", label: "Notifications", hint: "Résumé du matin sur votre téléphone : ventes, cartes suivies, mises en ligne, fournitures", icon: BellDot },
+      { href: "/settings/notifications", label: "Notifications", hint: "Résumé du matin sur ton téléphone : ventes, cartes suivies, mises en ligne, fournitures", icon: BellDot },
       { href: "/settings/agents", label: "Agents (MCP)", hint: "Jetons d'accès pour laisser des agents gérer la boutique", icon: Bot },
       { href: "/account", label: "Compte", hint: "Mot de passe, thème, déconnexion", icon: CircleUserRound },
     ],

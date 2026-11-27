@@ -104,7 +104,7 @@ export function DeliveryCard({ order, onChange }: { order: OrderDetail; onChange
               {!delivered && <p className="text-xs text-muted-foreground">
                 {automatic
                   ? shipment.trackingCheckedAt ? t("Suivi automatique, vérifié le {date}.", { date: formatDateTime(shipment.trackingCheckedAt) }) : t("Suivi automatique : vérifié chaque matin.")
-                  : shipment.carrier && shipment.carrier !== "OTHER" ? t("Suivi automatique non relié pour ce transporteur : notez la livraison à la main.") : t("Notez la livraison à la main une fois le colis reçu.")}
+                  : shipment.carrier && shipment.carrier !== "OTHER" ? t("Suivi automatique non relié pour ce transporteur : note la livraison à la main.") : t("Note la livraison à la main une fois le colis reçu.")}
               </p>}
             </div>
           )

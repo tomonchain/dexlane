@@ -100,7 +100,7 @@ export function PlanModal({ channels, selected, readyCount, scope, onClose, onPl
             {days > 1 ? t("du {from} au {to}", { from: dayLabel(startOn), to: dayLabel(last) }) : t("le {day}", { day: dayLabel(startOn) })}.{" "}
             {t("Publication chaque matin.")}
           </>
-          : t("Indiquez une date et un nombre de cartes par jour.")}
+          : t("Indique une date et un nombre de cartes par jour.")}
       </p>
       <p className="text-[13px] text-muted-foreground">{t("Les cartes déjà en ligne sur ce canal, sans prix ou sans stock vendable sont laissées de côté.")}</p>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}

@@ -111,7 +111,7 @@ export const COMMON: Record<string, string> = {
   "remarque du modèle : ": "model note: ",
 
   "Erreur {status}": "Error {status}",
-  "La base de données ne répond pas pour l'instant. Réessayez dans quelques secondes.": "The database is not answering right now. Try again in a few seconds.",
+  "La base de données ne répond pas pour l'instant. Réessaie dans quelques secondes.": "The database is not answering right now. Try again in a few seconds.",
 
   // Langue de l'interface
   "Langue de l'interface": "Interface language",

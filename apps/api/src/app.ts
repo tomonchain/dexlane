@@ -44,7 +44,7 @@ import {
   broadcast, countSubscriptions, quotaMessage, removeSubscription, reviewsMessage, saveSubscription, sendDigest, suppliesMessage, testMessage, vapidKeys, webPushSender, type PushSender,
 } from "./notifications";
 import * as s from "./schemas";
-import type { PerkHooks } from "@dexlane/insights";
+import { progressionConfig, type PerkHooks } from "@dexlane/insights";
 
 export interface AppDeps {
   sql: Db;
@@ -74,6 +74,8 @@ export interface AppDeps {
   mailer?: Mailer | null;
   /** Avantages de niveau propres à la version hébergée (bonus de cartes par le quota) ; par défaut, ceux du quota. */
   perkHooks?: PerkHooks;
+  /** Envoyer l'e-mail qui annonce le récap ; par défaut, la configuration de la progression (coupé pour le moment). */
+  recapEmails?: boolean;
   onError?: (err: unknown) => void;
 }
 
@@ -245,7 +247,7 @@ export function createApp(deps: AppDeps) {
 
   // Statistiques, démarrage, récaps, niveau et succès (insights.ts).
   registerInsightsRoutes(app, {
-    root, sql, live, token: deps.token, perkHooks, baseUrl: () => deps.baseUrl ?? publicBaseUrl(),
+    root, sql, live, token: deps.token, perkHooks, recapEmails: deps.recapEmails ?? progressionConfig.recapEmailEnabled, baseUrl: () => deps.baseUrl ?? publicBaseUrl(),
     mailer: () => (deps.mailer === undefined ? mailerFromEnv() : deps.mailer),
     onError: deps.onError ?? console.error,
   });

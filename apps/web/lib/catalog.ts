@@ -6,9 +6,9 @@ export const CATALOG_LANGUAGES: [string, string][] = [
 ];
 
 const ERRORS: Record<string, string> = {
-  CATALOG_SOURCE_UNAVAILABLE: "La source du catalogue (TCGdex) ne répond pas. Réessayez dans un moment.",
+  CATALOG_SOURCE_UNAVAILABLE: "La source du catalogue (TCGdex) ne répond pas. Réessaie dans un moment.",
   CATALOG_SET_NOT_FOUND: "Cette série n'existe pas dans cette langue.",
-  NETWORK: "Connexion interrompue. L'import a pu continuer côté serveur : rechargez la liste, puis relancez si besoin.",
+  NETWORK: "Connexion interrompue. L'import a pu continuer côté serveur : recharge la liste, puis relance si besoin.",
 };
 export const catalogMessage = (e: unknown) => (e instanceof ApiError ? (ERRORS[e.code] ? t(ERRORS[e.code]!) : e.message) : (e as Error).message);
 export const importedLabel = (n: number) => tn(n, "{n} carte importée", "{n} cartes importées");

@@ -133,7 +133,7 @@ export default function NewSalePage() {
             <CardContent className="grid gap-3">
               <h2 className="text-[15px] font-semibold tracking-tight">{t("Cartes vendues")}</h2>
               {lines.length === 0 ? (
-                <EmptyState icon={<ShoppingBag />} title={t("Aucune carte dans cette vente")}>{t("Ajoutez les cartes vendues depuis la recherche ci-dessus.")}</EmptyState>
+                <EmptyState icon={<ShoppingBag />} title={t("Aucune carte dans cette vente")}>{t("Ajoute les cartes vendues depuis la recherche ci-dessus.")}</EmptyState>
               ) : (
                 <ul className="grid divide-y" aria-label={t("Cartes vendues")}>
                   {priced.map((l) => {
@@ -202,7 +202,7 @@ export default function NewSalePage() {
           </Card>
         </div>
       </div>
-      <ActionBar message={lines.length === 0 ? t("Ajoutez au moins une carte.") : <span className="tabular">{tn(lines.length, "{n} ligne", "{n} lignes")} · <strong className="font-semibold text-foreground">{formatEuros(itemsCents + (shippingCents ?? 0))}</strong> {t("encaissés")}</span>}>
+      <ActionBar message={lines.length === 0 ? t("Ajoute au moins une carte.") : <span className="tabular">{tn(lines.length, "{n} ligne", "{n} lignes")} · <strong className="font-semibold text-foreground">{formatEuros(itemsCents + (shippingCents ?? 0))}</strong> {t("encaissés")}</span>}>
         <Button type="submit" disabled={busy || !ready}>
           {busy ? <><Spinner className="text-primary-foreground" /> {t("Enregistrement…")}</> : t("Enregistrer la vente")}
         </Button>

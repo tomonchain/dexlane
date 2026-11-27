@@ -137,9 +137,11 @@ export async function getRecap(sql: Db, label: string): Promise<{ period: string
   return row ?? null;
 }
 
-/** Récaps créés mais pas encore annoncés par e-mail. */
+/** Récaps créés depuis moins de 7 jours mais pas encore annoncés par e-mail. */
 export function recapsToEmail(sql: Db): Promise<{ period: string; data: RecapData }[]> {
-  return sql<{ period: string; data: RecapData }[]>`select period, data from account_recaps where emailed_at is null order by period`;
+  // Seulement les récaps récents : réactiver l'e-mail n'envoie pas d'un coup les récaps des mois passés.
+  return sql<{ period: string; data: RecapData }[]>`
+    select period, data from account_recaps where emailed_at is null and created_at > now() - interval '7 days' order by period`;
 }
 
 export async function markRecapEmailed(sql: Db, label: string): Promise<void> {

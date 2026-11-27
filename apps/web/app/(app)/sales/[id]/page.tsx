@@ -140,7 +140,7 @@ export default function SalePage() {
             </dl>
             {order.totals.estimated && (
               <p className="text-xs text-muted-foreground">
-                {t("Affranchissement et fournitures d'après vos")} <Link href="/settings/shipping" className="underline underline-offset-2 hover:text-foreground">{t("frais d'envoi")}</Link>{t(" ; figés à la remise.")}
+                {t("Affranchissement et fournitures d'après tes")} <Link href="/settings/shipping" className="underline underline-offset-2 hover:text-foreground">{t("frais d'envoi")}</Link>{t(" ; figés à la remise.")}
               </p>
             )}
           </CardContent>
@@ -150,7 +150,7 @@ export default function SalePage() {
       {order.stage === "SHIPPED" && order.shipment && <DeliveryCard order={order} onChange={setOrder} />}
 
       {order.stage === "TO_PREPARE" && (
-        <ActionBar message={allPicked ? t("Toutes les cartes sont prélevées : la vente peut être emballée.") : tn(remaining, "Prélevez {n} carte pour pouvoir emballer.", "Prélevez {n} cartes pour pouvoir emballer.")}>
+        <ActionBar message={allPicked ? t("Toutes les cartes sont prélevées : la vente peut être emballée.") : tn(remaining, "Prélève {n} carte pour pouvoir emballer.", "Prélève {n} cartes pour pouvoir emballer.")}>
           <Button disabled={busy || !allPicked} onClick={() => run(() => api.packOrder(order.id), t("Vente emballée"))}>
             {busy ? <Spinner className="text-primary-foreground" /> : <PackageCheck />} {t("Marquer comme emballée")}
           </Button>

@@ -388,14 +388,19 @@ Le paquet `packages/insights` (#83 à #86) ; toutes les valeurs réglables sont 
   de 90 jours, encore en stock, sans vente depuis la mise en ligne. Baisse de prix en deux temps (aperçu, puis
   `confirm: true`), regroupement en lot, retrait de la vente. Rappel sur l'accueil à partir de 10 cartes.
 - **Démarrage** (`/api/insights/onboarding`, page `/getting-started`) : sept étapes détectées d'après les données. Le bloc
-  de l'accueil se masque (préférence de l'utilisateur) et reste accessible depuis Compte.
+  de l'accueil se masque (préférence de l'utilisateur) et reste accessible depuis Compte. Une carte est rangée quand elle
+  est à un emplacement précis : un emplacement sans sous-emplacement.
 - **Récaps** (`/recap`, `/recap/AAAA-MM`, `/recap/AAAA`) : générés par la tâche quotidienne le 1er du mois (et le
-  1er janvier pour l'année), seulement si le compte a publié ou vendu. Un e-mail court les annonce, désactivable dans
-  Compte ou par le lien signé de chaque e-mail (`/email/unsubscribe`) ; sans service d'e-mail, rien ne part. L'image à
+  1er janvier pour l'année), seulement si le compte a publié ou vendu. L'e-mail qui les annonce est coupé pour le moment
+  (`recapEmailEnabled`) ; réactivé, il n'annonce que les récaps de moins de 7 jours, se désactive dans Compte ou par le
+  lien signé de chaque e-mail (`/email/unsubscribe`), et rien ne part sans service d'e-mail. L'image à
   partager (`/recap/…/image?format=post|story&revenue=0|1&shop=0|1`, 1080 × 1350 ou 1080 × 1920) est rendue par
   `next/og` avec la police Geist embarquée, sans service externe, et n'est conservée nulle part. Par défaut : aucun
   montant, aucun nom de boutique, aucune image de carte.
-- **Niveau et succès** (`/api/insights/progress`, page `/progress`) : le niveau ne dépend que des ventes confirmées
+- **Niveau et succès** (`/api/insights/progress`, page `/progress`) : chaque compte a sa carte vendeur, dont le cadre
+  change de matière à chaque niveau (Carton, Bois, Pierre, Fer, Bronze, Argent, Or, Platine, Diamant, Légende) ; les
+  14 succès sont des cartes numérotées avec leur rareté (commune à secrète), rangées dans un classeur. Le niveau 1
+  s'obtient en terminant la configuration du compte ; ensuite, le niveau ne dépend que des ventes confirmées
   (`sale_confirmations` : une ligne de commande d'annonce restée 14 jours sans annulation, retour ni remboursement,
   écrite une fois). Il ne descend jamais ; une annonce publiée ne donne aucun point ; aucune série quotidienne. Succès
   uniques par compte (`account_achievements`), jamais retirés sauf fraude (`revokeAchievement`, action d'administration).

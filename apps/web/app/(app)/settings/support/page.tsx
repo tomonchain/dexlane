@@ -48,7 +48,7 @@ export default function SupportPage() {
       <PageHeader
         back={<BackLink href="/settings">Réglages</BackLink>}
         title={t("Support")}
-        description={t("Une question, un bug, une idée ? C'est le fondateur qui répond, par e-mail à l'adresse de votre compte.")}
+        description={t("Une question, un bug, une idée ? C'est le fondateur qui répond, par e-mail à l'adresse de ton compte.")}
       />
       {error && <Alert variant="destructive">{error}</Alert>}
       {!data ? !error && <Loading /> : (
@@ -63,14 +63,14 @@ export default function SupportPage() {
               </div>
               <CardDescription>
                 {data.priority
-                  ? t("Forfait Boutique : vos demandes arrivent marquées prioritaires et sont traitées en premier.")
+                  ? t("Forfait Boutique : tes demandes arrivent marquées prioritaires et sont traitées en premier.")
                   : t("Réponse par e-mail dès que possible. Le forfait Boutique comprend le support prioritaire : ses demandes passent en premier.")}
               </CardDescription>
               <form className="grid gap-3" onSubmit={submit}>
                 <Field label={t("Sujet")}>
                   <Input value={subject} onChange={(e) => setSubject(e.target.value)} minLength={3} maxLength={150} required data-testid="support-subject" />
                 </Field>
-                <Field label={t("Message")} hint={t("Ce que vous faisiez, ce qui s'est passé, et sur quelle carte ou quelle vente si besoin.")}>
+                <Field label={t("Message")} hint={t("Ce que tu faisais, ce qui s'est passé, et sur quelle carte ou quelle vente si besoin.")}>
                   <Textarea value={message} onChange={(e) => setMessage(e.target.value)} minLength={10} maxLength={5000} rows={6} required data-testid="support-message" />
                 </Field>
                 <Button type="submit" className="justify-self-start" disabled={busy || subject.trim().length < 3 || message.trim().length < 10}>
@@ -82,7 +82,7 @@ export default function SupportPage() {
           {data.requests.length > 0 && (
             <Card>
               <CardContent className="grid gap-3">
-                <CardTitle>{t("Vos demandes")}</CardTitle>
+                <CardTitle>{t("Tes demandes")}</CardTitle>
                 <ul className="divide-y rounded-lg border">
                   {data.requests.map((r) => (
                     <li key={r.id} className="flex items-start gap-3 px-3 py-2.5">

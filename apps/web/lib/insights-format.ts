@@ -1,3 +1,4 @@
+import { levelNames } from "@dexlane/insights/config";
 import { intlLocale, t, tn } from "./i18n";
 
 /** Mise en forme des statistiques, de la progression et des récaps ; sans appel d'API (utilisable côté serveur). */
@@ -19,8 +20,8 @@ export function formatMinutes(minutes: number): string {
   return m === 0 ? t("{h} h", { h }) : t("{h} h {m}", { h, m: String(m).padStart(2, "0") });
 }
 
-/** « Niveau 3 » tant que les noms des niveaux ne sont pas choisis. */
-export const levelLabel = (level: number, names: string[] = []) =>
+/** Le nom du niveau, celui de la matière du cadre de la carte vendeur (« Bois ») ; à défaut, « Niveau 2 ». */
+export const levelLabel = (level: number, names: readonly string[] = levelNames) =>
   names[level - 1] ? t(names[level - 1]!) : t("Niveau {n}", { n: level });
 
 export const salesToGo = (n: number) => tn(n, "encore {n} vente", "encore {n} ventes");

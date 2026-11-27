@@ -32,6 +32,8 @@ export interface InsightsRoutesDeps {
   token: string;
   /** Point d'extension des avantages de niveau (bonus de cartes de la version hébergée). */
   perkHooks: PerkHooks;
+  /** L'e-mail qui annonce le récap part-il ? Coupé pour le moment (configuration de la progression). */
+  recapEmails: boolean;
   onError: (err: unknown) => void;
 }
 
@@ -155,7 +157,11 @@ export function registerInsightsRoutes(app: Hono<Env>, deps: InsightsRoutesDeps)
   app.get("/api/insights/progress", async (c) => {
     const prefs = await prefsOf(c);
     if (!prefs.showProgression) return c.json({ hidden: true });
-    return c.json({ hidden: false, ...(await getProgress(sql)), categories: progressionConfig.achievementCategories, levelNames: progressionConfig.levelNames });
+    const settings = await getAppSettings(sql);
+    return c.json({
+      hidden: false, ...(await getProgress(sql)), shopName: settings.seller.name || null,
+      categories: progressionConfig.achievementCategories, rarities: progressionConfig.achievementRarities, levelNames: progressionConfig.levelNames,
+    });
   });
 
   /** Les succès annoncés ont été vus (ou le message rétroactif) : ils ne reviennent plus. */
@@ -167,7 +173,7 @@ export function registerInsightsRoutes(app: Hono<Env>, deps: InsightsRoutesDeps)
     return c.json({ ok: true });
   });
 
-  app.get("/api/insights/preferences", async (c) => c.json(await prefsOf(c)));
+  app.get("/api/insights/preferences", async (c) => c.json({ ...(await prefsOf(c)), recapEmailAvailable: deps.recapEmails }));
 
   app.put("/api/insights/preferences", async (c) => {
     const user = c.var.user;
@@ -217,6 +223,8 @@ export function registerInsightsRoutes(app: Hono<Env>, deps: InsightsRoutesDeps)
 
   /** Annonce par e-mail les récaps pas encore envoyés, à chaque utilisateur qui ne s'en est pas désinscrit. */
   async function emailRecaps(accountId: string): Promise<number> {
+    // E-mail du récap coupé : rien ne part, les récaps restent dans l'application.
+    if (!deps.recapEmails) return 0;
     const pending = await recapsToEmail(sql);
     if (pending.length === 0) return 0;
     const mailer = deps.mailer();

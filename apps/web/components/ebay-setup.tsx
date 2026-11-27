@@ -14,9 +14,9 @@ import { t } from "@/lib/i18n";
 import type { EbayAccountOptions, EbayConnection, EbaySettings, EbayShippingService } from "@/lib/types";
 
 const ERRORS: Record<string, string> = {
-  EBAY_BAD_CREDENTIALS: "eBay refuse les clés de l'application : vérifiez EBAY_CLIENT_ID, EBAY_CLIENT_SECRET et EBAY_ENV sur le serveur.",
-  EBAY_NOT_CONNECTED: "L'autorisation du compte eBay a expiré ou a été retirée : reconnectez le compte.",
-  EBAY_UNAVAILABLE: "eBay ne répond pas pour l'instant. Réessayez dans quelques minutes.",
+  EBAY_BAD_CREDENTIALS: "eBay refuse les clés de l'application : vérifie EBAY_CLIENT_ID, EBAY_CLIENT_SECRET et EBAY_ENV sur le serveur.",
+  EBAY_NOT_CONNECTED: "L'autorisation du compte eBay a expiré ou a été retirée : reconnecte le compte.",
+  EBAY_UNAVAILABLE: "eBay ne répond pas pour l'instant. Réessaie dans quelques minutes.",
 };
 export const ebayMessage = (e: unknown) => (e instanceof ApiError && ERRORS[e.code] ? t(ERRORS[e.code]!) : (e as Error).message);
 
@@ -102,8 +102,8 @@ export function EbaySetup({ onChanged }: { onChanged: () => void }) {
         <>
           <p className="text-muted-foreground">
             {sandbox
-              ? t("Connectez-vous avec un utilisateur de test du bac à sable pour autoriser Dexlane à publier et à lire les commandes.")
-              : t("Autorisez Dexlane à publier vos annonces et à lire vos commandes sur eBay.")}
+              ? t("Connecte-toi avec un utilisateur de test du bac à sable pour autoriser Dexlane à publier et à lire les commandes.")
+              : t("Autorise Dexlane à publier tes annonces et à lire tes commandes sur eBay.")}
           </p>
           <Button onClick={connect} disabled={busy} className="justify-self-start">{busy ? <Spinner /> : <ExternalLink />} {t("Connecter le compte eBay")}</Button>
         </>
@@ -145,7 +145,7 @@ export function EbaySetup({ onChanged }: { onChanged: () => void }) {
           )}
 
           {connection.missing.length === 0 ? (
-            <Alert variant="success">{t("Tout est prêt : vous pouvez passer eBay en réel.")}</Alert>
+            <Alert variant="success">{t("Tout est prêt : tu peux passer eBay en réel.")}</Alert>
           ) : (
             <MissingSetup connection={connection} busy={busy} run={run} onDone={(next) => { applied(next); loadOptions(); }} />
           )}
@@ -191,7 +191,7 @@ function MissingSetup({ connection, busy, run, onDone }: {
     <div className="grid gap-3 rounded-lg bg-muted/40 p-3">
       <p className="text-muted-foreground">
         {t("Pour publier, il manque : {list}.", { list: connection.missing.map((m) => t(MISSING[m] ?? m)).join(", ") })}
-        {" "}{t("Choisissez-les ci-dessus, ou laissez Dexlane les créer sur votre compte eBay.")}
+        {" "}{t("Choisis-les ci-dessus, ou laisse Dexlane les créer sur ton compte eBay.")}
       </p>
       {!open ? (
         <Button variant="outline" onClick={start} disabled={busy} className="justify-self-start">{busy ? <Spinner /> : <Wand2 />} {t("Créer ce qui manque")}</Button>
@@ -199,7 +199,7 @@ function MissingSetup({ connection, busy, run, onDone }: {
         <div className="grid gap-3">
           {needs.has("FULFILLMENT_POLICY") && (
             <>
-              <Field label={t("Service d'envoi")} hint={t("Proposé aux acheteurs pour toutes vos annonces ; modifiable ensuite sur eBay.")}>
+              <Field label={t("Service d'envoi")} hint={t("Proposé aux acheteurs pour toutes tes annonces ; modifiable ensuite sur eBay.")}>
                 <Select value={service} onChange={(e) => setService(e.target.value)} disabled={busy || !services}>
                   {(services ?? []).map((s) => <option key={s.code} value={s.code}>{s.description}</option>)}
                 </Select>

@@ -172,14 +172,14 @@ export function SuppliesView({ header }: { header: (meta: ReactNode, actions: Re
               ))}
             </div>
           }>
-          {t("Ajoutez ce que vous utilisez pour expédier ; chaque envoi remis en décompte automatiquement sa part.")}
+          {t("Ajoute ce que tu utilises pour expédier ; chaque envoi remis en décompte automatiquement sa part.")}
         </EmptyState>
       )}
       {valid && supplies.length > 0 && (
         <>
           {valid.toReorder > 0 && (
             <Alert variant="warning" data-testid="supplies-to-reorder">
-              {tn(valid.toReorder, "{n} fourniture à commander.", "{n} fournitures à commander.")} {t("Une fois la commande passée, marquez-la « commandée » : l'alerte se tait jusqu'à la réception.")}
+              {tn(valid.toReorder, "{n} fourniture à commander.", "{n} fournitures à commander.")} {t("Une fois la commande passée, marque-la « commandée » : l'alerte se tait jusqu'à la réception.")}
             </Alert>
           )}
           <div className="grid gap-3">
@@ -371,7 +371,7 @@ function SupplyForm({ supply, preset, onClose, onSaved }: { supply: Supply | nul
 
   async function save(e: FormEvent) {
     e.preventDefault();
-    if (unitCost.trim() && cost === null) return setError(t("Prix unitaire invalide : saisissez un montant comme 0,05."));
+    if (unitCost.trim() && cost === null) return setError(t("Prix unitaire invalide : saisis un montant comme 0,05."));
     setBusy(true);
     setError(null);
     const input: SupplyInput = {

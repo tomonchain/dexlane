@@ -170,7 +170,7 @@ function DayDetail({ date, today, channelLabel, onClose, onChanged }: {
     <Modal title={title.charAt(0).toUpperCase() + title.slice(1)} onClose={onClose}>
       <div className="grid gap-3" data-testid="calendar-day">
         {!data ? <Loading /> : data.entries.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{date < today ? t("Aucune mise en ligne ce jour-là.") : t("Rien de prévu ce jour-là. Planifiez des cartes depuis le stock ou avec « Planifier ».")}</p>
+          <p className="text-sm text-muted-foreground">{date < today ? t("Aucune mise en ligne ce jour-là.") : t("Rien de prévu ce jour-là. Planifie des cartes depuis le stock ou avec « Planifier ».")}</p>
         ) : (
           <>
             {date <= today && due > 0 && (

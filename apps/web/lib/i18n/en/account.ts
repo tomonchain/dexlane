@@ -6,7 +6,7 @@ export const ACCOUNT: Record<string, string> = {
   "Forfaits": "Plans",
   "Cartes publiées ce mois-ci, packs, changement de forfait": "Cards published this month, packs, changing plan",
   "Équipe": "Team",
-  "Inviter les personnes qui travaillent avec vous": "Invite the people who work with you",
+  "Inviter les personnes qui travaillent avec toi": "Invite the people who work with you",
   "Support": "Support",
   "Une question, un bug, une idée : écrire au support": "A question, a bug, an idea: write to support",
   "Lots de vente": "Sale lots",
@@ -21,7 +21,7 @@ export const ACCOUNT: Record<string, string> = {
   "Support prioritaire": "Priority support",
 
   // Erreurs de forfait
-  "Quota du mois atteint : ajoutez un pack de cartes ou changez de forfait (Réglages › Forfait). Vos annonces en ligne ne bougent pas.":
+  "Quota du mois atteint : ajoute un pack de cartes ou change de forfait (Réglages › Forfait). Tes annonces en ligne ne bougent pas.":
     "Monthly quota reached: add a card pack or change plan (Settings › Plan). Your live listings are not affected.",
   "Disponible à partir du forfait {plan} (Réglages › Forfait).": "Available from the {plan} plan (Settings › Plan).",
 
@@ -35,7 +35,7 @@ export const ACCOUNT: Record<string, string> = {
   "Voir les forfaits": "See plans",
 
   // Page Forfait
-  "Vous payez selon les cartes que vous publiez, jamais sur ce que vous vendez. Modifier un prix, mettre à jour une quantité ou remettre une annonce en ligne ne compte pas ; un lot compte pour une carte.":
+  "Tu paies selon les cartes que tu publies, jamais sur ce que tu vends. Modifier un prix, mettre à jour une quantité ou remettre une annonce en ligne ne compte pas ; un lot compte pour une carte.":
     "You pay for the cards you publish, never on what you sell. Changing a price, updating a quantity or putting a listing back online does not count; a lot counts as one card.",
   "Forfait {plan}": "{plan} plan",
   "sans limite": "no limit",
@@ -60,21 +60,21 @@ export const ACCOUNT: Record<string, string> = {
   "Non inclus": "Not included",
   "Passer à {plan}": "Upgrade to {plan}",
   "Revenir à {plan}": "Switch to {plan}",
-  "Passer au forfait {plan} ? Il prend effet tout de suite ; vos annonces déjà en ligne ne bougent pas.":
+  "Passer au forfait {plan} ? Il prend effet tout de suite ; tes annonces déjà en ligne ne bougent pas.":
     "Switch to the {plan} plan? It takes effect right away; your live listings are not affected.",
   "Passer au forfait {plan} ({price} par mois) ? Il prend effet tout de suite.": "Switch to the {plan} plan ({price} per month)? It takes effect right away.",
   "Forfait {plan} activé": "{plan} plan active",
-  "Sans engagement : vous changez de forfait ou revenez au forfait gratuit quand vous voulez. Aucune commission sur vos ventes.":
+  "Sans engagement : tu changes de forfait ou reviens au forfait gratuit quand tu veux. Aucune commission sur tes ventes.":
     "No commitment: change plan or go back to the free plan whenever you like. No commission on your sales.",
   "Installation sans limite": "Unlimited installation",
   "Ce compte est celui de l'installation (ou les forfaits sont coupés sur ce serveur) : toutes les fonctionnalités, sans quota de cartes.":
     "This is the installation account (or plans are switched off on this server): every feature, no card quota.",
 
   // Équipe
-  "Invitez les personnes qui travaillent avec vous : elles se connectent avec leur propre adresse et voient le même stock, les mêmes annonces et les mêmes ventes.":
+  "Invite les personnes qui travaillent avec toi : elles se connectent avec leur propre adresse et voient le même stock, les mêmes annonces et les mêmes ventes.":
     "Invite the people who work with you: they sign in with their own address and see the same stock, listings and sales.",
   "Membres": "Members",
-  "vous": "you",
+  "toi": "you",
   "Propriétaire du compte": "Account owner",
   "Membre depuis le {date}": "Member since {date}",
   "Retirer {email}": "Remove {email}",
@@ -94,35 +94,35 @@ export const ACCOUNT: Record<string, string> = {
   "Rejoindre une équipe": "Join a team",
   "Ce lien d'invitation est incomplet.": "This invitation link is incomplete.",
   "Retour à l'accueil": "Back to home",
-  "{inviter} vous invite à rejoindre son compte Dexlane : son stock, ses annonces et ses ventes.": "{inviter} invites you to join their Dexlane account: their stock, listings and sales.",
-  "Les cartes de votre compte actuel ne vous suivront pas : vous travaillerez sur celles de l'équipe.": "The cards in your current account will not come with you: you will work on the team's.",
+  "{inviter} t'invite à rejoindre son compte Dexlane : son stock, ses annonces et ses ventes.": "{inviter} invites you to join their Dexlane account: their stock, listings and sales.",
+  "Les cartes de ton compte actuel ne te suivront pas : tu travailleras sur celles de l'équipe.": "The cards in your current account will not come with you: you will work on the team's.",
   "Rejoindre le compte": "Join the account",
-  "Cette invitation est pour {email}. Déconnectez-vous, puis connectez-vous ou créez un compte avec cette adresse.":
+  "Cette invitation est pour {email}. Déconnecte-toi, puis connecte-toi ou crée un compte avec cette adresse.":
     "This invitation is for {email}. Sign out, then sign in or create an account with that address.",
 
   // Support
-  "Une question, un bug, une idée ? C'est le fondateur qui répond, par e-mail à l'adresse de votre compte.": "A question, a bug, an idea? The founder answers, by email to your account's address.",
+  "Une question, un bug, une idée ? C'est le fondateur qui répond, par e-mail à l'adresse de ton compte.": "A question, a bug, an idea? The founder answers, by email to your account's address.",
   "Écrire au support": "Write to support",
   "Support standard": "Standard support",
-  "Forfait Boutique : vos demandes arrivent marquées prioritaires et sont traitées en premier.": "Boutique plan: your requests arrive marked as priority and are handled first.",
+  "Forfait Boutique : tes demandes arrivent marquées prioritaires et sont traitées en premier.": "Boutique plan: your requests arrive marked as priority and are handled first.",
   "Réponse par e-mail dès que possible. Le forfait Boutique comprend le support prioritaire : ses demandes passent en premier.": "Answer by email as soon as possible. The Boutique plan includes priority support: its requests go first.",
   "Sujet": "Subject",
   "Message": "Message",
-  "Ce que vous faisiez, ce qui s'est passé, et sur quelle carte ou quelle vente si besoin.": "What you were doing, what happened, and which card or sale if relevant.",
+  "Ce que tu faisais, ce qui s'est passé, et sur quelle carte ou quelle vente si besoin.": "What you were doing, what happened, and which card or sale if relevant.",
   "Envoyer": "Send",
   "Demande envoyée": "Request sent",
   "Demande envoyée, en priorité": "Request sent, with priority",
-  "Vos demandes": "Your requests",
+  "Tes demandes": "Your requests",
   "répondu": "answered",
   "clos": "closed",
   "prioritaire": "priority",
 
   // Lots
-  "Regroupez vos communes et vos doubles : un lot, une annonce, une seule carte décomptée de votre forfait. Pour en créer un, cochez des cartes dans le stock puis « Créer un lot ».":
+  "Regroupe tes communes et tes doubles : un lot, une annonce, une seule carte décomptée de ton forfait. Pour en créer un, coche des cartes dans le stock puis « Créer un lot ».":
     "Group your commons and duplicates: one lot, one listing, a single card counted against your plan. To create one, tick cards in the stock, then “Create a lot”.",
   "Choisir des cartes": "Choose cards",
   "Aucun lot pour l'instant": "No lots yet",
-  "Dans le stock, cochez au moins deux cartes, puis choisissez « Créer un lot ».": "In the stock, tick at least two cards, then choose “Create a lot”.",
+  "Dans le stock, coche au moins deux cartes, puis choisis « Créer un lot ».": "In the stock, tick at least two cards, then choose “Create a lot”.",
   "À vendre": "For sale",
   "Dans une vente": "In a sale",
   "Vendu": "Sold",
@@ -130,8 +130,8 @@ export const ACCOUNT: Record<string, string> = {
   "coût {cost}": "cost {cost}",
   "Publier sur {channel}": "Publish on {channel}",
   "Lot publié sur {channel}": "Lot published on {channel}",
-  "Activez un canal de vente pour publier ce lot.": "Switch on a sales channel to publish this lot.",
-  "Ajoutez une photo à l'une de ses cartes pour le publier.": "Add a photo to one of its cards to publish it.",
+  "Active un canal de vente pour publier ce lot.": "Switch on a sales channel to publish this lot.",
+  "Ajoute une photo à l'une de ses cartes pour le publier.": "Add a photo to one of its cards to publish it.",
   "Défaire": "Dissolve",
   "Défaire « {title} » ? Ses annonces sont retirées et ses cartes reviennent dans le stock, à l'unité.": "Dissolve “{title}”? Its listings are ended and its cards go back to the stock, one by one.",
   "Lot défait : les cartes sont de retour dans le stock": "Lot dissolved: the cards are back in the stock",
@@ -156,7 +156,7 @@ export const ACCOUNT: Record<string, string> = {
 
   // Gradation
   "Gradation": "Grading",
-  "Une carte gradée est un exemplaire unique : entrez-la comme telle pour noter sa gradation.": "A graded card is a unique copy: enter it as such to record its grading.",
+  "Une carte gradée est un exemplaire unique : entre-la comme telle pour noter sa gradation.": "A graded card is a unique copy: enter it as such to record its grading.",
   "certificat {n}": "certificate {n}",
   "Non gradée": "Not graded",
   "Noter une gradation": "Record a grading",
@@ -183,24 +183,24 @@ export const ACCOUNT: Record<string, string> = {
   "d'après les ventes réussies": "based on completed sales",
   "Appliquer ce prix": "Apply this price",
   "Prix appliqué": "Price applied",
-  "Il protège l'accès à votre compte. En cas d'oubli, « Mot de passe oublié ? » sur l'écran de connexion vous envoie un lien par e-mail.":
+  "Il protège l'accès à ton compte. En cas d'oubli, « Mot de passe oublié ? » sur l'écran de connexion t'envoie un lien par e-mail.":
     "It protects access to your account. If you forget it, “Forgot password?” on the sign-in screen emails you a link.",
 
   // Vos données (RGPD)
-  "Vos données": "Your data",
-  "Téléchargez tout ce que Dexlane garde pour votre compte (stock, annonces, ventes, réglages, journaux), dans un fichier JSON. Les mots de passe et les jetons n'y figurent pas.":
+  "Tes données": "Your data",
+  "Télécharge tout ce que Dexlane garde pour ton compte (stock, annonces, ventes, réglages, journaux), dans un fichier JSON. Les mots de passe et les jetons n'y figurent pas.":
     "Download everything Dexlane keeps for your account (stock, listings, sales, settings, logs) as a JSON file. Passwords and tokens are not included.",
   "Télécharger mes données": "Download my data",
   "Supprimer le compte": "Delete the account",
   "Quitter et supprimer mon accès": "Leave and delete my access",
   "Le compte d'installation, celui du serveur, ne se supprime pas depuis l'application.": "The installation account, the server's own, cannot be deleted from the app.",
-  "Tout est effacé pour de bon : stock, annonces, ventes, photos, réglages, journaux, ainsi que les accès des {n} membres de l'équipe. Vos annonces déjà en ligne sur les places de marché n'en sont pas retirées.":
+  "Tout est effacé pour de bon : stock, annonces, ventes, photos, réglages, journaux, ainsi que les accès des {n} membres de l'équipe. Tes annonces déjà en ligne sur les places de marché n'en sont pas retirées.":
     "Everything is erased for good: stock, listings, sales, photos, settings, logs, and the access of the {n} team members. Listings already live on marketplaces are not ended.",
-  "Tout est effacé pour de bon : stock, annonces, ventes, photos, réglages et journaux. Vos annonces déjà en ligne sur les places de marché n'en sont pas retirées.":
+  "Tout est effacé pour de bon : stock, annonces, ventes, photos, réglages et journaux. Tes annonces déjà en ligne sur les places de marché n'en sont pas retirées.":
     "Everything is erased for good: stock, listings, sales, photos, settings and logs. Listings already live on marketplaces are not ended.",
-  "Votre accès est supprimé et vos sessions fermées. Le compte de l'équipe et ses données restent.": "Your access is deleted and your sessions closed. The team's account and its data stay.",
-  "Pensez à télécharger vos données d'abord : la suppression est définitive.": "Download your data first: deletion is permanent.",
-  "Tapez SUPPRIMER pour confirmer": "Type SUPPRIMER to confirm",
+  "Ton accès est supprimé et tes sessions fermées. Le compte de l'équipe et ses données restent.": "Your access is deleted and your sessions closed. The team's account and its data stay.",
+  "Pense à télécharger tes données d'abord : la suppression est définitive.": "Download your data first: deletion is permanent.",
+  "Tape SUPPRIMER pour confirmer": "Type SUPPRIMER to confirm",
   "Supprimer définitivement": "Delete permanently",
   "Supprimer mon accès": "Delete my access",
 
@@ -216,7 +216,7 @@ export const ACCOUNT: Record<string, string> = {
   "sur {limit} scans ce mois-ci": "of {limit} scans this month",
   "{n} restants": "{n} left",
   "Scans du mois": "Monthly scans",
-  "Scans du mois épuisés : ajoutez un pack ou changez de forfait (Réglages › Forfait). La carte peut se rechercher à la main.":
+  "Scans du mois épuisés : ajoute un pack ou change de forfait (Réglages › Forfait). La carte peut se rechercher à la main.":
     "Scans used up for the month: add a pack or change plan (Settings › Plan). The card can be searched by hand.",
-  "Trop de scans en une minute. Patientez un instant, puis reprenez.": "Too many scans in one minute. Wait a moment, then carry on.",
+  "Trop de scans en une minute. Patiente un instant, puis reprends.": "Too many scans in one minute. Wait a moment, then carry on.",
 };

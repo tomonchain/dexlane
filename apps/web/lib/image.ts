@@ -17,7 +17,7 @@ export async function prepareLogo(file: File): Promise<Blob> {
   try {
     bitmap = await createImageBitmap(file);
   } catch {
-    throw new Error(t("Format d'image non pris en charge. Choisissez un PNG, un WebP ou un JPEG."));
+    throw new Error(t("Format d'image non pris en charge. Choisis un PNG, un WebP ou un JPEG."));
   }
   const scale = Math.min(1, 800 / Math.max(bitmap.width, bitmap.height));
   if (scale === 1 && (file.type === "image/png" || file.type === "image/webp") && file.size <= 2 * 1024 * 1024) {
@@ -40,7 +40,7 @@ export async function prepareImage(file: Blob): Promise<Blob> {
     bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
   } catch {
     if (DIRECT_TYPES.includes(file.type) && file.size <= 5 * 1024 * 1024) return file;
-    throw new Error(t("Format d'image non pris en charge. Prenez la photo en JPEG."));
+    throw new Error(t("Format d'image non pris en charge. Prends la photo en JPEG."));
   }
   const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
   if (scale === 1 && DIRECT_TYPES.includes(file.type) && file.size <= DIRECT_MAX_BYTES) {

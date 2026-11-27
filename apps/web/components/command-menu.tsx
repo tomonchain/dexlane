@@ -30,7 +30,7 @@ export const PAGES = [
   { href: "/catalog", label: "Catalogue", hint: "Séries importées", icon: BookOpen },
   { href: "/lots", label: "Lots de vente", hint: "Des cartes vendues ensemble, en une seule annonce", icon: Package },
   { href: "/settings/plan", label: "Forfait", hint: "Cartes publiées ce mois-ci, packs, changement de forfait", icon: CreditCard },
-  { href: "/settings/team", label: "Équipe", hint: "Inviter les personnes qui travaillent avec vous", icon: Users },
+  { href: "/settings/team", label: "Équipe", hint: "Inviter les personnes qui travaillent avec toi", icon: Users },
   { href: "/settings/support", label: "Support", hint: "Une question, un bug, une idée : écrire au support", icon: LifeBuoy },
   { href: "/settings", label: "Réglages", hint: "Prix, annonces, emplacements, catalogue, compte", icon: Settings },
 ] as const;

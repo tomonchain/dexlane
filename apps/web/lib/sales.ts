@@ -19,7 +19,7 @@ export const STAGE_VARIANT: Record<OrderStage, "warning" | "brand" | "success" |
 };
 
 const ERRORS: Record<string, string> = {
-  INSUFFICIENT_STOCK: "Le stock disponible ne suffit plus pour cette vente. Vérifiez les quantités.",
+  INSUFFICIENT_STOCK: "Le stock disponible ne suffit plus pour cette vente. Vérifie les quantités.",
   WRONG_ITEM: "Ce code correspond à une autre carte que celle vendue.",
   UNKNOWN_SKU: "Aucune position ne porte ce code.",
   SCANNED_POSITION_UNAVAILABLE: "Cette position n'a pas d'exemplaire libre pour cette vente.",

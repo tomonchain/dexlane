@@ -45,7 +45,7 @@ export function GradingEditor({ detail, onSaved }: { detail: StockDetail; onSave
   }
 
   if (!detail.isUnique) {
-    return <p className="text-[13px] text-muted-foreground">{t("Une carte gradée est un exemplaire unique : entrez-la comme telle pour noter sa gradation.")}</p>;
+    return <p className="text-[13px] text-muted-foreground">{t("Une carte gradée est un exemplaire unique : entre-la comme telle pour noter sa gradation.")}</p>;
   }
   if (!editing) {
     return (

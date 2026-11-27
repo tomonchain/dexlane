@@ -44,6 +44,18 @@ describe("getting started (B1)", () => {
     expect(s).toMatchObject({ done: 7, percent: 100, complete: true, next: null });
   });
 
+  it("counts a card as stored only at a precise location, one without sub-locations", async () => {
+    const o = await makeOffer(sql);
+    const [box] = await sql<{ id: string }[]>`insert into locations (code) values ('BOX-Z') returning id`;
+    await stockAt(sql, o.offerId, 3, new Date(), { locationId: box!.id });
+    expect((await onboardingState(sql)).steps.find((x) => x.id === "locations")!.done).toBe(true);
+    // La boîte reçoit des rangées : les cartes posées dans la boîte elle-même ne sont plus rangées.
+    await createLocation(sql, { code: "BOX-Z/ROW-1" });
+    expect((await onboardingState(sql)).steps.find((x) => x.id === "locations")!.done).toBe(false);
+    await sql`update stock_items set location_id = (select id from locations where code = 'BOX-Z/ROW-1')`;
+    expect((await onboardingState(sql)).steps.find((x) => x.id === "locations")!.done).toBe(true);
+  });
+
   it("gives every step a button to its action", async () => {
     const s = await onboardingState(sql);
     for (const step of s.steps) expect(step.href).toMatch(/^\//);

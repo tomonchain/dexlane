@@ -475,7 +475,7 @@ function LocationsStep({ onDone }: { onDone: () => void }) {
         )}
         <p className="text-[13px] text-muted-foreground">
           {t("Écris ces codes sur tes boîtes et classeurs.")}
-          {existing ? ` ${tn(existing, "Vous avez déjà {n} emplacement : ceux qui existent sont conservés.", "Vous avez déjà {n} emplacements : ceux qui existent sont conservés.")}` : ""}
+          {existing ? ` ${tn(existing, "Tu as déjà {n} emplacement : ceux qui existent sont conservés.", "Tu as déjà {n} emplacements : ceux qui existent sont conservés.")}` : ""}
           {" "}{t("D'autres s'ajoutent à tout moment depuis Réglages → Emplacements.")}
         </p>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}

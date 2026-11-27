@@ -21,7 +21,7 @@ type Mode = "loading" | "login" | "reset";
 const LINK = "text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:underline";
 
 const COPY: Record<Exclude<Mode, "loading">, { title: string; description: string; submit: string }> = {
-  login: { title: "Connexion", description: "Saisissez votre adresse e-mail et votre mot de passe.", submit: "Se connecter" },
+  login: { title: "Connexion", description: "Saisis ton adresse e-mail et ton mot de passe.", submit: "Se connecter" },
   reset: {
     title: "Compte d'installation",
     description: "Le jeton d'installation (DEXLANE_API_TOKEN) permet de choisir l'adresse e-mail et le mot de passe du propriétaire de l'installation. Ses autres appareils seront déconnectés.",

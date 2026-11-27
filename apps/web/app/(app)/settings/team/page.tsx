@@ -54,7 +54,7 @@ export default function TeamPage() {
       <PageHeader
         back={<BackLink href="/settings">Réglages</BackLink>}
         title={t("Équipe")}
-        description={t("Invitez les personnes qui travaillent avec vous : elles se connectent avec leur propre adresse et voient le même stock, les mêmes annonces et les mêmes ventes.")}
+        description={t("Invite les personnes qui travaillent avec toi : elles se connectent avec leur propre adresse et voient le même stock, les mêmes annonces et les mêmes ventes.")}
       />
       {error && <Alert variant="destructive">{error}</Alert>}
       {!team || !account ? !error && <Loading /> : (
@@ -67,7 +67,7 @@ export default function TeamPage() {
                   <li key={m.id} className="flex items-center gap-3 px-3 py-2.5">
                     {m.isOwner ? <Crown className="size-4 shrink-0 text-brand" aria-hidden /> : <UserRound className="size-4 shrink-0 text-muted-foreground" aria-hidden />}
                     <span className="grid min-w-0 flex-1">
-                      <span className="truncate text-sm font-medium">{m.email}{m.isYou && <span className="font-normal text-muted-foreground"> · {t("vous")}</span>}</span>
+                      <span className="truncate text-sm font-medium">{m.email}{m.isYou && <span className="font-normal text-muted-foreground"> · {t("toi")}</span>}</span>
                       <span className="text-xs text-muted-foreground">{m.isOwner ? t("Propriétaire du compte") : t("Membre depuis le {date}", { date: formatDateTime(m.createdAt) })}</span>
                     </span>
                     {team.canManage && !m.isOwner && (

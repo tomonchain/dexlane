@@ -524,8 +524,8 @@ function Stock({ tabs }: { tabs: ReactNode }) {
       {empty ? (
         <div className="grid justify-items-center gap-4 rounded-lg border border-dashed px-6 py-16 text-center">
           <div className="grid gap-1">
-            <p className="text-base font-semibold">{t("Votre stock est vide")}</p>
-            <p className="max-w-sm text-sm text-muted-foreground">{t("Faites entrer vos cartes : elles sont identifiées, estimées, puis prêtes à vendre.")}</p>
+            <p className="text-base font-semibold">{t("Ton stock est vide")}</p>
+            <p className="max-w-sm text-sm text-muted-foreground">{t("Fais entrer tes cartes : elles sont identifiées, estimées, puis prêtes à vendre.")}</p>
           </div>
           <div className="flex flex-wrap justify-center gap-2">
             <Button asChild><Link href="/scanner/batch"><Images /> {t("Importer un lot d'images")}</Link></Button>
@@ -701,7 +701,7 @@ function Stock({ tabs }: { tabs: ReactNode }) {
           onLot={() => setLotting(true)}
           onPlan={() => {
             if (channels.length > 0) setPlanning(true);
-            else toast.error(t("Aucun canal de vente actif"), { description: t("Activez eBay ou CardTrader, en simulation ou en réel, dans Réglages › Canaux de vente.") });
+            else toast.error(t("Aucun canal de vente actif"), { description: t("Active eBay ou CardTrader, en simulation ou en réel, dans Réglages › Canaux de vente.") });
           }}
         />
       )}
@@ -989,7 +989,7 @@ function Inspector({ offerId, version, channels, account, onChanged, onClose }: 
         })}
       </Section>
 
-      <Section title={d.positions.length > 1 ? t("{n} positions", { n: formatNumber(d.positions.length) }) : t("Position")} aside={<span className="text-[11px] text-muted-foreground">{t("Corriger ou déplacer : ouvrez la position")}</span>}>
+      <Section title={d.positions.length > 1 ? t("{n} positions", { n: formatNumber(d.positions.length) }) : t("Position")} aside={<span className="text-[11px] text-muted-foreground">{t("Corriger ou déplacer : ouvre la position")}</span>}>
         <ul className="grid gap-1">
           {d.positions.map((p) => (
             <li key={p.id} className="flex items-center gap-3 text-[13px]">
