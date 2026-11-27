@@ -1,12 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { EDITION } from "@/config/edition";
 import { hasSessionCookie } from "@/lib/session";
 
 /**
- * La racine du site est la landing, rendue statiquement pour les visiteurs. Avec une session ouverte, la même adresse
- * sert l'accueil de l'application (app/(app)/home), sans changer l'adresse affichée.
+ * Avec une session ouverte, la racine sert l'accueil de l'application (app/(app)/home), sans changer l'adresse affichée.
+ * Sans session : la page d'accueil publique, rendue statiquement, si l'instance en a une (config/edition.ts) ; sinon la
+ * connexion.
  */
 export function proxy(request: NextRequest) {
-  return hasSessionCookie(request.cookies) ? NextResponse.rewrite(new URL("/home", request.url)) : NextResponse.next();
+  if (hasSessionCookie(request.cookies)) return NextResponse.rewrite(new URL("/home", request.url));
+  return EDITION.landing ? NextResponse.next() : NextResponse.redirect(new URL("/login", request.url));
 }
 
 export const config = { matcher: "/" };

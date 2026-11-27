@@ -1,10 +1,10 @@
-import { SEO } from "@/components/landing/content";
-import { SignupForm, WaitlistForm } from "@/components/marketing/auth-forms";
-import { pageMetadata } from "@/components/marketing/metadata";
+import { AUTH_SEO } from "@/components/auth/content";
+import { SignupForm, WaitlistForm } from "@/components/auth/forms";
+import { authMetadata } from "@/components/auth/metadata";
 import { SIGNUP_OPEN } from "@/config/site";
 
 export const dynamic = "force-static";
-export const metadata = pageMetadata(SEO.signup, "/signup");
+export const metadata = authMetadata(AUTH_SEO.signup, "/signup");
 
 /**
  * Inscription : adresse e-mail et mot de passe ; le compte s'ouvre une fois l'adresse vérifiée. Inscriptions fermées

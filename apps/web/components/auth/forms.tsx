@@ -8,12 +8,13 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/misc";
-import { AUTH, HERO_VARIANT, HERO_VARIANTS } from "@/components/landing/content";
-import { AuthLayout } from "./auth-layout";
+import { EDITION } from "@/config/edition";
 import { clearCache } from "@/lib/cache";
+import { AUTH } from "./content";
+import { AuthLayout } from "./layout";
 
 /*
- * Formulaires d'inscription et de mot de passe du site marketing. Ils parlent aux routes /auth/* du serveur web, qui
+ * Formulaires d'inscription et de mot de passe. Ils parlent aux routes /auth/* du serveur web, qui
  * relaient à l'API ; les pages qui les portent restent statiques (le lien reçu par e-mail est lu dans l'adresse, côté
  * navigateur).
  */
@@ -49,7 +50,7 @@ const param = (name: string) => new URLSearchParams(window.location.search).get(
 /** Un écran de compte : la moitié droite d'AuthLayout, avec son titre et son chapeau. */
 function Card({ title, lead, children }: { title: string; lead?: ReactNode; children: ReactNode }) {
   return (
-    <AuthLayout tagline={HERO_VARIANTS[HERO_VARIANT].h1}>
+    <AuthLayout tagline={EDITION.tagline}>
       <div className="grid gap-7">
         <header className="grid gap-2.5">
           <h1 className="text-[2rem] leading-[1.06] font-[450] tracking-[-0.035em] text-balance sm:text-[2.25rem]">{title}</h1>
@@ -134,10 +135,12 @@ export function SignupForm() {
         </Field>
         {error && <Alert variant="destructive">{error}</Alert>}
         <Submit busy={busy}>{AUTH.signup.submit}</Submit>
-        <p className="text-[13px] leading-relaxed text-muted-foreground">
-          {AUTH.signup.terms[0]} <Link href="/cgu" className={LINK}>{AUTH.signup.terms[1]}</Link> {AUTH.signup.terms[2]}{" "}
-          <Link href="/confidentialite" className={LINK}>{AUTH.signup.terms[3]}</Link>.
-        </p>
+        {EDITION.legal && (
+          <p className="text-[13px] leading-relaxed text-muted-foreground">
+            {AUTH.signup.terms[0]} <Link href={EDITION.legal.terms} className={LINK}>{AUTH.signup.terms[1]}</Link> {AUTH.signup.terms[2]}{" "}
+            <Link href={EDITION.legal.privacy} className={LINK}>{AUTH.signup.terms[3]}</Link>.
+          </p>
+        )}
       </form>
       <p className="text-sm text-muted-foreground">{AUTH.signup.haveAccount} <Link href="/login" className={LINK}>{AUTH.login}</Link></p>
     </Card>
@@ -201,7 +204,8 @@ export function WaitlistForm() {
         {error && <Alert variant="destructive">{error}</Alert>}
         <Submit busy={busy}>{AUTH.waitlist.submit}</Submit>
         <p className="text-[13px] leading-relaxed text-muted-foreground">
-          {AUTH.waitlist.privacy[0]} <Link href="/confidentialite" className={LINK}>{AUTH.waitlist.privacy[1]}</Link>.
+          {AUTH.waitlist.privacy[0]}
+          {EDITION.legal && <> <Link href={EDITION.legal.privacy} className={LINK}>{AUTH.waitlist.privacy[1]}</Link>.</>}
         </p>
       </form>
       <p className="text-sm text-muted-foreground">{AUTH.waitlist.haveAccount} <Link href="/login" className={LINK}>{AUTH.login}</Link></p>
