@@ -235,4 +235,10 @@ export const INSIGHTS: Record<string, string> = {
   "Ambassadeur": "Ambassador",
   "Dexlane offert grâce au parrainage": "Dexlane free thanks to referrals",
   "niveau {n} de la boutique": "shop level {n}",
+
+  // Fuseau horaire (#98)
+  "Statistiques et progression": "Statistics and progress",
+  "Fuseau horaire": "Time zone",
+  "Les semaines et les mois des statistiques commencent à minuit, dans ce fuseau.": "Statistics weeks and months start at midnight, in this time zone.",
+  "Utiliser celui de cet appareil ({timezone})": "Use this device's ({timezone})",
 };

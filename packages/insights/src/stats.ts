@@ -1,5 +1,5 @@
 import type { Db } from "@dexlane/db";
-import { ebayFeesSynced, minutesSavedPerListing } from "./config/progression";
+import { minutesSavedPerListing } from "./config/progression";
 import { type Period } from "./period";
 import { countedOrder, median } from "./sql";
 
@@ -18,11 +18,11 @@ export interface SellerStats {
   /** Prix des lignes vendues (prix × quantité), hors port ; une ligne par devise, sans conversion. */
   revenue: Amount[] | null;
   margin: {
-    /** CA des lignes au prix d'achat connu − ce prix d'achat − les frais eBay s'ils sont synchronisés. */
+    /** CA des lignes au prix d'achat connu − ce prix d'achat − les frais de la marketplace connus. */
     amounts: Amount[];
     /** Part des cartes vendues dont le prix d'achat est connu, en %. */
     coveragePercent: number;
-    /** Des ventes eBay sont comptées sans leurs frais (frais non synchronisés). */
+    /** Des ventes eBay sont comptées sans leurs frais (pas encore synchronisés). */
     ebayFeesMissing: boolean;
   } | null;
   /** Quantités vendues ; un lot compte pour 1. */
@@ -57,6 +57,8 @@ interface SoldLine {
   qty: number;
   unitPriceCents: number;
   feeCents: number;
+  /** Les frais de la commande sont connus (synchronisés depuis le canal). */
+  feesKnown: boolean;
   currency: string;
   channel: string;
   orderedAt: Date;
@@ -73,6 +75,7 @@ interface SoldLine {
 export function soldLines(sql: Db, period: Pick<Period, "start" | "end" | "timezone">) {
   return sql<SoldLine[]>`
     select ol.id as order_line_id, o.id as order_id, ol.qty, ol.unit_price_cents, ol.fee_allocated_cents as fee_cents,
+           o.fees_synced_at is not null as fees_known,
            o.currency, o.channel, o.ordered_at,
            to_char(date_trunc('week', o.ordered_at at time zone ${period.timezone}), 'YYYY-MM-DD') as week,
            c.id as catalog_card_id, coalesce(off.lot_title, c.name) as name, st.name as set_name,
@@ -167,10 +170,11 @@ export async function sellerStats(sql: Db, period: Period): Promise<SellerStats>
       ? {
           amounts: byCurrency(known.map((l) => ({
             currency: l.currency,
-            cents: l.qty * l.unitPriceCents - Number(l.costCents) - (ebayFeesSynced ? l.feeCents : 0),
+            cents: l.qty * l.unitPriceCents - Number(l.costCents) - l.feeCents,
           }))),
           coveragePercent: Math.round((knownUnits / units) * 100),
-          ebayFeesMissing: !ebayFeesSynced && known.some((l) => l.channel === "ebay"),
+          // Des ventes eBay dont les frais ne sont pas (encore) connus : la marge les compte sans frais.
+          ebayFeesMissing: known.some((l) => l.channel === "ebay" && !l.feesKnown),
         }
       : null,
     cardsSold: lines.length ? units : null,

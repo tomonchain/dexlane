@@ -13,6 +13,12 @@ Retiré), avec le numéro de l'issue qu'il traite.
 ## [Non publié]
 
 ### Ajouté
+- Frais eBay : relus à chaque synchronisation et déduits de la marge (statistiques, vente, 30 derniers jours) ; la
+  mention « Frais eBay non inclus » ne reste que pour les ventes dont les frais ne sont pas encore connus (migration 0041) (#95).
+- Remboursements : une vente remise se rembourse (bouton « Rembourser ») ; un remboursement complet ou une annulation
+  faits sur eBay sont repris à la synchronisation. Une vente remboursée ne compte plus (#96).
+- Fuseau horaire choisi dans Compte (celui de l'appareil est proposé) ; celui du propriétaire sert à la régularité et aux
+  récaps (#98).
 - Statistiques : onglet « Résumé » par défaut, avec sélecteur de période (ce mois-ci, mois dernier, 90 jours,
   12 mois), chiffre d'affaires par devise, marge et sa couverture, cartes vendues, taux d'écoulement, délai médian de
   vente, temps gagné estimé, ventes par semaine et 10 meilleures ventes, dans le fuseau de l'utilisateur ; journal

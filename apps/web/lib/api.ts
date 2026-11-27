@@ -262,6 +262,7 @@ export const api = {
   handOver: (orderId: string, input: { tracking?: string; carrier?: Carrier; postageCostCents?: number }) =>
     request<OrderDetail>("POST", `/orders/${orderId}/handover`, { json: input }),
   cancelOrder: (orderId: string, reason: string) => request<OrderDetail>("POST", `/orders/${orderId}/cancel`, { json: { reason } }),
+  refundOrder: (orderId: string, reason: string) => request<OrderDetail>("POST", `/orders/${orderId}/refund`, { json: { reason } }),
 
   pricingSettings: () => request<PricingSettings>("GET", "/pricing/settings"),
   savePricingSettings: (settings: PricingSettings) =>

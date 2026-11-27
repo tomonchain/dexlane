@@ -380,10 +380,17 @@ Le paquet `packages/insights` (#83 à #86) ; toutes les valeurs réglables sont 
   chaque nuit pour rattraper un oubli). Les commandes de l'acheteur fictif de la simulation (« SIM-… ») ne comptent nulle part.
 - **Statistiques › Résumé** (`GET /api/insights/stats?period=this_month|last_month|90d|12m`) : chiffre d'affaires par
   devise (sans conversion, hors port, ventes annulées, remboursées ou retournées exclues), marge sur les lignes au prix
-  d'achat connu (coût saisi, ou lot d'acquisition) avec sa couverture — les frais eBay ne sont pas encore synchronisés,
-  la marge le dit —, cartes vendues (un lot compte pour 1), écoulement, délai médian entre mise en ligne et vente, temps
-  gagné estimé, ventes par semaine ISO et 10 meilleures ventes, découpés dans le fuseau de l'utilisateur
-  (`user_preferences.timezone`, Europe/Paris par défaut). Sans donnée : « — ».
+  d'achat connu (coût saisi, ou lot d'acquisition), frais de la marketplace déduits quand ils sont connus, avec sa
+  couverture — une vente eBay dont les frais ne sont pas encore synchronisés est signalée (« Frais eBay non inclus ») —,
+  cartes vendues (un lot compte pour 1), écoulement, délai médian entre mise en ligne et vente, temps gagné estimé,
+  ventes par semaine ISO et 10 meilleures ventes, découpés dans le fuseau de l'utilisateur (`user_preferences.timezone`,
+  choisi dans Compte, Europe/Paris par défaut ; celui du propriétaire sert à la tâche quotidienne). Sans donnée : « — ».
+- **Frais et remboursements des commandes** (migration 0041) : à chaque synchronisation, eBay est relu pour les commandes
+  modifiées, remises comprises. Les frais de la commande (`totalMarketplaceFee`) sont répartis sur ses lignes
+  (`order_lines.fee_allocated_cents`, `orders.fees_synced_at`) et déduits de la marge (statistiques, vente, 30 derniers
+  jours). Une commande annulée sur eBay avant la remise est annulée dans Dexlane (cartes remises en vente) ; un
+  remboursement complet après la remise la marque remboursée (`orders.refunded_at`, événement `sale_refunded`) : elle
+  ne compte plus. Une vente remise se rembourse aussi à la main (`POST /api/orders/:id/refund`, bouton « Rembourser »).
 - **Cartes dormantes** (`/api/insights/dormant`, `/preview`, `/reprice`, `/lot`, `/withdraw`) : en ligne depuis plus
   de 90 jours, encore en stock, sans vente depuis la mise en ligne. Baisse de prix en deux temps (aperçu, puis
   `confirm: true`), regroupement en lot, retrait de la vente. Rappel sur l'accueil à partir de 10 cartes.

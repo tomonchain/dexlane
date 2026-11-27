@@ -210,7 +210,7 @@ export function registerInsightsRoutes(app: Hono<Env>, deps: InsightsRoutesDeps)
    * ventes et recalcule niveau, succès et avantages, génère les récaps dus et les annonce par e-mail.
    */
   app.post("/api/insights/daily", async (c) => {
-    const timezone = progressionConfig.defaultTimezone;
+    const timezone = await accountTimezone(root, sql, c.var.accountId);
     const rebuilt = await rebuildJournal(sql);
     const progress = await evaluateProgress(sql, { timezone, hooks: deps.perkHooks });
     const recaps = await generateDueRecaps(sql, { timezone });
@@ -260,8 +260,18 @@ export function registerInsightsRoutes(app: Hono<Env>, deps: InsightsRoutesDeps)
   });
 }
 
+/**
+ * Le fuseau du compte : celui que son propriétaire (le premier utilisateur inscrit) a choisi, sinon celui par défaut.
+ * Il découpe les semaines de régularité et les mois des récaps.
+ */
+export async function accountTimezone(root: Db, sql: Db, accountId: string): Promise<string> {
+  const [owner] = await root<{ id: string }[]>`select id from auth_users where "accountId" = ${accountId} order by "createdAt", id limit 1`;
+  return (await getPreferences(sql, owner?.id)).timezone;
+}
+
 /** Réévalue niveau et succès après un changement qui peut en débloquer (publication, vente, stock). */
-export function evaluateAfterChange(sql: Db, hooks: PerkHooks) {
-  return withTx(sql, () => evaluateProgress(sql, { timezone: progressionConfig.defaultTimezone, hooks }));
+export async function evaluateAfterChange(root: Db, sql: Db, accountId: string, hooks: PerkHooks) {
+  const timezone = await accountTimezone(root, sql, accountId);
+  return withTx(sql, () => evaluateProgress(sql, { timezone, hooks }));
 }
 

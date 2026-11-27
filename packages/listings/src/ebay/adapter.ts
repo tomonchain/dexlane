@@ -1,7 +1,7 @@
 import type { Db } from "@dexlane/db";
 import type { CardCondition, ShippingMode } from "@dexlane/inventory";
 import { DomainError } from "@dexlane/shared";
-import type { ChannelAdapter, ChannelOrder, PublishInput } from "../channels";
+import type { ChannelAdapter, ChannelOrder, ChannelOrderUpdate, PublishInput } from "../channels";
 import { describeErrors, type EbayClient, type EbayErrorDetail } from "./api";
 import { buildAspects, categoryAspects, missingAspects } from "./aspects";
 import { EBAY_MARKETPLACES, getEbaySettings, missingEbaySettings, type EbaySettings } from "./setup";
@@ -204,6 +204,36 @@ export function ebayAdapter(sql: Db, client: EbayClient): ChannelAdapter {
       }
       return orders;
     },
+
+    async fetchOrderUpdates(since) {
+      await ready();
+      // Toutes les commandes modifiées (remises comprises) : les frais d'eBay arrivent après le paiement, un
+      // remboursement ou une annulation après l'import.
+      const from = new Date((since?.getTime() ?? Date.now() - 28 * 86_400_000) - 2 * 86_400_000);
+      const filter = `lastmodifieddate:[${from.toISOString()}..]`;
+      const updates: ChannelOrderUpdate[] = [];
+      for (let offset = 0; ; offset += 200) {
+        const page = await client.request<{ orders?: EbayOrder[]; total?: number }>(
+          "GET", `/sell/fulfillment/v1/order?filter=${encodeURIComponent(filter)}&limit=200&offset=${offset}`);
+        for (const raw of page?.orders ?? []) {
+          const update = toOrderUpdate(raw);
+          if (update) updates.push(update);
+        }
+        if (!page?.orders?.length || offset + 200 >= (page.total ?? 0)) break;
+      }
+      return updates;
+    },
+  };
+}
+
+/** Ce qu'une commande eBay dit de ses frais, de son remboursement et de son annulation ; null si elle n'est pas de Dexlane. */
+export function toOrderUpdate(o: EbayOrder): ChannelOrderUpdate | null {
+  if (!(o.lineItems ?? []).some((l) => l.sku)) return null;
+  return {
+    externalId: o.orderId,
+    feeCents: o.totalMarketplaceFee?.value !== undefined ? cents(o.totalMarketplaceFee) : null,
+    refunded: o.orderPaymentStatus === "FULLY_REFUNDED",
+    cancelled: o.cancelStatus?.cancelState === "CANCELED",
   };
 }
 
@@ -218,6 +248,8 @@ export interface EbayOrder {
   cancelStatus?: { cancelState?: string };
   buyer?: { username?: string };
   pricingSummary?: { deliveryCost?: EbayAmount; deliveryDiscount?: EbayAmount };
+  /** Frais d'eBay pour la commande (frais de vente, de paiement), connus une fois la commande payée. */
+  totalMarketplaceFee?: EbayAmount;
   fulfillmentStartInstructions?: { shippingStep?: { shippingServiceCode?: string; shipTo?: { fullName?: string; contactAddress?: EbayAddress } } }[];
   lineItems?: {
     lineItemId: string;

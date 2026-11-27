@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
+import { Field, Select } from "@/components/ui/input";
 import { SwitchRow } from "@/components/ui/switch";
 import { insights, levelLabel, salesToGo, type HomeInsights, type Preferences } from "@/lib/insights";
 import { t, tn } from "@/lib/i18n";
@@ -68,7 +69,7 @@ export function AccountInsights() {
         <Card>
           <CardContent className="grid gap-3">
             <div className="grid gap-1">
-              <CardTitle>{prefs.recapEmailAvailable ? t("Progression et récaps") : t("Progression")}</CardTitle>
+              <CardTitle>{prefs.recapEmailAvailable ? t("Progression et récaps") : t("Statistiques et progression")}</CardTitle>
               <CardDescription>{t("Tes réglages à toi, pas ceux de toute l'équipe.")}</CardDescription>
             </div>
             <SwitchRow label={t("Afficher le niveau et les succès")}
@@ -78,10 +79,40 @@ export function AccountInsights() {
               <SwitchRow label={t("E-mail du récap mensuel")} description={t("Un e-mail court le 1er du mois, avec le lien vers ton récap.")}
                 checked={prefs.recapEmail} onCheckedChange={(on) => save({ recapEmail: on })} />
             )}
+            <TimezoneField value={prefs.timezone} onChange={(timezone) => save({ timezone })} />
             {error && <Alert variant="destructive">{error}</Alert>}
           </CardContent>
         </Card>
       )}
     </>
+  );
+}
+
+/** Les fuseaux connus du navigateur ; à défaut, le fuseau actuel et celui du navigateur. */
+function timezones(current: string, browser: string): string[] {
+  const all = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [];
+  return [...new Set([current, browser, ...all])].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Le fuseau des statistiques (semaines, mois, périodes) ; celui du propriétaire du compte sert aussi à la régularité et
+ * aux récaps. Le navigateur propose le sien quand il diffère.
+ */
+function TimezoneField({ value, onChange }: { value: string; onChange: (timezone: string) => void }) {
+  const [browser, setBrowser] = useState(value);
+  useEffect(() => setBrowser(Intl.DateTimeFormat().resolvedOptions().timeZone || value), [value]);
+  return (
+    <div className="grid gap-1.5 py-1">
+      <Field label={t("Fuseau horaire")} hint={t("Les semaines et les mois des statistiques commencent à minuit, dans ce fuseau.")}>
+        <Select value={value} onChange={(e) => onChange(e.target.value)} data-testid="timezone">
+          {timezones(value, browser).map((tz) => <option key={tz} value={tz}>{tz.replace(/_/g, " ")}</option>)}
+        </Select>
+      </Field>
+      {browser !== value && (
+        <button type="button" onClick={() => onChange(browser)} className="justify-self-start text-xs font-medium text-primary underline-offset-2 hover:underline">
+          {t("Utiliser celui de cet appareil ({timezone})", { timezone: browser.replace(/_/g, " ") })}
+        </button>
+      )}
+    </div>
   );
 }
