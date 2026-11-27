@@ -7,7 +7,8 @@ Le README décrit l'application ; ce fichier dit comment y travailler. Le dépô
 
 - Chaque changement part d'une issue de `tomonchain/dexlane`. Pas d'issue : en créer une avant de coder (modèles
   « Bug » et « Tâche »), avec l'étiquette du domaine (`go-live`, `billing`, `infra`, `legal`, `security`, `seo-geo`, `bug`).
-- Les suivis d'ensemble sont les issues chapeau : #44 (go-live, v1.0) et #55 (SEO / GEO). Une nouvelle issue de ces
+- Les suivis d'ensemble sont les issues chapeau : #44 (go-live, v1.0) et #55 (SEO / GEO, pour le site de l'édition
+  hébergée). Une nouvelle issue de ces
   domaines y est rattachée comme sous-issue.
 - Le commit qui termine une issue la ferme : `Closes #n` dans son message. Un commit partiel la cite (`#n`) sans la fermer.
 - Ce qui reste à faire, une idée ou un bug vu en passant : une issue, pas un TODO dans le code ni une liste dans le README.
@@ -17,8 +18,8 @@ Le README décrit l'application ; ce fichier dit comment y travailler. Le dépô
 ## Livraison
 
 - On travaille sur une branche `claude/**`. Un push y lance la CI (types, tests, parcours navigateur) sur le résultat
-  fusionné avec `main` ; verte, elle fusionne dans `main` et Vercel déploie la production. Étiquette `hold` sur la pull
-  request pour retenir une livraison.
+  fusionné avec `main` ; verte, elle fusionne dans `main`. L'édition hébergée reprend alors `main` et Vercel déploie la
+  production depuis elle (#105). Étiquette `hold` sur la pull request pour retenir une livraison.
 - Les migrations (`infra/migrations`) s'appliquent au déploiement de production : jamais modifier une migration déjà
   appliquée, en ajouter une nouvelle. Préversions et production partagent la base tant que #51 n'est pas fait.
 
@@ -35,4 +36,7 @@ Le README décrit l'application ; ce fichier dit comment y travailler. Le dépô
 - Textes de l'interface en français dans `t()`, traduction anglaise dans `apps/web/lib/i18n/en` (vérifié par
   `pnpm --filter @dexlane/web test`).
 - Avant de pousser : `pnpm typecheck` et `pnpm test` (base de test : `TEST_DATABASE_URL`).
+- Ce dépôt est le cœur : une installation sert une boutique. Ce qui ne sert qu'à l'édition hébergée (site public,
+  puis comptes multiples, forfaits, facturation) n'y entre pas ; elle s'y accroche par `apps/web/config/edition.ts`
+  (#105). Un réglage nouveau s'y ajoute avec sa valeur pour une installation.
 - `apps/web/AGENTS.md` : la version de Next.js utilisée a ses propres conventions, lire sa doc locale.

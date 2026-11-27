@@ -11,6 +11,9 @@ Pokémon : scan, stock, prix, publication eBay, ventes et envois. Ce guide dit c
   sur le besoin et l'approche, et personne ne travaille pour rien.
 - **Une faille de sécurité** : jamais en issue publique. Voir [SECURITY.md](SECURITY.md).
 - Les grands chantiers sont suivis dans deux issues chapeau : le lancement de la 1.0 (#44) et le référencement (#55).
+- Ce dépôt est l'application qu'on installe pour sa boutique. Le service hébergé dexlane.app la reprend et y ajoute son
+  site public, qui n'est pas dans ce dépôt (#105). Les contributions extérieures demanderont un accord de contribution
+  avant d'être fusionnées (#106).
 
 ## Installer le projet
 
