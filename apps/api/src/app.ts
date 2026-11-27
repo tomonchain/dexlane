@@ -27,6 +27,7 @@ import { activeAccountIds, createAuth, ownerExists, publicBaseUrl, setupOwner, t
 import { mailerFromEnv, type Mailer } from "./mailer";
 import { registerAccountRoutes } from "./account";
 import { evaluateAfterChange, hostedPerkHooks, registerInsightsRoutes } from "./insights";
+import { guardSignup, registerWaitlistRoutes, signupModeFromEnv, type SignupMode } from "./waitlist";
 import { runForAccount, scopedDb } from "./scope";
 import { createMcpServer, type InternalCall } from "./mcp";
 import { trackingFromEnv, type TrackingAdapters } from "./tracking";
@@ -76,6 +77,8 @@ export interface AppDeps {
   perkHooks?: PerkHooks;
   /** Envoyer l'e-mail qui annonce le récap ; par défaut, la configuration de la progression (coupé pour le moment). */
   recapEmails?: boolean;
+  /** Inscriptions ouvertes, ou liste d'attente ; par défaut `DEXLANE_SIGNUP` (liste d'attente sauf `open`). */
+  signup?: SignupMode;
   onError?: (err: unknown) => void;
 }
 
@@ -93,6 +96,7 @@ export function createApp(deps: AppDeps) {
   const ebay = deps.ebay !== undefined ? deps.ebay : ebayClientFromEnv(sql, process.env);
   const live: ChannelAdapters = deps.channels ?? (ebay ? { ebay: ebayAdapter(sql, ebay) } : {});
   const perkHooks = deps.perkHooks ?? hostedPerkHooks;
+  const signupMode = deps.signup ?? signupModeFromEnv();
 
   app.onError((err, c) => {
     if (err instanceof HttpError) return c.json(errorBody(err.code, err.message, err.details), err.status);
@@ -145,7 +149,11 @@ export function createApp(deps: AppDeps) {
       throw new HttpError(401, "UNAUTHORIZED", "missing or invalid bearer token");
     }
     // Connexion, inscription, vérification de l'adresse, mot de passe, administration : les routes de BetterAuth.
-    if (c.req.path.startsWith("/api/auth/")) return auth().handler(c.req.raw);
+    if (c.req.path.startsWith("/api/auth/")) {
+      // Inscriptions fermées : pas de nouveau compte (liste d'attente), sauf sur invitation d'une équipe.
+      if (c.req.method === "POST" && c.req.path === "/api/auth/sign-up/email") await guardSignup(root, signupMode, c.req.raw);
+      return auth().handler(c.req.raw);
+    }
 
     let accountId: string;
     if (c.req.header("X-Dexlane-Browser") === "1") {
@@ -244,6 +252,9 @@ export function createApp(deps: AppDeps) {
     },
     removePhoto: deps.photos ? (url) => deps.photos!.remove(url) : null,
   });
+
+  // Inscriptions et liste d'attente (waitlist.ts).
+  registerWaitlistRoutes(app, { root, mode: signupMode });
 
   // Statistiques, démarrage, récaps, niveau et succès (insights.ts).
   registerInsightsRoutes(app, {

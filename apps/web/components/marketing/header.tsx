@@ -85,7 +85,7 @@ export function MarketingHeader({ showGuides = false }: { showGuides?: boolean }
           >
             {NAV.login}
           </Link>
-          <Cta href={SIGNUP_URL} size="sm">{CTA.primary}</Cta>
+          <Cta href={SIGNUP_URL} size="sm">{CTA.header}</Cta>
           <button
             ref={buttonRef}
             type="button"

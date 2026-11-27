@@ -36,6 +36,8 @@ export default defineConfig({
         DEXLANE_API_URL: `http://127.0.0.1:${E2E_API_PORT}`,
         DEXLANE_API_TOKEN: E2E_TOKEN,
         NEXT_DIST_DIR: ".next-e2e",
+        // Les parcours s'inscrivent : inscriptions ouvertes (sinon, /signup est une liste d'attente).
+        DEXLANE_SIGNUP: "open",
         NEXT_TELEMETRY_DISABLED: "1",
       },
       reuseExistingServer: false,

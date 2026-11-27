@@ -6,6 +6,7 @@
  * commentaire `[À CONFIRMER]`. Les prix et quotas vivent dans config/plans.ts.
  */
 import { FREE_PLAN, OVERAGE_PACK, PARCEL_OFFER, formatCards, formatEuros } from "@/config/plans";
+import { SIGNUP_OPEN } from "@/config/site";
 
 const FREE = formatCards(FREE_PLAN.cardsPerMonth);
 const PACK = `${formatCards(OVERAGE_PACK.cards)} cartes`;
@@ -40,7 +41,9 @@ export const SEO = {
     title: "Tu viens de recevoir une carte vendue avec Dexlane.",
     description: `Les tiennes peuvent partir aussi vite. Ton code ${PARCEL_OFFER.code} t'offre ${PARCEL_OFFER.offer}.`,
   },
-  signup: { title: "Crée ton compte — Dexlane", description: `${FREE} cartes offertes chaque mois. Sans carte bancaire.` },
+  signup: SIGNUP_OPEN
+    ? { title: "Crée ton compte — Dexlane", description: `${FREE} cartes offertes chaque mois. Sans carte bancaire.` }
+    : { title: "Liste d'attente — Dexlane", description: "Dexlane ouvre bientôt : laisse ton adresse, on te prévient dès que tu peux créer ton compte." },
   forgotPassword: { title: "Mot de passe oublié — Dexlane", description: "Reçois par e-mail un lien pour choisir un nouveau mot de passe Dexlane." },
   notFound: "Cette page n'existe pas.",
 } satisfies Record<string, PageSeo | string>;
@@ -76,7 +79,10 @@ export const HERO_VARIANTS = {
 export const HERO_VARIANT: keyof typeof HERO_VARIANTS = "A";
 
 export const CTA = {
-  primary: "Essayer gratuitement",
+  /** Inscriptions fermées : les boutons mènent à la liste d'attente (#103). */
+  primary: SIGNUP_OPEN ? "Essayer gratuitement" : "Rejoindre la liste d'attente",
+  /** Le bouton de l'en-tête, plus court quand les inscriptions sont fermées. */
+  header: SIGNUP_OPEN ? "Essayer gratuitement" : "Liste d'attente",
   /** Variante à tester du CTA principal. */
   primaryVariant: `Publier mes ${FREE} premières cartes`,
   secondary: "Voir le code sur GitHub",
@@ -86,7 +92,7 @@ export const HERO = {
   eyebrow: "Pour les vendeurs de cartes Pokémon",
   subtitle:
     "Dexlane prépare l'annonce complète (titre, catégorie, état, prix) et la publie sur ton compte eBay. Toi, tu valides. Une carte ou cinq cents d'un coup.",
-  underCta: `${FREE} cartes offertes chaque mois. Sans carte bancaire.`,
+  underCta: SIGNUP_OPEN ? `${FREE} cartes offertes chaque mois. Sans carte bancaire.` : `Ouverture prochaine. ${FREE} cartes offertes chaque mois, sans carte bancaire.`,
   reassurance: ["Connexion eBay officielle", "Code open-source", "Sans engagement"],
 };
 
@@ -328,6 +334,17 @@ export const AUTH = {
     resend: "Renvoyer l'e-mail",
     resent: "Si l'adresse est correcte, un nouvel e-mail vient de partir.",
   },
+  waitlist: {
+    title: "Rejoins la liste d'attente",
+    lead: "Dexlane ouvre bientôt ses inscriptions. Laisse ton adresse : on te prévient dès que tu peux créer ton compte.",
+    volume: "Combien de cartes vends-tu par mois ?",
+    volumes: [["", "Je ne sais pas encore"], ["lt50", "Moins de 50"], ["50-200", "50 à 200"], ["200-1000", "200 à 1 000"], ["gt1000", "Plus de 1 000"]] as [string, string][],
+    submit: "Rejoindre la liste d'attente",
+    privacy: ["Ton adresse sert seulement à te prévenir de l'ouverture.", "Confidentialité"],
+    haveAccount: "Déjà un compte ?",
+    doneTitle: "C'est noté",
+    doneText: "On écrira à {email} dès l'ouverture des inscriptions. Rien d'autre.",
+  },
   verify: {
     title: "On ouvre ton compte",
     pending: "Vérification de ton adresse…",
@@ -354,6 +371,7 @@ export const AUTH = {
     LINK_EXPIRED: "Ce lien est invalide, expiré ou déjà utilisé.",
     TOO_MANY_ATTEMPTS: "Trop d'essais. Réessaie dans une minute.",
     EMAIL_NOT_CONFIGURED: "L'envoi d'e-mails n'est pas encore configuré sur ce serveur.",
+    SIGNUP_CLOSED: "Les inscriptions ne sont pas encore ouvertes : rejoins la liste d'attente.",
     API_UNREACHABLE: "Le serveur ne répond pas. Réessaie dans un instant.",
     DEFAULT: "Quelque chose n'a pas fonctionné. Réessaie dans un instant.",
   },
