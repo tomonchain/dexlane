@@ -313,4 +313,13 @@ export const SALES: Record<string, string> = {
   "Relié": "Connected",
   "Non relié": "Not connected",
   "Les identifiants se renseignent dans les variables d'environnement du déploiement (Vercel), jamais dans l'application.": "Credentials go in the deployment's environment variables (Vercel), never in the app.",
+  // Remboursements et frais (#95, #96)
+  "Rembourser": "Refund",
+  "Rembourser la vente": "Refund the sale",
+  "Remboursée": "Refunded",
+  "Remboursement complet, déjà fait auprès de l'acheteur : la vente ne compte plus dans les statistiques ni dans ton niveau. Les cartes ne reviennent pas en stock.": "Full refund, already made to the buyer: the sale no longer counts in statistics or in your level. The cards do not go back into stock.",
+  "Ex. carte abîmée pendant le transport": "E.g. card damaged in transit",
+  "Vente remboursée : elle ne compte plus dans les statistiques": "Sale refunded: it no longer counts in statistics",
+  "Frais eBay": "eBay fees",
+  "pas encore connus": "not known yet",
 };

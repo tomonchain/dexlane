@@ -7,7 +7,7 @@ import { DomainError } from "@dexlane/shared";
  */
 export const voidedOrder = (sql: Db) => sql`(
   o.fulfillment_status = 'CANCELLED'
-  or o.payment_status in ('REFUNDED', 'CANCELLED')
+  or o.payment_status in ('REFUNDED', 'CANCELLED') or o.refunded_at is not null
   or exists (select 1 from shipments sh where sh.order_id = o.id and sh.status = 'RETURNED')
   or exists (select 1 from account_events e
               where e.dedupe_key in ('sale_cancelled:' || o.id::text, 'sale_refunded:' || o.id::text, 'sale_returned:' || o.id::text))

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, CircleSlash, MapPin, PackageCheck, Send, X } from "lucide-react";
+import { Check, CircleSlash, MapPin, PackageCheck, Send, Undo2, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
@@ -34,7 +34,7 @@ export default function SalePage() {
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [modal, setModal] = useState<"handover" | "cancel" | null>(null);
+  const [modal, setModal] = useState<"handover" | "cancel" | "refund" | null>(null);
 
   const load = useCallback(() => {
     api.order(id).then(setOrder).catch((e: ApiError) => (e.status === 404 || e.status === 400 ? setNotFound(true) : setError(e.message)));
@@ -76,11 +76,14 @@ export default function SalePage() {
         meta={<>
           <Badge variant={STAGE_VARIANT[order.stage]} data-testid="order-stage">{t(STAGE_LABEL[order.stage])}</Badge>
           {order.shipment && <Badge variant="outline">{t(SHIPPING_LABEL[order.shipment.mode])}</Badge>}
+          {order.refundedAt && <Badge variant="destructive" data-testid="order-refunded">{t("Remboursée")}</Badge>}
           <span>{[order.buyerName, formatDateTime(order.orderedAt)].filter(Boolean).join(" · ")}</span>
         </>}
-        actions={order.stage !== "SHIPPED" && order.stage !== "CANCELLED" && (
+        actions={order.stage !== "SHIPPED" && order.stage !== "CANCELLED" ? (
           <Button variant="destructive" size="sm" onClick={() => setModal("cancel")} disabled={busy}><X /> {t("Annuler la vente")}</Button>
-        )}
+        ) : order.stage === "SHIPPED" && !order.refundedAt ? (
+          <Button variant="outline" size="sm" onClick={() => setModal("refund")} disabled={busy}><Undo2 /> {t("Rembourser")}</Button>
+        ) : null}
       />
 
       {order.stage !== "CANCELLED" && (
@@ -135,6 +138,10 @@ export default function SalePage() {
               <div className="flex justify-between font-medium"><dt>{t("Encaissé")}</dt><dd>{formatEuros(order.totals.grossCents)}</dd></div>
               <div className="flex justify-between"><dt className="text-muted-foreground">{t("Coût des cartes")}</dt><dd>− {formatEuros(order.totals.costCents)}</dd></div>
               <div className="flex justify-between"><dt className="text-muted-foreground">{t("Affranchissement")}</dt><dd>− {formatEuros(order.totals.postageCents)}</dd></div>
+              {(order.totals.feesCents > 0 || !order.totals.feesKnown) && (
+                <div className="flex justify-between"><dt className="text-muted-foreground">{t("Frais eBay")}</dt>
+                  <dd data-testid="order-fees">{order.totals.feesKnown ? `− ${formatEuros(order.totals.feesCents)}` : t("pas encore connus")}</dd></div>
+              )}
               <div className="flex justify-between"><dt className="text-muted-foreground">{t("Fournitures")} <span className="text-xs">({inPerson ? t("sleeve, top-loader") : t("sleeve, top-loader, enveloppe")})</span></dt><dd data-testid="order-supplies">− {formatEuros(order.totals.suppliesCents)}</dd></div>
               <div className="flex justify-between border-t pt-2 text-base font-semibold"><dt>{order.totals.estimated ? t("Marge estimée") : t("Marge")}</dt><dd data-testid="order-margin" className={order.totals.marginCents < 0 ? "text-destructive" : undefined}>{formatEuros(order.totals.marginCents)}</dd></div>
             </dl>
@@ -166,6 +173,9 @@ export default function SalePage() {
 
       {modal === "handover" && order.shipment && (
         <HandoverModal order={order} busy={busy} onClose={() => setModal(null)} onSubmit={(input) => run(() => api.handOver(order.id, input), inPerson ? t("Remise confirmée") : t("Dépôt confirmé"))} />
+      )}
+      {modal === "refund" && (
+        <RefundModal busy={busy} onClose={() => setModal(null)} onSubmit={(reason) => run(() => api.refundOrder(order.id, reason), t("Vente remboursée : elle ne compte plus dans les statistiques"))} />
       )}
       {modal === "cancel" && (
         <CancelModal busy={busy} onClose={() => setModal(null)} onSubmit={(reason) => run(() => api.cancelOrder(order.id, reason), t("Vente annulée, cartes remises en vente"))} />
@@ -283,6 +293,20 @@ function CancelModal({ busy, onClose, onSubmit }: { busy: boolean; onClose: () =
           <Textarea value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} placeholder={t("Ex. acheteur désisté")} required autoFocus className="min-h-20" />
         </Field>
         <Button type="submit" size="lg" variant="destructive" disabled={busy || !reason.trim()}>{t("Annuler la vente")}</Button>
+      </form>
+    </Modal>
+  );
+}
+
+function RefundModal({ busy, onClose, onSubmit }: { busy: boolean; onClose: () => void; onSubmit: (reason: string) => void }) {
+  const [reason, setReason] = useState("");
+  return (
+    <Modal title={t("Rembourser la vente")} description={t("Remboursement complet, déjà fait auprès de l'acheteur : la vente ne compte plus dans les statistiques ni dans ton niveau. Les cartes ne reviennent pas en stock.")} onClose={onClose}>
+      <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); onSubmit(reason.trim()); }}>
+        <Field label={t("Motif (obligatoire)")}>
+          <Textarea value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} placeholder={t("Ex. carte abîmée pendant le transport")} required autoFocus className="min-h-20" />
+        </Field>
+        <Button type="submit" size="lg" variant="destructive" disabled={busy || !reason.trim()}>{t("Rembourser la vente")}</Button>
       </form>
     </Modal>
   );

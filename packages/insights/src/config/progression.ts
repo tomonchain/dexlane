@@ -43,13 +43,6 @@ export const defaultTimezone = "Europe/Paris";
 export const defaultSellerCountry = "FR";
 
 /**
- * Les frais eBay d'une vente ne sont pas encore synchronisés (`order_lines.fee_allocated_cents` reste à 0) : la marge
- * s'affiche sans eux, avec la mention « Frais eBay non inclus ». À passer à `true` quand l'import des commandes les
- * renseignera.
- */
-export const ebayFeesSynced = false;
-
-/**
  * Parrainage : pas encore en place dans Dexlane. Tant qu'il ne l'est pas, ni le récap ni l'image de partage ne
  * proposent de lien `/r/{CODE}`, et les succès de parrainage restent verrouillés.
  */

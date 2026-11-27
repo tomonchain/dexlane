@@ -88,7 +88,8 @@ describe("direct sale", () => {
     const letter = await sale([{ offerId: pika.offer.id, qty: 2, unitPriceCents: 500 }], { shippingChargedCents: 150 });
     // Avant la remise : estimation avec l'affranchissement habituel et les fournitures (2 × (sleeve + top-loader) + enveloppe).
     expect((await getOrderDetail(sql, letter.orderId)).totals).toEqual({
-      grossCents: 1150, itemsCents: 1000, shippingChargedCents: 150, costCents: 200, postageCents: 152, suppliesCents: 45, marginCents: 753, estimated: true,
+      grossCents: 1150, itemsCents: 1000, shippingChargedCents: 150, costCents: 200, postageCents: 152, suppliesCents: 45,
+      feesCents: 0, feesKnown: true, marginCents: 753, estimated: true, // vente directe : pas de frais de marketplace
     });
     // À la remise sans affranchissement saisi : l'habituel est retenu. Les tarifs changés ensuite ne réécrivent pas la vente.
     await prepare(letter.orderId);
@@ -135,7 +136,7 @@ describe("direct sale", () => {
 
     const list = await listOrders(sql, { stage: "SHIPPED" });
     expect(list.items).toHaveLength(1);
-    expect(list.last30Days).toEqual({ orders: 1, grossCents: 1000, costCents: 200, postageCents: 143, suppliesCents: 0, marginCents: 657 });
+    expect(list.last30Days).toEqual({ orders: 1, grossCents: 1000, costCents: 200, postageCents: 143, suppliesCents: 0, feesCents: 0, marginCents: 657 });
     expect(await shipOrder(sql, { orderId, actor: ACTOR })).toMatchObject({ status: "ALREADY_HANDED_OVER" });
     expect(await journalDrift(sql)).toHaveLength(0);
   });

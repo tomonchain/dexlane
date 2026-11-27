@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { OWNER_ACCOUNT_ID } from "@dexlane/db";
 import { useTestDb } from "@dexlane/db/testing";
 import { createApp } from "../src/app";
-import { unsubscribeSignature } from "../src/insights";
+import { accountTimezone, unsubscribeSignature } from "../src/insights";
 import type { Mail } from "../src/mailer";
 
 const sql = useTestDb("api");
@@ -89,5 +89,26 @@ describe("insights routes", () => {
     expect((await call("POST", "/api/public/recap-email/unsubscribe", { a: OWNER_ACCOUNT_ID, u: "u1", s: good })).status).toBe(200);
     const [prefs] = await sql<{ recapEmail: boolean }[]>`select recap_email from user_preferences where user_id = 'u1'`;
     expect(prefs!.recapEmail).toBe(false);
+  });
+
+  it("takes the account time zone from its owner, the first user to sign up", async () => {
+    expect(await accountTimezone(sql, sql, OWNER_ACCOUNT_ID)).toBe("Europe/Paris");
+    await sql`insert into auth_users (id, name, email, "emailVerified", "accountId", "createdAt") values
+      ('owner', 'Sam', 'sam@example.test', true, ${OWNER_ACCOUNT_ID}, now() - interval '1 day'),
+      ('member', 'Lou', 'lou@example.test', true, ${OWNER_ACCOUNT_ID}, now())`;
+    await sql`insert into user_preferences (user_id, timezone) values ('owner', 'America/Montreal'), ('member', 'Asia/Tokyo')`;
+    expect(await accountTimezone(sql, sql, OWNER_ACCOUNT_ID)).toBe("America/Montreal");
+  });
+
+  it("refunds a sale only once it has been handed over", async () => {
+    const offerId = await seed();
+    const [order] = await sql<{ id: string }[]>`
+      insert into orders (channel, external_id, payment_status, gross_cents, currency, ordered_at) values ('direct', 'V-1', 'PAID', 1000, 'EUR', now()) returning id`;
+    await sql`insert into order_lines (order_id, offer_id, external_line_id, qty, unit_price_cents) values (${order!.id}, ${offerId}, '1', 1, 1000)`;
+    expect((await call("POST", `/api/orders/${order!.id}/refund`, { reason: "test" })).json.error.code).toBe("NOT_SHIPPED");
+    await sql`update orders set fulfillment_status = 'SHIPPED' where id = ${order!.id}`;
+    const refunded = await call("POST", `/api/orders/${order!.id}/refund`, { reason: "carte abîmée" });
+    expect(refunded.status).toBe(200);
+    expect(refunded.json.refundedAt).toBeTruthy();
   });
 });

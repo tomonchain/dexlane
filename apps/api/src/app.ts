@@ -6,7 +6,7 @@ import {
 } from "@dexlane/catalog";
 import { OWNER_ACCOUNT_ID, withAccount, withTx, type Db } from "@dexlane/db";
 import {
-  activateStock, addOfferPhoto, adjustStock, attachPhotos, cancelOrder, deletePhoto, getPhoto, saveListingPhoto, createAcquisitionLot, createDirectSale, createLocation, createLocations,
+  activateStock, addOfferPhoto, adjustStock, attachPhotos, cancelOrder, refundOrder, deletePhoto, getPhoto, saveListingPhoto, createAcquisitionLot, createDirectSale, createLocation, createLocations,
   deleteLocation, extractCardFromBulk, getInventorySummary, getOrderDetail, getShippingCosts, saveShippingCosts, listPreparation, markSlipsPrinted, getStockItemDetail, listAcquisitionLots,
   listLocations, listOrders, moveStock, packOrder, pickAllocation, receiveBulk, receiveCard, recordPhoto, resolveLocation,
   searchInventory, searchSellableOffers, shipOrder, updateLocationDescription,
@@ -192,7 +192,7 @@ export function createApp(deps: AppDeps) {
       // Une publication, une vente ou un rangement peut débloquer un succès : la progression est réévaluée aussitôt
       // (la nuit, la tâche quotidienne rattrape le reste, dont les ventes qui arrivent au bout du délai de confirmation).
       if (c.req.method !== "GET" && c.res.ok && /^\/api\/(orders|inventory|listings|publications|channels|scan-batches|lots)(\/|$)/.test(c.req.path)) {
-        await evaluateAfterChange(sql, perkHooks).catch(deps.onError ?? console.error);
+        await evaluateAfterChange(root, sql, c.var.accountId, perkHooks).catch(deps.onError ?? console.error);
       }
       // Un envoi remis ou un stock corrigé peut faire passer une fourniture sous son seuil : l'alerte part aussitôt.
       if (c.req.method !== "GET" && c.res.ok && /^\/api\/(orders|supplies|channels)(\/|$)/.test(c.req.path)) {
@@ -1138,6 +1138,14 @@ export function createApp(deps: AppDeps) {
   app.post("/api/orders/:id/review", async (c) => {
     const orderId = parse(s.orderId, c.req.param("id"));
     await markReviewRequested(sql, orderId, (await parseJsonBody(c, s.reviewBody)).requested);
+    return c.json(await getOrderDetail(sql, orderId));
+  });
+
+  /** Remboursement complet d'une vente déjà remise : elle ne compte plus (statistiques, niveau). */
+  app.post("/api/orders/:id/refund", async (c) => {
+    const orderId = parse(s.orderId, c.req.param("id"));
+    const { reason } = await parseJsonBody(c, s.cancelOrderBody);
+    await refundOrder(sql, orderId, c.var.actor, reason);
     return c.json(await getOrderDetail(sql, orderId));
   });
 

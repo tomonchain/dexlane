@@ -284,3 +284,30 @@ export function packOrder(sql: Db, orderId: string, actor: string): Promise<void
     await emit(tx, "PackagePacked", "order", orderId, { actor });
   });
 }
+
+// ───────────────────────── Frais de la marketplace ─────────────────────────
+
+/**
+ * Répartit les frais d'une commande sur ses lignes, au prorata de leur montant (méthode du plus fort reste : la somme
+ * des lignes vaut exactement les frais), et note que les frais de la commande sont connus.
+ */
+export async function setOrderFees(sql: Db, orderId: string, feeCents: number): Promise<void> {
+  assertCents(feeCents, "feeCents");
+  await withTx(sql, async (tx) => {
+    const lines = await tx<{ id: string; amount: number }[]>`
+      select id, (qty * unit_price_cents)::int as amount from order_lines where order_id = ${orderId} order by external_line_id, id`;
+    const total = lines.reduce((n, l) => n + l.amount, 0);
+    const shares = lines.map((l) => {
+      const exact = total === 0 ? feeCents / lines.length : (feeCents * l.amount) / total;
+      return { id: l.id, cents: Math.floor(exact), rest: exact - Math.floor(exact) };
+    });
+    let left = feeCents - shares.reduce((n, s) => n + s.cents, 0);
+    for (const s of [...shares].sort((a, b) => b.rest - a.rest)) {
+      if (left <= 0) break;
+      s.cents++;
+      left--;
+    }
+    for (const s of shares) await tx`update order_lines set fee_allocated_cents = ${s.cents} where id = ${s.id}`;
+    await tx`update orders set fees_synced_at = now(), updated_at = now() where id = ${orderId}`;
+  });
+}

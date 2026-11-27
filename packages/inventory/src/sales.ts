@@ -159,7 +159,9 @@ export interface SalesTotals {
   postageCents: number;
   /** Sleeves, top-loaders et enveloppes, au tarif du jour de la remise. */
   suppliesCents: number;
-  /** Encaissé − coût des cartes − affranchissement − fournitures. Les frais de canal ne sont pas encore comptés. */
+  /** Frais des marketplaces connus (synchronisés) sur ces ventes. */
+  feesCents: number;
+  /** Encaissé − coût des cartes − affranchissement − fournitures − frais connus des marketplaces. Ventes remboursées exclues. */
   marginCents: number;
 }
 
@@ -200,8 +202,9 @@ export async function listOrders(
   const [due] = await sql<{ n: number }[]>`select count(*)::int as n from shipments sh where ${REVIEW_DUE(sql)}`;
   counts.REVIEW_DUE = due!.n;
 
-  const [totals] = await sql<{ orders: number; grossCents: string; costCents: string; postageCents: string; suppliesCents: string }[]>`
+  const [totals] = await sql<{ orders: number; grossCents: string; costCents: string; postageCents: string; suppliesCents: string; feesCents: string }[]>`
     select count(*)::int as orders, coalesce(sum(o.gross_cents), 0)::text as gross_cents,
+           coalesce(sum(t.fees_cents), 0)::text as fees_cents,
            coalesce(sum(t.cost_cents), 0)::text as cost_cents, coalesce(sum(t.postage_cents), 0)::text as postage_cents,
            coalesce(sum(t.supplies_cents), 0)::text as supplies_cents
       from orders o
@@ -213,14 +216,16 @@ export async function listOrders(
                  where ol.order_id = o.id) as cost_cents,
                (select coalesce(sum(sh.postage_cost_cents), 0) from shipments sh where sh.order_id = o.id) as postage_cents,
                (select coalesce(sum(sh.supplies_cost_cents), 0) from shipments sh where sh.order_id = o.id) as supplies_cents,
+               (select coalesce(sum(ol.fee_allocated_cents), 0) from order_lines ol where ol.order_id = o.id) as fees_cents,
                (select max(sh.handover_confirmed_at) from shipments sh where sh.order_id = o.id) as shipped_at) t on true
-     where o.fulfillment_status = 'SHIPPED' and t.shipped_at >= now() - interval '30 days'`;
+     where o.fulfillment_status = 'SHIPPED' and o.refunded_at is null and t.shipped_at >= now() - interval '30 days'`;
   const gross = Number(totals!.grossCents), cost = Number(totals!.costCents), postage = Number(totals!.postageCents), supplies = Number(totals!.suppliesCents);
+  const fees = Number(totals!.feesCents);
 
   return {
     items: rows.map(({ fulfillmentStatus, ...o }) => ({ ...o, stage: stageOf(fulfillmentStatus) })),
     counts,
-    last30Days: { orders: totals!.orders, grossCents: gross, costCents: cost, postageCents: postage, suppliesCents: supplies, marginCents: gross - cost - postage - supplies },
+    last30Days: { orders: totals!.orders, grossCents: gross, costCents: cost, postageCents: postage, suppliesCents: supplies, feesCents: fees, marginCents: gross - cost - postage - supplies - fees },
   };
 }
 
@@ -230,6 +235,8 @@ export interface OrderDetail extends OrderSummary {
   addressLines: string[];
   /** Dernière impression du bon de livraison et du reçu. */
   slipPrintedAt: Date | null;
+  /** Remboursement complet de la vente (elle ne compte plus). */
+  refundedAt: Date | null;
   lines: {
     id: string;
     offerId: string;
@@ -237,6 +244,8 @@ export interface OrderDetail extends OrderSummary {
     condition: CardCondition;
     qty: number;
     unitPriceCents: number;
+    /** Part des frais de la marketplace. */
+    feeCents: number;
     card: SellableOffer["card"];
     /** Ce qu'il faut aller chercher, et où. */
     allocations: {
@@ -267,6 +276,9 @@ export interface OrderDetail extends OrderSummary {
   } | null;
   totals: {
     grossCents: number; itemsCents: number; shippingChargedCents: number; costCents: number; postageCents: number; suppliesCents: number; marginCents: number;
+    /** Frais de la marketplace (eBay), répartis sur les lignes ; `feesKnown` : ils sont synchronisés (ou sans objet). */
+    feesCents: number;
+    feesKnown: boolean;
     /** Vente pas encore remise : affranchissement et fournitures sont ceux des réglages, pas encore ceux de l'envoi. */
     estimated: boolean;
   };
@@ -277,13 +289,13 @@ export async function getOrderDetail(sql: Db, orderId: string): Promise<OrderDet
   const summary = items[0];
   if (!summary) throw new DomainError("ORDER_NOT_FOUND", "order not found");
 
-  const [extra] = await sql<{ note: string | null; addressLines: string[]; slipPrintedAt: Date | null }[]>`
-    select note, slip_printed_at,
+  const [extra] = await sql<{ note: string | null; addressLines: string[]; slipPrintedAt: Date | null; feesSyncedAt: Date | null; refundedAt: Date | null }[]>`
+    select note, slip_printed_at, fees_synced_at, refunded_at,
            coalesce((select jsonb_agg(line) from jsonb_array_elements_text(
              case when jsonb_typeof(shipping_address->'lines') = 'array' then shipping_address->'lines' else '[]'::jsonb end) line), '[]'::jsonb) as address_lines
       from orders where id = ${orderId}`;
   const lines = await sql<OrderDetail["lines"]>`
-    select ol.id, ol.offer_id, f.offer_sku, f.condition, ol.qty, ol.unit_price_cents,
+    select ol.id, ol.offer_id, f.offer_sku, f.condition, ol.qty, ol.unit_price_cents, ol.fee_allocated_cents as fee_cents,
            jsonb_build_object('name', coalesce(f.lot_title, c.name), 'setId', c.set_id, 'localNumber', c.local_number, 'language', c.language,
                               'imageUrl', c.image_url, 'finish', v.finish, 'edition', v.edition, 'lot', f.kind = 'LOT') as card,
            coalesce((select jsonb_agg(jsonb_build_object(
@@ -309,6 +321,7 @@ export async function getOrderDetail(sql: Db, orderId: string): Promise<OrderDet
       from shipments where order_id = ${orderId} order by created_at desc limit 1`;
 
   const itemsCents = lines.reduce((sum, l) => sum + l.qty * l.unitPriceCents, 0);
+  const feesCents = lines.reduce((sum, l) => sum + l.feeCents, 0);
   const costCents = lines.reduce((sum, l) => sum + l.allocations.reduce((n, a) => n + a.qty * a.unitCostCents, 0), 0);
   // Remise faite : les montants figés de l'envoi. Sinon, une estimation avec les frais d'envoi réglés.
   const shipped = summary.stage === "SHIPPED";
@@ -321,11 +334,13 @@ export async function getOrderDetail(sql: Db, orderId: string): Promise<OrderDet
     note: extra?.note ?? null,
     addressLines: extra?.addressLines ?? [],
     slipPrintedAt: extra?.slipPrintedAt ?? null,
+    refundedAt: extra?.refundedAt ?? null,
     lines,
     shipment: shipment ?? null,
     totals: {
       grossCents: summary.grossCents, itemsCents, shippingChargedCents: summary.grossCents - itemsCents,
-      costCents, postageCents, suppliesCents, marginCents: summary.grossCents - costCents - postageCents - suppliesCents,
+      costCents, postageCents, suppliesCents, feesCents, feesKnown: extra?.feesSyncedAt != null || summary.channel === DIRECT_CHANNEL,
+      marginCents: summary.grossCents - costCents - postageCents - suppliesCents - feesCents,
       estimated: !shipped && summary.stage !== "CANCELLED",
     },
   };
@@ -405,6 +420,26 @@ export function shipOrder(sql: Db, input: ShipOrderInput) {
                            updated_at = now()
        where id = ${shipment.id}`;
     return confirmHandover(tx, shipment.id, input.actor);
+  });
+}
+
+/**
+ * Rembourse une vente déjà remise (remboursement complet) : la vente ne compte plus dans les statistiques ni dans les
+ * ventes confirmées du niveau. Les cartes ne reviennent pas en stock : si l'acheteur les renvoie, c'est un retour.
+ * Avant la remise, on annule la vente (les cartes redeviennent disponibles).
+ */
+export function refundOrder(sql: Db, orderId: string, actor: string, reason: string): Promise<void> {
+  return withTx(sql, async (tx) => {
+    const [order] = await tx<{ fulfillmentStatus: string; refundedAt: Date | null }[]>`
+      select fulfillment_status, refunded_at from orders where id = ${orderId} for update`;
+    if (!order) throw new DomainError("ORDER_NOT_FOUND", "order not found");
+    if (order.refundedAt) return;
+    if (order.fulfillmentStatus !== "SHIPPED") throw new DomainError("NOT_SHIPPED", "an order not handed over yet is cancelled, not refunded");
+    await tx`update orders set payment_status = 'REFUNDED', refunded_at = now(), updated_at = now() where id = ${orderId}`;
+    await tx`
+      insert into audit_events (actor, action, entity, entity_id, after)
+      values (${actor}, 'order_refunded', 'order', ${orderId}, ${tx.json({ reason })})`;
+    await recordEvent(tx, { type: "sale_refunded", key: `sale_refunded:${orderId}`, payload: { orderId, reason } });
   });
 }
 

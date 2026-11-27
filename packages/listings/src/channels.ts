@@ -1,5 +1,5 @@
 import { recordEvent, withTx, type Db } from "@dexlane/db";
-import { allocateOrder, createShipment, importOrder, type CardCondition, type ShippingMode } from "@dexlane/inventory";
+import { allocateOrder, cancelOrder, createShipment, importOrder, refundOrder, setOrderFees, type CardCondition, type ShippingMode } from "@dexlane/inventory";
 import { DomainError } from "@dexlane/shared";
 import { listListingOffers, listingBlockers, listingColumns, promoPhotoUrl, type ListingState } from "./store";
 import { CHANNELS, type ChannelId } from "./channel-ids";
@@ -38,6 +38,17 @@ export interface ChannelOrder {
   countryCode?: string | null;
 }
 
+/** L'état d'une commande sur le canal, après son import. */
+export interface ChannelOrderUpdate {
+  externalId: string;
+  /** Frais de la marketplace pour toute la commande, en centimes ; null tant que le canal ne les donne pas. */
+  feeCents: number | null;
+  /** Remboursement complet de l'acheteur. */
+  refunded: boolean;
+  /** Commande annulée sur le canal. */
+  cancelled: boolean;
+}
+
 /**
  * Connecteur d'un canal. Le modèle suit celui d'eBay, le plus contraignant : une annonce par référence d'offre,
  * une quantité qu'on tient à jour, des commandes qu'on vient chercher.
@@ -49,6 +60,11 @@ export interface ChannelAdapter {
   end(externalId: string, offerSku: string): Promise<void>;
   /** Commandes payées depuis la date donnée ; peut renvoyer des commandes déjà vues (l'import est idempotent). */
   fetchOrders(since: Date | null): Promise<ChannelOrder[]>;
+  /**
+   * Ce qui a changé depuis la date donnée sur des commandes déjà importées, y compris remises : frais de la marketplace,
+   * remboursement complet, annulation. Facultatif : un canal sans cette méthode n'en dit rien.
+   */
+  fetchOrderUpdates?(since: Date | null): Promise<ChannelOrderUpdate[]>;
   /** Le connecteur peut-il servir (compte connecté, réglages faits) ? Sans cette méthode : toujours. */
   status?(): Promise<{ ready: boolean; reason?: string }>;
 }
@@ -322,6 +338,16 @@ export async function syncChannels(
           failed++;
         }
       }
+      // Les commandes déjà importées : frais, remboursements, annulations faites sur le canal.
+      const adapter = live[channel.id]!;
+      if (adapter.fetchOrderUpdates) {
+        try {
+          await applyOrderUpdates(sql, channel.id, await adapter.fetchOrderUpdates(channel.lastSyncedAt), actor);
+        } catch (e) {
+          onError?.(e);
+          failed++;
+        }
+      }
       errors += failed;
       if (failed === 0) await sql`update channel_settings set last_synced_at = ${startedAt} where channel = ${channel.id}`;
     } catch (e) {
@@ -332,6 +358,35 @@ export async function syncChannels(
   const quantities = await syncQuantities(sql, live);
   const prices = await syncPrices(sql, live, actor);
   return { orders, updated: quantities.updated, revised: prices.revised, errors: errors + quantities.errors + prices.errors };
+}
+
+/**
+ * Applique ce que le canal dit des commandes déjà importées : leurs frais (répartis sur les lignes), un remboursement
+ * complet (la vente remise ne compte plus), une annulation (la vente pas encore remise est annulée, ses cartes
+ * redeviennent disponibles). Les commandes inconnues de Dexlane sont ignorées.
+ */
+export async function applyOrderUpdates(
+  sql: Db, channel: ChannelId, updates: ChannelOrderUpdate[], actor: string,
+): Promise<{ fees: number; refunded: number; cancelled: number }> {
+  const result = { fees: 0, refunded: 0, cancelled: 0 };
+  const label = CHANNELS.find((c) => c.id === channel)?.label ?? channel;
+  for (const u of updates) {
+    const [order] = await sql<{ id: string; fulfillmentStatus: string; refundedAt: Date | null; feesSyncedAt: Date | null }[]>`
+      select id, fulfillment_status, refunded_at, fees_synced_at from orders where channel = ${channel} and external_id = ${u.externalId}`;
+    if (!order) continue;
+    if (u.feeCents !== null) {
+      await setOrderFees(sql, order.id, u.feeCents);
+      if (!order.feesSyncedAt) result.fees++;
+    }
+    if ((u.refunded || u.cancelled) && order.fulfillmentStatus !== "SHIPPED" && order.fulfillmentStatus !== "CANCELLED") {
+      await cancelOrder(sql, order.id, actor, u.refunded ? `remboursée sur ${label}` : `annulée sur ${label}`);
+      result.cancelled++;
+    } else if (u.refunded && order.fulfillmentStatus === "SHIPPED" && !order.refundedAt) {
+      await refundOrder(sql, order.id, actor, `remboursée sur ${label}`);
+      result.refunded++;
+    }
+  }
+  return result;
 }
 
 /** Simulation : un acheteur fictif commande sur l'annonce, comme le ferait le canal. */

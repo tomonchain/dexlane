@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cancelOrder } from "@dexlane/inventory";
+import { cancelOrder, setOrderFees } from "@dexlane/inventory";
 import { calendarPeriod, median, resolvePeriod, sellerStats, type Period } from "../src";
 import { ACTOR, DAY, daysFrom, listedAt, makeOffer, sellAt, stockAt, useTestDb } from "./helpers";
 
@@ -52,6 +52,15 @@ describe("seller statistics (A2)", () => {
     const s = await sellerStats(sql, period);
     // (2 × 10 € − 2 × 3 €) + (5 € − 0 €) ; la carte sans coût connu est laissée de côté.
     expect(s.margin).toEqual({ amounts: [{ currency: "EUR", cents: 1900 }], coveragePercent: 75, ebayFeesMissing: true });
+  });
+
+  it("subtracts the eBay fees once they are known, and stops flagging them as missing", async () => {
+    const o = await makeOffer(sql);
+    await stockAt(sql, o.offerId, 3, daysFrom(T0, -10), { costCents: 300 });
+    const orderId = await sellAt(sql, o.offerSku, daysFrom(T0, 1), { unitPriceCents: 1000 });
+    expect((await sellerStats(sql, period)).margin).toMatchObject({ amounts: [{ currency: "EUR", cents: 700 }], ebayFeesMissing: true });
+    await setOrderFees(sql, orderId, 135);
+    expect((await sellerStats(sql, period)).margin).toMatchObject({ amounts: [{ currency: "EUR", cents: 565 }], ebayFeesMissing: false });
   });
 
   it("does not flag missing eBay fees when only direct sales are counted", async () => {
