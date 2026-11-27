@@ -1505,7 +1505,7 @@ test("page d'accueil : landing publique sans session, puis « Aujourd'hui » ave
   await expect(hero.getByRole("img", { name: "eBay" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Navigation principale" })).toHaveCount(0);
   // La démonstration du produit (HTML) et les illustrations montrent de vraies cartes.
-  await expect(page.locator('img[src*="landing%2Fcards"]').first()).toBeAttached();
+  await expect(page.locator('img[src*="%2Fcards%2F"]').first()).toBeAttached();
   // Mobile d'abord : le CTA principal est visible sans défiler.
   const cta = page.getByRole("link", { name: "Essayer gratuitement" }).first();
   await expect(cta).toBeInViewport();

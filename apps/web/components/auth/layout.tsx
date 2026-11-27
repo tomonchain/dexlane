@@ -2,10 +2,11 @@ import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { EbayLogo, Glow, Logo, ORANGE, RealCard } from "./ui";
+import { EbayLogo, Glow, Logo, ORANGE, RealCard } from "@/components/brand";
+import { EDITION } from "@/config/edition";
 
 /*
- * Mise en page des écrans de compte (connexion, inscription, mot de passe) : sans l'en-tête ni le pied de page du site.
+ * Mise en page des écrans de compte (connexion, inscription, mot de passe), sans en-tête ni pied de page.
  * À gauche, un mur de cartes qui défilent ; à droite, le logo, le formulaire et quelques liens. Sur téléphone, le mur
  * devient un bandeau de cartes au-dessus du formulaire. Les textes passent par t() : la connexion est dans l'application.
  */
@@ -120,10 +121,15 @@ export function AuthLayout({ children, tagline, footer }: { children: ReactNode;
           <div className="w-full max-w-sm">{children}</div>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 text-[13px] text-muted-foreground">
+          {/* Les pages légales de l'instance, s'il y en a (config/edition.ts). */}
           <span className="flex gap-4">
-            <Link href="/cgu" className="outline-none hover:text-foreground focus-visible:underline">{t("CGU")}</Link>
-            <Link href="/confidentialite" className="outline-none hover:text-foreground focus-visible:underline">{t("Confidentialité")}</Link>
-            <Link href="/contact" className="outline-none hover:text-foreground focus-visible:underline">{t("Contact")}</Link>
+            {EDITION.legal && (
+              <>
+                <Link href={EDITION.legal.terms} className="outline-none hover:text-foreground focus-visible:underline">{t("CGU")}</Link>
+                <Link href={EDITION.legal.privacy} className="outline-none hover:text-foreground focus-visible:underline">{t("Confidentialité")}</Link>
+                <Link href={EDITION.legal.contact} className="outline-none hover:text-foreground focus-visible:underline">{t("Contact")}</Link>
+              </>
+            )}
           </span>
           {footer}
         </div>

@@ -126,6 +126,8 @@ jobs:
       pull-requests: write
     env:
       GH_TOKEN: ${{ github.token }}
+      DOWNSTREAM_REPO: ${{ vars.DEXLANE_DOWNSTREAM_REPO }}
+      DOWNSTREAM_TOKEN: ${{ secrets.DEXLANE_DOWNSTREAM_TOKEN }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -154,8 +156,14 @@ jobs:
           # Seul le commit qui vient d'être vérifié peut être fusionné.
           gh pr merge "$pr" --merge --match-head-commit "$GITHUB_SHA"
           # Une fusion faite avec le jeton de la CI ne relance pas de workflow sur main : la version se publie ici.
+          # Les versions ne se publient que depuis ce dépôt, pas depuis une copie ou un fork.
           git fetch origin main
-          .github/scripts/release.sh origin/main
+          if [ "$GITHUB_REPOSITORY" = "tomonchain/dexlane" ]; then .github/scripts/release.sh origin/main; fi
+      # Une copie qui suit main (l'édition hébergée, #105) est prévenue qu'il y a du nouveau : variable
+      # DEXLANE_DOWNSTREAM_REPO (owner/nom) et secret DEXLANE_DOWNSTREAM_TOKEN, jeton qui peut écrire sur ce dépôt-là.
+      - name: Prévenir la copie qui suit main
+        if: env.DOWNSTREAM_REPO != '' && env.DOWNSTREAM_TOKEN != ''
+        run: GH_TOKEN="$DOWNSTREAM_TOKEN" gh api "repos/$DOWNSTREAM_REPO/dispatches" -f event_type=core-updated
 
   release:
     name: Publication de la version
@@ -168,12 +176,18 @@ jobs:
       contents: write
     env:
       GH_TOKEN: ${{ github.token }}
+      DOWNSTREAM_REPO: ${{ vars.DEXLANE_DOWNSTREAM_REPO }}
+      DOWNSTREAM_TOKEN: ${{ secrets.DEXLANE_DOWNSTREAM_TOKEN }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Étiquette et release GitHub si la version est nouvelle
+        if: github.repository == 'tomonchain/dexlane'
         run: .github/scripts/release.sh "$GITHUB_SHA"
+      - name: Prévenir la copie qui suit main
+        if: env.DOWNSTREAM_REPO != '' && env.DOWNSTREAM_TOKEN != ''
+        run: GH_TOKEN="$DOWNSTREAM_TOKEN" gh api "repos/$DOWNSTREAM_REPO/dispatches" -f event_type=core-updated
 
   dependances:
     name: Fusion des mises à jour mineures
