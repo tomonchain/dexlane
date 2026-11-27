@@ -12,4 +12,9 @@ export const GITHUB_ISSUES_URL = `${GITHUB_URL}/issues`;
 export const CONTACT_EMAIL = "[À COMPLÉTER]";
 
 export const SIGNUP_URL = "/signup";
+/**
+ * Inscriptions ouvertes (`DEXLANE_SIGNUP=open`, lu au build) ; sinon, `/signup` est une liste d'attente, tant que les
+ * e-mails et le paiement des forfaits ne sont pas branchés (#103).
+ */
+export const SIGNUP_OPEN = process.env.NEXT_PUBLIC_SIGNUP_OPEN === "1";
 export const LOGIN_URL = "/login";

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 import { Loading, Spinner } from "@/components/ui/misc";
 import { api } from "@/lib/api";
+import { SIGNUP_OPEN } from "@/config/site";
 import { authMessage } from "@/lib/auth-messages";
 import { clearCache } from "@/lib/cache";
 import { t } from "@/lib/i18n";
@@ -126,7 +127,7 @@ export default function LoginPage() {
               <div className="grid gap-4 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                   <Link href="/forgot-password" className={LINK}>{t("Mot de passe oublié ?")}</Link>
-                  <Link href="/signup" className={cn(LINK, "font-medium text-foreground")}>{t("Créer un compte")}</Link>
+                  <Link href="/signup" className={cn(LINK, "font-medium text-foreground")}>{SIGNUP_OPEN ? t("Créer un compte") : t("Rejoindre la liste d'attente")}</Link>
                 </div>
                 <button type="button" onClick={() => switchTo("reset")} className={cn(LINK, "justify-self-start border-t pt-4 text-[13px]")}>
                   {t("Réinitialiser avec le jeton d'installation")}

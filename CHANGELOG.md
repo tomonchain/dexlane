@@ -59,6 +59,9 @@ Retiré), avec le numéro de l'issue qu'il traite.
   avec son évolution sur six mois, plan du site dédié et adresses canoniques (#62).
 
 ### Modifié
+- Inscriptions fermées tant que les e-mails et le paiement ne sont pas branchés : `/signup` devient une liste d'attente,
+  les boutons du site y mènent, et l'API refuse les nouveaux comptes sauf invitation d'équipe ; `DEXLANE_SIGNUP=open`
+  les rouvre. Liste visible des administrateurs dans Réglages (migration 0042) (#103).
 - L'application tutoie partout, comme le site, les e-mails et les nouveaux écrans (#93).
 - Niveau 1 : il s'obtient en terminant la configuration du compte, plus à la première vente ; une carte n'est rangée
   qu'à un emplacement précis (sans sous-emplacement) ; l'e-mail du récap est coupé pour le moment (migration 0040) (#92).

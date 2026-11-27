@@ -3,7 +3,10 @@ import { PRICING } from "@/components/landing/content";
 import {
   FEATURED_BADGE, PLANS, PLAN_FEATURES, formatCards, formatPlanPrice, formatPricePerCard, formatWeeklyPace, planIncrement, type Plan,
 } from "@/config/plans";
-import { SIGNUP_URL } from "@/config/site";
+import { SIGNUP_OPEN, SIGNUP_URL } from "@/config/site";
+
+/** Inscriptions fermées : chaque forfait mène à la liste d'attente, avec le forfait choisi (#103). */
+const WAITLIST_BUTTON = "Rejoindre la liste d'attente";
 import { cn } from "@/lib/utils";
 import { Cta } from "./ui";
 
@@ -87,7 +90,7 @@ export function PlanGrid({ detailed, headingLevel = 3 }: { detailed?: boolean; h
               </p>
             </div>
             {detailed ? <FullList plan={plan} /> : <Increment plan={plan} />}
-            <Cta href={`${SIGNUP_URL}?plan=${plan.id}`} size="md" tone={plan.featured ? "ink" : "paper"} className="w-full self-end">{plan.button}</Cta>
+            <Cta href={`${SIGNUP_URL}?plan=${plan.id}`} size="md" tone={plan.featured ? "ink" : "paper"} className="w-full self-end">{SIGNUP_OPEN ? plan.button : WAITLIST_BUTTON}</Cta>
           </li>
         );
       })}
