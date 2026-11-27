@@ -10,7 +10,9 @@ Pokémon : scan, stock, prix, publication eBay, ventes et envois. Ce guide dit c
 - **Une idée, une amélioration** : ouvre une issue avec le modèle « Tâche », avant d'écrire du code. On se met d'accord
   sur le besoin et l'approche, et personne ne travaille pour rien.
 - **Une faille de sécurité** : jamais en issue publique. Voir [SECURITY.md](SECURITY.md).
-- Les grands chantiers sont suivis dans deux issues chapeau : le lancement de la 1.0 (#44) et le référencement (#55).
+- Le lancement de la 1.0 est suivi dans une issue chapeau (#44).
+- Ce dépôt est l'application qu'on installe pour sa boutique. Le service hébergé dexlane.app la reprend et y ajoute son
+  site public, qui n'est pas dans ce dépôt (#105) : ses issues (référencement, pages légales) n'y sont pas non plus.
 
 ## Installer le projet
 
