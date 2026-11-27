@@ -130,7 +130,7 @@ export default function CatalogSetPage() {
     return (
       <div className="grid gap-5">
         {back}
-        <EmptyState icon={<CircleSlash />} title={t("Série inconnue")}>{t("Aucune série")} <Code>{setId}</Code> {t("pour cette langue. Actualisez la liste depuis le catalogue.")}</EmptyState>
+        <EmptyState icon={<CircleSlash />} title={t("Série inconnue")}>{t("Aucune série")} <Code>{setId}</Code> {t("pour cette langue. Actualise la liste depuis le catalogue.")}</EmptyState>
       </div>
     );
   }
@@ -155,7 +155,7 @@ export default function CatalogSetPage() {
           <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
             {codeDraft === null ? (
               <button type="button" onClick={() => setCodeDraft(set.codeOverride ?? set.code)} data-testid="set-code"
-                title={t("Code d'extension utilisé dans le stock et la recherche ; cliquez pour le corriger")}
+                title={t("Code d'extension utilisé dans le stock et la recherche ; clique pour le corriger")}
                 className="inline-flex h-6 items-center gap-1 rounded-md border bg-card px-2 font-mono text-xs font-semibold text-foreground outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/30">
                 {set.code} <Pencil className="size-3 text-muted-foreground" aria-hidden />
               </button>

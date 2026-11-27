@@ -216,7 +216,7 @@ test("lecture incertaine : rien n'est présélectionné, le brouillon se valide 
   await chooseLocation(page, "BOX-B");
 
   await takePhoto(page, PARTIAL_NAME);
-  await expect(page.getByText("À vérifier : choisissez la bonne carte.")).toBeVisible();
+  await expect(page.getByText("À vérifier : choisis la bonne carte.")).toBeVisible();
   await expect(page.getByText("nom partiellement lisible")).toBeVisible();
   await expect(page.getByRole("radio", { name: /Fouinar/ })).not.toBeChecked();
   await expect(confirm(page)).toHaveText("Reste : la carte, l'état");
@@ -383,7 +383,7 @@ test("prix : estimation à la saisie, prix posé à l'entrée, décision manuell
   await chooseLocation(page, "BOX-P");
   await takePhoto(page, CLEAR);
   const estimate = page.getByTestId("price-estimate");
-  await expect(estimate).toContainText("Choisissez la variante et l'état");
+  await expect(estimate).toContainText("Choisis la variante et l'état");
   await page.getByRole("radio", { name: "Good", exact: true }).click();
   await expect(estimate).toContainText("Prix estimé pour cet état");
   // Le Fouinar reverse se vend 0,43 € sur la semaine et 0,29 € sur le mois : l'estimation part de ces ventes réussies,
@@ -474,7 +474,7 @@ test("ventes : vente directe réservée, prélevée par code, emballée, dépos�
   await expect(pick).toContainText("BOX-V");
   // L'action de l'étape reste en bas de l'écran, avec ce qui manque pour la lancer.
   const bar = page.getByTestId("action-bar");
-  await expect(bar).toContainText("Prélevez 1 carte pour pouvoir emballer.");
+  await expect(bar).toContainText("Prélève 1 carte pour pouvoir emballer.");
   await expect(bar.getByRole("button", { name: "Marquer comme emballée" })).toBeDisabled();
   await pick.getByLabel("Code lu sur la pochette").fill("999999");
   await pick.getByRole("button", { name: `Prélever ${sku}` }).click();
@@ -824,11 +824,14 @@ test("stock : une ligne par carte, prix accepté d'un clic ou saisi sur place, f
   await expect(chart).toContainText(/\d relevés Cardmarket/);
   // Au clavier comme au survol : chaque relevé donne toutes les séries. Les flèches s'arrêtent aux extrémités.
   await chart.getByRole("img").focus();
-  for (let i = 0; i < 5; i++) await page.keyboard.press("ArrowLeft");
+  // Le nombre de relevés dépend des parcours précédents (un relevé des cotes du catalogue de test ajoute ceux de sa date
+  // de capture) : on remonte relevé par relevé jusqu'à celui de dix jours plus tôt.
   const tip = chart.getByTestId("price-history-tooltip");
+  const tipText = async () => ((await tip.textContent({ timeout: 200 }).catch(() => "")) ?? "").replace(/\s/g, " ");
+  for (let i = 0; i < 30 && !(await tipText()).includes("0,21 €Ventes 7 j"); i++) await page.keyboard.press("ArrowLeft");
   await expect(tip).toContainText("0,21 €Ventes 7 j");
   await expect(tip).toContainText("0,04 €Annonce la moins chère");
-  for (let i = 0; i < 5; i++) await page.keyboard.press("ArrowRight");
+  for (let i = 0; i < 30; i++) await page.keyboard.press("ArrowRight");
   await expect(tip).toContainText("0,43 €Ventes 7 j");
   // Les mêmes valeurs en tableau, et la période se choisit.
   await chart.getByText("Tableau des valeurs").click();
@@ -1043,7 +1046,7 @@ test("sans scanner : le téléphone photographie recto puis verso, les cartes en
   await expect(capture).toHaveText("Recto · carte 1");
   await shoot(CLEAR);
   await expect(capture).toHaveText("Verso · carte 1");
-  await expect(page.getByText("Carte 1 : retournez-la et photographiez le verso.")).toBeVisible();
+  await expect(page.getByText("Carte 1 : retourne-la et photographie le verso.")).toBeVisible();
   await expect(rows).toHaveCount(0);
   await shoot(30);
   await expect(rows).toHaveCount(1);
@@ -1780,8 +1783,8 @@ test("achats : suivre une carte avec un prix cible, ses prix sur Cardmarket et T
   await expect(draco).toContainText("90,00 €");
   await expect(draco).toContainText("987,13");
   // L'annonce la moins chère (90 €) est sous le prix cible : la carte remonte en tête, signalée.
-  await expect(draco).toContainText("Sous votre prix cible");
-  await expect(page.getByText(/demande votre attention|demandent votre attention/)).toBeVisible();
+  await expect(draco).toContainText("Sous ton prix cible");
+  await expect(page.getByText(/demande ton attention|demandent ton attention/)).toBeVisible();
   await expect(draco.getByRole("link", { name: "Chercher Dracaufeu sur Cardmarket" })).toHaveAttribute("href", /cardmarket\.com.*Dracaufeu/);
   await draco.getByRole("button", { name: "Évolution du prix de Dracaufeu" }).click();
   await expect(draco.getByTestId("price-history")).toBeVisible();
@@ -1795,7 +1798,7 @@ test("achats : suivre une carte avec un prix cible, ses prix sur Cardmarket et T
   await draco.getByLabel("Prix cible pour Dracaufeu").fill("80");
   await draco.getByLabel("Prix cible pour Dracaufeu").press("Enter");
   await expect(page.getByText("Prix cible : 80,00 €")).toBeVisible();
-  await expect(draco).not.toContainText("Sous votre prix cible");
+  await expect(draco).not.toContainText("Sous ton prix cible");
 
   // Bonnes affaires : les cartes de plus de 10 € annoncées nettement sous leurs ventes, la plus grosse affaire d'abord.
   await page.goto("/buying");
@@ -1803,7 +1806,7 @@ test("achats : suivre une carte avec un prix cible, ses prix sur Cardmarket et T
   const deal = page.getByTestId("deal").filter({ hasText: "Dracaufeu" }).first();
   await expect(deal).toContainText("−79 %");
   await expect(deal).toContainText("Suivie");
-  await expect(page.getByTestId("deals-scope")).toContainText("vérifiez l'annonce avant d'acheter");
+  await expect(page.getByTestId("deals-scope")).toContainText("vérifie l'annonce avant d'acheter");
   await expect(page.getByTestId("deal").filter({ hasText: "Fouinar" })).toHaveCount(0); // une commune à quelques centimes n'est pas une affaire
   await page.getByLabel("Valeur minimale").selectOption("10000");
   await expect(page.getByTestId("deal").filter({ hasText: "Dracaufeu" })).toHaveCount(1); // 432 € > 100 €

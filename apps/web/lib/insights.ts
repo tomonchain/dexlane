@@ -1,4 +1,4 @@
-import type { AchievementCategory, OnboardingStepId } from "@dexlane/insights/config";
+import type { AchievementCategory, AchievementRarity, OnboardingStepId } from "@dexlane/insights/config";
 import { api, newKey } from "./api";
 import type { Amount } from "./insights-format";
 
@@ -66,6 +66,9 @@ export interface LevelState {
 
 export interface AchievementState {
   id: string;
+  /** Numéro dans le classeur. */
+  number: number;
+  rarity: AchievementRarity;
   name: string;
   description: string;
   category: AchievementCategory;
@@ -82,7 +85,9 @@ export interface ProgressView {
   unlockedCount: number;
   retroactiveCount: number;
   categories: { id: AchievementCategory; label: string }[];
+  rarities: { id: AchievementRarity; label: string }[];
   levelNames: string[];
+  shopName: string | null;
 }
 
 export interface HomeInsights {
@@ -97,6 +102,8 @@ export interface HomeInsights {
 }
 
 export interface Preferences {
+  /** L'e-mail du récap est-il proposé (il est coupé pour le moment) ? */
+  recapEmailAvailable?: boolean;
   timezone: string;
   showProgression: boolean;
   recapEmail: boolean;

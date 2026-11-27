@@ -344,7 +344,7 @@ function Scanner() {
         {fileInput}
         <PageHeader
           title={bulkId ? t("Extraire une carte") : t("Ajouter une carte")}
-          description={bulkId ? t("Identifiez la carte sortie du lot, puis rangez-la.") : t("Photographiez une carte : elle est identifiée, vous confirmez, elle entre en stock.")}
+          description={bulkId ? t("Identifie la carte sortie du lot, puis range-la.") : t("Photographie une carte : elle est identifiée, tu confirmes, elle entre en stock.")}
         />
         {bulkBanner}
         {error && phase === "idle" && <Alert variant="destructive">{error}</Alert>}
@@ -353,7 +353,7 @@ function Scanner() {
           <Card className="overflow-hidden" aria-live="polite" data-testid="entry-saving">
             <CardContent className="flex items-center gap-3 py-4">
               <Spinner />
-              <span className="min-w-0 flex-1 text-sm"><strong className="font-semibold">{latest.name}</strong> · {latest.detail} — {t("enregistrement en cours. Vous pouvez photographier la suivante.")}</span>
+              <span className="min-w-0 flex-1 text-sm"><strong className="font-semibold">{latest.name}</strong> · {latest.detail} — {t("enregistrement en cours. Tu peux photographier la suivante.")}</span>
             </CardContent>
           </Card>
         )}
@@ -389,7 +389,7 @@ function Scanner() {
                 <Code>{latestSaved.received.locationCode}</Code>
               </p>
               <p className="text-sm text-muted-foreground">
-                {t("Notez ce code sur la pochette.")} {t("Offre")} <Code>{latestSaved.received.offer.offerSku}</Code>{" "}
+                {t("Note ce code sur la pochette.")} {t("Offre")} <Code>{latestSaved.received.offer.offerSku}</Code>{" "}
                 ({latestSaved.received.offer.created ? t("nouvelle") : t("existante, position ajoutée")}).
               </p>
               {latestSaved.received.pricing && (
@@ -539,7 +539,7 @@ function Scanner() {
       {fileInput}
       <PageHeader
         title={bulkId ? t("Extraire une carte") : t("Confirmer la carte")}
-        description={t("Vérifiez l'identification, puis précisez l'état et le rangement.")}
+        description={t("Vérifie l'identification, puis précise l'état et le rangement.")}
         actions={photoUrl && (
           <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}><RotateCcw /> {t("Reprendre la photo")}</Button>
         )}
@@ -574,13 +574,13 @@ function Scanner() {
             {scan && !scan.requiresReview && (
               <Alert variant="success">
                 <strong>{t("Identification sûre.")}</strong>{" "}
-                {missing.length === 0 ? t("La fiche est remplie : vérifiez la variante et l'état, puis validez.") : t("Vérifiez tout de même la variante.")}
+                {missing.length === 0 ? t("La fiche est remplie : vérifie la variante et l'état, puis valide.") : t("Vérifie tout de même la variante.")}
                 {reading?.notes && <span className="block text-xs opacity-80">{t("Remarque de lecture : {notes}", { notes: reading.notes })}</span>}
               </Alert>
             )}
             {scan?.requiresReview && scan.candidates.length > 0 && (
               <Alert variant="warning">
-                <strong>{t("À vérifier : choisissez la bonne carte.")}</strong>
+                <strong>{t("À vérifier : choisis la bonne carte.")}</strong>
                 <ul className="mt-1 list-disc pl-4">
                   {scan.ambiguous && <li>{t("plusieurs cartes très proches")}</li>}
                   {scan.reviewReasons.map((r) => <li key={r}>{reviewReason(r)}</li>)}
@@ -590,7 +590,7 @@ function Scanner() {
             )}
             {scan && scan.candidates.length === 0 && !scanError && (
               <Alert variant="warning">
-                {t("Aucune carte du catalogue ne correspond à la lecture. Recherchez-la à la main, ou synchronisez sa série depuis")}{" "}
+                {t("Aucune carte du catalogue ne correspond à la lecture. Recherche-la à la main, ou synchronise sa série depuis")}{" "}
                 <Link href="/catalog" className="font-medium underline underline-offset-2">{t("le catalogue")}</Link>.
               </Alert>
             )}
@@ -633,12 +633,12 @@ function Scanner() {
                       </Choice>
                     ))}
                   </ChoiceGroup>
-                  {card.variants.length === 0 && <Alert variant="warning">{t("Aucune variante connue pour cette carte : resynchronisez la série.")}</Alert>}
-                  <p className="text-xs text-muted-foreground">{t("Normale, holo ou reverse : regardez où se trouve le brillant.")}</p>
+                  {card.variants.length === 0 && <Alert variant="warning">{t("Aucune variante connue pour cette carte : resynchronise la série.")}</Alert>}
+                  <p className="text-xs text-muted-foreground">{t("Normale, holo ou reverse : regarde où se trouve le brillant.")}</p>
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">{t("Choisissez d'abord la carte.")}</p>
+              <p className="text-sm text-muted-foreground">{t("Choisis d'abord la carte.")}</p>
             )}
           </Step>
         </div>
@@ -653,7 +653,7 @@ function Scanner() {
               ))}
             </ChoiceGroup>
             <p className="text-xs text-muted-foreground">
-              {session.condition ? t("Prérempli avec l'état par défaut de la session : corrigez-le si cette carte diffère.") : t("Évalué à la main, recto et verso.")}
+              {session.condition ? t("Prérempli avec l'état par défaut de la session : corrige-le si cette carte diffère.") : t("Évalué à la main, recto et verso.")}
             </p>
           </Step>
 

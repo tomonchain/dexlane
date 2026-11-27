@@ -68,14 +68,16 @@ export function AccountInsights() {
         <Card>
           <CardContent className="grid gap-3">
             <div className="grid gap-1">
-              <CardTitle>{t("Progression et récaps")}</CardTitle>
+              <CardTitle>{prefs.recapEmailAvailable ? t("Progression et récaps") : t("Progression")}</CardTitle>
               <CardDescription>{t("Tes réglages à toi, pas ceux de toute l'équipe.")}</CardDescription>
             </div>
             <SwitchRow label={t("Afficher le niveau et les succès")}
               description={t("Désactivé, le niveau, la page Progression, les notifications de succès et la partie progression des récaps disparaissent. Les statistiques et le démarrage restent.")}
               checked={prefs.showProgression} onCheckedChange={(on) => save({ showProgression: on })} />
-            <SwitchRow label={t("E-mail du récap mensuel")} description={t("Un e-mail court le 1er du mois, avec le lien vers ton récap.")}
-              checked={prefs.recapEmail} onCheckedChange={(on) => save({ recapEmail: on })} />
+            {prefs.recapEmailAvailable && (
+              <SwitchRow label={t("E-mail du récap mensuel")} description={t("Un e-mail court le 1er du mois, avec le lien vers ton récap.")}
+                checked={prefs.recapEmail} onCheckedChange={(on) => save({ recapEmail: on })} />
+            )}
             {error && <Alert variant="destructive">{error}</Alert>}
           </CardContent>
         </Card>

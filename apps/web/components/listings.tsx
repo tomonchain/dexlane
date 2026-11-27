@@ -30,12 +30,12 @@ import { composeMissingVisuals } from "@/lib/visuals";
 const PAGE_SIZE = 20;
 const ERRORS: Record<string, string> = {
   PHOTO_STORAGE_UNAVAILABLE: "Le stockage des photos n'est pas configuré.",
-  CHANNEL_DISABLED: "Ce canal est désactivé : activez-le dans Réglages → Canaux de vente.",
-  CHANNEL_NOT_CONFIGURED: "Le connecteur réel de ce canal n'est pas encore configuré. Utilisez la simulation en attendant.",
-  CHANNEL_NOT_READY: "Le connecteur réel n'est pas prêt : connectez le compte et terminez ses réglages dans Réglages → Canaux de vente.",
-  EBAY_NOT_CONNECTED: "Aucun compte eBay n'est connecté, ou son autorisation a expiré : connectez-le dans Réglages → Canaux de vente.",
-  EBAY_NOT_SET_UP: "Choisissez d'abord les règles de vente et le lieu d'expédition eBay dans Réglages → Canaux de vente.",
-  EBAY_UNAVAILABLE: "eBay ne répond pas pour l'instant. Réessayez dans quelques minutes.",
+  CHANNEL_DISABLED: "Ce canal est désactivé : active-le dans Réglages → Canaux de vente.",
+  CHANNEL_NOT_CONFIGURED: "Le connecteur réel de ce canal n'est pas encore configuré. Utilise la simulation en attendant.",
+  CHANNEL_NOT_READY: "Le connecteur réel n'est pas prêt : connecte le compte et termine ses réglages dans Réglages → Canaux de vente.",
+  EBAY_NOT_CONNECTED: "Aucun compte eBay n'est connecté, ou son autorisation a expiré : connecte-le dans Réglages → Canaux de vente.",
+  EBAY_NOT_SET_UP: "Choisis d'abord les règles de vente et le lieu d'expédition eBay dans Réglages → Canaux de vente.",
+  EBAY_UNAVAILABLE: "eBay ne répond pas pour l'instant. Réessaie dans quelques minutes.",
   LISTING_NOT_READY: "Cette offre n'est pas prête : il lui manque un prix, une photo ou une variante confirmée.",
   OFFER_NOT_SELLABLE: "Cette offre n'a plus de stock vendable.",
   LISTING_NOT_FOUND: "Cette annonce n'existe plus.",
@@ -157,7 +157,7 @@ export function TemplateEditor({ settings, onSaved }: { settings: ListingSetting
             <Textarea ref={descriptionRef} value={description} onChange={(e) => setDescription(e.target.value)} onFocus={() => (focused.current = "description")} rows={11} spellCheck={false} />
           </Field>
           <div className="grid gap-2">
-            <Eyebrow>{t("Variables — cliquez pour insérer")}</Eyebrow>
+            <Eyebrow>{t("Variables — clique pour insérer")}</Eyebrow>
             <div className="flex flex-wrap gap-1.5">
               {VARIABLES.map((v) => (
                 <button
@@ -361,11 +361,11 @@ export function PhotoStyleEditor({ settings, onSaved }: { settings: ListingSetti
                   }}
                 />
                 <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={uploading} className="w-full">
-                  {uploading ? <Spinner /> : b.type === "image" ? <ImagePlus /> : <Upload />} {b.type === "image" ? t("Changer l'image") : t("Votre image")}
+                  {uploading ? <Spinner /> : b.type === "image" ? <ImagePlus /> : <Upload />} {b.type === "image" ? t("Changer l'image") : t("Ton image")}
                 </Button>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">{t("Votre propre fond (tapis de jeu, bois, tissu) : une photo carrée d'au moins 1600 px rend le mieux.")}</p>
+            <p className="text-xs text-muted-foreground">{t("Ton propre fond (tapis de jeu, bois, tissu) : une photo carrée d'au moins 1600 px rend le mieux.")}</p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -393,7 +393,7 @@ export function PhotoStyleEditor({ settings, onSaved }: { settings: ListingSetti
 
           <div className="grid gap-3 border-t pt-5" data-testid="brand">
             <Eyebrow>{t("Logo et signature")}</Eyebrow>
-            <p className="text-sm text-muted-foreground">{t("Votre logo dans un coin du visuel, avec à côté la mention « powered by » et le logo Dexlane. Un PNG à fond transparent rend le mieux.")}</p>
+            <p className="text-sm text-muted-foreground">{t("Ton logo dans un coin du visuel, avec à côté la mention « powered by » et le logo Dexlane. Un PNG à fond transparent rend le mieux.")}</p>
             <div className="flex flex-wrap items-center gap-3">
               {style.logoPhotoId && (
                 <img
@@ -416,7 +416,7 @@ export function PhotoStyleEditor({ settings, onSaved }: { settings: ListingSetti
                 }}
               />
               <Button variant="outline" onClick={() => logoRef.current?.click()} disabled={uploading}>
-                {uploading ? <Spinner /> : <Upload />} {style.logoPhotoId ? t("Changer le logo") : t("Ajouter votre logo")}
+                {uploading ? <Spinner /> : <Upload />} {style.logoPhotoId ? t("Changer le logo") : t("Ajouter ton logo")}
               </Button>
               {style.logoPhotoId && <Button variant="ghost" onClick={() => patch({ logoPhotoId: null })} disabled={uploading}>{t("Retirer")}</Button>}
             </div>
@@ -436,7 +436,7 @@ export function PhotoStyleEditor({ settings, onSaved }: { settings: ListingSetti
           <div className="border-t pt-4">
             <SwitchRow
               label={t("Composer le visuel automatiquement")}
-              description={t("Dès qu'une photo arrive (lot entré en stock, photo ajoutée) et avant chaque mise en ligne. Désactivez-le pour publier vos photos telles quelles.")}
+              description={t("Dès qu'une photo arrive (lot entré en stock, photo ajoutée) et avant chaque mise en ligne. Désactive-le pour publier tes photos telles quelles.")}
               checked={settings.autoCompose}
               disabled={uploading}
               onCheckedChange={async (autoCompose) => {
@@ -451,7 +451,7 @@ export function PhotoStyleEditor({ settings, onSaved }: { settings: ListingSetti
           </div>
           <div className="grid gap-2 border-t pt-5" data-testid="promo">
             <Eyebrow>{t("Image de fin d'annonce")}</Eyebrow>
-            <p className="text-sm text-muted-foreground">{t("Ajoutée en dernière photo de chaque annonce : « On rachète vos cartes », vos conditions d'envoi, votre logo…")}</p>
+            <p className="text-sm text-muted-foreground">{t("Ajoutée en dernière photo de chaque annonce : « On rachète vos cartes », tes conditions d'envoi, ton logo…")}</p>
             <div className="flex flex-wrap items-center gap-3">
               {settings.promoPhotoId && <img src={api.photoContentUrl(settings.promoPhotoId)} alt={t("Image de fin d'annonce")} className="size-20 rounded-md bg-muted object-cover ring-1 ring-border" />}
               <input
@@ -482,7 +482,7 @@ export function PhotoStyleEditor({ settings, onSaved }: { settings: ListingSetti
       <Card className="order-first overflow-hidden lg:sticky lg:top-6 lg:order-none">
         <canvas ref={canvasRef} className="aspect-square w-full bg-muted" data-testid="photo-preview" aria-label={t("Aperçu de la photo d'annonce")} role="img" />
         <CardContent className="py-3 sm:py-3">
-          <p className="text-xs text-muted-foreground">{sample instanceof HTMLCanvasElement ? t("Aperçu exact du fichier publié (carte factice : scannez une carte pour voir un vrai exemplaire).") : t("Aperçu exact du fichier publié.")}</p>
+          <p className="text-xs text-muted-foreground">{sample instanceof HTMLCanvasElement ? t("Aperçu exact du fichier publié (carte factice : scanne une carte pour voir un vrai exemplaire).") : t("Aperçu exact du fichier publié.")}</p>
         </CardContent>
       </Card>
     </div>
@@ -498,21 +498,21 @@ const MODES: { value: ChannelMode; label: string }[] = [
 ];
 const ACCESS: Record<ChannelId, { summary: string; steps: string[] }> = {
   ebay: {
-    summary: "eBay demande un compte développeur (gratuit) relié à votre compte vendeur.",
+    summary: "eBay demande un compte développeur (gratuit) relié à ton compte vendeur.",
     steps: [
-      "Créez un compte sur le portail développeur d'eBay (developer.ebay.com) avec votre identifiant eBay.",
-      "Dans « Application keys », créez un jeu de clés Sandbox, puis Production : vous obtenez un App ID (Client ID) et un Cert ID (Client Secret).",
-      "Pour les clés Production, eBay demande de traiter les « notifications de suppression de compte » : abonnez-vous ou déclarez l'exemption.",
-      "Dans « User tokens », section « Get a Token from eBay via Your Application », ajoutez une URL de redirection : son nom est le RuName. Mettez {url} comme adresse d'acceptation et de refus, et cochez l'OAuth.",
-      "Dans les variables d'environnement du serveur (Vercel → Settings → Environment Variables), ajoutez EBAY_CLIENT_ID, EBAY_CLIENT_SECRET (en « Sensitive »), EBAY_RU_NAME et EBAY_ENV (sandbox ou production), puis redéployez.",
-      "Revenez ici : connectez le compte eBay, puis choisissez ou créez les règles de vente.",
+      "Crée un compte sur le portail développeur d'eBay (developer.ebay.com) avec ton identifiant eBay.",
+      "Dans « Application keys », crée un jeu de clés Sandbox, puis Production : tu obtiens un App ID (Client ID) et un Cert ID (Client Secret).",
+      "Pour les clés Production, eBay demande de traiter les « notifications de suppression de compte » : abonne-toi ou déclare l'exemption.",
+      "Dans « User tokens », section « Get a Token from eBay via Your Application », ajoute une URL de redirection : son nom est le RuName. Mets {url} comme adresse d'acceptation et de refus, et coche l'OAuth.",
+      "Dans les variables d'environnement du serveur (Vercel → Settings → Environment Variables), ajoute EBAY_CLIENT_ID, EBAY_CLIENT_SECRET (en « Sensitive »), EBAY_RU_NAME et EBAY_ENV (sandbox ou production), puis redéploie.",
+      "Reviens ici : connecte le compte eBay, puis choisis ou crée les règles de vente.",
     ],
   },
   cardtrader: {
     summary: "CardTrader fournit un jeton d'accès personnel depuis le compte vendeur.",
     steps: [
-      "Connectez-vous à CardTrader, puis ouvrez les réglages du compte, rubrique API.",
-      "Copiez le jeton d'accès de l'application (accès complet).",
+      "Connecte-toi à CardTrader, puis ouvre les réglages du compte, rubrique API.",
+      "Copie le jeton d'accès de l'application (accès complet).",
       "Dites-le dans la conversation : le jeton sera saisi dans un formulaire sécurisé, jamais dans le chat.",
     ],
   },
@@ -548,7 +548,7 @@ export function Channels({ channels, onChange, compact }: { channels: ChannelSta
     <div className="grid gap-4">
       {!compact && <Alert variant="info">
         <strong>{t("Simulation :")}</strong> {t("tout le circuit tourne — publication, quantités, commandes, préparation — sans rien envoyer à la marketplace.")}
-        {" "}{t("Les commandes simulées réservent réellement le stock : annulez-les depuis Ventes après vos essais.")}
+        {" "}{t("Les commandes simulées réservent réellement le stock : annule-les depuis Ventes après tes essais.")}
       </Alert>}
       {error && <Alert variant="destructive">{error}</Alert>}
       <div className="grid items-start gap-4 lg:grid-cols-2">

@@ -24,7 +24,7 @@ import { useCachedState } from "@/lib/cache";
 const today = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Paris" }); // AAAA-MM-JJ
 const LOCATION_ERRORS: Record<string, string> = {
   INVALID_LOCATION_CODE: "Code invalide : lettres, chiffres et tirets, jusqu'à 5 niveaux séparés par « / » (ex. BOX-03/ROW-12/SLOT-04).",
-  LOCATION_HAS_CHILDREN: "Cet emplacement contient des sous-emplacements : supprimez-les d'abord.",
+  LOCATION_HAS_CHILDREN: "Cet emplacement contient des sous-emplacements : supprime-les d'abord.",
   LOCATION_IN_USE: "Cet emplacement a déjà contenu des cartes : il reste dans l'historique et ne peut pas être supprimé.",
 };
 const locationMessage = (e: unknown) => (e instanceof ApiError ? (LOCATION_ERRORS[e.code] ? t(LOCATION_ERRORS[e.code]!) : e.message) : (e as Error).message);
@@ -110,10 +110,10 @@ export default function StoragePage() {
               <h2 className="pr-8 text-[15px] font-semibold tracking-tight">{t("Bien organiser ses emplacements")}</h2>
               <ol className="grid gap-2.5 text-sm">
                 {[
-                  [t("Un code = un endroit physique."), t("Écrivez-le sur une étiquette collée sur la boîte, la rangée ou la case. C'est ce code que l'application vous donnera pour retrouver une carte.")],
-                  [t("Du plus grand au plus petit, séparés par « / »."), t("Boîte, puis rangée, puis case : BOX-03/ROW-12/SLOT-04. Jusqu'à 5 niveaux ; créez seulement ceux dont vous avez besoin.")],
-                  [t("Numérotez sur deux chiffres."), t("01, 02… 10 : le tri reste naturel. « Créer une série » génère d'un coup les rangées d'une boîte.")],
-                  [t("Ne réutilisez pas un code."), t("Un emplacement qui a contenu des cartes reste dans l'historique : il ne se supprime pas et ne doit pas désigner un autre endroit.")],
+                  [t("Un code = un endroit physique."), t("Écris-le sur une étiquette collée sur la boîte, la rangée ou la case. C'est ce code que l'application te donnera pour retrouver une carte.")],
+                  [t("Du plus grand au plus petit, séparés par « / »."), t("Boîte, puis rangée, puis case : BOX-03/ROW-12/SLOT-04. Jusqu'à 5 niveaux ; crée seulement ceux dont tu as besoin.")],
+                  [t("Numérote sur deux chiffres."), t("01, 02… 10 : le tri reste naturel. « Créer une série » génère d'un coup les rangées d'une boîte.")],
+                  [t("Ne réutilise pas un code."), t("Un emplacement qui a contenu des cartes reste dans l'historique : il ne se supprime pas et ne doit pas désigner un autre endroit.")],
                 ].map(([title, text], i) => (
                   <li key={title} className="flex gap-3">
                     <span className="tabular flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground" aria-hidden>{i + 1}</span>
@@ -148,7 +148,7 @@ export default function StoragePage() {
           {locations?.length === 0 && (
             <div className="px-4 pb-4 sm:px-5 sm:pb-5">
               <EmptyState icon={<MapPin />} title={t("Aucun emplacement")} action={<Button size="sm" onClick={() => setModal({ kind: "location" })}>{t("Créer le premier")}</Button>}>
-                {t("Commencez par une boîte, par exemple BOX-01, puis ajoutez-lui des rangées.")}
+                {t("Commence par une boîte, par exemple BOX-01, puis ajoute-lui des rangées.")}
               </EmptyState>
             </div>
           )}
@@ -303,7 +303,7 @@ function NewLocation({ parent, existing, onClose, onCreated }: { parent?: string
           </>
         ) : (
           <>
-            <Field label={t("Dans (facultatif)")} hint={t("L'emplacement parent, par exemple la boîte dont vous créez les rangées.")}>
+            <Field label={t("Dans (facultatif)")} hint={t("L'emplacement parent, par exemple la boîte dont tu crées les rangées.")}>
               <Input value={inside} onChange={(e) => setInside(e.target.value)} placeholder="BOX-03" autoCapitalize="characters" autoCorrect="off" list="known-locations" className="font-mono" />
               <datalist id="known-locations">{existing.map((l) => <option key={l.id} value={l.code} />)}</datalist>
             </Field>
@@ -325,7 +325,7 @@ function NewLocation({ parent, existing, onClose, onCreated }: { parent?: string
                 <span className="mt-1 block truncate text-muted-foreground"><Code>{codes[0]}</Code>{codes.length > 1 && <> … <Code>{codes.at(-1)}</Code></>}</span>
               </div>
             ) : (
-              <Alert variant="warning">{t("Indiquez un préfixe et une plage valide (200 emplacements au plus).")}</Alert>
+              <Alert variant="warning">{t("Indique un préfixe et une plage valide (200 emplacements au plus).")}</Alert>
             )}
           </>
         )}

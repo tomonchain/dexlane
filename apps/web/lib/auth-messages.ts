@@ -17,23 +17,23 @@ export function authMessage(e: unknown): string {
       return t("Cette adresse e-mail appartient déjà à un autre compte.");
     case "INVALID_EMAIL":
     case "VALIDATION_ERROR":
-      return t("Vérifiez l'adresse e-mail.");
+      return t("Vérifie l'adresse e-mail.");
     case "BANNED_USER":
       return t("Ce compte est suspendu.");
     case "INVALID_PASSWORD":
       return retryAfterS ? t("Mot de passe incorrect. Trop d'essais : nouvel essai possible dans {wait}.", { wait: wait(retryAfterS) }) : t("Mot de passe incorrect.");
     case "TOO_MANY_ATTEMPTS":
-      return t("Trop d'essais. Réessayez dans {wait}.", { wait: wait(retryAfterS ?? 60) });
+      return t("Trop d'essais. Réessaie dans {wait}.", { wait: wait(retryAfterS ?? 60) });
     case "WEAK_PASSWORD":
       return t("Le mot de passe doit faire au moins 10 caractères.");
     case "INVALID_SETUP_TOKEN":
       return t("Jeton d'installation refusé.");
     case "EMAIL_NOT_VERIFIED":
-      return t("Cette adresse e-mail n'a pas encore été vérifiée : suivez le lien reçu par e-mail.");
+      return t("Cette adresse e-mail n'a pas encore été vérifiée : suis le lien reçu par e-mail.");
     case "PASSWORD_NOT_SET":
       return t("Aucun mot de passe n'est encore défini.");
     case "API_UNREACHABLE":
-      return t("Le serveur dexlane ne répond pas. Vérifiez qu'il est démarré.");
+      return t("Le serveur dexlane ne répond pas. Vérifie qu'il est démarré.");
     case "SERVER_MISCONFIGURED":
       return t("Configuration incomplète : DEXLANE_API_TOKEN doit être défini sur le serveur.");
     default:

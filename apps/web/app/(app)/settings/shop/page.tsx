@@ -60,7 +60,7 @@ export default function ShopSettingsPage() {
       <PageHeader
         back={<BackLink href="/settings">{t("Réglages")}</BackLink>}
         title={t("Boutique et documents")}
-        description={t("En tête des bons de livraison et des reçus imprimés chaque jour, et le format de votre imprimante.")}
+        description={t("En tête des bons de livraison et des reçus imprimés chaque jour, et le format de ton imprimante.")}
       />
       {error && <Alert variant="destructive">{error}</Alert>}
       {!form ? !error && <Loading /> : (
@@ -68,7 +68,7 @@ export default function ShopSettingsPage() {
           <Card>
             <CardContent className="grid gap-4">
               <div className="grid gap-1">
-                <CardTitle>{t("Votre boutique")}</CardTitle>
+                <CardTitle>{t("Ta boutique")}</CardTitle>
                 <CardDescription>{t("Imprimé en haut de chaque bon de livraison et de chaque reçu.")}</CardDescription>
               </div>
               <Field label={t("Nom de la boutique")}>
@@ -101,7 +101,7 @@ export default function ShopSettingsPage() {
                 <CardTitle>{t("Demande d'avis")}</CardTitle>
                 <CardDescription>{t("Proposé dans chaque vente 24 h après la livraison, à copier dans la messagerie du canal ou un e-mail. {acheteur} et {boutique} sont remplacés.")}</CardDescription>
               </div>
-              <Field label={t("Message")} hint={t("Laissez vide pour le message par défaut.")}>
+              <Field label={t("Message")} hint={t("Laisse vide pour le message par défaut.")}>
                 <Textarea value={form.reviewMessage} onChange={(e) => setForm({ ...form, reviewMessage: e.target.value })} maxLength={1000} className="min-h-32"
                   placeholder={reviewMessage("", "{acheteur}", "{boutique}")} data-testid="review-template" />
               </Field>

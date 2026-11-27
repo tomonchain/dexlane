@@ -98,7 +98,7 @@ export default function PricingPage() {
     <div className="grid gap-5">
       <PageHeader
         title={t("Prix")}
-        description={t("Chaque offre reçoit une estimation à partir des cotations importées. Vous décidez du prix ; il ne change jamais tout seul.")}
+        description={t("Chaque offre reçoit une estimation à partir des cotations importées. Tu décides du prix ; il ne change jamais tout seul.")}
         actions={
           <Button variant="outline" onClick={recompute} disabled={busy !== null}>
             {busy === "recompute" ? <Spinner /> : <RefreshCw />} {t("Recalculer")}
@@ -383,7 +383,7 @@ function Rules({ settings, onSaved }: { settings: PricingSettings; onSaved: (s: 
         <CardContent className="grid gap-4">
           <div className="grid gap-1">
             <CardTitle>{t("Catégories et garde-fous")}</CardTitle>
-            <CardDescription>{t("Seuils sur le prix estimé. Entre « lot » et « à l'unité », l'offre part en revue : à vous de trancher.")}</CardDescription>
+            <CardDescription>{t("Seuils sur le prix estimé. Entre « lot » et « à l'unité », l'offre part en revue : à toi de trancher.")}</CardDescription>
           </div>
           <div className="grid grid-cols-2 gap-3">
             {euro("bulkBelowCents", t("Vrac en dessous de (€)"))}

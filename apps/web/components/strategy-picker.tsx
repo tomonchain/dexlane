@@ -38,7 +38,7 @@ export function StrategyPicker({ value, onChange }: { value: PricingSettings["st
       </div>
       <p className="text-xs text-muted-foreground">
         {t("Exemple pour une carte dont l'annonce la moins chère est à 8 €, les ventes récentes à 9 € et le plus haut prix soutenu à 10,40 €.")}{" "}
-        {t("Dans tous les cas, le prix ne descend jamais sous votre prix d'achat.")}
+        {t("Dans tous les cas, le prix ne descend jamais sous ton prix d'achat.")}
       </p>
     </div>
   );

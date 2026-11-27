@@ -25,6 +25,9 @@ Retiré), avec le numéro de l'issue qu'il traite.
   image à partager (publication ou story) générée sur le serveur, sans montant par défaut (#85).
 - Niveau de la boutique d'après les ventes confirmées, succès, avantages de niveau, page Progression, notification
   groupée des succès, réglage « Afficher le niveau et les succès » ; attribution rétroactive au lancement (#86).
+- Progression : carte vendeur dont le cadre change de matière à chaque niveau (Carton, Bois, Pierre, Fer, Bronze,
+  Argent, Or, Platine, Diamant, Légende) ; les 14 succès deviennent des cartes numérotées, avec leur rareté, rangées
+  dans un classeur (#92).
 - Quota de scans : chaque photo lue par Claude compte, avec un plafond mensuel par forfait (50, 300, 1 500, 6 000 ;
   un pack ajoute 500 scans), 60 scans par minute au plus et le coût estimé noté par scan (migration 0038). Jauge dans
   Réglages › Forfait, plafonds sur `/tarifs` et dans la doc ; dans un lot, la carte hors quota reste à identifier à la
@@ -50,6 +53,9 @@ Retiré), avec le numéro de l'issue qu'il traite.
   avec son évolution sur six mois, plan du site dédié et adresses canoniques (#62).
 
 ### Modifié
+- L'application tutoie partout, comme le site, les e-mails et les nouveaux écrans (#93).
+- Niveau 1 : il s'obtient en terminant la configuration du compte, plus à la première vente ; une carte n'est rangée
+  qu'à un emplacement précis (sans sous-emplacement) ; l'e-mail du récap est coupé pour le moment (migration 0040) (#92).
 - Les commandes eBay gardent le pays de livraison (#86).
 - En-tête du site : « Cotes » et « Guides » (dès le premier guide publié), section active mise en évidence ; menu
   repliable jusqu'à 1024 px de large (#81).

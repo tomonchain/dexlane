@@ -31,7 +31,7 @@ import { useCachedState } from "@/lib/cache";
 const KIND: Record<string, string> = { UNIQUE: "Exemplaire unique", FUNGIBLE: "Interchangeable", BULK: "Vrac" };
 const PHOTO_KIND: Record<string, string> = { SCAN_FRONT: "Recto", SCAN_BACK: "Verso", LISTING: "Annonce" };
 const ERRORS: Record<string, string> = {
-  ADJUST_BELOW_COMMITTED: "Des cartes de cette position sont réservées pour une commande : traitez d'abord la commande concernée.",
+  ADJUST_BELOW_COMMITTED: "Des cartes de cette position sont réservées pour une commande : traite d'abord la commande concernée.",
   LOCATION_NOT_FOUND: "Cet emplacement n'existe pas.",
   NOT_DRAFT: "Cette position ne peut pas être validée.",
 };
@@ -278,7 +278,7 @@ function AdjustModal({ position, busy, onClose, onSubmit }: {
   return (
     <Modal
       title={t("Corriger le stock")}
-      description={t("Saisissez la quantité réellement comptée en {location}. Le système enregistre l'écart ({count} actuellement).", { location: position.locationCode, count: position.onHand })}
+      description={t("Saisis la quantité réellement comptée en {location}. Le système enregistre l'écart ({count} actuellement).", { location: position.locationCode, count: position.onHand })}
       onClose={onClose}
     >
       <form className="grid gap-4" onSubmit={submit}>

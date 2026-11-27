@@ -1,6 +1,6 @@
 import type { ShareCard, ShareMetric } from "@dexlane/insights/share";
 import { formatNumber } from "./format";
-import { formatAmount, formatAmounts, formatMinutes, periodName } from "./insights-format";
+import { formatAmount, formatAmounts, formatMinutes, levelLabel, periodName } from "./insights-format";
 import { t, tn } from "./i18n";
 import type { ShareTexts } from "./share-image";
 
@@ -14,7 +14,7 @@ export function shareTexts(card: ShareCard): ShareTexts {
     if (m.key === "cardsSold") metrics.set(m.key, { value: formatNumber(m.value), label: tn(m.value, "carte vendue", "cartes vendues") });
     if (m.key === "timeSaved") metrics.set(m.key, { value: formatMinutes(m.minutes), label: t("gagnées grâce à Dexlane (estimation)") });
     if (m.key === "achievements") metrics.set(m.key, { value: String(m.value), label: tn(m.value, "succès débloqué", "succès débloqués") });
-    if (m.key === "level") metrics.set(m.key, { value: String(m.value), label: t("niveau de la boutique") });
+    if (m.key === "level") metrics.set(m.key, { value: levelLabel(m.value), label: t("niveau {n} de la boutique", { n: m.value }) });
     if (m.key === "revenue") metrics.set(m.key, { value: formatAmounts(m.amounts, { maximumFractionDigits: 0 }), label: t("de chiffre d'affaires") });
   }
   const bestSale = card.bestSale

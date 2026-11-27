@@ -48,7 +48,7 @@ export default function PublicationsPage() {
     <Page>
       <PageHeader
         title={t("Mises en ligne")}
-        description={t("Quand vos cartes partent sur eBay et CardTrader : le planning jour par jour, et ce qui n'a pas pu être publié.")}
+        description={t("Quand tes cartes partent sur eBay et CardTrader : le planning jour par jour, et ce qui n'a pas pu être publié.")}
         actions={loaded && channels.length > 0 && ready > 0 && (
           <Button onClick={() => setPlanning(true)}><CalendarClock /> {tn(ready, "Planifier {n} carte", "Planifier {n} cartes")}</Button>
         )}
@@ -60,7 +60,7 @@ export default function PublicationsPage() {
         <>
           {channels.length === 0 && (
             <Alert variant="info">
-              {t("Aucun canal de vente n'est actif : activez eBay ou CardTrader, en simulation pour tout essayer sans rien publier, dans")}{" "}
+              {t("Aucun canal de vente n'est actif : active eBay ou CardTrader, en simulation pour tout essayer sans rien publier, dans")}{" "}
               <Link href="/settings/channels" className="font-medium underline underline-offset-2">{t("Réglages › Canaux de vente")}</Link>.
             </Alert>
           )}
@@ -93,7 +93,7 @@ export default function PublicationsPage() {
               title={t("Rien n'est planifié")}
               action={channels.length > 0 && ready > 0 && <Button size="sm" onClick={() => setPlanning(true)}>{t("Planifier les {n} cartes prêtes", { n: formatNumber(ready) })}</Button>}
             >
-              {t("Planifiez les cartes prêtes pour les publier quelques-unes par jour, ou cochez-en dans le stock pour choisir lesquelles.")}
+              {t("Planifie les cartes prêtes pour les publier quelques-unes par jour, ou coche-en dans le stock pour choisir lesquelles.")}
             </EmptyState>
           )}
         </>

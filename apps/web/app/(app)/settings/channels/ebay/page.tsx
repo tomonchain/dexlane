@@ -28,7 +28,7 @@ export default function EbayConsentReturnPage() {
     if (!code || !state) {
       setError(params.get("error") === "access_denied" || !code
         ? t("L'autorisation a été refusée sur eBay : le compte n'est pas connecté.")
-        : t("Retour d'eBay incomplet : recommencez la connexion."));
+        : t("Retour d'eBay incomplet : recommence la connexion."));
       return;
     }
     api.ebayCompleteConsent({ state, code })

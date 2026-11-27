@@ -71,7 +71,7 @@ function Statistics() {
   const [view, setView] = useState<View>(asked === "cotes" || asked === "prices" ? "COTES" : asked === "ventes" ? "VENTES" : "RESUME");
   return (
     <Page>
-      <PageHeader title={t("Statistiques")} description={t("Ce qui se vend, à quel prix et à quelle vitesse ; puis la valeur de votre stock et les cotes qui bougent.")} />
+      <PageHeader title={t("Statistiques")} description={t("Ce qui se vend, à quel prix et à quelle vitesse ; puis la valeur de ton stock et les cotes qui bougent.")} />
       <div>
         <SegmentedTabs label={t("Vue")} value={view} onChange={setView} tabs={[{ value: "RESUME", label: t("Résumé") }, { value: "VENTES", label: t("Ce qui se vend") }, { value: "COTES", label: t("Stock et cotes") }]} />
       </div>
@@ -92,7 +92,7 @@ function takeaways(d: SalesInsights): string[] {
   const band = [...d.byPriceBand].sort((a, b) => b.cards - a.cards)[0];
   if (band && band.cards > 0) out.push(t("La tranche qui se vend le plus : {band}, {percent} % des cartes vendues.", { band: t(band.label).toLowerCase(), percent: share(band.cards, totals.cards) }));
   const flowing = d.bySet.filter((x) => x.cards >= 3).sort((a, b) => b.sellThroughPercent - a.sellThroughPercent)[0];
-  if (flowing) out.push(t("{set} s'écoule le mieux : {percent} % de ce que vous en aviez est vendu.", { set: flowing.label, percent: Math.round(flowing.sellThroughPercent) }));
+  if (flowing) out.push(t("{set} s'écoule le mieux : {percent} % de ce que tu en avais est vendu.", { set: flowing.label, percent: Math.round(flowing.sellThroughPercent) }));
   if (totals.medianDaysToSell !== null) {
     out.push(totals.medianDaysToSell === 0
       ? t("La moitié des cartes vendues partent le jour même de leur entrée en stock.")
@@ -100,7 +100,7 @@ function takeaways(d: SalesInsights): string[] {
   }
   const peak = [...d.byWeekday].sort((a, b) => b.orders - a.orders)[0];
   if (peak && totals.orders >= 5 && peak.orders > totals.orders / 7) {
-    out.push(tn(peak.orders, "Le {day} est le jour où vous vendez le plus ({n} vente).", "Le {day} est le jour où vous vendez le plus ({n} ventes).", { day: weekdayName(peak.weekday) }));
+    out.push(tn(peak.orders, "Le {day} est le jour où tu vends le plus ({n} vente).", "Le {day} est le jour où tu vends le plus ({n} ventes).", { day: weekdayName(peak.weekday) }));
   }
   const trend = evolution(totals.revenueCents, d.previous.revenueCents);
   if (trend !== null && Math.abs(trend) >= 5) {
@@ -172,13 +172,13 @@ function BalancePanel({ data }: { data: SalesInsights }) {
   const { listed, cards: sold } = data.totals;
   const verdict = {
     BALANCED: { badge: trend === "UP" ? t("Équilibré et en croissance") : t("Équilibré"), variant: "success" as const,
-      text: trend === "UP" ? t("Vous mettez en vente à peu près ce que vous vendez, et les deux progressent : c'est le bon rythme.")
+      text: trend === "UP" ? t("Tu mets en vente à peu près ce que tu vends, et les deux progressent : c'est le bon rythme.")
         : trend === "DOWN" ? t("Mises en vente et ventes s'équilibrent, mais reculent toutes les deux par rapport à la période précédente.")
-        : t("Vous mettez en vente à peu près ce que vous vendez. Pour grandir, augmentez les deux ensemble.") },
+        : t("Tu mets en vente à peu près ce que tu vends. Pour grandir, augmente les deux ensemble.") },
     PILING: { badge: t("Le stock s'accumule"), variant: "warning" as const,
-      text: t("Vous mettez en vente plus que vous ne vendez : ralentissez les mises en ligne ou revoyez les prix de ce qui ne part pas.") },
+      text: t("Tu mets en vente plus que tu ne vends : ralentis les mises en ligne ou revois les prix de ce qui ne part pas.") },
     DRAINING: { badge: t("Le stock se vide"), variant: "warning" as const,
-      text: t("Vous vendez plus que vous ne mettez en vente : remettez des cartes en ligne pour ne pas manquer de stock.") },
+      text: t("Tu vends plus que tu ne mets en vente : remets des cartes en ligne pour ne pas manquer de stock.") },
     NONE: { badge: null, variant: "neutral" as const, text: t("Aucune carte mise en vente ni vendue sur la période.") },
   }[state];
   const ratioOf = (s: number, l: number) => (l === 0 ? "—" : pct(Math.round((s / l) * 100)));
@@ -233,8 +233,8 @@ function SalesView() {
       {data && data.totals.cards === 0 && data.totals.listed > 0 && <BalancePanel data={data} />}
       {data && data.totals.cards === 0 && (
         <EmptyState icon={<TrendingUp />} title={t("Aucune vente sur les {period} écoulés", { period: t(period) })}>
-          {t("Les statistiques se remplissent avec vos ventes : séries qui partent, prix qui se vendent, délai de vente.")}
-          {days !== "365" && ` ${t("Élargissez la période pour voir plus loin.")}`}
+          {t("Les statistiques se remplissent avec tes ventes : séries qui partent, prix qui se vendent, délai de vente.")}
+          {days !== "365" && ` ${t("Élargis la période pour voir plus loin.")}`}
         </EmptyState>
       )}
       {data && data.totals.cards > 0 && <SalesReport data={data} />}
@@ -380,7 +380,7 @@ function StockView() {
       loadMoves();
       api.dashboard().then(setDashboard).catch(() => undefined);
     } catch (e) {
-      setError(e instanceof ApiError && e.code === "CATALOG_UNAVAILABLE" ? t("La source des cotes ne répond pas. Réessayez plus tard.") : (e as Error).message);
+      setError(e instanceof ApiError && e.code === "CATALOG_UNAVAILABLE" ? t("La source des cotes ne répond pas. Réessaie plus tard.") : (e as Error).message);
     } finally {
       setRefreshing(false);
     }
@@ -505,7 +505,7 @@ function MoveRow({ move }: { move: PriceMove }) {
       </div>
       {move.targetPriceCents !== null && (
         <p className={cn("basis-full text-xs sm:w-48 sm:basis-auto sm:text-right", move.targetPriceCents < move.latestCents * 0.9 || move.targetPriceCents > move.latestCents * 1.25 ? "text-warning" : "text-muted-foreground")}>
-          {t("Votre prix : {price}", { price: formatEuros(move.targetPriceCents) })} — <Link href="/pricing" className="font-medium text-primary underline-offset-2 hover:underline">{t("revoir")}</Link>
+          {t("Ton prix : {price}", { price: formatEuros(move.targetPriceCents) })} — <Link href="/pricing" className="font-medium text-primary underline-offset-2 hover:underline">{t("revoir")}</Link>
         </p>
       )}
     </div>

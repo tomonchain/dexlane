@@ -92,14 +92,14 @@ export default function AgentsPage() {
       <PageHeader
         back={<BackLink href="/settings">Réglages</BackLink>}
         title={t("Agents")}
-        description={t("Branchez vos agents sur Dexlane par le serveur MCP : ils lisent la boutique et agissent avec les mêmes règles que l'application, chaque action étant enregistrée à leur nom.")}
+        description={t("Branche tes agents sur Dexlane par le serveur MCP : ils lisent la boutique et agissent avec les mêmes règles que l'application, chaque action étant enregistrée à leur nom.")}
       />
       {error && <Alert variant="destructive">{error}</Alert>}
 
       <Card>
         <CardContent className="grid gap-3">
           <CardTitle>{t("Serveur MCP")}</CardTitle>
-          <CardDescription>{t("À donner à votre outil d'agents (transport HTTP, « Streamable HTTP »), avec un jeton en en-tête Authorization.")}</CardDescription>
+          <CardDescription>{t("À donner à ton outil d'agents (transport HTTP, « Streamable HTTP »), avec un jeton en en-tête Authorization.")}</CardDescription>
           {origin && <CopyField label={t("Adresse")} value={endpoint} testId="mcp-endpoint" />}
           <ul className="grid gap-1.5 text-sm text-muted-foreground">
             {CAPABILITIES.map((c) => <li key={c} className="flex gap-2"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-brand" aria-hidden />{t(c)}</li>)}
@@ -111,7 +111,7 @@ export default function AgentsPage() {
         <Card className="border-brand/40 bg-brand-soft/30" data-testid="agent-token-created">
           <CardContent className="grid gap-3">
             <CardTitle className="flex items-center gap-2"><KeyRound className="size-4 text-brand" aria-hidden /> {t("Jeton de « {name} »", { name: fresh.name })}</CardTitle>
-            <Alert variant="warning">{t("Copiez-le maintenant : il ne sera plus affiché. En cas de perte, révoquez-le et créez-en un autre.")}</Alert>
+            <Alert variant="warning">{t("Copie-le maintenant : il ne sera plus affiché. En cas de perte, révoque-le et crée-en un autre.")}</Alert>
             <CopyField label={t("Jeton")} value={fresh.token} testId="agent-token-value" />
             <div className="grid gap-1.5">
               <span className="text-[13px] leading-none font-medium text-foreground/80">{t("Configuration type")}</span>

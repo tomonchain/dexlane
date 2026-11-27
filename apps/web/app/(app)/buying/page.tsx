@@ -166,7 +166,7 @@ function WatchedRow({ item, onChanged }: { item: WatchedCard; onChanged: () => v
           </span>
           <InlineLinks card={item.card} />
         </>}>
-          {reached && <Badge variant="success"><BellRing /> {t("Sous votre prix cible")}</Badge>}
+          {reached && <Badge variant="success"><BellRing /> {t("Sous ton prix cible")}</Badge>}
           {moved && item.change && <Badge variant="warning">{item.change.percent > 0 ? <TrendingUp /> : <TrendingDown />} {item.change.percent > 0 ? "+" : ""}{t("{percent} % en {days} j", { percent: formatNumber(item.change.percent), days: item.change.windowDays })}</Badge>}
         </CardLabel>
         <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
@@ -257,7 +257,7 @@ function WatchModal({ onClose, onWatched }: { onClose: () => void; onWatched: ()
   };
 
   return (
-    <Modal title={t("Suivre une carte")} description={t("Cherchez par nom, numéro ou série. Le prix cible se règle ensuite dans la liste.")} onClose={onClose}>
+    <Modal title={t("Suivre une carte")} description={t("Cherche par nom, numéro ou série. Le prix cible se règle ensuite dans la liste.")} onClose={onClose}>
       <div className="grid gap-3">
         <div className="relative">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
@@ -278,13 +278,13 @@ function WatchModal({ onClose, onWatched }: { onClose: () => void; onWatched: ()
             <div className="grid gap-0.5 px-1">
               <h3 className="text-xs font-medium text-muted-foreground">{t("Les plus demandées en ce moment")}</h3>
               <p className="text-[11px] text-muted-foreground">
-                {t("Cartes de plus de 10 € de vos séries importées, vendues hier sur Cardmarket et dont le prix de vente monte le plus cette semaine : la demande dépasse l'offre.")}{" "}
+                {t("Cartes de plus de 10 € de tes séries importées, vendues hier sur Cardmarket et dont le prix de vente monte le plus cette semaine : la demande dépasse l'offre.")}{" "}
                 {t("Cardmarket ne publie pas le nombre de recherches ; c'est l'indice le plus proche.")}
               </p>
             </div>
             {!top ? <ListSkeleton count={5} thumb label={t("Chargement des cartes demandées")} /> : top.length === 0 ? (
               <p className="rounded-lg border border-dashed px-4 py-6 text-center text-[13px] text-muted-foreground">
-                {t("Aucune carte de plus de 10 € en hausse dans vos séries importées. Importez d'autres séries dans le catalogue, ou actualisez les prix.")}
+                {t("Aucune carte de plus de 10 € en hausse dans tes séries importées. Importe d'autres séries dans le catalogue, ou actualise les prix.")}
               </p>
             ) : (
               <ul className="divide-y overflow-hidden rounded-lg border bg-card">
@@ -329,7 +329,7 @@ function Watchlist({ data, onChanged }: { data: { items: WatchedCard[]; alerts: 
       <p className="text-sm text-muted-foreground">
         {data && data.items.length > 0
           ? tn(data.items.length, "{n} carte suivie, relevée chaque jour.", "{n} cartes suivies, relevées chaque jour.")
-          : t("Les cartes que vous voulez acheter au bon prix.")}
+          : t("Les cartes que tu veux acheter au bon prix.")}
       </p>
       <Button onClick={() => setAdding(true)}><Plus /> {t("Suivre une carte")}</Button>
     </div>
@@ -339,13 +339,13 @@ function Watchlist({ data, onChanged }: { data: { items: WatchedCard[]; alerts: 
       {header}
       {!data ? <ListSkeleton count={4} thumb label={t("Chargement des cartes suivies")} /> : data.items.length === 0 ? (
         <EmptyState icon={<Star />} title={t("Aucune carte suivie")}>
-          {t("Suivez une carte pour voir son prix de vente, l'annonce la moins chère et le prix TCGplayer, et être alerté quand elle passe sous votre prix.")}
+          {t("Suis une carte pour voir son prix de vente, l'annonce la moins chère et le prix TCGplayer, et être alerté quand elle passe sous ton prix.")}
         </EmptyState>
       ) : (
         <>
           {data.alerts > 0 && (
             <Alert variant="info">
-              {tn(data.alerts, "{n} carte demande votre attention : prix cible atteint ou variation au-delà de vos seuils d'alerte.", "{n} cartes demandent votre attention : prix cible atteint ou variation au-delà de vos seuils d'alerte.")}
+              {tn(data.alerts, "{n} carte demande ton attention : prix cible atteint ou variation au-delà de tes seuils d'alerte.", "{n} cartes demandent ton attention : prix cible atteint ou variation au-delà de tes seuils d'alerte.")}
             </Alert>
           )}
           <ul className="divide-y overflow-hidden rounded-lg border bg-card">
@@ -414,14 +414,14 @@ function Deals({ onWatched }: { onWatched: () => void }) {
       {data && (
         <p className="text-xs text-muted-foreground" data-testid="deals-scope">
           {tn(data.examined, "{n} carte des séries importées, cotée autour de {price} ou plus et relevée depuis moins de {days} jours, comparée à leurs ventes réussies.", "{n} cartes des séries importées, cotées autour de {price} ou plus et relevées depuis moins de {days} jours, comparées à leurs ventes réussies.", { price: roundEuros(data.minCents), days: data.freshDays })}
-          {" "}{t("L'annonce la moins chère de Cardmarket mélange les états et les langues : vérifiez l'annonce avant d'acheter.")}
+          {" "}{t("L'annonce la moins chère de Cardmarket mélange les états et les langues : vérifie l'annonce avant d'acheter.")}
         </p>
       )}
       {!data && !error ? <ListSkeleton count={5} thumb label={t("Recherche des bonnes affaires")} /> : data && data.deals.length === 0 ? (
         <EmptyState icon={<Search />} title={t("Aucune bonne affaire pour ces critères")}>
           {data.examined === 0
-            ? t("Aucune carte de cette valeur n'a été relevée récemment. Importez des séries dans le catalogue, puis actualisez les prix : les cartes de plus de 10 € sont relevées chaque jour.")
-            : t("Baissez la valeur ou la décote minimale, ou revenez après le prochain relevé quotidien.")}
+            ? t("Aucune carte de cette valeur n'a été relevée récemment. Importe des séries dans le catalogue, puis actualise les prix : les cartes de plus de 10 € sont relevées chaque jour.")
+            : t("Baisse la valeur ou la décote minimale, ou reviens après le prochain relevé quotidien.")}
         </EmptyState>
       ) : data && (
         <ul className="divide-y overflow-hidden rounded-lg border bg-card">
@@ -454,7 +454,7 @@ export default function PurchasesPage() {
       loadWatched();
       setVersion((v) => v + 1);
     } catch (e) {
-      setError(e instanceof ApiError && e.code === "CATALOG_UNAVAILABLE" ? t("La source des prix ne répond pas. Réessayez plus tard.") : (e as Error).message);
+      setError(e instanceof ApiError && e.code === "CATALOG_UNAVAILABLE" ? t("La source des prix ne répond pas. Réessaie plus tard.") : (e as Error).message);
     } finally {
       setRefreshing(false);
     }

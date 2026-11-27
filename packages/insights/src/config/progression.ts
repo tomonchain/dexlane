@@ -25,10 +25,10 @@ export const saleConfirmationDays = 14;
 export const levelThresholds = [0, 10, 50, 150, 400, 1000, 2500, 6000, 15000, 40000] as const;
 
 /**
- * Noms des niveaux. [À CONFIRMER] : tant qu'ils ne sont pas choisis, la liste est vide et l'interface affiche
- * « Niveau N ».
+ * Noms des niveaux 1 à 10 : la matière du cadre de la carte vendeur. Le niveau 1 (Carton) s'obtient en terminant la
+ * configuration du compte ; les suivants, aux seuils de ventes confirmées ci-dessus.
  */
-export const levelNames: readonly string[] = [];
+export const levelNames: readonly string[] = ["Carton", "Bois", "Pierre", "Fer", "Bronze", "Argent", "Or", "Platine", "Diamant", "Légende"];
 
 /** Semaines consécutives (semaines ISO, fuseau de l'utilisateur) pour le succès de régularité. */
 export const weeklyStreakTarget = 8;
@@ -55,7 +55,12 @@ export const ebayFeesSynced = false;
  */
 export const referral = { enabled: false, minDaysBeforeSuggestion: 30 } as const;
 
-/** [À CONFIRMER] E-mail du récap mensuel activé par défaut pour chaque utilisateur. */
+/**
+ * E-mail qui annonce le récap mensuel : coupé pour le moment (les récaps restent dans l'application). Réactivé, il
+ * n'annonce que les récaps créés dans les 7 derniers jours, et chaque utilisateur peut s'en désinscrire.
+ */
+export const recapEmailEnabled = false;
+/** Réglage de chaque utilisateur quand l'e-mail du récap est actif. */
 export const recapEmailDefault = true;
 
 // ───────────────────────── Avantages par niveau ─────────────────────────
@@ -115,10 +120,22 @@ export const achievementCategories: readonly { id: AchievementCategory; label: s
   { id: "referral", label: "Parrainage" },
 ];
 
+/** Rareté d'un succès : il se présente comme une carte à collectionner, rangée dans le classeur du compte. */
+export type AchievementRarity = "common" | "uncommon" | "rare" | "holo" | "secret";
+
+export const achievementRarities: readonly { id: AchievementRarity; label: string }[] = [
+  { id: "common", label: "Commune" },
+  { id: "uncommon", label: "Peu commune" },
+  { id: "rare", label: "Rare" },
+  { id: "holo", label: "Holo" },
+  { id: "secret", label: "Secrète" },
+];
+
 /** Condition d'un succès, évaluée par le calcul de progression d'après le journal et les tables métier. */
 export type AchievementCondition =
   | { kind: "onboardingComplete" }
   | { kind: "listingsPublished"; atLeast: number }
+  /** Toutes les cartes en stock sont rangées à un emplacement précis, avec au moins `minCards` cartes en stock. */
   | { kind: "allStockLocated"; minCards: number }
   | { kind: "confirmedSales"; atLeast: number }
   | { kind: "confirmedGradedSale" }
@@ -133,35 +150,40 @@ export type AchievementCondition =
   | { kind: "referralFullDiscount" };
 
 export interface AchievementDef {
+  /** Identifiant stable, gardé en base : ne jamais le changer pour un succès déjà attribué. */
   id: string;
-  /** [À CONFIRMER] Noms de travail. */
+  /** Numéro dans le classeur (1 à 14). */
+  number: number;
   name: string;
   description: string;
+  rarity: AchievementRarity;
   category: AchievementCategory;
   condition: AchievementCondition;
 }
 
+/** Les 14 cartes du classeur, dans l'ordre de leur numéro. */
 export const achievements: readonly AchievementDef[] = [
-  { id: "account_ready", name: "Compte prêt", description: "Les 7 étapes du démarrage faites", category: "start", condition: { kind: "onboardingComplete" } },
-  { id: "first_listing", name: "Première mise en ligne", description: "1 annonce publiée avec succès", category: "start", condition: { kind: "listingsPublished", atLeast: 1 } },
-  { id: "all_stored", name: "Tout est rangé", description: "Toutes les cartes en stock ont un emplacement, avec au moins 50 cartes en stock", category: "start", condition: { kind: "allStockLocated", minCards: 50 } },
-  { id: "first_sale", name: "Première vente", description: "1 vente confirmée", category: "sales", condition: { kind: "confirmedSales", atLeast: 1 } },
-  { id: "sales_100", name: "Cent", description: "100 ventes confirmées", category: "sales", condition: { kind: "confirmedSales", atLeast: 100 } },
-  { id: "sales_1000", name: "Mille", description: "1 000 ventes confirmées", category: "sales", condition: { kind: "confirmedSales", atLeast: 1000 } },
-  { id: "sales_10000", name: "Dix mille", description: "10 000 ventes confirmées", category: "sales", condition: { kind: "confirmedSales", atLeast: 10000 } },
-  { id: "graded_sale", name: "Carte gradée", description: "1 vente confirmée d'une carte gradée", category: "sales", condition: { kind: "confirmedGradedSale" } },
-  { id: "export", name: "Export", description: "1 vente confirmée livrée dans un autre pays que le tien", category: "sales", condition: { kind: "confirmedExportSale" } },
-  { id: "flawless", name: "Sans faute", description: "30 jours consécutifs avec au moins 20 annonces publiées et aucune en erreur", category: "quality", condition: { kind: "flawlessDays", days: 30, minPerDay: 20 } },
-  { id: "record_session", name: "Session record", description: "100 annonces publiées avec succès en moins d'une heure", category: "speed", condition: { kind: "publishBurst", count: 100, withinMinutes: 60 } },
-  { id: "regular", name: "Régulier", description: "Au moins une annonce publiée chaque semaine pendant 8 semaines consécutives", category: "regularity", condition: { kind: "weeklyStreak", weeks: weeklyStreakTarget } },
-  { id: "first_referral", name: "Premier filleul", description: "1 filleul qualifié", category: "referral", condition: { kind: "referralsQualified", atLeast: 1 } },
-  { id: "free_dexlane", name: "Dexlane offert", description: "Remise de parrainage à 100 % sur une facture", category: "referral", condition: { kind: "referralFullDiscount" } },
+  { id: "account_ready", number: 1, name: "Premier classeur", description: "Compte prêt : les 7 étapes du démarrage faites", rarity: "common", category: "start", condition: { kind: "onboardingComplete" } },
+  { id: "first_listing", number: 2, name: "Mise en vitrine", description: "Première annonce publiée", rarity: "common", category: "start", condition: { kind: "listingsPublished", atLeast: 1 } },
+  { id: "first_sale", number: 3, name: "Vendu !", description: "Première vente confirmée", rarity: "common", category: "sales", condition: { kind: "confirmedSales", atLeast: 1 } },
+  { id: "all_stored", number: 4, name: "Chaque carte à sa place", description: "Tout le stock a un emplacement précis, avec au moins 50 cartes en stock", rarity: "uncommon", category: "start", condition: { kind: "allStockLocated", minCards: 50 } },
+  { id: "sales_100", number: 5, name: "La centaine", description: "100 ventes confirmées", rarity: "uncommon", category: "sales", condition: { kind: "confirmedSales", atLeast: 100 } },
+  { id: "regular", number: 6, name: "Métronome", description: "Une publication par semaine pendant 8 semaines", rarity: "uncommon", category: "regularity", condition: { kind: "weeklyStreak", weeks: weeklyStreakTarget } },
+  { id: "export", number: 7, name: "Passe-frontière", description: "Première vente confirmée livrée à l'étranger", rarity: "uncommon", category: "sales", condition: { kind: "confirmedExportSale" } },
+  { id: "first_referral", number: 8, name: "Passeur", description: "Premier filleul qualifié", rarity: "uncommon", category: "referral", condition: { kind: "referralsQualified", atLeast: 1 } },
+  { id: "graded_sale", number: 9, name: "Sous coque", description: "Première carte gradée vendue", rarity: "rare", category: "sales", condition: { kind: "confirmedGradedSale" } },
+  { id: "record_session", number: 10, name: "Coup de feu", description: "100 annonces publiées en moins d'une heure", rarity: "rare", category: "speed", condition: { kind: "publishBurst", count: 100, withinMinutes: 60 } },
+  { id: "flawless", number: 11, name: "Zéro défaut", description: "30 jours sans annonce en erreur, avec au moins 20 annonces par jour", rarity: "rare", category: "quality", condition: { kind: "flawlessDays", days: 30, minPerDay: 20 } },
+  { id: "sales_1000", number: 12, name: "Le millier", description: "1 000 ventes confirmées", rarity: "holo", category: "sales", condition: { kind: "confirmedSales", atLeast: 1000 } },
+  { id: "free_dexlane", number: 13, name: "Ambassadeur", description: "Dexlane offert grâce au parrainage", rarity: "holo", category: "referral", condition: { kind: "referralFullDiscount" } },
+  { id: "sales_10000", number: 14, name: "Dix mille", description: "10 000 ventes confirmées", rarity: "secret", category: "sales", condition: { kind: "confirmedSales", atLeast: 10000 } },
 ];
 
 /** Tous les textes de cette configuration affichés dans l'interface (contrôle des traductions). */
 export const progressionTexts = (): string[] => [
   ...onboardingSteps.flatMap((s) => [s.title, s.action]),
   ...achievementCategories.map((c) => c.label),
+  ...achievementRarities.map((r) => r.label),
   ...achievements.flatMap((a) => [a.name, a.description]),
   ...levelNames,
 ];

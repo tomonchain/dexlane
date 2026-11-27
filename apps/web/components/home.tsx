@@ -168,8 +168,8 @@ export function Home() {
     schedule.failed.length > 0 && <Task key="failed" count={schedule.failed.length} label={tn(schedule.failed.length, "mise en ligne en échec", "mises en ligne en échec")} hint={t("Prix, photo ou stock manquant au moment de publier")} href="/listings" action={t("Corriger")} />,
     orders.counts.TO_PREPARE > 0 && <Task key="prepare" count={orders.counts.TO_PREPARE} label={tn(orders.counts.TO_PREPARE, "vente à préparer", "ventes à préparer")} hint={t("Cartes réservées, à sortir de leur boîte")} href="/sales" action={t("Préparer")} />,
     orders.counts.PACKED > 0 && <Task key="packed" count={orders.counts.PACKED} label={t("colis à remettre")} hint={t("Emballés, en attente de dépôt ou de remise")} href="/sales" action={t("Remettre")} />,
-    data.watched && data.watched.alerts > 0 && <Task key="watched" count={data.watched.alerts} label={tn(data.watched.alerts, "carte suivie à regarder", "cartes suivies à regarder")} hint={t("Prix cible atteint ou variation au-delà de vos seuils")} href="/buying" action={t("Voir les achats")} />,
-    orders.counts.REVIEW_DUE > 0 && <Task key="reviews" count={orders.counts.REVIEW_DUE} label={tn(orders.counts.REVIEW_DUE, "avis à demander", "avis à demander")} hint={t("Ventes livrées depuis 24 h : un message prêt à copier vous attend")} href="/sales?review=due" action={t("Demander")} />,
+    data.watched && data.watched.alerts > 0 && <Task key="watched" count={data.watched.alerts} label={tn(data.watched.alerts, "carte suivie à regarder", "cartes suivies à regarder")} hint={t("Prix cible atteint ou variation au-delà de tes seuils")} href="/buying" action={t("Voir les achats")} />,
+    orders.counts.REVIEW_DUE > 0 && <Task key="reviews" count={orders.counts.REVIEW_DUE} label={tn(orders.counts.REVIEW_DUE, "avis à demander", "avis à demander")} hint={t("Ventes livrées depuis 24 h : un message prêt à copier t'attend")} href="/sales?review=due" action={t("Demander")} />,
     data.supplies && data.supplies.toReorder > 0 && <Task key="supplies" count={data.supplies.toReorder} label={tn(data.supplies.toReorder, "fourniture à commander", "fournitures à commander")} hint={data.supplies.names.join(", ")} href="/stock?section=supplies" action={t("Voir les fournitures")} />,
     moves && moves.alerts > 0 && <Task key="alerts" count={moves.alerts} label={tn(moves.alerts, "carte dont la cote a bougé", "cartes dont la cote a bougé")} hint={t("Au-delà de {percent} % sur {days} jours", { percent: moves.settings.percent, days: moves.settings.windowDays })} href="/stats?view=prices" action={t("Voir les variations")} />,
   ].filter(Boolean);
@@ -186,9 +186,9 @@ export function Home() {
           <div className="overflow-hidden rounded-lg border bg-card">{tasks}</div>
         ) : (
           <div className="rounded-lg border border-dashed px-5 py-8 text-center" data-testid="home-empty">
-            <p className="text-sm font-medium">{empty ? t("Votre stock est vide") : t("Rien n'attend")}</p>
+            <p className="text-sm font-medium">{empty ? t("Ton stock est vide") : t("Rien n'attend")}</p>
             <p className="mx-auto mt-1 max-w-sm text-[13px] text-muted-foreground">
-              {empty ? t("Scannez ou photographiez un premier lot : les cartes sont reconnues, tarifées, puis prêtes à mettre en ligne.") : t("Tout est tarifé, planifié et préparé. Ajoutez un lot pour continuer.")}
+              {empty ? t("Scanne ou photographie un premier lot : les cartes sont reconnues, tarifées, puis prêtes à mettre en ligne.") : t("Tout est tarifé, planifié et préparé. Ajoute un lot pour continuer.")}
             </p>
             <Button asChild className="mt-4"><Link href="/scanner/batch"><Plus /> {t("Ajouter des cartes")}</Link></Button>
           </div>

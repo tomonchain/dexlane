@@ -158,7 +158,7 @@ export default function InventoryPage() {
           title={filtered ? t("Aucune position ne correspond") : t("Le stock est vide")}
           action={!filtered && <Button asChild size="sm"><Link href="/add">{t("Ajouter une première carte")}</Link></Button>}
         >
-          {filtered ? t("Élargissez la recherche ou retirez un filtre.") : t("Les cartes entrées depuis le Scanner apparaîtront ici.")}
+          {filtered ? t("Élargis la recherche ou retire un filtre.") : t("Les cartes entrées depuis le Scanner apparaîtront ici.")}
         </EmptyState>
       )}
 

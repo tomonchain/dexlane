@@ -75,7 +75,7 @@ export default function ScanBatchesPage() {
         <SwitchRow label={t("Recto et verso")} description={t("Le scanner produit deux images par carte : recto puis verso.")} checked={paired} onCheckedChange={setPaired} />
         <SwitchRow
           label={t("Pilote automatique")}
-          description={t("Chaque carte reconnue sans doute entre en stock, reçoit son prix et part à la mise en ligne, sans attendre la fin du lot. Seules les cartes à vérifier vous attendent.")}
+          description={t("Chaque carte reconnue sans doute entre en stock, reçoit son prix et part à la mise en ligne, sans attendre la fin du lot. Seules les cartes à vérifier t'attendent.")}
           checked={auto.on}
           onCheckedChange={(on) => setAuto({ ...auto, on })}
         />

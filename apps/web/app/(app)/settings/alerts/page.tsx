@@ -24,7 +24,7 @@ export default function AlertSettingsPage() {
       <PageHeader
         back={<BackLink href="/settings">{t("Réglages")}</BackLink>}
         title={t("Alertes de prix")}
-        description={t("Quand la cote d'une carte bouge assez pour mériter votre attention : sur l'accueil, dans les statistiques et sur les cartes suivies des achats.")}
+        description={t("Quand la cote d'une carte bouge assez pour mériter ton attention : sur l'accueil, dans les statistiques et sur les cartes suivies des achats.")}
       />
       {error && <Alert variant="destructive">{error}</Alert>}
       {!settings ? !error && <Loading /> : <AlertRules key={JSON.stringify(settings)} settings={settings} onSaved={load} />}

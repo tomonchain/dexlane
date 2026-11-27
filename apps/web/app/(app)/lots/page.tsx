@@ -64,13 +64,13 @@ export default function LotsPage() {
     <Page width="narrow" className="mx-auto w-full">
       <PageHeader
         title={t("Lots de vente")}
-        description={t("Regroupez vos communes et vos doubles : un lot, une annonce, une seule carte décomptée de votre forfait. Pour en créer un, cochez des cartes dans le stock puis « Créer un lot ».")}
+        description={t("Regroupe tes communes et tes doubles : un lot, une annonce, une seule carte décomptée de ton forfait. Pour en créer un, coche des cartes dans le stock puis « Créer un lot ».")}
         actions={<Button asChild variant="outline"><Link href="/stock">{t("Choisir des cartes")}</Link></Button>}
       />
       {error && <Alert variant="destructive">{error}</Alert>}
       {!lots ? !error && <Loading /> : active.length === 0 && dissolved.length === 0 ? (
         <EmptyState icon={<Package className="size-6" />} title={t("Aucun lot pour l'instant")}>
-          {t("Dans le stock, cochez au moins deux cartes, puis choisissez « Créer un lot ».")}
+          {t("Dans le stock, coche au moins deux cartes, puis choisis « Créer un lot ».")}
         </EmptyState>
       ) : (
         <ul className="grid gap-3" data-testid="sale-lots">
@@ -118,8 +118,8 @@ export default function LotsPage() {
                         </Button>
                       );
                     })}
-                    {channels.length === 0 && <span className="text-[13px] text-muted-foreground">{t("Activez un canal de vente pour publier ce lot.")}</span>}
-                    {offer && offer.missing.includes("PHOTO") && <span className="text-[13px] text-muted-foreground">{t("Ajoutez une photo à l'une de ses cartes pour le publier.")}</span>}
+                    {channels.length === 0 && <span className="text-[13px] text-muted-foreground">{t("Active un canal de vente pour publier ce lot.")}</span>}
+                    {offer && offer.missing.includes("PHOTO") && <span className="text-[13px] text-muted-foreground">{t("Ajoute une photo à l'une de ses cartes pour le publier.")}</span>}
                     <span className="ml-auto flex gap-1">
                       <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => setEditing(lot)}><Pencil /> {t("Modifier")}</Button>
                       <Button size="sm" variant="ghost" disabled={busy !== null}

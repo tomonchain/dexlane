@@ -84,7 +84,7 @@ export default function ShippingCostsPage() {
       <PageHeader
         back={<BackLink href="/settings">{t("Réglages")}</BackLink>}
         title={t("Frais d'envoi")}
-        description={t("Ce qu'un envoi vous coûte. La marge d'une vente déduit l'affranchissement et les fournitures ; ils sont figés à la remise, changer ces tarifs ne réécrit pas les ventes passées.")}
+        description={t("Ce qu'un envoi te coûte. La marge d'une vente déduit l'affranchissement et les fournitures ; ils sont figés à la remise, changer ces tarifs ne réécrit pas les ventes passées.")}
       />
       {error && <Alert variant="destructive">{error}</Alert>}
       {!form ? !error && <ListSkeleton count={3} label={t("Chargement des frais d'envoi")} /> : (
@@ -93,7 +93,7 @@ export default function ShippingCostsPage() {
             <CardContent className="grid gap-4">
               <div className="grid gap-1">
                 <CardTitle>{t("Affranchissement habituel")}</CardTitle>
-                <CardDescription>{t("Prérempli à la remise, modifiable vente par vente. Laissez vide un mode que vous n'utilisez pas.")}</CardDescription>
+                <CardDescription>{t("Prérempli à la remise, modifiable vente par vente. Laisse vide un mode que tu n'utilises pas.")}</CardDescription>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 {POSTAL.map((m) => (
@@ -111,7 +111,7 @@ export default function ShippingCostsPage() {
                 <CardTitle>{t("Fournitures")}</CardTitle>
                 <CardDescription>
                   {stock
-                    ? t("Calculées d'après les prix d'achat des fournitures du stock, pour les envois qui les utilisent. Changez-les dans Stock › Fournitures.")
+                    ? t("Calculées d'après les prix d'achat des fournitures du stock, pour les envois qui les utilisent. Change-les dans Stock › Fournitures.")
                     : t("Sleeve et top-loader pour chaque carte vendue, une enveloppe par envoi postal (pas pour une remise en main propre).")}
                 </CardDescription>
               </div>
@@ -145,7 +145,7 @@ export default function ShippingCostsPage() {
                     ))}
                   </div>
                   {perCard !== null && <p className="text-xs text-muted-foreground" data-testid="supplies-per-card">{t("Soit {amount} de fournitures par carte, plus l'enveloppe par envoi.", { amount: formatEuros(perCard) })}</p>}
-                  <p className="text-xs text-muted-foreground">{t("Renseignez le prix d'achat de vos fournitures dans Stock › Fournitures : il remplacera ces montants, envoi par envoi.")}</p>
+                  <p className="text-xs text-muted-foreground">{t("Renseigne le prix d'achat de tes fournitures dans Stock › Fournitures : il remplacera ces montants, envoi par envoi.")}</p>
                 </>
               )}
             </CardContent>

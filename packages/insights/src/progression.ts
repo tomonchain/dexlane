@@ -48,25 +48,26 @@ export interface LevelState {
 }
 
 /**
- * Le niveau que valent les ventes confirmées. Le niveau 1 (seuil 0) s'obtient en terminant le démarrage ou à la
- * première vente confirmée ; les suivants d'après les seuils de ventes.
+ * Le niveau du compte : le niveau 1 (Carton) s'obtient en terminant la configuration du compte (les sept étapes du
+ * démarrage) ; les niveaux suivants, aux seuils de ventes confirmées, quel que soit le démarrage.
  */
 export function levelFor(confirmed: number, onboardingComplete: boolean): number {
   let level = 0;
   levelThresholds.forEach((threshold, i) => {
-    if (confirmed >= threshold) level = i + 1;
+    if (i > 0 && confirmed >= threshold) level = i + 1;
   });
-  if (level === 1 && !onboardingComplete && confirmed === 0) return 0;
-  return level;
+  return level >= 2 ? level : onboardingComplete ? 1 : 0;
 }
 
 export function levelState(level: number, confirmed: number): LevelState {
   const max = levelThresholds.length;
   if (level >= max) return { level, confirmedSales: confirmed, next: null, progressPercent: 100 };
-  const threshold = Math.max(levelThresholds[level]!, level === 0 ? 1 : 0);
-  const from = level === 0 ? 0 : levelThresholds[level - 1]!;
+  // Sans niveau, le suivant (Carton) ne se gagne pas en ventes : en terminant la configuration du compte.
+  if (level === 0) return { level, confirmedSales: confirmed, next: { level: 1, threshold: 0, salesNeeded: 0 }, progressPercent: 0 };
+  const threshold = levelThresholds[level]!;
+  const from = level === 1 ? 0 : levelThresholds[level - 1]!;
   const salesNeeded = Math.max(0, threshold - confirmed);
-  const progressPercent = threshold === from ? 100 : Math.min(100, Math.max(0, Math.round(((confirmed - from) / (threshold - from)) * 100)));
+  const progressPercent = Math.min(100, Math.max(0, Math.round(((confirmed - from) / (threshold - from)) * 100)));
   return { level, confirmedSales: confirmed, next: { level: level + 1, threshold, salesNeeded }, progressPercent };
 }
 
@@ -97,7 +98,8 @@ export async function progressFacts(sql: Db, timezone: string): Promise<Progress
   const [f] = await sql<Omit<ProgressFacts, "onboardingComplete" | "flawlessDays" | "publishBurst">[]>`
     select (select count(*)::int from account_events where type = 'listing_published') as listings_published,
            (select coalesce(sum(on_hand), 0)::int from stock_items where kind <> 'BULK' and lifecycle <> 'ARCHIVED' and on_hand > 0) as in_stock_cards,
-           (select count(*)::int from stock_items where kind <> 'BULK' and lifecycle <> 'ARCHIVED' and on_hand > 0 and location_id is null) as unlocated_cards,
+           (select coalesce(sum(s.on_hand), 0)::int from stock_items s where s.kind <> 'BULK' and s.lifecycle <> 'ARCHIVED' and s.on_hand > 0
+               and (s.location_id is null or exists (select 1 from locations child where child.parent_id = s.location_id))) as unlocated_cards,
            (select coalesce(sum(units), 0)::int from sale_confirmations) as confirmed_sales,
            exists (select 1 from sale_confirmations sc join order_lines ol on ol.id = sc.order_line_id join offers off on off.id = ol.offer_id
                     where off.grader is not null) as confirmed_graded_sale,

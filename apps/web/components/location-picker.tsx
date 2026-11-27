@@ -74,7 +74,7 @@ export function LocationPicker({ value, onPick, onClose }: { value: string; onPi
   }
 
   return (
-    <Modal title={t("Emplacement")} description={t("Choisissez où ranger, ou saisissez un nouveau code pour le créer.")} onClose={onClose}>
+    <Modal title={t("Emplacement")} description={t("Choisis où ranger, ou saisis un nouveau code pour le créer.")} onClose={onClose}>
       <span className="relative block">
         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
         <Input
@@ -95,7 +95,7 @@ export function LocationPicker({ value, onPick, onClose }: { value: string; onPi
       )}
       {!locations && !error && <Loading />}
       {locations?.length === 0 && !wanted && (
-        <p className="text-sm text-muted-foreground">{t("Aucun emplacement pour l'instant. Saisissez un code pour créer le premier.")}</p>
+        <p className="text-sm text-muted-foreground">{t("Aucun emplacement pour l'instant. Saisis un code pour créer le premier.")}</p>
       )}
       {shown.length > 0 && (
         <div className="-mx-1 grid gap-0.5" role="radiogroup" aria-label={t("Emplacements")}>

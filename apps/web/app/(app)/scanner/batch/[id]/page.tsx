@@ -31,8 +31,8 @@ const ERRORS: Record<string, string> = {
   BATCH_NOT_READY: "Des cartes attendent encore une décision.",
   BATCH_ALREADY_RECEIVED: "Ce lot est déjà en stock.",
   LOCATION_NOT_FOUND: "Cette boîte n'existe pas.",
-  AUTOPILOT_NEEDS_CONDITION: "Choisissez d'abord l'état du lot : le pilote automatique l'applique à chaque carte.",
-  NETWORK: "Connexion impossible. Les cartes déjà lues sont conservées : reliez le dossier à nouveau pour reprendre.",
+  AUTOPILOT_NEEDS_CONDITION: "Choisis d'abord l'état du lot : le pilote automatique l'applique à chaque carte.",
+  NETWORK: "Connexion impossible. Les cartes déjà lues sont conservées : relie le dossier à nouveau pour reprendre.",
 };
 const message = (e: unknown) => (e instanceof ApiError ? (ERRORS[e.code] ? t(ERRORS[e.code]!) : e.message) : (e as Error).message);
 const ignoredKey = (batchId: string) => `dexlane.scan.ignored.${batchId}`;
@@ -146,7 +146,7 @@ export default function ScanBatchPage() {
       } catch {
         if (!stopped) {
           setFolder(null);
-          setError(t("Le dossier n'est plus accessible. Reliez-le à nouveau."));
+          setError(t("Le dossier n'est plus accessible. Relie-le à nouveau."));
         }
       }
     };
@@ -226,7 +226,7 @@ export default function ScanBatchPage() {
     setError(null);
     const files = [...list];
     if (batch.paired && files.length % 2 === 1) {
-      setError(t("Recto et verso attendus par paires, mais {n} images ont été choisies. Vérifiez qu'il n'en manque pas une.", { n: files.length }));
+      setError(t("Recto et verso attendus par paires, mais {n} images ont été choisies. Vérifie qu'il n'en manque pas une.", { n: files.length }));
       return;
     }
     enqueue(cardsFromFiles(files, batch.paired, itemsRef.current.at(-1)?.position ?? 0));
@@ -413,7 +413,7 @@ export default function ScanBatchPage() {
             </span>
           ) : (
             <span className="min-w-0 flex-1 basis-64 text-muted-foreground">
-              {t("Pilote automatique coupé : les cartes attendent votre revue avant d'entrer en stock.")}
+              {t("Pilote automatique coupé : les cartes attendent ta revue avant d'entrer en stock.")}
             </span>
           )}
           <Button variant="outline" size="sm" onClick={() => toggleAutopilot(!batch.autopilot)}>{batch.autopilot ? t("Couper") : t("Activer")}</Button>
@@ -466,9 +466,9 @@ export default function ScanBatchPage() {
             <>
               {pendingFront && <img src={pendingFront.preview} alt={t("Recto de la carte {n}", { n: pendingFront.position })} className="aspect-[63/88] w-10 rounded-[3px] bg-muted object-cover ring-1 ring-border" />}
               <span className="min-w-0 flex-1 basis-40 text-sm text-muted-foreground" role="status">
-                {pendingFront ? t("Carte {n} : retournez-la et photographiez le verso.", { n: pendingFront.position })
-                  : inFlight > 0 ? tn(inFlight, "Lecture de {n} carte… Vous pouvez continuer à photographier.", "Lecture de {n} cartes… Vous pouvez continuer à photographier.")
-                  : t("Photographiez les cartes une à une, bien à plat et cadrées serré.")}
+                {pendingFront ? t("Carte {n} : retourne-la et photographie le verso.", { n: pendingFront.position })
+                  : inFlight > 0 ? tn(inFlight, "Lecture de {n} carte… Tu peux continuer à photographier.", "Lecture de {n} cartes… Tu peux continuer à photographier.")
+                  : t("Photographie les cartes une à une, bien à plat et cadrées serré.")}
               </span>
               <Button onClick={() => captureRef.current?.click()} data-testid="capture">
                 <Camera /> {pendingFront ? t("Verso · carte {n}", { n: pendingFront.position }) : batch.paired ? t("Recto · carte {n}", { n: nextPosition() }) : t("Carte {n}", { n: nextPosition() })}
@@ -492,16 +492,16 @@ export default function ScanBatchPage() {
             <>
               <span className="min-w-0 flex-1 basis-64 text-sm text-muted-foreground" role="status">
                 {inFlight > 0 ? <span className="flex items-center gap-2 text-foreground"><Spinner /> {tn(inFlight, "Lecture de {n} carte…", "Lecture de {n} cartes…")}</span>
-                  : intake === "CAMERA" ? t("Ouvrez ce lot sur votre téléphone et photographiez les cartes, recto puis verso : elles apparaissent ici au fur et à mesure.")
-                  : intake === "FILES" ? t("Choisissez vos photos : elles sont rangées par nom de fichier, recto puis verso.")
-                  : canWatchFolder() ? t("Reliez le dossier où le scanner enregistre ses images : chaque carte scannée arrive ici toute seule.")
-                  : t("Ce navigateur ne sait pas suivre un dossier (utilisez Chrome ou Edge). Choisissez les images une fois le scan terminé.")}
+                  : intake === "CAMERA" ? t("Ouvre ce lot sur ton téléphone et photographie les cartes, recto puis verso : elles apparaissent ici au fur et à mesure.")
+                  : intake === "FILES" ? t("Choisis tes photos : elles sont rangées par nom de fichier, recto puis verso.")
+                  : canWatchFolder() ? t("Relie le dossier où le scanner enregistre ses images : chaque carte scannée arrive ici toute seule.")
+                  : t("Ce navigateur ne sait pas suivre un dossier (utilise Chrome ou Edge). Choisis les images une fois le scan terminé.")}
               </span>
               {canWatchFolder() && <Button variant={intake === "CAMERA" || intake === "FILES" ? "outline" : "default"} onClick={connect}><FolderOpen /> {t("Relier le dossier du scanner")}</Button>}
               <Button variant={intake === "FILES" ? "default" : "outline"} onClick={() => fileRef.current?.click()}><FolderUp /> {t("Choisir des images")}</Button>
               {intake !== "CAMERA" && (
                 <p className="basis-full text-[13px] text-muted-foreground">
-                  {t("Pas de scanner ? Ouvrez ce lot sur votre téléphone et photographiez les cartes : elles apparaissent ici au fur et à mesure.")}
+                  {t("Pas de scanner ? Ouvre ce lot sur ton téléphone et photographie les cartes : elles apparaissent ici au fur et à mesure.")}
                 </p>
               )}
             </>
@@ -625,7 +625,7 @@ export default function ScanBatchPage() {
       {!done && items.length > 0 && (
         <ActionBar message={<span className="block truncate">{inFlight > 0 ? t("Lecture en cours…")
                 : pending.length > 0 ? (batch.autopilot ? tn(pending.length, "{n} carte à vérifier : une fois corrigée, chacune suit toute seule.", "{n} cartes à vérifier : une fois corrigée, chacune suit toute seule.") : tn(pending.length, "Reste {n} carte à corriger avant l'entrée en stock.", "Reste {n} cartes à corriger avant l'entrée en stock."))
-                : remaining.length === 0 ? t("Tout le lot est en stock. Terminez-le quand la pile est passée.")
+                : remaining.length === 0 ? t("Tout le lot est en stock. Termine-le quand la pile est passée.")
                 : t("Tout est prêt. Les codes suivront l'ordre du scan.")}</span>}>
           <Button onClick={receive} variant={batch.autopilot ? "outline" : "default"} disabled={receiving || inFlight > 0 || pending.length > 0 || kept.length === 0} data-testid="batch-save">
               {receiving ? <Spinner className={batch.autopilot ? undefined : "text-primary-foreground"} /> : remaining.length === 0 ? <Check /> : <PackagePlus />}{" "}

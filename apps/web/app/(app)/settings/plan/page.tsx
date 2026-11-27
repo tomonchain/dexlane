@@ -38,7 +38,7 @@ export default function PlanSettingsPage() {
   const choose = (plan: PlanRule) => {
     const down = account && plan.monthlyPriceEur < account.plan.monthlyPriceEur;
     const question = down
-      ? t("Passer au forfait {plan} ? Il prend effet tout de suite ; vos annonces déjà en ligne ne bougent pas.", { plan: plan.name })
+      ? t("Passer au forfait {plan} ? Il prend effet tout de suite ; tes annonces déjà en ligne ne bougent pas.", { plan: plan.name })
       : t("Passer au forfait {plan} ({price} par mois) ? Il prend effet tout de suite.", { plan: plan.name, price: formatEuros(plan.monthlyPriceEur * 100) });
     if (!window.confirm(question)) return;
     void act(plan.id, () => api.changePlan(plan.id as Exclude<PlanId, "community">), t("Forfait {plan} activé", { plan: plan.name }));
@@ -50,7 +50,7 @@ export default function PlanSettingsPage() {
       <PageHeader
         back={<BackLink href="/settings">Réglages</BackLink>}
         title={t("Forfait")}
-        description={t("Vous payez selon les cartes que vous publiez, jamais sur ce que vous vendez. Modifier un prix, mettre à jour une quantité ou remettre une annonce en ligne ne compte pas ; un lot compte pour une carte.")}
+        description={t("Tu paies selon les cartes que tu publies, jamais sur ce que tu vends. Modifier un prix, mettre à jour une quantité ou remettre une annonce en ligne ne compte pas ; un lot compte pour une carte.")}
       />
       {error && <Alert variant="destructive">{error}</Alert>}
       {!account ? !error && <Loading /> : (
@@ -139,7 +139,7 @@ export default function PlanSettingsPage() {
                   );
                 })}
               </ul>
-              <p className="text-[13px] text-muted-foreground">{t("Sans engagement : vous changez de forfait ou revenez au forfait gratuit quand vous voulez. Aucune commission sur vos ventes.")}</p>
+              <p className="text-[13px] text-muted-foreground">{t("Sans engagement : tu changes de forfait ou reviens au forfait gratuit quand tu veux. Aucune commission sur tes ventes.")}</p>
             </section>
           )}
           {unlimited && (

@@ -75,7 +75,7 @@ export default function CatalogPage() {
     try {
       const report: SetSyncReport = await api.syncCatalogSet(set.id, language);
       const outcome: Outcome = report.errorCount
-        ? { kind: "warning", text: t("{imported}, {n} en échec : relancez pour les compléter.", { imported: importedLabel(report.cards), n: report.errorCount }) }
+        ? { kind: "warning", text: t("{imported}, {n} en échec : relance pour les compléter.", { imported: importedLabel(report.cards), n: report.errorCount }) }
         : { kind: "success", text: t("{imported} (variantes : {variants}, cotations : {prices}).", { imported: importedLabel(report.cards), variants: report.variants, prices: report.pricesInserted }) };
       setOutcomes((o) => ({ ...o, [set.id]: outcome }));
       // La série change d'onglet : on la suit pour que le résultat reste sous les yeux.
@@ -152,7 +152,7 @@ export default function CatalogPage() {
             }}
             disabled={blocks.length === 0}
           >
-            <option value="">{blocks.length === 0 ? t("Actualisez la liste") : t("Tous les blocs")}</option>
+            <option value="">{blocks.length === 0 ? t("Actualise la liste") : t("Tous les blocs")}</option>
             {blocks.map((b) => <option key={b.id} value={b.id}>{b.name} ({b.count})</option>)}
             {blocks.length > 0 && unassigned && <option value={NO_BLOCK}>{t("Sans bloc")}</option>}
           </Select>
@@ -179,7 +179,7 @@ export default function CatalogPage() {
       {!sets && !error && <ListSkeleton count={6} label={t("Chargement des séries")} />}
       {sets?.length === 0 && !refreshing && (
         <EmptyState icon={<BookOpen />} title={t("Aucune série connue pour cette langue")} action={<Button size="sm" onClick={refresh}><CloudDownload /> {t("Charger la liste")}</Button>}>
-          {t("Chargez la liste des séries, puis importez celles que vous possédez.")}
+          {t("Charge la liste des séries, puis importe celles que tu possèdes.")}
         </EmptyState>
       )}
 
@@ -246,7 +246,7 @@ export default function CatalogPage() {
                     </div>
                     {busy && (
                       <p className="text-xs text-muted-foreground" role="status">
-                        {t("Téléchargement des cartes, jusqu'à quelques minutes pour une grande série. Gardez cette page ouverte.")}
+                        {t("Téléchargement des cartes, jusqu'à quelques minutes pour une grande série. Garde cette page ouverte.")}
                       </p>
                     )}
                     {!busy && outcome && <Alert variant={outcome.kind}>{outcome.text}</Alert>}
@@ -257,7 +257,7 @@ export default function CatalogPage() {
             </Card>
           ) : (
             <EmptyState icon={wanted ? <Search /> : <BookOpen />} title={wanted || block ? t("Aucune série ne correspond à ce filtre") : currentTab === "imported" ? t("Aucune série importée") : t("Toutes les séries sont importées")}>
-              {!wanted && !block && currentTab === "imported" ? t("Ouvrez l'onglet « Non importées » et importez les séries que vous possédez.") : undefined}
+              {!wanted && !block && currentTab === "imported" ? t("Ouvre l'onglet « Non importées » et importe les séries que tu possèdes.") : undefined}
             </EmptyState>
           )}
 

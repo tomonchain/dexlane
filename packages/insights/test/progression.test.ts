@@ -27,16 +27,19 @@ async function soldCards(n: number, opts: { daysAgo?: number; channel?: string; 
 }
 
 describe("level (D1)", () => {
-  it("follows the confirmed sales thresholds; level 1 comes with the finished onboarding or the first confirmed sale", () => {
+  it("gives level 1 (Carton) only for a finished account setup, then follows the confirmed sales thresholds", () => {
     expect(levelFor(0, false)).toBe(0);
     expect(levelFor(0, true)).toBe(1);
-    expect(levelFor(1, false)).toBe(1);
+    expect(levelFor(9, false)).toBe(0); // des ventes, mais une configuration pas terminée
+    expect(levelFor(9, true)).toBe(1);
     expect(levelFor(10, false)).toBe(2);
     expect(levelFor(49, false)).toBe(2);
     expect(levelFor(50, false)).toBe(3);
     expect(levelFor(40000, false)).toBe(10);
     expect(levelState(2, 30)).toEqual({ level: 2, confirmedSales: 30, next: { level: 3, threshold: 50, salesNeeded: 20 }, progressPercent: 50 });
     expect(levelState(10, 50000).next).toBeNull();
+    expect(levelState(0, 4)).toEqual({ level: 0, confirmedSales: 4, next: { level: 1, threshold: 0, salesNeeded: 0 }, progressPercent: 0 });
+    expect(levelState(1, 4)).toMatchObject({ next: { level: 2, threshold: 10, salesNeeded: 6 }, progressPercent: 40 });
   });
 
   it("counts a sale only after the confirmation delay, and never one cancelled, refunded or returned before it", async () => {
@@ -51,7 +54,7 @@ describe("level (D1)", () => {
     const r = await evaluate();
     expect(r.confirmed).toBe(3);
     expect(await confirmedSales(sql)).toBe(3);
-    expect(r.level).toBe(1);
+    expect(r.level).toBe(0); // le niveau 1 vient de la configuration terminée, pas des ventes
 
     // Quinze jours plus tard, les deux ventes récentes sont confirmées à leur tour.
     expect((await evaluate({ now: daysFrom(now, 15) })).confirmed).toBe(5);

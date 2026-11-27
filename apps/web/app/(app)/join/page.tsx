@@ -62,15 +62,15 @@ function Join() {
           ) : !preview ? <Loading /> : (
             <>
               <CardDescription>
-                {t("{inviter} vous invite à rejoindre son compte Dexlane : son stock, ses annonces et ses ventes.", { inviter: preview.invitedBy })}
+                {t("{inviter} t'invite à rejoindre son compte Dexlane : son stock, ses annonces et ses ventes.", { inviter: preview.invitedBy })}
               </CardDescription>
               {preview.matches ? (
                 <>
-                  <p className="text-[13px] text-muted-foreground">{t("Les cartes de votre compte actuel ne vous suivront pas : vous travaillerez sur celles de l'équipe.")}</p>
+                  <p className="text-[13px] text-muted-foreground">{t("Les cartes de ton compte actuel ne te suivront pas : tu travailleras sur celles de l'équipe.")}</p>
                   <Button onClick={accept} disabled={busy} data-testid="join-accept">{busy ? <Spinner className="text-primary-foreground" /> : null} {t("Rejoindre le compte")} {!busy && <ArrowRight />}</Button>
                 </>
               ) : (
-                <Alert variant="warning">{t("Cette invitation est pour {email}. Déconnectez-vous, puis connectez-vous ou créez un compte avec cette adresse.", { email: preview.email })}</Alert>
+                <Alert variant="warning">{t("Cette invitation est pour {email}. Déconnecte-toi, puis connecte-toi ou crée un compte avec cette adresse.", { email: preview.email })}</Alert>
               )}
             </>
           )}
