@@ -90,9 +90,11 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
   const navCompact = useCompactOnScroll(pathname);
   const [more, setMore] = useState(false);
 
-  // Première utilisation : tant que l'assistant de démarrage n'a pas été terminé ou passé, il s'ouvre de lui-même.
+  // Première utilisation : tant que l'assistant de démarrage n'a pas été terminé ou passé, il s'ouvre de lui-même. Sauf
+  // sur une invitation : la personne qui vient de créer son compte pour rejoindre une équipe ne configure pas le sien.
+  const joining = pathname === "/join";
   useEffect(() => {
-    if (bare) return;
+    if (bare || joining) return;
     let cancelled = false;
     api.appSettings()
       .then((s) => {
@@ -103,7 +105,7 @@ export function AppShell({ children, signedIn }: { children: ReactNode; signedIn
     return () => {
       cancelled = true;
     };
-  }, [bare, router]);
+  }, [bare, joining, router]);
 
   if (bare) return <main className="min-h-dvh">{children}</main>;
 

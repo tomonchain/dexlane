@@ -27,7 +27,8 @@ import { activeAccountIds, createAuth, ownerExists, publicBaseUrl, setupOwner, t
 import { mailerFromEnv, type Mailer } from "./mailer";
 import { registerAccountRoutes } from "./account";
 import { evaluateAfterChange, hostedPerkHooks, registerInsightsRoutes } from "./insights";
-import { guardSignup, registerWaitlistRoutes, signupModeFromEnv, type SignupMode } from "./waitlist";
+import { apiEdition } from "./edition";
+import { guardSignup, registerSignupRoutes, signupModeFromEnv, type SignupMode } from "./signup";
 import { runForAccount, scopedDb } from "./scope";
 import { createMcpServer, type InternalCall } from "./mcp";
 import { trackingFromEnv, type TrackingAdapters } from "./tracking";
@@ -77,7 +78,7 @@ export interface AppDeps {
   perkHooks?: PerkHooks;
   /** Envoyer l'e-mail qui annonce le récap ; par défaut, la configuration de la progression (coupé pour le moment). */
   recapEmails?: boolean;
-  /** Inscriptions ouvertes, ou liste d'attente ; par défaut `DEXLANE_SIGNUP` (liste d'attente sauf `open`). */
+  /** Inscriptions ouvertes, ou sur invitation ; par défaut `DEXLANE_SIGNUP` (sur invitation sauf `open`). */
   signup?: SignupMode;
   onError?: (err: unknown) => void;
 }
@@ -119,7 +120,7 @@ export function createApp(deps: AppDeps) {
   const unscoped = (path: string) =>
     path.startsWith("/api/setup/") || path === "/api/accounts/active" || path.startsWith("/api/catalog/import") || path.startsWith("/api/public/") ||
     // L'effacement d'un compte se fait hors de sa transaction cloisonnée : il supprime le compte lui-même.
-    path === "/api/account/delete";
+    path === "/api/account/delete" || apiEdition.unscoped(path);
 
   const mailer = (): Mailer => {
     const configured = deps.mailer === undefined ? mailerFromEnv() : deps.mailer;
@@ -150,7 +151,7 @@ export function createApp(deps: AppDeps) {
     }
     // Connexion, inscription, vérification de l'adresse, mot de passe, administration : les routes de BetterAuth.
     if (c.req.path.startsWith("/api/auth/")) {
-      // Inscriptions fermées : pas de nouveau compte (liste d'attente), sauf sur invitation d'une équipe.
+      // Inscriptions sur invitation : pas de nouveau compte, sauf pour une adresse invitée dans une équipe.
       if (c.req.method === "POST" && c.req.path === "/api/auth/sign-up/email") await guardSignup(root, signupMode, c.req.raw);
       return auth().handler(c.req.raw);
     }
@@ -253,8 +254,12 @@ export function createApp(deps: AppDeps) {
     removePhoto: deps.photos ? (url) => deps.photos!.remove(url) : null,
   });
 
-  // Inscriptions et liste d'attente (waitlist.ts).
-  registerWaitlistRoutes(app, { root, mode: signupMode });
+  // Inscriptions (signup.ts), puis ce que l'édition ajoute à l'API (edition.ts : rien ici, l'édition hébergée y branche
+  // sa liste d'attente et son administration).
+  registerSignupRoutes(app, { mode: signupMode });
+  apiEdition.routes(app, {
+    root, sql, mailer, baseUrl: () => deps.baseUrl ?? publicBaseUrl(), signup: signupMode, onError: deps.onError ?? console.error,
+  });
 
   // Statistiques, démarrage, récaps, niveau et succès (insights.ts).
   registerInsightsRoutes(app, {

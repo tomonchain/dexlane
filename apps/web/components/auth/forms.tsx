@@ -6,7 +6,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { PasswordInput } from "@/components/password-input";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Field, Input, Select } from "@/components/ui/input";
+import { Field, Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/misc";
 import { EDITION } from "@/config/edition";
 import { clearCache } from "@/lib/cache";
@@ -40,12 +40,21 @@ const message = (e: unknown): string => {
 };
 
 /** Entre dans le compte : les données gardées sur l'appareil pour un autre compte sont oubliées. */
-function enter() {
-  clearCache();
-  window.location.assign("/");
+const param = (name: string) => new URLSearchParams(window.location.search).get(name) ?? "";
+
+/** Où revenir après l'inscription (le lien d'une invitation) : une adresse interne seulement, jamais d'ailleurs. */
+function nextPath(): string {
+  const next = param("next");
+  return next.startsWith("/") && !next.startsWith("//") ? next : "";
 }
 
-const param = (name: string) => new URLSearchParams(window.location.search).get(name) ?? "";
+/** Adresse de retour du lien de vérification : la page d'arrivée, puis l'invitation s'il y en a une. */
+const verifyCallback = () => (nextPath() ? `/signup/verify?next=${encodeURIComponent(nextPath())}` : "/signup/verify");
+
+function enter(next = "") {
+  clearCache();
+  window.location.assign(next || "/");
+}
 
 /** Un écran de compte : la moitié droite d'AuthLayout, avec son titre et son chapeau. */
 function Card({ title, lead, children }: { title: string; lead?: ReactNode; children: ReactNode }) {
@@ -92,7 +101,7 @@ export function SignupForm() {
       // Le forfait choisi sur /tarifs et le code du flyer (/colis) accompagnent l'inscription.
       const [plan, signupCode] = [param("plan"), param("code")];
       await post("sign-up/email", {
-        name: email.trim().split("@")[0], email: email.trim(), password, callbackURL: "/signup/verify",
+        name: email.trim().split("@")[0], email: email.trim(), password, callbackURL: verifyCallback(),
         ...(plan ? { plan } : {}), ...(signupCode ? { signupCode } : {}),
       });
       setSent(true);
@@ -114,7 +123,7 @@ export function SignupForm() {
             : (
               <Button
                 variant="outline"
-                onClick={() => void post("send-verification-email", { email: email.trim(), callbackURL: "/signup/verify" }).catch(() => undefined).finally(() => setResent(true))}
+                onClick={() => void post("send-verification-email", { email: email.trim(), callbackURL: verifyCallback() }).catch(() => undefined).finally(() => setResent(true))}
               >
                 {AUTH.signup.resend}
               </Button>
@@ -148,67 +157,17 @@ export function SignupForm() {
 }
 
 /**
- * Liste d'attente (#103), à la place de l'inscription tant qu'elle est fermée : une adresse, et ce qu'on sait déjà du
- * vendeur (forfait choisi sur /tarifs, code du flyer, volume). Aucun e-mail ne part.
+ * Inscriptions sur invitation (#116) : on entre dans une boutique parce que son équipe nous y invite. Le lien reçu par
+ * e-mail mène à l'inscription, qui l'accepte.
  */
-export function WaitlistForm() {
-  const [email, setEmail] = useState("");
-  const [volume, setVolume] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const [plan, code] = [param("plan"), param("code")];
-      const res = await fetch("/waitlist/join", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), ...(plan ? { plan } : {}), ...(code ? { code } : {}), ...(volume ? { volume } : {}) }),
-      });
-      if (res.status === 400) throw new AuthError("INVALID_EMAIL", "invalid email");
-      if (!res.ok) throw new AuthError(res.status === 429 ? "TOO_MANY_ATTEMPTS" : "DEFAULT", `HTTP ${res.status}`);
-      setDone(true);
-    } catch (err) {
-      setError(err instanceof AuthError ? message(err) : AUTH.errors.API_UNREACHABLE);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (done) {
-    return (
-      <Card title={AUTH.waitlist.doneTitle}>
-        <div className={NOTICE} data-testid="waitlist-done">
-          <MailCheck className="size-8" aria-hidden />
-          <p className="text-[15px] leading-relaxed">{AUTH.waitlist.doneText.replace("{email}", email.trim())}</p>
-        </div>
-        <p className="text-sm text-muted-foreground">{AUTH.waitlist.haveAccount} <Link href="/login" className={LINK}>{AUTH.login}</Link></p>
-      </Card>
-    );
-  }
-
+export function InviteOnly() {
   return (
-    <Card title={AUTH.waitlist.title} lead={AUTH.waitlist.lead}>
-      <form onSubmit={submit} className={FORM} data-testid="waitlist-form">
-        <Field label={AUTH.email}>
-          <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" inputMode="email" required autoFocus />
-        </Field>
-        <Field label={AUTH.waitlist.volume}>
-          <Select value={volume} onChange={(e) => setVolume(e.target.value)}>
-            {AUTH.waitlist.volumes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </Select>
-        </Field>
-        {error && <Alert variant="destructive">{error}</Alert>}
-        <Submit busy={busy}>{AUTH.waitlist.submit}</Submit>
-        <p className="text-[13px] leading-relaxed text-muted-foreground">
-          {AUTH.waitlist.privacy[0]}
-          {EDITION.legal && <> <Link href={EDITION.legal.privacy} className={LINK}>{AUTH.waitlist.privacy[1]}</Link>.</>}
-        </p>
-      </form>
-      <p className="text-sm text-muted-foreground">{AUTH.waitlist.haveAccount} <Link href="/login" className={LINK}>{AUTH.login}</Link></p>
+    <Card title={AUTH.invite.title} lead={AUTH.invite.lead}>
+      <div className={NOTICE} data-testid="invite-only">
+        <MailCheck className="size-8" aria-hidden />
+        <p className="text-[15px] leading-relaxed">{AUTH.invite.text}</p>
+      </div>
+      <p className="text-sm text-muted-foreground">{AUTH.invite.haveAccount} <Link href="/login" className={LINK}>{AUTH.login}</Link></p>
     </Card>
   );
 }
@@ -221,7 +180,8 @@ export function VerifyEmail() {
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     if (param("error")) setError(AUTH.errors.LINK_EXPIRED);
-    else enter();
+    // Arrivé par une invitation : retour sur l'invitation, pour rejoindre l'équipe.
+    else enter(nextPath());
   }, []);
 
   return (

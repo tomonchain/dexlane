@@ -8,7 +8,7 @@ const TOKEN = "test-token-0123456789abcdef";
 const BASE = "https://dexlane.test";
 const mails: Mail[] = [];
 const app = createApp({
-  sql, token: TOKEN, recognizer: () => { throw new Error("no scan here"); }, signup: "waitlist",
+  sql, token: TOKEN, recognizer: () => { throw new Error("no scan here"); }, signup: "invite",
   databaseUrl: testDatabaseUrl("api"), baseUrl: BASE, mailer: { send: async (m) => void mails.push(m) }, onError: () => undefined,
 });
 
@@ -24,26 +24,22 @@ async function req(method: string, path: string, body?: unknown, headers: Record
 const signUp = (email: string) =>
   req("POST", "/api/auth/sign-up/email", { name: "x", email, password: "un-bon-mot-de-passe", callbackURL: "/signup/verify" });
 
-describe("closed sign-ups and waitlist (#103)", () => {
-  it("refuses new accounts while sign-ups are closed, and says so", async () => {
-    expect((await req("GET", "/api/public/signup")).json).toEqual({ mode: "waitlist" });
+describe("sign-ups by invitation only (#116)", () => {
+  it("refuses new accounts unless invited, and says so", async () => {
+    expect((await req("GET", "/api/public/signup")).json).toEqual({ mode: "invite" });
     const refused = await signUp("vendeur@example.com");
     expect(refused).toMatchObject({ status: 403, json: { error: { code: "SIGNUP_CLOSED" } } });
     expect(mails).toHaveLength(0);
     expect((await sql`select 1 from auth_users`).length).toBe(0);
   });
 
-  it("still lets an address invited into a team sign up", async () => {
+  it("lets an address invited into the team sign up", async () => {
     await sql`insert into account_invitations (email, token_hash, invited_by, expires_at) values ('equipe@example.com', 'h', 'proprio', now() + interval '1 day')`;
     expect((await signUp("Equipe@Example.com")).status).toBe(200);
   });
 
-  it("keeps each address once on the waitlist, with what it told us, readable by the server only", async () => {
-    expect((await req("POST", "/api/public/waitlist", { email: "Vendeur@Example.com", plan: "solo", code: "FLYER" })).status).toBe(201);
-    expect((await req("POST", "/api/public/waitlist", { email: "vendeur@example.com", volume: "50-200" })).status).toBe(201);
-    expect((await req("POST", "/api/public/waitlist", { email: "pas-une-adresse" })).status).toBe(400);
-    const list = await req("GET", "/api/admin/waitlist");
-    expect(list.json.entries).toHaveLength(1);
-    expect(list.json.entries[0]).toMatchObject({ email: "vendeur@example.com", plan: "solo", signupCode: "FLYER", volume: "50-200" });
+  it("has no waitlist: it belongs to the hosted edition", async () => {
+    expect((await req("POST", "/api/public/waitlist", { email: "vendeur@example.com" })).status).toBe(404);
+    expect((await req("GET", "/api/admin/waitlist")).status).toBe(404);
   });
 });

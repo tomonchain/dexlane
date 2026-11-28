@@ -16,7 +16,7 @@ const config: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: APP_VERSION,
     NEXT_PUBLIC_APP_COMMIT: (process.env.VERCEL_GIT_COMMIT_SHA ?? "").slice(0, 7),
-    // Inscriptions ouvertes (DEXLANE_SIGNUP=open) ou liste d'attente : les pages du site sont rendues au build en conséquence.
+    // Inscriptions ouvertes (DEXLANE_SIGNUP=open), ou sur invitation : les écrans de compte en tiennent compte, au build.
     NEXT_PUBLIC_SIGNUP_OPEN: process.env.DEXLANE_SIGNUP === "open" ? "1" : "",
   },
   // Les tests e2e construisent dans leur propre dossier pour ne pas écraser un build ou un `next dev` en cours.

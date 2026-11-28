@@ -15,6 +15,13 @@ export interface Edition {
   signupLead: string;
   /** Image de partage des écrans de compte ; `null` : aucune. */
   ogImage: { url: string; width: number; height: number; alt: string } | null;
+  /**
+   * Inscriptions fermées : adresse de la liste d'attente, où mènent `/signup` et la connexion ; `null` : inscription sur
+   * invitation de l'équipe seulement (#116).
+   */
+  waitlist: string | null;
+  /** Administration du service, liée depuis Réglages pour les administrateurs ; `null` : aucune. */
+  admin: string | null;
 }
 
 export const EDITION: Edition = {
@@ -23,4 +30,6 @@ export const EDITION: Edition = {
   tagline: "Du classeur à l'annonce eBay, en quelques secondes.",
   signupLead: "Le compte de ta boutique, pour scanner, ranger et vendre tes cartes.",
   ogImage: null,
+  waitlist: null,
+  admin: null,
 };

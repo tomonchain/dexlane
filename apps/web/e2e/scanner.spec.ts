@@ -1175,6 +1175,36 @@ async function lastMail(page: Page, to: string) {
   return { subject: mail.subject, path: url.pathname + url.search };
 }
 
+test("invitation : sans compte, la connexion propose d'en créer un, et la vérification de l'adresse ramène à l'invitation", async ({ page }) => {
+  await login(page);
+  const email = `equipier-${Date.now()}@example.com`;
+  expect((await page.request.post("/api/team/invitations", { data: { email } })).status()).toBe(201);
+  const invitation = await lastMail(page, email);
+  expect(invitation.path).toMatch(/^\/join\?token=/);
+  await page.request.post("/api/auth/sign-out", { data: {} });
+
+  // Le lien de l'invitation, sans session : la connexion, qui propose de créer son compte pour revenir ici ensuite.
+  await page.goto(invitation.path);
+  await page.waitForURL(/\/login\?next=/);
+  const create = page.getByRole("link", { name: "Créer un compte" });
+  await expect(create).toHaveAttribute("href", /^\/signup\?invite=1&next=%2Fjoin%3Ftoken%3D/);
+  await create.click();
+  await page.getByLabel("Adresse e-mail").fill(email);
+  await page.getByLabel(/^Mot de passe/).fill("mot-de-passe-equipier");
+  await page.getByRole("button", { name: "Créer mon compte" }).click();
+  await expect(page.getByTestId("signup-sent")).toContainText(email);
+
+  // Le lien de vérification ouvre la session et ramène à l'invitation : on rejoint l'équipe.
+  const verification = await lastMail(page, email);
+  expect(verification.subject).toBe("Confirme ton adresse e-mail");
+  await page.goto(verification.path);
+  await page.waitForURL((url) => url.pathname === "/join" && url.search === invitation.path.slice("/join".length));
+  await page.getByTestId("join-accept").click();
+  await expect(page.getByRole("heading", { name: "Aujourd'hui" })).toBeVisible();
+  const members = (await (await page.request.get("/api/team")).json()) as { members: { email: string }[] };
+  expect(members.members.map((m) => m.email)).toContain(email);
+});
+
 test("inscription : compte créé depuis /signup, adresse vérifiée par le lien reçu, stock à soi, connexion par e-mail et mot de passe oublié", async ({ page }) => {
   // Le compte d'installation a déjà du stock : le nouveau compte ne doit pas le voir.
   await login(page);
