@@ -1189,6 +1189,9 @@ test("invitation : sans compte, la connexion propose d'en créer un, et la véri
   const create = page.getByRole("link", { name: "Créer un compte" });
   await expect(create).toHaveAttribute("href", /^\/signup\?invite=1&next=%2Fjoin%3Ftoken%3D/);
   await create.click();
+  // La connexion a aussi un champ « Adresse e-mail » : attendre l'inscription avant de remplir.
+  await page.waitForURL(/\/signup\?invite=1/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Crée ton compte");
   await page.getByLabel("Adresse e-mail").fill(email);
   await page.getByLabel(/^Mot de passe/).fill("mot-de-passe-equipier");
   await page.getByRole("button", { name: "Créer mon compte" }).click();
