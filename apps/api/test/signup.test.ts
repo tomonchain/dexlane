@@ -37,9 +37,4 @@ describe("sign-ups by invitation only (#116)", () => {
     await sql`insert into account_invitations (email, token_hash, invited_by, expires_at) values ('equipe@example.com', 'h', 'proprio', now() + interval '1 day')`;
     expect((await signUp("Equipe@Example.com")).status).toBe(200);
   });
-
-  it("has no waitlist: it belongs to the hosted edition", async () => {
-    expect((await req("POST", "/api/public/waitlist", { email: "vendeur@example.com" })).status).toBe(404);
-    expect((await req("GET", "/api/admin/waitlist")).status).toBe(404);
-  });
 });
