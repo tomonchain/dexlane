@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 import { Loading, Spinner } from "@/components/ui/misc";
 import { api } from "@/lib/api";
+import { EDITION } from "@/config/edition";
 import { SIGNUP_OPEN } from "@/config/site";
 import { authMessage } from "@/lib/auth-messages";
 import { clearCache } from "@/lib/cache";
@@ -38,8 +39,26 @@ function enter() {
   window.location.assign(next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
 }
 
+/**
+ * Le lien vers l'inscription. Arrivé par une invitation (`next=/join…`), on peut toujours créer son compte, pour revenir
+ * ensuite sur l'invitation. Sinon : l'inscription si elle est ouverte, la liste d'attente de l'édition s'il y en a une,
+ * rien quand on n'entre que sur invitation (#116).
+ */
+function signupLinkFor(invitationNext: string | null): { href: string; label: string } | null {
+  if (invitationNext) return { href: `/signup?invite=1&next=${encodeURIComponent(invitationNext)}`, label: t("Créer un compte") };
+  if (SIGNUP_OPEN) return { href: "/signup", label: t("Créer un compte") };
+  if (EDITION.waitlist) return { href: EDITION.waitlist, label: t("Rejoindre la liste d'attente") };
+  return null;
+}
+
 export default function LoginPage() {
   const [mode, setMode] = useState<Mode>("loading");
+  // L'invitation d'où l'on vient, s'il y en a une : lue après le premier rendu (l'adresse n'existe que dans le navigateur).
+  const [invitationNext, setInvitationNext] = useState<string | null>(null);
+  useEffect(() => {
+    const next = new URLSearchParams(window.location.search).get("next");
+    if (next?.startsWith("/join")) setInvitationNext(next);
+  }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [token, setToken] = useState("");
@@ -85,6 +104,7 @@ export default function LoginPage() {
   }
 
   const choosing = mode === "reset";
+  const signupLink = signupLinkFor(invitationNext);
   const ready = email.trim() !== "" && (mode === "login" ? password !== "" : token.trim() !== "" && password !== "" && confirm !== "");
 
   return (
@@ -127,7 +147,7 @@ export default function LoginPage() {
               <div className="grid gap-4 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                   <Link href="/forgot-password" className={LINK}>{t("Mot de passe oublié ?")}</Link>
-                  <Link href="/signup" className={cn(LINK, "font-medium text-foreground")}>{SIGNUP_OPEN ? t("Créer un compte") : t("Rejoindre la liste d'attente")}</Link>
+                  {signupLink && <Link href={signupLink.href} className={cn(LINK, "font-medium text-foreground")}>{signupLink.label}</Link>}
                 </div>
                 <button type="button" onClick={() => switchTo("reset")} className={cn(LINK, "justify-self-start border-t pt-4 text-[13px]")}>
                   {t("Réinitialiser avec le jeton d'installation")}

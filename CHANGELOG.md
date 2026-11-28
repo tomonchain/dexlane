@@ -61,6 +61,9 @@ Retiré), avec le numéro de l'issue qu'il traite.
   avec son évolution sur six mois, plan du site dédié et adresses canoniques (#62).
 
 ### Modifié
+- Inscriptions sur invitation par défaut : une installation sert une boutique ; seules les personnes invitées dans
+  l'équipe créent leur compte, et `/signup` le dit. La liste d'attente et son écran de Réglages quittent ce dépôt pour
+  l'édition hébergée, qui branche ses propres routes par `apps/api/src/edition.ts` (#116).
 - Inscriptions fermées tant que les e-mails et le paiement ne sont pas branchés : `/signup` devient une liste d'attente,
   les boutons du site y mènent, et l'API refuse les nouveaux comptes sauf invitation d'équipe ; `DEXLANE_SIGNUP=open`
   les rouvre. Liste visible des administrateurs dans Réglages (migration 0042) (#103).
@@ -76,6 +79,8 @@ Retiré), avec le numéro de l'issue qu'il traite.
 - Compte : le texte du mot de passe renvoie à « Mot de passe oublié ? » au lieu du jeton d'installation.
 
 ### Corrigé
+- Invitation dans une équipe sans compte : la connexion propose de créer son compte, la vérification de l'adresse ramène
+  à l'invitation, et l'assistant de démarrage ne s'ouvre plus par-dessus (#116).
 - Photos d'une fiche : après une action, les boutons attendent que la fiche soit relue ; un clic ne vise plus une photo
   déjà remplacée (#110).
 - Les liens « Voir les variations » (accueil, alertes de prix) ouvrent bien l'onglet Stock et cotes des statistiques (#83).

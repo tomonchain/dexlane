@@ -2,8 +2,8 @@
 
 import { Archive, Bot, CreditCard, LifeBuoy, Package, PackageOpen, Users, BellDot, BellRing, BookOpen, Boxes, ChevronRight, CircleUserRound, Mail, Megaphone, Printer, ScanLine, Sparkles, Store, Tags, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
+import { AdminRow } from "@/components/admin-row";
 import { ExportStockRow } from "@/components/export-stock";
-import { WaitlistRow } from "@/components/waitlist-admin";
 import Link from "next/link";
 import { Page, PageHeader } from "@/components/ui/misc";
 import { t } from "@/lib/i18n";
@@ -46,7 +46,7 @@ const SECTIONS: { title: string; items: { href: string; label: string; hint: str
       { href: "/settings/team", label: "Équipe", hint: "Inviter les personnes qui travaillent avec toi", icon: Users },
       { href: "/settings/support", label: "Support", hint: "Une question, un bug, une idée : écrire au support", icon: LifeBuoy },
     ],
-    extra: <WaitlistRow />,
+    extra: <AdminRow />,
   },
   {
     title: "Application",

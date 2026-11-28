@@ -10,7 +10,7 @@ export interface PageSeo {
 export const AUTH_SEO = {
   signup: SIGNUP_OPEN
     ? { title: "Crée ton compte — Dexlane", description: EDITION.signupLead }
-    : { title: "Liste d'attente — Dexlane", description: "Dexlane ouvre bientôt : laisse ton adresse, on te prévient dès que tu peux créer ton compte." },
+    : { title: "Inscription sur invitation — Dexlane", description: "On entre dans une boutique Dexlane sur invitation de son équipe." },
   forgotPassword: { title: "Mot de passe oublié — Dexlane", description: "Reçois par e-mail un lien pour choisir un nouveau mot de passe Dexlane." },
 } satisfies Record<string, PageSeo>;
 
@@ -35,16 +35,11 @@ export const AUTH = {
     resend: "Renvoyer l'e-mail",
     resent: "Si l'adresse est correcte, un nouvel e-mail vient de partir.",
   },
-  waitlist: {
-    title: "Rejoins la liste d'attente",
-    lead: "Dexlane ouvre bientôt ses inscriptions. Laisse ton adresse : on te prévient dès que tu peux créer ton compte.",
-    volume: "Combien de cartes vends-tu par mois ?",
-    volumes: [["", "Je ne sais pas encore"], ["lt50", "Moins de 50"], ["50-200", "50 à 200"], ["200-1000", "200 à 1 000"], ["gt1000", "Plus de 1 000"]] as [string, string][],
-    submit: "Rejoindre la liste d'attente",
-    privacy: ["Ton adresse sert seulement à te prévenir de l'ouverture.", "Confidentialité"],
+  invite: {
+    title: "Inscription sur invitation",
+    lead: "On entre dans une boutique Dexlane parce que son équipe nous y invite.",
+    text: "Demande à l'administrateur de la boutique de t'inviter depuis Réglages › Équipe. Le lien que tu recevras par e-mail ouvre ton compte.",
     haveAccount: "Déjà un compte ?",
-    doneTitle: "C'est noté",
-    doneText: "On écrira à {email} dès l'ouverture des inscriptions. Rien d'autre.",
   },
   verify: {
     title: "On ouvre ton compte",
@@ -72,7 +67,7 @@ export const AUTH = {
     LINK_EXPIRED: "Ce lien est invalide, expiré ou déjà utilisé.",
     TOO_MANY_ATTEMPTS: "Trop d'essais. Réessaie dans une minute.",
     EMAIL_NOT_CONFIGURED: "L'envoi d'e-mails n'est pas encore configuré sur ce serveur.",
-    SIGNUP_CLOSED: "Les inscriptions ne sont pas encore ouvertes : rejoins la liste d'attente.",
+    SIGNUP_CLOSED: "Les inscriptions se font sur invitation : demande à l'équipe de la boutique de t'inviter.",
     API_UNREACHABLE: "Le serveur ne répond pas. Réessaie dans un instant.",
     DEFAULT: "Quelque chose n'a pas fonctionné. Réessaie dans un instant.",
   },
