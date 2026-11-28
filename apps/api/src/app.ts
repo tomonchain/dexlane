@@ -151,8 +151,8 @@ export function createApp(deps: AppDeps) {
     }
     // Connexion, inscription, vérification de l'adresse, mot de passe, administration : les routes de BetterAuth.
     if (c.req.path.startsWith("/api/auth/")) {
-      // Inscriptions sur invitation : pas de nouveau compte, sauf pour une adresse invitée dans une équipe.
-      if (c.req.method === "POST" && c.req.path === "/api/auth/sign-up/email") await guardSignup(root, signupMode, c.req.raw);
+      // Inscriptions sur invitation : pas de nouveau compte, sauf pour une adresse invitée (équipe, ou édition).
+      if (c.req.method === "POST" && c.req.path === "/api/auth/sign-up/email") await guardSignup(root, signupMode, c.req.raw, (email) => apiEdition.allowSignup(root, email));
       return auth().handler(c.req.raw);
     }
 

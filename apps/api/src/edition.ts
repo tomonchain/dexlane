@@ -30,9 +30,15 @@ export interface ApiEdition {
   routes(app: Hono<Env>, ctx: EditionContext): void;
   /** Chemins de ces routes qui travaillent hors de tout compte (comme `/api/public/…`, déjà hors compte). */
   unscoped(path: string): boolean;
+  /**
+   * Inscriptions sur invitation : l'édition laisse-t-elle s'inscrire cette adresse (une invitation qu'elle a envoyée) ?
+   * Une adresse invitée dans une équipe peut toujours s'inscrire.
+   */
+  allowSignup(root: Db, email: string): Promise<boolean>;
 }
 
 export const apiEdition: ApiEdition = {
   routes: () => undefined,
   unscoped: () => false,
+  allowSignup: async () => false,
 };

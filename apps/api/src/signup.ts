@@ -22,13 +22,14 @@ export async function hasPendingInvitation(root: Db, email: string): Promise<boo
 
 /**
  * Inscriptions sur invitation : la création d'un compte (route d'inscription de BetterAuth) est refusée, sauf pour une
- * adresse invitée dans une équipe.
+ * adresse invitée dans une équipe, ou que l'édition autorise (`allowed`).
  */
-export async function guardSignup(root: Db, mode: SignupMode, request: Request): Promise<void> {
+export async function guardSignup(root: Db, mode: SignupMode, request: Request, allowed?: (email: string) => Promise<boolean>): Promise<void> {
   if (mode === "open") return;
   const body = (await request.clone().json().catch(() => ({}))) as { email?: unknown };
   const email = typeof body.email === "string" ? body.email.trim() : "";
   if (email && (await hasPendingInvitation(root, email))) return;
+  if (email && allowed && (await allowed(email))) return;
   throw new HttpError(403, "SIGNUP_CLOSED", "sign-ups are by invitation only");
 }
 
